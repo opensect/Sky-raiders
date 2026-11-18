@@ -21,7 +21,7 @@ signal vector_changed(vector: Vector2)
 @export var joystick_radius: float = 60.0
 @export var knob_radius: float = 34.0
 @export var max_movement_speed: float = 330.0
-@export var dead_zone: float = 0.12
+@export var dead_zone: float = 0.20 # GAP-09: THE single dead zone (was 0.12 here + 0.25 in game.gd + 0.25 in player.gd)
 @export var horizontal_sensitivity: float = 1.0
 @export var vertical_sensitivity: float = 1.0
 @export var joystick_opacity: float = 0.85

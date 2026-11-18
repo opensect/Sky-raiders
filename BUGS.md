@@ -1273,3 +1273,341 @@ The joystick and fire tests were re-run twice more after these fixes:
 - No game code touched by this curation (read-only on .gd/.tscn/.cfg);
   no asset files copied into the project yet — Phase 5/6 builders
   import the 54 selected files per SKY_BRAWL_USE.md.
+
+---
+
+## Phase 3B — Physics audit + rebuild (2026-11-19, per PHYSICS_SPEC.md points 1–28 + PHYSICS_AUDIT.md GAP-01–GAP-75)
+
+Version NOT bumped (still 2.5 / code 7). No music wiring, no maps touched.
+`export_presets.cfg` still excludes `gen_assets_v3/*`. V3_PLAN.md untouched
+(coordinator-owned). Git baseline: commit `5fe7e0e` (v2.5 on Godot 4.7.2,
+before this phase). New file: `physics_config.gd` (`PhysicsConfig` — the
+single source of truth for tuning values, with adopt/keep/decide verdicts
+as comments). All runs below on Godot 4.7.2, headless Xvfb,
+`--auto-host`, zero script errors in every run.
+
+### QA-031 — Jetpack re-engaging mid-jump chops the jump (real bug, found by the physics harness)
+- Symptom: hold-jump apex measured 105 px instead of ~155 px (P07a).
+- Root cause: Phase 3B gave fuel air-regen (GAP-05). Fuel regenerated
+  mid-rise, the jetpack branch engaged, and its −450 rise cap clamped the
+  −660 jump velocity down to −450. (In v2.5 fuel only refilled on the
+  floor, so this could not happen.)
+- Fix (`player.gd`): thrust applies only while `velocity.y > -MAX_JET_RISE`
+  — the jetpack sustains a climb, it never chops jump momentum and never
+  pushes rise speed past its cap; fuel drains only while actually
+  thrusting. Hold apex is now 156 px (P07a PASS), tap apex 54 px (P07b).
+- The harness isolates the pure jump by setting fuel 0 + a 999 s regen
+  delay during P07a/P07b (holding stick-up otherwise jets to ~300 px).
+
+### QA-032 — Decor insets floated low cover off the floor; the capsule rode over crates (real bug, GAP-14 regression vs v2.5)
+- Symptom: collision test WALK-BLOCKED failed — the player walked through
+  the Catacombs crate (x 919 → 1209, unimpeded).
+- Root cause: GAP-14 shrank decor collision rects uniformly (sides + top
+  + bottom). The crate rect (985, 1316, 30, 30) floated 6 px above the
+  floor; the capsule's rounded bottom caught the floating bottom edge and
+  rode up over the 30 px crate. In v2.5 the rect reached the floor.
+- Fix (`game.gd` `_build_arena`): insets apply to the sides and top only;
+  the rect bottom sits on the ground point (box height `h - inset`,
+  centre shifted down `inset/2`). Barrel registry rect updated to match
+  the shape position. The collision-test helper `_ct_solid_rects` mirrors
+  the same rect (it previously expected the full-texture face).
+- Verified: collision test 8/8 on all 10 maps; bullet ray stops at the
+  inset face x=985 (6 px inside the sprite's transparent edge — the
+  visible edge, as the audit allows).
+
+### QA-033 — Stuck-recovery teleported a player who was only pushing against a wall (real bug, GAP-72)
+- Symptom: collision test WALK-BLOCKED — the player pushed against the
+  crate, then appeared at x=593 (spawn 600,1320).
+- Root cause: `move_and_slide` leaves ~1 px of solver penetration when a
+  player pushes flush against a wall; `_check_stuck` used a full-size
+  capsule shape query, so the 1 px penetration counted as "inside solid
+  geometry" and fired the recovery.
+- Fix (`player.gd`): the query capsule is 3 px smaller than the real one
+  (radius 14, height 46). A flush push no longer triggers; a real embed
+  (10+ px deep) still does. P24 still passes (stuck player moved to a
+  valid spawn).
+
+### QA-034 — Bounce pad sits in front of the Catacombs crate; the walk test teleported onto it (test-only)
+- Symptom: WALK-BLOCKED trace showed the player launched at vy=−750 one
+  physics step after the walk setup, flying over the crate.
+- Root cause: Catacombs is 3200 px wide, so the pads are at x=960 and
+  2240 — the pad at 960 (span 915–1005) sits directly in front of the
+  crate (985–1015), and the walk setup teleported the player to x=925,
+  onto the pad. The pad launch is correct game behaviour.
+- Fix (test only): the walk test approaches the cover from the side whose
+  path does not cross a pad rect (walks left into the crate's right face
+  on Catacombs). No game code changed.
+
+### QA-035 — Fire test expected 6 shotgun pellets after the spec change to 7 (test-only)
+- The game correctly fires 7 pellets (GAP-20, spec §9 wins over §20's 6).
+  The fire test step `MP-SHOTGUN-SIX-PELLETS` still expected 6. Renamed to
+  `MP-SHOTGUN-SEVEN-PELLETS`, expects 7. Fire test back to 25/25.
+
+### Gaps fixed (by GAP number)
+- GAP-01 ground/air split: SPEED_GROUND 350 / SPEED_AIR 360,
+  ACCEL_GROUND 2600 / ACCEL_AIR 1500, DRAG_GROUND 8.0 / DRAG_AIR 1.2,
+  reversal bonus 1.6× ground / 1.2× air; no-input decel is exponential
+  drag only (the earlier linear DECEL in the no-input branch double-damped
+  the air slide and was removed; DECEL consts kept as tuning reference).
+- GAP-02 air drag `exp(-k·dt)` (see GAP-01). GAP-03 covered by the same
+  change. GAP-04 variable jump height (`velocity.y *= 0.45` on stick-up
+  release while rising, armed at jump, cleared on landing/jetpack).
+- GAP-05 fuel regen delay 0.6 s; regen on ground 70/s and air 35/s.
+- GAP-06 jetpack flame: new `_flame` Polygon2D at (0,18), driven by real
+  `_jetpacking` + fuel>0, scale by thrust fraction, blinks at fuel < 25.
+- GAP-07/GAP-08 aim: dead zone 0.20 applied ONCE in `joystick.gd` (the
+  0.25 thresholds in `game.gd` and `player.gd` removed); aim no longer
+  snaps to facing on aim-stick release.
+- GAP-09 dead zone single source of truth (joystick.gd, 0.20).
+- GAP-10 rocket gravity arc: speed 700 → 450, gravity 500, life 2.5 s,
+  rate 1.0 s ("heavy" rocket).
+- GAP-11 grenade bounce uses pre-slide velocity (restitution 0.45, drag
+  0.15, terminal velocity 950, resting state, rolling friction
+  `exp(-4·dt)`).
+- GAP-12 explosion LOS: `has_line_of_sight()` raycast (mask 1) per victim
+  in `request_explosion`; blocked victims take no damage and no knockback.
+- GAP-13 bridges/arches get a thin 24 px top plank.
+- GAP-14 decor per-kind insets (sides/top only after QA-032).
+- GAP-15 (per-projectile state): bullet velocity Vector2, per-projectile
+  `grav`/`drag`/`range_px`/`radius`, `_travelled`; expiry on life OR range.
+- GAP-16 100 ms interpolation buffer for remote players (12 snapshots,
+  render at now − 100 ms, extrapolate at most one physics step);
+  snapshots 20 → 30/s (GAP-60); `life_state` added to sync properties.
+- GAP-17 (knockback on victim peer, host never reconciles): covered by
+  GAP-16 — victim knockback is applied via `take_hit` on the victim peer.
+- GAP-18 input latency: measured first — fire-test tap steps pass
+  (1 tap = 1 shot, none lost/doubled); `_update_touch_state` left in
+  `_process` (no tap loss observed).
+- GAP-19 (bullet pool budget): pool 96 → 160 (GAP-67).
+- GAP-20 shotgun 7 pellets, fixed spread table [-15,-10,-5,0,5,10,15]°.
+- GAP-21 bullet layer 8 → 4 (spec §24.D); raycast is the real collision.
+- GAP-22 explosion falloff smooth `D = Dmax·(1−u²)²`; GAP-23 knockback
+  `J = 550·(1−u)²`, `ΔV = J/m`, vertical multiplier 0.4.
+- GAP-24 explosion FX: white flash (0.08 s), expanding shockwave ring,
+  8 debris particles.
+- GAP-25/26/27/28 (grenade drag/rest/terminal velocity): see GAP-11.
+- GAP-29–GAP-31 (moving platforms / terrain materials): see deferred.
+- GAP-32 grenade drag 0.15 (see GAP-11). GAP-33 grenade resting state.
+- GAP-34 player collision: `PLAYER_COLLISION_ENABLED = false`
+  (pass-through preserved, spec's recommended default),
+  `PLAYER_DAMAGE_COLLISION = true`, `PLAYER_EXPLOSION_COLLISION = true`.
+- GAP-35 pickup sine float + rotation sway `0.12·sin(_bob_t·1.5)`.
+- GAP-36 weapon drop: NOT built (out of scope, see deferred).
+- GAP-37 pickup respawn: 3 spawned at match start from distinct spots,
+  per-spot 14 s respawn timers, `despawn()` restarts its spot's timer,
+  `spawn_pickup_remote` takes `spot_idx`.
+- GAP-38 burst mode: NOT built (out of scope).
+- GAP-39 time-based firing `T = 60/RPM` (already the design; verified by
+  fire-test hold counts). GAP-40 reload state machine (READY/FIRING one
+  frame/RELOADING). GAP-41 magazine vs reserve ammo (pistol −1 infinite;
+  rifle 90, SMG 96, shotgun 18, sniper 10, rocket 8).
+- GAP-42 damage multipliers: `calculate_damage()` (base × region ×
+  distance × weapon × armor; head 1.5 / torso 1.0 / legs 0.75; arms
+  folded into torso — documented deviation); distance falloff 1.0 inside
+  400 px → 0.7 at max range; `hit_region()` from hit height (head
+  rel_y < −14, legs > 12).
+- GAP-43 unique damage event IDs (`next_damage_event_id()`, dedupe last
+  64 ids in `take_hit`).
+- GAP-44 death FSM: ALIVE → DYING (0.4 s) → DEAD → RESPAWNING → ALIVE;
+  `take_damage` guards on `life_state == ALIVE`.
+- GAP-45 validated respawn: `get_valid_spawn_point()` / `is_spawn_valid()`
+  (bounds, capsule shape query mask 1, >150 px from live enemies;
+  `Vector2.INF` if none valid; `_respawn()` retries in 0.5 s).
+- GAP-46 per-weapon victim knockback (pistol 40, rifle 60, SMG 40,
+  shotgun 180, sniper 220, rocket 400).
+- GAP-47 invulnerability duration: defined by the existing spawn
+  protection (QA-002, unchanged); visuals never apply damage (damage only
+  via `take_hit`/`take_damage` RPC paths).
+- GAP-48/49/50 hazards: lava tick 1.0 s × 20 HP → 0.5 s × 10 HP (same
+  20 HP/s).
+- GAP-51 ice zone: Frozen Fortress only (floor zone x 300–2500, y > 1392),
+  friction 100, accel 500, max speed 350, air control 0.65; ice sheen
+  visual added.
+- GAP-52 camera dead zone (120×80 px anchor) + GAP-53 look-ahead (up to
+  80 px); smoothing 8.0; hard map limits unchanged (already conforming).
+- GAP-54 victim shake on damage 0.25 / explosion 0.5.
+- GAP-55 velocity inheritance 0.15 (baked into the bullet velocity vector).
+- GAP-56 prototype comparison recorded: adopted rifle rate 0.125, max
+  fall 1000; kept jump −660, pistol 0.22 s; rocket 700 NOT kept — 450 +
+  gravity 500 instead (GAP-10, "heavy" rocket decision).
+- GAP-57/58 (firing while moving / sync): see GAP-55 / GAP-16.
+- GAP-59 disconnect/reconnect: unchanged behaviour (host leaving ends the
+  match with a message; reconnect IP prefilled) — user two-phone check
+  still owed (T-74).
+- GAP-61 version handshake: `request_spawn` takes optional `version`;
+  mismatched build refused + `version_mismatch_remote` readable error;
+  `_announce_ready` sends `GameData.BUILD_VERSION` ("3.0-dev", GAP-61).
+- GAP-62 moving platforms: NOT built (out of scope).
+- GAP-63 (host validation): shooting_sync validation unchanged and
+  re-verified by code path (T-64).
+- GAP-64 explosive barrels: `barrels` decor registered (100 HP, blast
+  radius 170, damage 70), host-authorised `try_barrel_hit()`,
+  `barrel_destroyed_remote` RPC, blast chaining in `request_explosion`.
+- GAP-65 (barrel LOS/falloff): barrels use the same `request_explosion`
+  LOS + smooth falloff as grenades.
+- GAP-66 bounce pads: two per map on the floor (0.3× / 0.7× map width),
+  Area2D layer 8/mask 2, `velocity.y = -750`, 0.3 s per-player cooldown.
+- GAP-67 bullet pool 160 (see GAP-19). GAP-68 (pool overflow): pool
+  drains to 0 within 2 s of stopping (perf test); no overflow observed.
+- GAP-69 physics/rendering separation: `_update_visuals()` moved from
+  `_physics_process` to `_process`; camera update in `_process`.
+- GAP-70 `physics_config.gd` extracted (full component split out of scope).
+- GAP-71 layer scheme: `project.godot` `[layer_names]` (1 world, 2 player,
+  3 enemy, 4 projectile, 5 destructible, 6 hazard, 7 pickup, 8 trigger);
+  bullet.tscn layer 8 → 4, pickup.tscn layer 16 → 7.
+- GAP-72 stuck recovery: 1 s shape-query check, teleports to nearest
+  valid spawn only when actually overlapping solid geometry (QA-033 fix
+  for the 1 px false positive).
+- GAP-73 perf soak: `--perf-test` 60 s soak (see results below).
+- GAP-74 (two-phone checks): user-owed, see T-31/32/63/74.
+- GAP-75 git: `git init`, `.gitignore` (`.godot/`, `*.apk`, `*.apk.idsig`,
+  `*.import`), baseline commit `5fe7e0e`.
+
+### Gaps deferred / out of scope (audit verdicts, not built)
+- Moving platforms, full destructibles, ropes, water/mud/wind,
+  flamethrower, lag compensation, host migration, one-way platforms,
+  weapon drop, burst-unless-added, full prediction/reconciliation, full
+  component split — all out of scope per the audit (reasons in
+  PHYSICS_AUDIT.md); do not build in later phases without a new decision.
+- Arms hit region 0.85×: folded into torso (single-body hitbox kept per
+  the audit's "headshots optional, do not over-complicate" verdict).
+- Peer-authoritative movement kept as the documented LAN design decision
+  (host-authoritative combat/shooting/health/deaths/kills/pickups
+  unchanged).
+- TileMapLayer: maps are built in code with Rect2 platforms, NOT
+  TileMapLayer — deliberate, does not matter.
+- Fast-fall (stick down, 1300 px/s) does not exist as a feature; terminal
+  velocity is a flat 1000 cap (T-07).
+
+### Decisions recorded for the next phase
+- Rocket: 450 px/s + gravity 500 (arcing, "heavy"), NOT 700 straight.
+- Shotgun: 7 pellets (spec §9), fixed spread table.
+- Pistol reserve infinite (−1); other reserves rifle 90 / SMG 96 /
+  shotgun 18 / sniper 10 / rocket 8.
+- Lava: 0.5 s × 10 HP ticks (same 20 HP/s as before).
+- Jetpack: sustains a climb, never chops jump momentum (QA-031).
+- Decor collision: insets on sides/top only, bottom on the ground (QA-032).
+- Known edge case (pre-existing, v2.4): simultaneous lethal hits from two
+  shooters could double-credit a kill (T-56 partial).
+
+### Physics harness results (`--physics-test`, 31 steps P00–P24)
+- Map 0 (Catacombs): **31/31 PASS**. Hold apex 156 px / tap 54 px;
+  ground time-to-300 0.20 s / air 0.29 s; half-stick 131 px/s; ground stop
+  52 px / vel 8; air slide 180 px in 1 s / vel 94; max fall 1000; fuel 0.0
+  at 0.3 s / 63.0 at 1.5 s; aim hold −0.79 rad (no snap); dead zone zero;
+  shotgun table 7 / 0.125 / 450 / 500; damage head 18 / torso 12 / legs 9;
+  explosion 55 / 31 / 0; respawn validation false/true; grenade
+  bounced+resting; inheritance 1149.5; recoil 0.23 → decay 0.000; camera
+  smoothing 8.0 / look-ahead 73; pool 160/0; version refusal; barrel
+  hit+destroy; bounce pad vel −657…−680; stuck recovery to a valid spawn.
+- Map 4 (Frozen Fortress): **22/22 PASS** (9 steps skipped as not
+  applicable — placements tuned for Catacombs; no barrels on that map).
+  Live ice: run vel 270 px/s, slide 282 px in 1.5 s vs 46 px ground stop
+  (6.1× the 3× requirement), vel still 80 after 1.5 s.
+- Note: physics ticks lag real time under Xvfb, so time-based checks use
+  widened ranges; the harness records the raw numbers in its output.
+
+### Audit tests T-01–T-75 — result per test
+- PASS headless (harness evidence): T-02 (P01/P02), T-03 (P03), T-04
+  (P04b), T-05/T-06 (P05b vs P04b, 3.5×), T-07 (P06, flat 1000 cap),
+  T-08 (P07a/P07b, hold 156 / tap 54), T-13 (P08/P08b), T-17/T-18
+  (P09a/P09b), T-19 (P10), T-24 (P15), T-25 (P11, arcing rocket),
+  T-26 (collision 8/8 × 10 maps), T-40 (P11 + fire-test 7 pellets),
+  T-42 (P13), T-44 (P15), T-49 (fire-test hold 18 shots/2.5 s),
+  T-50 (fire-test reload steps), T-51 (P12), T-53 (P17/P17b), T-58
+  (P18a/P18b on map 4), T-60 (P16, 1149.5), T-61 (P11 + fire-test
+  hold/tap/pellets), T-68 (constants spot-checked), T-71 (collision
+  8/8 × 10 maps after renumber), T-72 (P24).
+- PASS by code path (no headless run of the exact procedure; code read
+  and the mechanism verified): T-01 (reversal bonus 1.6×/1.2×; no
+  single-frame sign flip by construction — accel is applied per-frame),
+  T-09 (coyote 0.10 s + buffer 0.12 s preserved from v2.5),
+  T-10 (landing via move_and_slide + floor snap 4.0; hard-landing dust
+  puff in code for vy > 550), T-11 (thrust only while vy > −450, cap
+  enforced), T-12 (drain 45/s → 2.2 s to empty; thrust blocked at 0
+  fuel), T-14 (velocity NOT zeroed on stick-up release), T-15 (flame
+  driven by real thrust state; visual check needs a real screen),
+  T-16 (air accel 1500 applies while jetpacking), T-20 (swept raycast
+  in bullet.gd + collision-test ray evidence; the 20-shot sniper run
+  was not done headless), T-21 (recoil table + gun kick/shake preserved;
+  accumulation measured in P17), T-22 (knockback formula ΔV=J/m in
+  take_explosion_damage; falloff measured in P13), T-23/T-43 (LOS check
+  in request_explosion; same raycast the collision test proves stops
+  at cover), T-27 (bridge/arch 24 px planks in _build_arena; walk
+  over/under not run headless), T-28 (mask 1 excludes layer 2),
+  T-29 (move_and_slide + StaticBody2D platforms; 10/10 drops not run),
+  T-30 (host-only damage in bullet.gd/shooting_sync.gd, re-read after
+  the rebuild), T-41 (swept raycast; thin-plank stop not run as a
+  dedicated step), T-45 (grenade fuse 2.0 s in code; P15 proves no
+  early explosion; exact 2.0 s timing not timed), T-46 (sine bob +
+  rotation sway in pickup.gd; visual bob needs a real screen),
+  T-47 (per-spot 14 s respawn timers in code; timing not run),
+  T-55 (death FSM in code + P14 validator; live kill→respawn watch
+  not run headless), T-57 (lava 0.5 s × 10 HP ticks in code; no kill
+  credit per the audit's conforming note), T-62 items (1) muzzle at
+  gun-texture end (~48 px from centre, outside the 17 px capsule) and
+  (2) no self-hit (shooter excluded) — code path; (3)(4)(5)(6)
+  evidenced by P09/fire-test/perf-test (see T-62 below), T-64 forged
+  RPC rejection (sender/rate/ammo validation in shooting_sync.gd;
+  version refusal measured in P21), T-65 barrel LOS/falloff (same
+  request_explosion path as P13; barrel hit/destroy measured in P22),
+  T-66 single-trigger (0.3 s per-player cooldown in code; launch
+  measured in P23), T-69 (input → movement → projectiles → damage
+  order in _physics_process; visuals in _process; no visual code
+  writes position/velocity — grepped), T-70 (visuals in _process,
+  simulation in _physics_process, remote interpolation in _process).
+- PARTIAL (part evidenced, part not): T-33 (tap = 1 shot, no loss/
+  doubling in the fire test; the 10-rapid-tap run itself not done),
+  T-56 (event-ID dedupe implemented; the simultaneous-lethal-hits
+  double-credit edge remains a documented known issue), T-59
+  (smoothing 8.0 / look-ahead 73–80 measured in P19; dead zone, hard
+  limits and victim shake are code-path), T-62 (items 3–6 evidenced,
+  items 1–2 code-path), T-73 (60 s soak green, mem +350 KB; the audit
+  wants a 10-minute soak with 8 simulated players — the harness runs
+  60 s with 1 local player full-auto + grenades; FPS not measurable
+  headless), T-75 (gate ticked except the two-phone LAN check).
+- N/A with reason: T-48 (weapon drop — out of scope), T-54 (burst
+  mode — no burst weapon added), T-67 (moving platforms — out of
+  scope).
+- USER-TO-TEST (two real phones, sandbox blocks UDP): T-31 (remote
+  smoothing, 100 ms buffer + 30/s snapshots implemented), T-32
+  (knockback sync), T-63 (interpolation buffer behaviour),
+  T-74 (LAN disconnect/reconnect). T-52: default non-blocking mode
+  verified by code; there is no blocking mode to test (pass-through
+  is the only mode, the spec's recommended default).
+
+### Regression results (Phase 3B final run, 2026-11-19)
+- Joystick `--joy-test`: 21/21. Fire-button `--fire-test`: 25/25.
+- Smoke `--smoke-test`: 19 phases, no script errors (fuel 100.0,
+  shots 23, bullets 160, local alive).
+- Collision `--collision-test`: 8/8 on ALL 10 maps (Catacombs,
+  Military Base, Desert Outpost, Industrial Factory, Frozen Fortress,
+  Jungle Ruins, Space Station, City Underground, Volcanic Cavern,
+  Pirate Island).
+- Multiplayer `--net-test`: 11/11. Menu network `--menu-net-test`: 6/6.
+- Full flow `--flow-test`: menu → create room → lobby → start match →
+  play → pause → scoreboard → end screen → back.
+- Scale `--scale-test`: 70/70.
+- Perf `--perf-test`: 60 s soak, memory growth 349,912 bytes (limit
+  50 MB), active bullets drain to 0 within 2 s of stopping.
+- 0 script errors in every run above.
+
+### Notes for the next phase (features/UI/music/maps)
+- The physics harness lives in `game.gd` (`--physics-test`, 31 steps;
+  add `--map=4` for the live ice run). Steps P01/P02/P04/P05/P07/P14/
+  P22 are skipped on map 4 (Catacombs placements); P18b is skipped on
+  map 0.
+- Bounce pads sit at 0.3× / 0.7× map width on the floor — on Catacombs
+  the 0.3× pad (x=960) is directly in front of the crate (x=1000).
+  Any test or map work that walks the floor near a pad must account
+  for the launch (see QA-034).
+- Decor collision rects now reach the floor (QA-032) — if a future map
+  pass re-insets decor, keep the bottom on the ground or low cover
+  becomes walk-overable.
+- The stuck-recovery query capsule is deliberately 3 px smaller than
+  the real capsule (QA-033) — do not "fix" it back to full size.
+- The jetpack must never clamp a faster jump rise (QA-031) — thrust
+  only while `velocity.y > -MAX_JET_RISE`.
+- Version is still 2.5 / code 7 — the final phase bumps it. Do not
+  remove the `gen_assets_v3/*` export exclusion. Do not generate
+  Gemini assets until the user says so ("Not now wait").

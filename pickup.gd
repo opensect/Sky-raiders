@@ -6,6 +6,7 @@ extends Area2D
 # kind: 1 = SMG, 2 = Shotgun, 3 = Sniper, 4 = Rocket Launcher,
 #       5 = Health (+50), 6 = Grenades (+2)
 var kind: int = 1
+var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 
 var _life: float = 20.0
 var _bob_t: float = 0.0
@@ -23,7 +24,7 @@ const KIND_COLOR := {
 
 
 func _ready() -> void:
-	collision_layer = 16
+	collision_layer = 7 # pickup (spec §24.D, GAP-71; was 16)
 	collision_mask = 2
 	monitoring = true
 	monitorable = false
@@ -52,6 +53,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_bob_t += delta
 	position.y = _base_y + sin(_bob_t * 3.0) * 6.0
+	# Gentle sway (GAP-35, spec §15): rotation, not a full spin —
+	# a full spin would make the label unreadable.
+	rotation = 0.12 * sin(_bob_t * 1.5)
 	if multiplayer.is_server():
 		_life -= delta
 		if _life <= 0.0:
@@ -73,4 +77,10 @@ func _on_body_entered(body: Node2D) -> void:
 
 @rpc("any_peer", "call_local")
 func despawn() -> void:
+	# Tell the host the spot is free so its per-spot timer restarts
+	# (GAP-37). Only the server tracks respawn timers.
+	if multiplayer.is_server() and spot_index >= 0:
+		var game = get_tree().get_first_node_in_group("game")
+		if game != null:
+			game.on_pickup_gone(spot_index)
 	queue_free()

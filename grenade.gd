@@ -7,6 +7,10 @@ const GRAVITY := 1400.0
 const FUSE := 2.0
 const BLAST_RADIUS := 170.0
 const BLAST_DAMAGE := 55
+const MAX_FALL := 950.0 # terminal velocity (GAP-27)
+const DRAG := 0.15 # air drag (GAP-32, spec §13: Fd = -k*v)
+const RESTITUTION := 0.45 # bounce: v_n' = -e*v_n (spec §13)
+const REST_SPEED := 40.0 # below this, the grenade rests (GAP-33)
 
 var throw_dir: Vector2 = Vector2.RIGHT
 var owner_id: int = 0
@@ -14,6 +18,8 @@ var owner_id: int = 0
 var _fuse: float = FUSE
 var _visual: Polygon2D
 var _blink_t: float = 0.0
+var _resting: bool = false
+var bounced: bool = false # set on the first real bounce (physics-test reads this)
 
 
 func _ready() -> void:
@@ -41,13 +47,37 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Bounce uses the PRE-slide velocity (GAP-11): move_and_slide()
+	# zeroes vy on floor contact before the bounce runs, so the old
+	# code read vy ~= 0 and the grenade never bounced.
+	var vy_before := velocity.y
+	var vx_before := velocity.x
 	velocity.y += GRAVITY * delta
+	velocity *= exp(-DRAG * delta) # air drag (GAP-32)
+	if velocity.y > MAX_FALL:
+		velocity.y = MAX_FALL
 	move_and_slide()
-	if is_on_floor():
-		velocity.y = -velocity.y * 0.45
-		velocity.x *= 0.7
-	if is_on_wall():
-		velocity.x = -velocity.x * 0.5
+	if _resting:
+		velocity = Vector2.ZERO
+	elif is_on_floor():
+		if vy_before > 120.0:
+			velocity.y = -vy_before * RESTITUTION
+			bounced = true
+			velocity.x *= 0.8
+			if velocity.length() < REST_SPEED:
+				_resting = true
+				velocity = Vector2.ZERO
+		else:
+			# Rolling friction, frame-rate independent (was vx *= 0.7
+			# EVERY frame, which stopped a rolling grenade in ~0.1 s).
+			velocity.x *= exp(-4.0 * delta)
+			if velocity.length() < REST_SPEED:
+				_resting = true
+				velocity = Vector2.ZERO
+	elif is_on_wall():
+		# Wall bounce only when the pre-slide vx was toward the wall.
+		if signf(vx_before) != signf(velocity.x) or absf(velocity.x) < absf(vx_before) * 0.5:
+			velocity.x = -vx_before * 0.5
 	_fuse -= delta
 	_blink_t += delta
 	_visual.color = Color(1.0, 0.25, 0.2) if int(_blink_t * 8.0) % 2 == 0 else Color(0.2, 0.6, 0.25)

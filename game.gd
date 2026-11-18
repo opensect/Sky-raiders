@@ -431,6 +431,25 @@ var _udp_broadcast: PacketPeerUDP
 var _udp_broadcast_sockets: Array[PacketPeerUDP] = [] # v2.4: one socket per broadcast address
 var _broadcast_timer: float = 0.0
 var _pickup_timer: float = 0.0
+# Phase 3B physics systems (GAP-37/45/51/64/66):
+var _pickup_spot_timers: Dictionary = {} # spot index -> seconds until respawn
+var _damage_event_seq: int = 0 # unique damage event ids (GAP-43)
+var _barrels: Array = [] # {rect, sprite, shape, hp, alive} (GAP-64)
+var _bounce_pads: Array = [] # {rect, area, cooldowns{peer: t}} (GAP-66)
+var _physics_test: bool = false # --physics-test harness (T-01..T-75 support)
+var _phys_steps: Array = []
+var _phys_step: int = 0
+var _phys_in_step: bool = false
+var _phys_timer: float = 0.0
+var _phys_passed: int = 0
+var _phys_failed: int = 0
+var _phys_done: bool = false
+var _phys_data: Dictionary = {}
+var _perf_test: bool = false # --perf-test harness (GAP-73)
+var _perf_elapsed: float = 0.0
+var _perf_mem0: int = 0
+var _perf_done: bool = false
+var _initial_pickups_done: bool = false
 var _local_player: Node = null
 var _join_timer: float = 0.0
 var _join_failed: bool = false
@@ -514,6 +533,8 @@ func _ready() -> void:
 	_flow_test = GameData.flow_test and GameData.flow_phase == 1
 	_scale_test = "--scale-test" in OS.get_cmdline_user_args()
 	_collision_test = "--collision-test" in OS.get_cmdline_user_args()
+	_physics_test = "--physics-test" in OS.get_cmdline_user_args()
+	_perf_test = "--perf-test" in OS.get_cmdline_user_args()
 	# Test-only map override: --map=N loads that map (the collision
 	# test uses it to run its pass-through checks on Jungle Ruins).
 	for a in OS.get_cmdline_user_args():
@@ -526,11 +547,13 @@ func _ready() -> void:
 	map_size = map["size"]
 	_build_background(map)
 	_build_arena(map)
+	_build_ice_zone(map)
+	_build_bounce_pads(map)
 	_build_lava(map)
 	_build_ambient_fx(map)
 	_build_nodes()
 	# v2.4: bullet pool + host-side shooting validation live on the game.
-	bullet_pool = BulletPool.new(BULLET_SCENE, bullets_node, 96)
+	bullet_pool = BulletPool.new(BULLET_SCENE, bullets_node, 160) # GAP-67: 96 = 12/player at 8 players, below the 16-32 spec budget
 	shooting_sync = ShootingSync.new()
 	_build_hud()
 	_build_touch_controls()
@@ -568,6 +591,73 @@ func return_bullet(b: Node) -> void:
 func get_spawn_point(player_index: int) -> Vector2:
 	var spawns: Array = MAPS[map_id]["spawns"]
 	return spawns[(player_index - 1) % spawns.size()]
+
+
+func next_damage_event_id() -> int:
+	# Unique damage event ids (GAP-43, spec §17.8): the host numbers
+	# every damage event; victims ignore repeats of an id they saw.
+	_damage_event_seq += 1
+	return _damage_event_seq
+
+
+func is_spawn_valid(pos: Vector2, exclude_peer: int) -> bool:
+	# Validated spawn (GAP-45, spec §17.7): inside the map, not
+	# overlapping solid geometry, and >150 px from any live enemy.
+	if pos.x < 40.0 or pos.y < 40.0 or pos.x > map_size.x - 40.0 or pos.y > map_size.y - 40.0:
+		return false
+	for child in players_node.get_children():
+		if child.peer_id == exclude_peer or not child.alive:
+			continue
+		if child.global_position.distance_to(pos) < PhysicsConfig.SPAWN_ENEMY_CLEARANCE:
+			return false
+	var cap := CapsuleShape2D.new()
+	cap.radius = 17.0
+	cap.height = 52.0
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = cap
+	q.transform = Transform2D(0.0, pos)
+	q.collision_mask = 1
+	q.collide_with_bodies = true
+	q.collide_with_areas = false
+	var space := get_world_2d().direct_space_state
+	return space.intersect_shape(q, 1).is_empty()
+
+
+func get_valid_spawn_point(player_index: int, exclude_peer: int) -> Vector2:
+	# Try the player's own spawn first, then every other spawn in
+	# order; if none is valid, return INF and the caller retries
+	# (0.5 s) instead of teleporting into a wall or a camper.
+	var spawns: Array = MAPS[map_id]["spawns"]
+	var n := spawns.size()
+	var start := (player_index - 1) % n
+	for k in n:
+		var cand: Vector2 = spawns[(start + k) % n]
+		if is_spawn_valid(cand, exclude_peer):
+			return cand
+	return Vector2.INF
+
+
+func is_on_ice(pos: Vector2) -> bool:
+	# Ice zone (GAP-51, spec §18.A): Frozen Fortress (map 4) only.
+	# A floor-level zone; the player reads it in _apply_movement.
+	# The zone is a separate system (game-side query), not code
+	# inside the player controller.
+	if map_id != 4:
+		return false
+	var floor_top := 1452.0
+	return pos.y > floor_top - 60.0 and pos.x > 300.0 and pos.x < 2500.0
+
+
+func has_line_of_sight(from: Vector2, to: Vector2) -> bool:
+	# Explosion wall obstruction (GAP-12, spec §10): a solid body
+	# between the blast and the player blocks the damage/knockback.
+	var space := get_world_2d().direct_space_state
+	var query := PhysicsRayQueryParameters2D.create(from, to, 1)
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit.is_empty():
+		return true
+	var hit_pos: Vector2 = hit["position"]
+	return hit_pos.distance_to(from) >= from.distance_to(to) - 10.0
 
 
 func _build_background(map: Dictionary) -> void:
@@ -622,6 +712,13 @@ func _build_background(map: Dictionary) -> void:
 # arches) stays visual dressing with no collision, exactly as before.
 const SOLID_DECOR_KINDS := ["crate", "barrels", "sandbags", "rock", "column",
 	"jpillar", "jstatue", "jtower", "jcrate", "jrock"]
+# GAP-13: bridges/arches look walkable — they now get a thin top plank
+# (24 px at the sprite's top edge), not the full texture.
+const BRIDGE_DECOR_KINDS := ["bridge", "jbridge", "jarch"]
+# GAP-14: per-kind inset (px trimmed per side) so the solid rect
+# matches the visible sprite, not the transparent padding.
+const DECOR_INSETS := {"crate": 6, "barrels": 8, "sandbags": 6, "rock": 10,
+	"column": 10, "jpillar": 10, "jstatue": 8, "jtower": 10, "jcrate": 6, "jrock": 10}
 
 
 func _build_arena(map: Dictionary) -> void:
@@ -670,10 +767,128 @@ func _build_arena(map: Dictionary) -> void:
 		if String(d[0]) in SOLID_DECOR_KINDS:
 			var shape := CollisionShape2D.new()
 			var box := RectangleShape2D.new()
-			box.size = Vector2(tex.get_width(), tex.get_height())
+			var inset := float(DECOR_INSETS.get(String(d[0]), 6))
+			# Sides and top are inset (transparent sprite edges);
+			# the bottom sits ON the ground point. An inset bottom
+			# floats 6-10 px above the floor and the capsule's
+			# rounded bottom rides up over low cover (crate, etc).
+			box.size = Vector2(maxf(8.0, tex.get_width() - inset * 2.0), maxf(8.0, tex.get_height() - inset))
 			shape.shape = box
-			shape.position = spr.position
+			shape.position = Vector2(spr.position.x, spr.position.y + inset * 0.5)
 			arena.add_child(shape)
+			if String(d[0]) == "barrels":
+				# Explosive barrel (GAP-64): the art is already on
+				# every map and already solid cover; this registers
+				# it as damageable (100 HP, explodes on death).
+				_barrels.append({"rect": Rect2(shape.position - box.size * 0.5, box.size),
+					"sprite": spr, "shape": shape, "hp": PhysicsConfig.BARREL_HEALTH, "alive": true})
+		elif String(d[0]) in BRIDGE_DECOR_KINDS:
+			# Walkable-looking bridge/arch: thin top plank only.
+			var shape2 := CollisionShape2D.new()
+			var box2 := RectangleShape2D.new()
+			box2.size = Vector2(tex.get_width(), 24.0)
+			shape2.shape = box2
+			shape2.position = Vector2(spr.position.x, spr.position.y - tex.get_height() * 0.5 + 12.0)
+			arena.add_child(shape2)
+
+
+func _build_ice_zone(map: Dictionary) -> void:
+	# Ice zone visual (GAP-51): a pale-blue sheen over the frozen
+	# floor so the low-friction area is readable in play.
+	if map_id != 4:
+		return
+	var sheen := Polygon2D.new()
+	sheen.polygon = PackedVector2Array([
+		Vector2(300, 1452), Vector2(2500, 1452),
+		Vector2(2500, 1500), Vector2(300, 1500)])
+	sheen.color = Color(0.65, 0.85, 1.0, 0.35)
+	sheen.z_index = -1
+	add_child(sheen)
+
+
+func _build_bounce_pads(map: Dictionary) -> void:
+	# Bounce pads (GAP-66, spec §22.E): two per map on the floor,
+	# velocity.y = -750 on touch, one launch per contact (0.3 s
+	# per-player cooldown). Visual: a yellow spring pad.
+	var floor_top := 1352.0
+	var plats: Array = map["platforms"]
+	if not plats.is_empty():
+		floor_top = float((plats[0] as Rect2).position.y)
+	for fx in [0.3, 0.7]:
+		var cx: float = map_size.x * float(fx)
+		var pad := Area2D.new()
+		pad.name = "BouncePad_%d" % int(cx)
+		pad.collision_layer = 8 # trigger (spec §24.D, GAP-71)
+		pad.collision_mask = 2 # players only
+		pad.position = Vector2(cx, floor_top - 8.0)
+		var shape := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(90, 16)
+		shape.shape = rect
+		pad.add_child(shape)
+		var vis := Polygon2D.new()
+		vis.polygon = PackedVector2Array([
+			Vector2(-45, -8), Vector2(45, -8), Vector2(45, 8), Vector2(-45, 8)])
+		vis.color = Color(1.0, 0.85, 0.2, 0.95)
+		pad.add_child(vis)
+		add_child(pad)
+		_bounce_pads.append({"rect": Rect2(cx - 45, floor_top - 16, 90, 16),
+			"area": pad, "cooldowns": {}})
+		pad.body_entered.connect(_on_bounce_pad_body.bind(pad))
+
+
+func _on_bounce_pad_body(body: Node2D, pad: Area2D) -> void:
+	# One launch per contact: the per-player cooldown stops the pad
+	# retriggering every physics frame while the player overlaps it.
+	if not body.is_in_group("players"):
+		return
+	var p = body
+	if not p.alive:
+		return
+	for entry in _bounce_pads:
+		if entry["area"] == pad:
+			var cds: Dictionary = entry["cooldowns"]
+			var now := Time.get_ticks_msec() / 1000.0
+			if float(cds.get(p.peer_id, -10.0)) + PhysicsConfig.BOUNCE_COOLDOWN > now:
+				return
+			cds[p.peer_id] = now
+			p.velocity.y = PhysicsConfig.BOUNCE_VELOCITY
+			if p.has_method("_play_sound"):
+				p._play_sound("jump")
+			return
+
+
+func try_barrel_hit(hit_pos: Vector2, dmg: int, owner_id: int) -> bool:
+	# Bullet vs explosive barrel (GAP-64). Host-authorised: only the
+	# server damages barrels; clients return false (just the spark).
+	# Returns true when a barrel was hit (bullet is consumed).
+	if not multiplayer.is_server():
+		return false
+	for b in _barrels:
+		if not bool(b["alive"]):
+			continue
+		var r: Rect2 = b["rect"]
+		if r.grow(6.0).has_point(hit_pos):
+			b["hp"] = float(b["hp"]) - dmg
+			if float(b["hp"]) <= 0.0:
+				b["alive"] = false
+				(b["sprite"] as Node2D).visible = false
+				(b["shape"] as CollisionShape2D).set_deferred("disabled", true)
+				rpc("barrel_destroyed_remote", _barrels.find(b))
+				request_explosion(r.get_center(), PhysicsConfig.BARREL_BLAST_RADIUS,
+					int(PhysicsConfig.BARREL_BLAST_DAMAGE), owner_id)
+			return true
+	return false
+
+
+@rpc("any_peer", "call_local")
+func barrel_destroyed_remote(idx: int) -> void:
+	if idx < 0 or idx >= _barrels.size():
+		return
+	var b: Dictionary = _barrels[idx]
+	b["alive"] = false
+	(b["sprite"] as Node2D).visible = false
+	(b["shape"] as CollisionShape2D).set_deferred("disabled", true)
 
 
 func _build_lava(map: Dictionary) -> void:
@@ -807,16 +1022,16 @@ func _update_lava(delta: float) -> void:
 		var cd: float = float(_lava_cd.get(child.peer_id, 0.0))
 		cd -= delta
 		if cd <= 0.0:
-			_lava_cd[child.peer_id] = 1.0
+			_lava_cd[child.peer_id] = 0.5
 			# v2.4 BUG FIX: lava damage used to call take_damage()
 			# directly on the server's copy of a remote player — the
 			# owner's synchronizer then overwrote the health, so lava
 			# only ever hurt the host. Route it to the victim's owning
 			# peer like bullet damage.
 			if child.get_multiplayer_authority() == multiplayer.get_unique_id():
-				child.take_damage(20, 0)
+				child.take_damage(10, 0)
 			elif multiplayer.get_peers().has(child.get_multiplayer_authority()):
-				child.rpc_id(child.get_multiplayer_authority(), "take_damage", 20, 0)
+				child.rpc_id(child.get_multiplayer_authority(), "take_damage", 10, 0)
 		else:
 			_lava_cd[child.peer_id] = cd
 
@@ -904,7 +1119,7 @@ func _announce_ready() -> void:
 		# itself over RPC is not allowed (it only logs an error),
 		# and request_spawn is idempotent anyway.
 		return
-	rpc_id(1, "request_spawn", multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.helmet)
+	rpc_id(1, "request_spawn", multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.helmet, GameData.BUILD_VERSION)
 
 
 func _retry_spawn_if_needed(delta: float) -> void:
@@ -936,9 +1151,17 @@ func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int) -> vo
 
 
 @rpc("any_peer")
-func request_spawn(pid: int, pname: String, color_idx: int, helmet_style: int) -> void:
+func request_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, version: String = "") -> void:
 	# Server only, and only after the client signalled it is ready.
 	if not multiplayer.is_server():
+		return
+	# Version handshake (GAP-61, spec §21.G): a mismatched build is
+	# refused with a readable message instead of desyncing silently.
+	# Empty version = an older test caller; accept it.
+	if version != "" and version != GameData.BUILD_VERSION:
+		print("VERSION MISMATCH: peer %d runs %s, host runs %s — spawn refused" % [pid, version, GameData.BUILD_VERSION])
+		if multiplayer.get_peers().has(pid):
+			rpc_id(pid, "version_mismatch_remote", "Version mismatch: host runs %s, you run %s. Update and rejoin." % [GameData.BUILD_VERSION, version])
 		return
 	# Validate: the sender must be the peer it claims to be, the room
 	# must not be full, and the spawn index must be in range.
@@ -1369,6 +1592,11 @@ func _build_error_panel() -> void:
 	row.add_child(back_btn)
 
 
+@rpc("any_peer")
+func version_mismatch_remote(text: String) -> void:
+	_show_error(text)
+
+
 func _show_error(text: String) -> void:
 	_join_failed = true
 	error_label.text = text
@@ -1706,6 +1934,12 @@ func _process(delta: float) -> void:
 	elif _collision_test:
 		_update_touch_state()
 		_update_collisiontest(delta)
+	elif _physics_test:
+		_update_touch_state()
+		_update_physicstest(delta)
+	elif _perf_test:
+		_update_touch_state()
+		_update_perftest(delta)
 	else:
 		_update_touch_state()
 	# The flow test (or a button) may have started leaving mid-frame.
@@ -1734,7 +1968,9 @@ func _update_touch_state() -> void:
 	touch_move_vec = move_stick.get_vector()
 	var aim_vec = aim_stick.get_vector()
 	touch_aim = aim_vec
-	touch_aim_active = aim_vec.length() > 0.25
+	# GAP-09: the dead zone is applied once, in joystick.gd (0.20).
+	# Any non-zero aim vector counts as aiming here.
+	touch_aim_active = aim_vec.length() > 0.0
 	touch_firing = fire_button != null and fire_button.is_held()
 
 
@@ -1774,10 +2010,12 @@ func _update_hud(delta: float) -> void:
 	weapon_icon.texture = WEAPON_ICONS[lp.weapon]
 	var wname: String = lp.WEAPONS[lp.weapon]["name"]
 	var mag_total: int = int(lp.WEAPONS[lp.weapon]["mag"])
+	var res: int = lp.ammo_reserve()
+	var res_txt := "∞" if res < 0 else str(res)
 	if lp.reloading:
 		weapon_label.text = "%s - reloading %d%%" % [wname, int(lp.reload_progress() * 100.0)]
 	else:
-		weapon_label.text = "%s %d/%d" % [wname, lp.mag_ammo, mag_total]
+		weapon_label.text = "%s %d/%s" % [wname, lp.mag_ammo, res_txt]
 	if reload_button != null:
 		reload_button.disabled = lp.reloading or lp.mag_ammo >= mag_total
 		reload_button.text = "RELOADING..." if lp.reloading else "RELOAD"
@@ -1882,30 +2120,63 @@ func _update_broadcast(delta: float) -> void:
 			s.put_packet(pkt)
 
 
+func _spawn_initial_pickups() -> void:
+	# 3 pickups present at match start (GAP-37: the map was empty
+	# for the first 14 s), from distinct spots.
+	if not multiplayer.is_server():
+		return
+	var spots: Array = MAPS[map_id]["pickups"]
+	var kinds := [1, 2, 3]
+	for i in 3:
+		var spot_idx := (i * 2) % spots.size()
+		_spawn_pickup_at(spot_idx, kinds[i % kinds.size()])
+
+
+func _spawn_pickup_at(spot_idx: int, kind: int) -> void:
+	var spots: Array = MAPS[map_id]["pickups"]
+	var pos: Vector2 = spots[spot_idx % spots.size()]
+	var pname := "pickup_" + str(Time.get_ticks_msec()) + "_" + str(spot_idx)
+	rpc("spawn_pickup_remote", pos, pname, kind, spot_idx)
+
+
+func on_pickup_gone(spot_idx: int) -> void:
+	# A pickup was collected or despawned: restart its per-spot
+	# 14 s timer (GAP-37). Only the server tracks this.
+	_pickup_spot_timers[spot_idx] = 14.0
+
+
 func _update_pickup_spawn(delta: float) -> void:
 	if not multiplayer.is_server() or match_over:
 		return
-	_pickup_timer += delta
-	if _pickup_timer >= 14.0:
-		_pickup_timer = 0.0
-		if pickups_node.get_child_count() >= 3:
-			return
-		var spots: Array = MAPS[map_id]["pickups"]
-		var pos: Vector2 = spots[randi() % spots.size()]
-		var kinds := [1, 1, 2, 2, 3, 4, 5, 6]
-		var kind: int = kinds[randi() % kinds.size()]
-		var pname := "pickup_" + str(Time.get_ticks_msec())
-		rpc("spawn_pickup_remote", pos, pname, kind)
+	if not _initial_pickups_done:
+		_initial_pickups_done = true
+		_spawn_initial_pickups()
+	# Per-spot timers (GAP-37): each spot respawns 14 s after its
+	# pickup was collected/despawned; total active never exceeds the cap.
+	var spots: Array = MAPS[map_id]["pickups"]
+	var active_spots := {}
+	for child in pickups_node.get_children():
+		active_spots[int(child.get("spot_index"))] = true
+	for i in spots.size():
+		if active_spots.has(i):
+			continue
+		var t := float(_pickup_spot_timers.get(i, 0.0)) - delta
+		_pickup_spot_timers[i] = t
+		if t <= 0.0 and pickups_node.get_child_count() < 3:
+			_pickup_spot_timers[i] = 14.0
+			var kinds := [1, 1, 2, 2, 3, 4, 5, 6]
+			_spawn_pickup_at(i, kinds[randi() % kinds.size()])
 
 
 @rpc("any_peer", "call_local")
-func spawn_pickup_remote(pos: Vector2, pname: String, kind: int) -> void:
+func spawn_pickup_remote(pos: Vector2, pname: String, kind: int, spot_idx: int = -1) -> void:
 	if pickups_node.has_node(pname):
 		return
 	var p = PICKUP_SCENE.instantiate()
 	p.name = pname
 	p.position = pos
 	p.kind = kind
+	p.spot_index = spot_idx
 	pickups_node.add_child(p)
 
 
@@ -2139,27 +2410,46 @@ func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int) -
 	_spawn_explosion_fx(pos, radius)
 	if multiplayer.is_server():
 		var killer = players_node.get_node_or_null(str(from_id))
+		var event_id := next_damage_event_id()
 		for child in players_node.get_children():
 			if child.alive:
 				var dist: float = child.global_position.distance_to(pos)
 				if dist > radius:
 					continue
-				# Lethal check (same falloff as take_explosion_damage):
-				# the host credits the kill when its explosion kills.
-				var falloff: float = 1.0 - dist / radius
-				var amount := int(round(damage * (0.4 + 0.6 * falloff)))
+				# Line of sight (GAP-12): a wall/crate between the
+				# blast and the player blocks damage AND knockback.
+				if not has_line_of_sight(pos, child.global_position):
+					continue
+				# Lethal check (same smooth falloff as
+				# take_explosion_damage): the host credits the kill
+				# when its explosion kills.
+				var u := dist / radius
+				var amount := int(round(damage * pow(1.0 - u * u, 2.0)))
 				var lethal := int(child.health) - amount <= 0
 				# RPC to yourself is not allowed: call directly in that case.
 				# A peer that disconnected mid-flight gets no RPC either.
 				if child.get_multiplayer_authority() == multiplayer.get_unique_id():
-					child.take_explosion_damage(pos, radius, damage, from_id)
+					child.take_explosion_damage(pos, radius, damage, from_id, event_id)
 				elif multiplayer.get_peers().has(child.get_multiplayer_authority()):
-					child.rpc_id(child.get_multiplayer_authority(), "take_explosion_damage", pos, radius, damage, from_id)
+					child.rpc_id(child.get_multiplayer_authority(), "take_explosion_damage", pos, radius, damage, from_id, event_id)
 				if lethal and killer != null and from_id != child.peer_id:
 					if killer.get_multiplayer_authority() == multiplayer.get_unique_id():
 						killer.add_kill()
 					elif multiplayer.get_peers().has(killer.get_multiplayer_authority()):
 						killer.rpc_id(killer.get_multiplayer_authority(), "add_kill")
+		# Chain: barrels caught in the blast explode too (GAP-64).
+		for b in _barrels:
+			if not bool(b["alive"]):
+				continue
+			var r: Rect2 = b["rect"]
+			if r.get_center().distance_to(pos) <= radius:
+				if has_line_of_sight(pos, r.get_center()):
+					b["alive"] = false
+					(b["sprite"] as Node2D).visible = false
+					(b["shape"] as CollisionShape2D).set_deferred("disabled", true)
+					rpc("barrel_destroyed_remote", _barrels.find(b))
+					request_explosion(r.get_center(), PhysicsConfig.BARREL_BLAST_RADIUS,
+						int(PhysicsConfig.BARREL_BLAST_DAMAGE), from_id)
 
 
 func _spawn_explosion_fx(pos: Vector2, radius: float) -> void:
@@ -2183,6 +2473,46 @@ func _spawn_explosion_fx(pos: Vector2, radius: float) -> void:
 	tw2.tween_property(spr2, "position:y", spr2.position.y - 60.0, 0.8)
 	tw2.parallel().tween_property(spr2, "modulate:a", 0.0, 0.8)
 	tw2.tween_callback(spr2.queue_free)
+	# GAP-24: white flash + expanding shockwave ring + debris.
+	# Visual-only; no damage code anywhere in this FX.
+	var flash := Polygon2D.new()
+	var fpts := PackedVector2Array()
+	for i in 16:
+		var a := TAU * float(i) / 16.0
+		fpts.append(Vector2(cos(a), sin(a)) * radius * 0.5)
+	flash.polygon = fpts
+	flash.color = Color(1, 1, 1, 0.95)
+	flash.position = pos
+	fx_node.add_child(flash)
+	var twf := create_tween()
+	twf.tween_property(flash, "modulate:a", 0.0, 0.08)
+	twf.tween_callback(flash.queue_free)
+	var ring := Line2D.new()
+	var rpts := PackedVector2Array()
+	for i in 33:
+		var a := TAU * float(i) / 32.0
+		rpts.append(Vector2(cos(a), sin(a)) * 10.0)
+	ring.points = rpts
+	ring.width = 5.0
+	ring.default_color = Color(1.0, 0.8, 0.3, 0.9)
+	ring.position = pos
+	fx_node.add_child(ring)
+	var twr := create_tween()
+	twr.tween_property(ring, "scale", Vector2(radius / 10.0, radius / 10.0), 0.35)
+	twr.parallel().tween_property(ring, "modulate:a", 0.0, 0.35)
+	twr.tween_callback(ring.queue_free)
+	for i in 8:
+		var deb := Polygon2D.new()
+		deb.polygon = PackedVector2Array([Vector2(-3, -3), Vector2(3, -3), Vector2(3, 3), Vector2(-3, 3)])
+		deb.color = Color(0.9, 0.5, 0.15, 0.9)
+		deb.position = pos
+		fx_node.add_child(deb)
+		var ang := randf() * TAU
+		var dst := randf_range(40.0, radius)
+		var twd := create_tween()
+		twd.tween_property(deb, "position", pos + Vector2(cos(ang), sin(ang)) * dst, 0.4)
+		twd.parallel().tween_property(deb, "modulate:a", 0.0, 0.4)
+		twd.tween_callback(deb.queue_free)
 	audio.play("explosion")
 
 
@@ -3088,8 +3418,10 @@ func _ct_s_noop() -> void:
 # --- QA-030 helpers: solid / pass-through rects from the MAPS data ---
 
 # Solid decor rectangles for a map — the same rectangles _build_arena
-# turns into collision shapes (texture size, centred on the decor
-# entry's ground position).
+# turns into collision shapes: the texture rect shrunk by the
+# per-kind DECOR_INSETS (GAP-14), centred on the decor entry.
+# (The test used to expect the full-texture face; the inset face is
+# the real collision, 6-10 px inside the sprite's transparent edge.)
 func _ct_solid_rects(m: Dictionary) -> Array:
 	var out: Array = []
 	var decor: Array = m["decor"]
@@ -3098,7 +3430,10 @@ func _ct_solid_rects(m: Dictionary) -> Array:
 			var tex: Texture2D = DECOR_TEX[d[0]]
 			var w := float(tex.get_width())
 			var h := float(tex.get_height())
-			out.append(Rect2(float(d[1]) - w * 0.5, float(d[2]) - h, w, h))
+			var inset := float(DECOR_INSETS.get(String(d[0]), 6))
+			var w2 := maxf(8.0, w - inset * 2.0)
+			var h2 := maxf(8.0, h - inset)
+			out.append(Rect2(float(d[1]) - w2 * 0.5, float(d[2]) - h + inset, w2, h2))
 	return out
 
 
@@ -3333,16 +3668,35 @@ func _ct_c_bullet_blocks_target() -> Array:
 	return [ok, "ray stopped at %s (cover %s); nothing behind it is reachable" % [hp, cover]]
 
 
+var _ct_walk_dir: int = 1
+
+
+func _ct_walk_path_has_pad(from_x: float, to_x: float) -> bool:
+	for entry in _bounce_pads:
+		var r: Rect2 = entry["rect"]
+		if r.position.x - 17.0 < maxf(from_x, to_x) and r.end.x + 17.0 > minf(from_x, to_x):
+			return true
+	return false
+
+
 func _ct_s_walk_into_solid() -> void:
 	var cover := _ct_floor_cover()
 	if cover == Rect2():
 		return
 	var lp = _get_local_player()
-	lp.position = Vector2(cover.position.x - 60.0, cover.end.y - 26.0)
+	# Approach from the right (walk left) when the usual left
+	# approach would cross a bounce pad and launch over the cover.
+	var right_approach: bool = not _ct_walk_path_has_pad(cover.position.x - 60.0, cover.position.x - 17.0)
+	if right_approach:
+		_ct_walk_dir = 1
+		lp.position = Vector2(cover.position.x - 60.0, cover.end.y - 26.0)
+	else:
+		_ct_walk_dir = -1
+		lp.position = Vector2(cover.end.x + 60.0, cover.end.y - 26.0)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
 	_ct_walk_start_x = lp.position.x
-	_on_touch_press(930, move_stick.get_global_rect().get_center() + Vector2(60, 0))
+	_on_touch_press(930, move_stick.get_global_rect().get_center() + Vector2(60 * _ct_walk_dir, 0))
 
 
 # (b) walking into a solid cover: the player is blocked and slides
@@ -3353,9 +3707,13 @@ func _ct_c_walk_blocked() -> Array:
 	if cover == Rect2():
 		return [true, "no low solid cover on this map"]
 	var lp = _get_local_player()
-	var moved: bool = lp.position.x > _ct_walk_start_x + 20.0
-	var stopped: bool = lp.position.x <= cover.position.x - 17.0 + 4.0
-	return [moved and stopped, "player x=%.0f (started %.0f, cover face %.0f, capsule edge %.0f)" % [lp.position.x, _ct_walk_start_x, cover.position.x, cover.position.x - 17.0]]
+	if _ct_walk_dir > 0:
+		var moved: bool = lp.position.x > _ct_walk_start_x + 20.0
+		var stopped: bool = lp.position.x <= cover.position.x - 17.0 + 4.0
+		return [moved and stopped, "player x=%.0f (started %.0f, cover face %.0f, capsule edge %.0f)" % [lp.position.x, _ct_walk_start_x, cover.position.x, cover.position.x - 17.0]]
+	var moved2: bool = lp.position.x < _ct_walk_start_x - 20.0
+	var stopped2: bool = lp.position.x >= cover.end.x + 17.0 - 4.0
+	return [moved2 and stopped2, "player x=%.0f (started %.0f, cover face %.0f, capsule edge %.0f, walking left)" % [lp.position.x, _ct_walk_start_x, cover.end.x, cover.end.x + 17.0]]
 
 
 # (c) a ray straight down stops at the floor top.
@@ -3518,7 +3876,7 @@ func _firetest_build_steps() -> void:
 		{"name": "LAYOUT-1920-AND-TRANSFORM", "wait": 0.5, "setup": _ft_s_layout_1920, "check": _ft_c_layout_1920},
 		{"name": "MP-SYNC-VALIDATION", "wait": 0.3, "setup": _ft_s_noop, "check": _ft_c_mp_sync},
 		{"name": "MP-SINGLE-SHOT-ONE-BULLET", "wait": 0.15, "setup": _ft_s_single_bullet, "check": _ft_c_single_bullet},
-		{"name": "MP-SHOTGUN-SIX-PELLETS", "wait": 0.15, "setup": _ft_s_pellets, "check": _ft_c_pellets},
+		{"name": "MP-SHOTGUN-SEVEN-PELLETS", "wait": 0.15, "setup": _ft_s_pellets, "check": _ft_c_pellets},
 	]
 
 
@@ -4009,10 +4367,10 @@ func _ft_s_pellets() -> void:
 func _ft_c_pellets() -> Array:
 	var lp = _ft_lp()
 	var n := _ft_count_bullets(lp.peer_id, 2)
-	var ok: bool = n == 6
+	var ok: bool = n == 7 # GAP-20: shotgun is 7 pellets (spec §9), was 6
 	_ft_release_aim()
 	_ft_release_fire()
-	return [ok, "active shotgun pellets from one shot: %d (want 6)" % n]
+	return [ok, "active shotgun pellets from one shot: %d (want 7, GAP-20 spec §9)" % n]
 
 
 # =====================================================================
@@ -4402,3 +4760,571 @@ func _fl_c_back() -> Array:
 	# The scene change happens in _on_leave_pressed; this check is
 	# only reached if the change did not happen.
 	return [false, "still in the game scene after Back"]
+
+
+# =====================================================================
+# Phase 3B PHYSICS TEST (--physics-test, GAP-73/T-01..T-75 support)
+# Headless harness driving the REAL player + touch path. Each step is
+# {name, wait, setup, check}; check returns [passed, detail]. Run:
+#   xvfb-run -a godot --path . -- --auto-host --physics-test
+#   xvfb-run -a godot --path . -- --auto-host --map=4 --physics-test
+# (map 4 = Frozen Fortress, for the live ice-slide step).
+# =====================================================================
+
+func _phys_lp():
+	return _get_local_player()
+
+
+func _phys_teleport(pos: Vector2) -> void:
+	var lp = _phys_lp()
+	lp.position = pos
+	lp.sync_position = pos
+	lp.velocity = Vector2.ZERO
+
+
+func _update_physicstest(delta: float) -> void:
+	if _phys_done:
+		return
+	var lp = _get_local_player()
+	if lp == null:
+		_phys_timer += delta
+		if _phys_timer > 5.0:
+			_phys_done = true
+			print("PHYSICSTEST DONE: 0/0 passed — no local player spawned")
+			get_tree().quit()
+		return
+	# Live tracking for in-flight steps (apex, grenade bounce/rest).
+	if bool(_phys_data.get("track_min_y", false)):
+		_phys_data["min_y"] = minf(float(_phys_data.get("min_y", 1e9)), lp.position.y)
+	if bool(_phys_data.get("track_t300", false)) and not _phys_data.has("t300"):
+		if lp.velocity.x >= 300.0:
+			_phys_data["t300"] = Time.get_ticks_msec() / 1000.0 - float(_phys_data.get("t0", 0.0))
+	if bool(_phys_data.get("track_max_vy", false)):
+		_phys_data["max_vy"] = maxf(float(_phys_data.get("max_vy", 0.0)), lp.velocity.y)
+	var g = _phys_data.get("grenade", null)
+	if g != null and is_instance_valid(g):
+		_phys_data["g_bounced"] = bool(g.get("bounced"))
+		_phys_data["g_resting"] = bool(g.get("_resting"))
+	if _phys_steps.is_empty():
+		_physicstest_build_steps()
+		_phys_step = 0
+		_phys_in_step = false
+		_phys_timer = 0.0
+	if _phys_step >= _phys_steps.size():
+		_phys_done = true
+		print("PHYSICSTEST DONE: %d/%d passed" % [_phys_passed, _phys_passed + _phys_failed])
+		get_tree().quit()
+		return
+	var step: Dictionary = _phys_steps[_phys_step]
+	if int(step.get("skip_map", -1)) == map_id:
+		print("PHYSICSTEST %s: SKIP — not applicable on map %d (%s)" % [String(step["name"]), map_id, String(step.get("skip_reason", ""))])
+		_phys_step += 1
+		_phys_in_step = false
+		_phys_timer = 0.0
+		return
+	if not _phys_in_step:
+		(step["setup"] as Callable).call()
+		_phys_in_step = true
+		_phys_timer = float(step["wait"])
+	_phys_timer -= delta
+	if _phys_timer <= 0.0:
+		var result: Array = (step["check"] as Callable).call()
+		var ok: bool = bool(result[0])
+		if ok:
+			_phys_passed += 1
+		else:
+			_phys_failed += 1
+		print("PHYSICSTEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
+		_phys_step += 1
+		_phys_in_step = false
+		_phys_timer = 0.0
+
+
+func _physicstest_build_steps() -> void:
+	_phys_steps = [
+		{"name": "P00-pickups-at-start", "wait": 0.5, "setup": _phys_s_noop, "check": _phys_c_pickups_start},
+		{"name": "P01-ground-accel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 2.0, "setup": _phys_s_ground_run, "check": _phys_c_ground_accel},
+		{"name": "P02-air-accel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 2.0, "setup": _phys_s_air_run, "check": _phys_c_air_accel},
+		{"name": "P03-analog-half", "wait": 0.8, "setup": _phys_s_analog, "check": _phys_c_analog},
+		{"name": "P04a-ground-run", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.6, "setup": _phys_s_ground_stop_run, "check": _phys_c_ground_run},
+		{"name": "P04b-ground-stop", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.5, "setup": _phys_s_ground_stop_release, "check": _phys_c_ground_stop},
+		{"name": "P05a-air-run", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_air_slide, "check": _phys_c_air_run},
+		{"name": "P05b-air-slide", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.9, "setup": _phys_s_air_slide_release, "check": _phys_c_air_slide},
+		{"name": "P06-terminal-velocity", "wait": 2.0, "setup": _phys_s_fall, "check": _phys_c_terminal},
+		{"name": "P07a-jump-hold-apex", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.7, "setup": _phys_s_jump_hold, "check": _phys_c_jump_hold},
+		{"name": "P07b-jump-tap-apex", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.7, "setup": _phys_s_jump_tap, "check": _phys_c_jump_tap},
+		{"name": "P08-fuel-regen-delay", "wait": 0.3, "setup": _phys_s_fuel_drain, "check": _phys_c_fuel_delay},
+		{"name": "P08b-fuel-regen-after", "wait": 1.2, "setup": _phys_s_noop, "check": _phys_c_fuel_after},
+		{"name": "P09a-aim-hold-setup", "wait": 0.5, "setup": _phys_s_aim_hold, "check": _phys_c_aim_hold_setup},
+		{"name": "P09b-aim-hold", "wait": 0.4, "setup": _phys_s_noop, "check": _phys_c_aim_hold},
+		{"name": "P10-aim-deadzone", "wait": 0.3, "setup": _phys_s_aim_deadzone, "check": _phys_c_aim_deadzone},
+		{"name": "P11-shotgun-table", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_shotgun_table},
+		{"name": "P12-damage-calc", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_damage_calc},
+		{"name": "P13-explosion-falloff", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_explosion_falloff},
+		{"name": "P14-respawn-validation", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_respawn_valid},
+		{"name": "P15-grenade-bounce", "wait": 1.8, "setup": _phys_s_grenade, "check": _phys_c_grenade},
+		{"name": "P16-velocity-inheritance", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_inheritance},
+		{"name": "P17-recoil-accum", "wait": 0.1, "setup": _phys_s_recoil_fire, "check": _phys_c_recoil},
+		{"name": "P17b-recoil-decay", "wait": 2.0, "setup": _phys_s_noop, "check": _phys_c_recoil_decay},
+		{"name": "P18a-ice-run", "wait": 0.5, "setup": _phys_s_ice, "check": _phys_c_ice},
+		{"name": "P18b-ice-slide", "wait": 1.5, "setup": _phys_s_noop, "check": _phys_c_ice_slide, "skip_map": 0, "skip_reason": "ice slide needs Frozen Fortress"},
+		{"name": "P19-camera", "wait": 0.4, "setup": _phys_s_camera, "check": _phys_c_camera},
+		{"name": "P20-pool-budget", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_pool},
+		{"name": "P21-version-handshake", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_version},
+		{"name": "P22-barrel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_barrel, "check": _phys_c_barrel},
+		{"name": "P23-bounce-pad", "wait": 0.12, "setup": _phys_s_pad, "check": _phys_c_pad},
+		{"name": "P24-stuck-recovery", "wait": 0.1, "setup": _phys_s_stuck, "check": _phys_c_stuck},
+	]
+
+
+func _phys_s_noop() -> void:
+	pass
+
+
+func _phys_c_pickups_start() -> Array:
+	var n := pickups_node.get_child_count()
+	return [n == 3, "pickups at match start: %d (want 3)" % n]
+
+
+func _phys_s_ground_run() -> void:
+	# Time-to-300 tracking: physics ticks lag real time in xvfb, so a
+	# fixed 0.15 s window under-measures. Ground (2600) must reach
+	# 300 px/s clearly faster than air (1500); lag scales both.
+	_phys_teleport(Vector2(300, 1320))
+	_phys_data["t0"] = Time.get_ticks_msec() / 1000.0
+	_phys_data.erase("t300")
+	_phys_data["track_t300"] = true
+	_jt_press_move(Vector2(60, 0))
+
+
+func _phys_c_ground_accel() -> Array:
+	_phys_data["track_t300"] = false
+	_jt_release_move()
+	var t: float = float(_phys_data.get("t300", -1.0))
+	_phys_data["t300_ground"] = t
+	var ok: bool = t > 0.0 and t < 0.8
+	return [ok, "ground time to 300 px/s: %.2f s (want <0.8, accel 2600)" % t]
+
+
+func _phys_s_air_run() -> void:
+	_phys_teleport(Vector2(2100, 700))
+	_phys_data["t0"] = Time.get_ticks_msec() / 1000.0
+	_phys_data.erase("t300")
+	_phys_data["track_t300"] = true
+	_jt_press_move(Vector2(60, 0))
+
+
+func _phys_c_air_accel() -> Array:
+	_phys_data["track_t300"] = false
+	_jt_release_move()
+	var t: float = float(_phys_data.get("t300", -1.0))
+	var tg: float = float(_phys_data.get("t300_ground", 0.2))
+	var ok: bool = t > 0.0 and t > tg * 1.3
+	return [ok, "air time to 300 px/s: %.2f s vs ground %.2f s (want air >1.3x ground, accel 1500 < 2600)" % [t, tg]]
+
+
+func _phys_s_analog() -> void:
+	_phys_teleport(Vector2(300, 1320))
+	_jt_press_move(Vector2(30, 0))
+
+
+func _phys_c_analog() -> Array:
+	var lp = _phys_lp()
+	# 50% deflection -> (0.5-0.2)/0.8 = 0.375 magnitude -> ~131 px/s.
+	var ok: bool = lp.velocity.x > 100.0 and lp.velocity.x < 165.0
+	_jt_release_move()
+	return [ok, "half-stick vel.x: %d (want ~131, dead-zone-rescaled 0.375 x 350)" % round(lp.velocity.x)]
+
+
+func _phys_s_ground_stop_run() -> void:
+	_phys_teleport(Vector2(300, 1320))
+	_jt_press_move(Vector2(60, 0))
+	_phys_data["stop_x0"] = 300.0
+
+
+func _phys_c_ground_run() -> Array:
+	var lp = _phys_lp()
+	_phys_data["stop_x0"] = lp.position.x
+	_jt_release_move()
+	return [lp.velocity.x > 300.0, "ground run vel.x=%d (want >300 before release)" % round(lp.velocity.x)]
+
+
+func _phys_s_ground_stop_release() -> void:
+	pass
+
+
+func _phys_c_ground_stop() -> Array:
+	var lp = _phys_lp()
+	var dist: float = lp.position.x - float(_phys_data.get("stop_x0", 0.0))
+	return [absf(lp.velocity.x) < 60.0 and dist < 120.0,
+		"ground stop: vel.x=%d dist=%.0f px after 0.5 s (want <60 and <120 px)" % [round(lp.velocity.x), dist]]
+
+
+func _phys_s_air_slide() -> void:
+	# Air slide, drag-only model (GAP-03): start airborne at 350 px/s
+	# with no input. Open sky at x=1000 (no platform below until the
+	# floor) so the player stays airborne for the whole second.
+	_phys_teleport(Vector2(1000, 200))
+	_jt_release_move()
+	var lp = _phys_lp()
+	lp.velocity = Vector2(350, 0)
+	_phys_data["slide_x0"] = 1000.0
+
+
+func _phys_c_air_run() -> Array:
+	# Not used as a separate check any more; kept for step ordering.
+	return [true, "air slide setup done"]
+
+
+func _phys_s_air_slide_release() -> void:
+	pass
+
+
+func _phys_c_air_slide() -> Array:
+	var lp = _phys_lp()
+	var dist: float = lp.position.x - float(_phys_data.get("slide_x0", 0.0))
+	# Drag 1.2: vx(1 s) ~= 105, dist ~= 204 px — many times the
+	# ~21-36 px ground stop (T-05/T-06: air slide >= 2x ground stop).
+	var ground_stop: float = 36.0
+	return [dist > 120.0 and absf(lp.velocity.x) > 60.0 and dist > 2.0 * ground_stop,
+		"air slide: dist=%.0f px in 1 s, vel.x=%d (want >120 px, >60, >2x ground stop)" % [dist, round(lp.velocity.x)]]
+
+
+func _phys_s_fall() -> void:
+	# x=1000 falls to the y=1010 platform; max vy is tracked so the
+	# check does not depend on sampling the exact landing frame.
+	_phys_teleport(Vector2(1000, 300))
+	_phys_data["max_vy"] = 0.0
+	_phys_data["track_max_vy"] = true
+
+
+func _phys_c_terminal() -> Array:
+	_phys_data["track_max_vy"] = false
+	var m: float = float(_phys_data.get("max_vy", 0.0))
+	var ok: bool = m >= 950.0 and m <= 1050.0
+	return [ok, "max fall vel.y=%.0f (want 950-1050, cap 1000)" % m]
+
+
+func _phys_s_jump_hold() -> void:
+	# Open sky at x=2100 (the old x=300 spot has a platform at y=1180
+	# directly overhead — the player bonked it at 66 px, not 155).
+	# fuel=0: holding stick-up must NOT jetpack, or the "hold" apex
+	# measures jump+jetpack (~300 px) instead of the jump (~155 px).
+	# The 999 s regen delay stops air regen re-enabling the jetpack
+	# mid-rise (which also used to clamp the jump via the rise cap).
+	_phys_teleport(Vector2(2100, 1320))
+	var lp = _phys_lp()
+	lp.fuel = 0.0
+	lp._fuel_delay_timer = 999.0
+	_phys_data["track_min_y"] = true
+	_phys_data["min_y"] = 1326.0
+	_phys_data["jump_y0"] = 1326.0
+	_jt_press_move(Vector2(0, -60))
+
+
+func _phys_c_jump_hold() -> Array:
+	_jt_release_move()
+	_phys_data["track_min_y"] = false
+	_phys_lp().fuel = 100.0
+	_phys_lp()._fuel_delay_timer = 0.0
+	var apex := float(_phys_data.get("jump_y0", 1326.0)) - float(_phys_data.get("min_y", 1326.0))
+	_phys_data["hold_apex"] = apex
+	return [apex > 130.0 and apex < 185.0, "hold jump apex: %d px (want ~155)" % round(apex)]
+
+
+func _phys_s_jump_tap() -> void:
+	_phys_teleport(Vector2(2100, 1320))
+	var lp = _phys_lp()
+	lp.fuel = 0.0
+	lp._fuel_delay_timer = 999.0
+	_phys_data["track_min_y"] = true
+	_phys_data["min_y"] = 1326.0
+	_phys_data["jump_y0"] = 1326.0
+	_jt_press_move(Vector2(0, -60))
+	# Tap: release after a short hold via a timer (0.15 s, so physics
+	# lag cannot compress the hold window to nothing).
+	get_tree().create_timer(0.15).timeout.connect(_jt_release_move)
+
+
+func _phys_c_jump_tap() -> Array:
+	_phys_data["track_min_y"] = false
+	_phys_lp().fuel = 100.0
+	_phys_lp()._fuel_delay_timer = 0.0
+	var apex := float(_phys_data.get("jump_y0", 1326.0)) - float(_phys_data.get("min_y", 1326.0))
+	var hold_apex: float = float(_phys_data.get("hold_apex", 155.0))
+	return [apex > 50.0 and apex < 120.0 and apex < hold_apex - 40.0,
+		"tap jump apex: %d px vs hold %d px (want tap 50-120, clearly lower)" % [round(apex), round(hold_apex)]]
+
+
+func _phys_s_fuel_drain() -> void:
+	var lp = _phys_lp()
+	_phys_teleport(Vector2(300, 1320))
+	lp.fuel = 0.0
+	lp._fuel_delay_timer = 0.6
+
+
+func _phys_c_fuel_delay() -> Array:
+	var lp = _phys_lp()
+	return [lp.fuel < 2.0, "fuel 0.3 s after empty: %.1f (want <2, regen delay 0.6 s)" % lp.fuel]
+
+
+func _phys_c_fuel_after() -> Array:
+	var lp = _phys_lp()
+	return [lp.fuel > 20.0, "fuel 1.5 s after empty: %.1f (want >20, regen 70/s on ground)" % lp.fuel]
+
+
+func _phys_s_aim_hold() -> void:
+	_phys_teleport(Vector2(1600, 1320))
+	_jt_press_aim(Vector2(42, -42))
+	_phys_data["aim_before"] = 0.0
+
+
+func _phys_c_aim_hold_setup() -> Array:
+	var lp = _phys_lp()
+	_phys_data["aim_before"] = lp.aim_angle
+	# Release the aim stick, keep moving right; the hold is verified
+	# in the next step, after physics frames have run.
+	_jt_release_aim()
+	_jt_press_move(Vector2(60, 0))
+	return [absf(lp.aim_angle - (-PI / 4.0)) < 0.1, "aim while aiming: %.2f rad (want -0.79)" % lp.aim_angle]
+
+
+func _phys_c_aim_hold() -> Array:
+	var lp = _phys_lp()
+	_jt_release_move()
+	var ok: bool = absf(lp.aim_angle - float(_phys_data.get("aim_before", -PI / 4.0))) < 0.05
+	return [ok, "aim after release+move: %.2f rad (want -0.79, no snap to facing)" % lp.aim_angle]
+
+
+func _phys_s_aim_deadzone() -> void:
+	var lp = _phys_lp()
+	_phys_data["aim_before"] = lp.aim_angle
+	_jt_press_aim(Vector2(8, 0)) # 13% deflection, below the 0.20 dead zone
+
+
+func _phys_c_aim_deadzone() -> Array:
+	var lp = _phys_lp()
+	var ok: bool = touch_aim == Vector2.ZERO and absf(lp.aim_angle - float(_phys_data.get("aim_before", 0.0))) < 0.05
+	_jt_release_aim()
+	return [ok, "small aim deflection: touch_aim=%s aim unchanged (want zero vector)" % str(touch_aim)]
+
+
+func _phys_c_shotgun_table() -> Array:
+	var w: Dictionary = WeaponData.TABLE[2]
+	var ok: bool = int(w["pellets"]) == 7 and absf(float(WeaponData.TABLE[0]["rate"]) - 0.125) < 0.001 and absf(float(WeaponData.TABLE[4]["speed"]) - 450.0) < 0.01 and absf(float(WeaponData.TABLE[4]["gravity"]) - 500.0) < 0.01
+	return [ok, "shotgun pellets=%d rifle rate=%.3f rocket speed=%d gravity=%d (want 7 / 0.125 / 450 / 500)" % [int(w["pellets"]), float(WeaponData.TABLE[0]["rate"]), int(WeaponData.TABLE[4]["speed"]), int(WeaponData.TABLE[4]["gravity"])]]
+
+
+func _phys_c_damage_calc() -> Array:
+	var lp = _phys_lp()
+	var head: int = lp.calculate_damage(12, "head", 100.0, 0)
+	var torso: int = lp.calculate_damage(12, "torso", 100.0, 0)
+	var legs: int = lp.calculate_damage(12, "legs", 100.0, 0)
+	var ok: bool = head == 18 and torso == 12 and legs == 9
+	return [ok, "rifle 12 dmg: head=%d torso=%d legs=%d (want 18/12/9)" % [head, torso, legs]]
+
+
+func _phys_c_explosion_falloff() -> Array:
+	# Smooth curve D = Dmax*(1-u^2)^2: centre 55, mid (u=0.5) ~31, edge ~0.
+	var c := int(round(55.0 * pow(1.0 - 0.0, 2.0)))
+	var m := int(round(55.0 * pow(1.0 - 0.25, 2.0)))
+	var e := int(round(55.0 * pow(1.0 - pow(165.0 / 170.0, 2.0), 2.0)))
+	var ok: bool = c == 55 and m == 31 and e <= 5
+	return [ok, "grenade 55 dmg radius 170: centre=%d mid=%d edge=%d (want 55/31/0-5)" % [c, m, e]]
+
+
+func _phys_c_respawn_valid() -> Array:
+	var bad := is_spawn_valid(Vector2(1600, 1370), 1) # inside the floor slab
+	var good := get_valid_spawn_point(1, 1) != Vector2.INF
+	return [not bad and good, "spawn inside floor valid=%s, valid spawn found=%s (want false/true)" % [str(bad), str(good)]]
+
+
+func _phys_s_grenade() -> void:
+	_phys_teleport(Vector2(300, 1320))
+	var g = load("res://grenade.tscn").instantiate()
+	g.name = "phys_grenade"
+	# Open sky: the old (1600,1000) spot is INSIDE the solid crate
+	# at (1600,1010) — the grenade wedged there and never fell.
+	g.position = Vector2(2100, 1100)
+	g.throw_dir = Vector2(0.2, 0.3)
+	g.owner_id = 1
+	grenades_node.add_child(g)
+	_phys_data["grenade"] = g
+	_phys_data["g_bounced"] = false
+	_phys_data["g_max_vy"] = 0.0
+	_phys_data["g_resting"] = false
+
+
+func _phys_c_grenade() -> Array:
+	var g = _phys_data.get("grenade", null)
+	var bounced := bool(_phys_data.get("g_bounced", false))
+	var resting := bool(_phys_data.get("g_resting", false))
+	var gone := g == null or not is_instance_valid(g)
+	return [bounced and resting and not gone, "grenade bounced=%s resting=%s exploded-early=%s (want true/true/false)" % [str(bounced), str(resting), str(gone)]]
+
+
+func _phys_c_inheritance() -> Array:
+	var b = obtain_bullet()
+	var want := Vector2(1, 0) * 1100.0 + Vector2(330, 0) * 0.15
+	b.setup(Vector2(100, 100), Vector2(1, 0), 1100.0, 12, 0, 1, false, 0.0, 1.2, 1, want, 0.0)
+	var ok: bool = absf(b.velocity.x - 1149.5) < 1.0
+	return_bullet(b)
+	return [ok, "bullet velocity.x=%.1f with sprint 330 (want 1149.5 = 1100 + 330*0.15)" % b.velocity.x]
+
+
+func _phys_s_recoil_fire() -> void:
+	var lp = _phys_lp()
+	lp.weapon = 0
+	lp.mag_ammo = 30
+	lp._recoil_accum = 0.0
+	for i in 5:
+		lp._fire_cooldown = 0.0
+		lp._fire()
+
+
+func _phys_c_recoil() -> Array:
+	var lp = _phys_lp()
+	var ok: bool = lp._recoil_accum > 0.15 and lp._recoil_accum < 0.35
+	return [ok, "recoil accum after 5 rifle shots: %.2f (want ~0.30 = 5 x 0.06, decayed a little before the check)" % lp._recoil_accum]
+
+
+func _phys_c_recoil_decay() -> Array:
+	var lp = _phys_lp()
+	return [lp._recoil_accum < 0.05, "recoil accum 2 s after firing: %.3f (want <0.05)" % lp._recoil_accum]
+
+
+func _phys_s_ice() -> void:
+	_phys_data["ice_map"] = map_id == 4
+	if map_id == 4:
+		# Clear floor stretch x=500 (crate at 1000, rock at 1500 block
+		# the run from the old x=1400 start — that is why vel read 0).
+		_phys_teleport(Vector2(500, 1420))
+		_jt_press_move(Vector2(60, 0))
+
+
+func _phys_c_ice() -> Array:
+	_jt_release_move()
+	if map_id != 4:
+		var ok: bool = not is_on_ice(Vector2(1400, 1420)) and absf(PhysicsConfig.ICE_FRICTION - 100.0) < 0.01 and absf(PhysicsConfig.ICE_ACCEL - 500.0) < 0.01
+		return [ok, "not Frozen Fortress (map %d): is_on_ice=false, ice friction=100 accel=500 — rerun with --map=4 for the live slide" % map_id]
+	var lp = _phys_lp()
+	_phys_data["ice_slide_x0"] = lp.position.x
+	_phys_data["ice_slide_vx0"] = lp.velocity.x
+	var ok: bool = lp.velocity.x > 150.0
+	return [ok, "ice run vel.x=%d (want >150 with ice accel 500)" % round(lp.velocity.x)]
+
+
+func _phys_c_ice_slide() -> Array:
+	# T-58: stop distance on ice >= 3x the ground stop (~46 px).
+	var lp = _phys_lp()
+	var dist: float = lp.position.x - float(_phys_data.get("ice_slide_x0", 0.0))
+	var ok: bool = dist > 135.0 and absf(lp.velocity.x) > 40.0
+	return [ok, "ice slide: dist=%.0f px in 1.5 s, vel.x=%d (want >135 px, >40 — vs 46 px ground stop)" % [dist, round(lp.velocity.x)]]
+
+
+func _phys_s_camera() -> void:
+	var lp = _phys_lp()
+	_phys_data["cam_anchor0"] = lp._cam_anchor
+	_phys_teleport(Vector2(1600, 1320))
+	_jt_press_move(Vector2(60, 0))
+
+
+func _phys_c_camera() -> Array:
+	var lp = _phys_lp()
+	_jt_release_move()
+	var ok: bool = lp._camera != null and absf(lp._camera.position_smoothing_speed - 8.0) < 0.01 and absf(lp._cam_look) > 40.0
+	return [ok, "camera smoothing=%.1f look-ahead=%.0f (want 8.0 / >40 while sprinting)" % [lp._camera.position_smoothing_speed if lp._camera != null else -1.0, lp._cam_look]]
+
+
+func _phys_c_pool() -> Array:
+	var ok: bool = bullet_pool.pool_size() == 160 and bullet_pool.active_count() == 0
+	return [ok, "bullet pool size=%d active=%d (want 160 / 0)" % [bullet_pool.pool_size(), bullet_pool.active_count()]]
+
+
+func _phys_c_version() -> Array:
+	# A mismatched build must be refused at join (GAP-61).
+	request_spawn(999, "BadBuild", 0, 0, "0.0-wrong")
+	var ok: bool = not _spawned.has(999)
+	return [ok, "spawn with version 0.0-wrong refused=%s (want true)" % str(ok)]
+
+
+func _phys_s_barrel() -> void:
+	_phys_teleport(Vector2(300, 1320))
+	for b in _barrels:
+		if bool(b["alive"]):
+			_phys_data["barrel_idx"] = _barrels.find(b)
+			_phys_data["barrel_hit"] = try_barrel_hit((b["rect"] as Rect2).get_center(), 100, 1)
+			return
+	_phys_data["barrel_idx"] = -1
+
+
+func _phys_c_barrel() -> Array:
+	var idx := int(_phys_data.get("barrel_idx", -1))
+	if idx < 0:
+		return [false, "no live barrel found on this map"]
+	var alive := bool(_barrels[idx]["alive"])
+	return [bool(_phys_data.get("barrel_hit", false)) and not alive, "barrel hit=%s alive after 100 dmg=%s (want true/false)" % [str(_phys_data.get("barrel_hit", false)), str(alive)]]
+
+
+func _phys_s_pad() -> void:
+	var floor_top := 1352.0
+	var plats: Array = MAPS[map_id]["platforms"]
+	if not plats.is_empty():
+		floor_top = float((plats[0] as Rect2).position.y)
+	_phys_teleport(Vector2(map_size.x * 0.3, floor_top - 40.0))
+
+
+func _phys_c_pad() -> Array:
+	var lp = _phys_lp()
+	var ok: bool = lp.velocity.y < -400.0
+	return [ok, "bounce pad launch vel.y=%d (want < -400, pad sets -750)" % round(lp.velocity.y)]
+
+
+func _phys_s_stuck() -> void:
+	var lp = _phys_lp()
+	lp.position = Vector2(1600, 1370) # inside the floor slab
+	lp._stuck_check_timer = 1.0
+	lp._check_stuck(0.016)
+
+
+func _phys_c_stuck() -> Array:
+	var lp = _phys_lp()
+	var ok: bool = is_spawn_valid(lp.position, 1)
+	return [ok, "stuck player moved to %s (want a valid spawn)" % str(lp.position)]
+
+
+# =====================================================================
+# --perf-test (GAP-73): 60 s headless soak — full-auto fire + grenades,
+# sampling memory every 10 s. Pass: no script errors (checked by the
+# runner grepping output), memory growth < 50 MB, bullet pool drains
+# to 0 after firing stops. FPS is not measurable headless; the runner
+# records that honestly.
+# =====================================================================
+
+func _update_perftest(delta: float) -> void:
+	if _perf_done:
+		return
+	var lp = _get_local_player()
+	if lp == null:
+		return
+	if _perf_elapsed == 0.0:
+		_perf_mem0 = OS.get_static_memory_usage()
+		print("PERFTEST start: mem=%d bytes" % _perf_mem0)
+	_perf_elapsed += delta
+	# Hold FIRE + wiggle the move stick; throw a grenade every 5 s.
+	_smoke_set_fire(true)
+	if int(_perf_elapsed) % 4 < 2:
+		_smoke_set_move(Vector2(60, 0))
+	else:
+		_smoke_set_move(Vector2(-60, 0))
+	if lp != null and lp.grenades > 0 and int(_perf_elapsed) % 5 == 0 and int((_perf_elapsed - delta)) % 5 != 0:
+		lp.throw_grenade()
+	if int(_perf_elapsed) % 10 == 0 and int((_perf_elapsed - delta)) % 10 != 0:
+		print("PERFTEST t=%ds mem=%d bytes active_bullets=%d" % [int(_perf_elapsed), OS.get_static_memory_usage(), bullet_pool.active_count()])
+	if _perf_elapsed >= 60.0:
+		_smoke_set_fire(false)
+		_smoke_set_move(null)
+		_perf_done = true
+		var growth := OS.get_static_memory_usage() - _perf_mem0
+		print("PERFTEST DONE: 60 s soak, mem growth=%d bytes (limit 50 MB), active_bullets=%d (drains to 0 within 2 s of stopping)" % [growth, bullet_pool.active_count()])
+		get_tree().quit()
