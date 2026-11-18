@@ -1,0 +1,1275 @@
+# BUGS.md — LAN Arena Shooter
+
+QA log for v2.0 (baseline), v2.1 (fixes), v2.2 (joystick rework + fire fix)
+and v2.3 (10 maps, modern UI, host-lobby fix). Every bug lists: ID, title,
+affected feature, steps to reproduce, expected result, actual result,
+severity, root cause, fix, and verification status. A bug is only marked
+fixed after the original issue was reproduced and the fix verified —
+nothing here is marked fixed on the builder's word alone.
+
+Test method for this pass: code review of every script, a scripted QA
+harness that drives the real game scene as host (46 checks: boot, reload,
+death/respawn, all 5 weapons, grenade, pickups, all 3 maps live, TDM,
+FFA match end, rematch, pause, scoreboard, error panel, camera), the
+built-in smoke test under Xvfb, rendered screenshots of every menu and
+in-game panel, and pixel measurement of the HUD bars. No real two-phone
+LAN join could be tested on this machine (see QA-014).
+
+---
+
+## QA-001 — All centred panels are off-centre and clipped (menu, lobby, pause, end screen, scoreboard, error)
+
+- **Severity:** High
+- **Affected feature:** UI — every centred panel (main menu, Customization,
+  Settings, Local Multiplayer, Game Lobby, scoreboard, pause menu, end
+  screen, join-error panel)
+- **Steps to reproduce:** Launch the game at 1280x720 and look at the main
+  menu (`--menu-shot`).
+- **Expected result:** The menu panel is centred on screen, all buttons and
+  the hint text visible.
+- **Actual result (v2.0):** The panel's top-left corner sits exactly on the
+  screen centre (640, 360) and the panel grows down-right from there. On
+  720p the SETTINGS button is cut off at the bottom edge and the hint text
+  ("All phones must be on the same Wi-Fi network.") is invisible below the
+  screen. On a wide phone screen the panel fits but sits visibly right of
+  centre. Same for the lobby, pause, end screen, scoreboard and error panels
+  (identical construction).
+- **Root cause:** `set_anchors_preset(Control.PRESET_CENTER)` sets the
+  anchors to 0.5 but leaves all offsets at 0. A `PanelContainer` then sizes
+  itself from its minimum size/content, growing right and down from the
+  anchor point instead of being centred on it. Reproduced in isolation:
+  as-built `pos=(640, 360) size=(560, 334) offsets=0/0/0/0`.
+- **Fix (v2.1):** Added `_center_panel()` / `_center_all_panels()` in
+  `main.gd` and `game.gd`: after layout settles, set
+  `offset_left/top = -size/2`, `offset_right/bottom = +size/2`. Offsets are
+  viewport-independent, so panels stay centred on any screen size.
+  Re-centring is also deferred after dynamic content changes (discovered
+  hosts, lobby player list, scoreboard/end-screen rows, error text). A
+  guard skips the work if the scene changed while waiting (see QA-009).
+- **Verification:** FIXED and verified. Rendered screenshots of all five
+  menu panels and all four in-game panels show them centred and fully
+  visible (menu, lobby, customization, settings, multiplayer, pause, end
+  screen, scoreboard, error). Harness checks PAUSE-SHOWS, SCOREBOARD-SHOWS,
+  ERROR-PANEL, FFA-END, TDM-END pass.
+
+## QA-002 — No spawn protection: a player can be killed the instant they respawn
+
+- **Severity:** Medium
+- **Affected feature:** Balancing / respawn
+- **Steps to reproduce:** Kill a player, wait for the 3-second respawn, and
+  damage them in the first moment after they reappear (harness: call
+  `take_damage(50)` immediately after respawn).
+- **Expected result:** Brief invulnerability after (re)spawning, as the
+  master QA standard requires.
+- **Actual result (v2.0):** Damage applies immediately; a camper at a spawn
+  point can kill a player the instant they appear. Harness: HP 100 -> 50
+  from damage dealt right after respawn.
+- **Root cause:** No spawn-protection timer existed anywhere in `player.gd`.
+- **Fix (v2.1):** 2-second spawn protection (`SPAWN_PROTECTION`) granted on
+  initial spawn and on every respawn. `take_damage()` and
+  `take_explosion_damage()` return early while it is active, and the sprite
+  blinks (alpha oscillation) so other players can see the protection.
+- **Verification:** FIXED and verified. Harness: SPAWN-PROTECT (HP stays
+  100 when damaged right after respawn) and SPAWN-PROTECT-EXPIRES (HP drops
+  to 50 once the 2 s are up) both pass.
+
+## QA-003 — Animation freezes during reload
+
+- **Severity:** Low
+- **Affected feature:** Animation / weapons
+- **Steps to reproduce:** Empty the magazine (reload starts), then push the
+  move stick while reloading.
+- **Expected result:** The run animation plays while the player moves.
+- **Actual result (v2.0):** The animation stays frozen on whatever it was
+  when the reload started (harness: `idle` while moving). `_apply_aim_and_fire`
+  returned early while `reloading`, which also skipped `_update_anim()`.
+- **Root cause:** Early `return` in the reload branch of
+  `player.gd::_apply_aim_and_fire()`.
+- **Fix (v2.1):** Restructured to if/elif — reload ticks down, firing is
+  skipped while reloading, and `_update_anim()` runs every frame.
+- **Verification:** FIXED and verified. Harness: RELOAD-ANIM is `run` while
+  moving during a reload; RELOAD-STARTS and RELOAD-FINISH (mag refills to
+  30) pass.
+
+## QA-004 — Camera smoothing is never reset on respawn
+
+- **Severity:** Low
+- **Affected feature:** Camera / respawn
+- **Steps to reproduce:** Die far from your respawn point and respawn.
+- **Expected result:** The camera snaps to the respawn point.
+- **Actual result (v2.0):** `player.gd::_respawn()` calls
+  `get_node_or_null("Camera2D")`, which always returns null, so
+  `reset_smoothing()` never runs and the camera smooth-pans across the map
+  from the death location instead of snapping.
+- **Root cause:** In Godot 4.3, a node created with `Camera2D.new()` and
+  added with `add_child()` gets an auto-generated name such as
+  `@Camera2D@141` unless `.name` is set explicitly — so no node is ever
+  named `Camera2D`. Verified in isolation: an unnamed `Camera2D.new()`
+  added to a parent is named `@Camera2D@4` and `get_node("Camera2D")`
+  returns null.
+- **Fix (v2.1):** The camera reference is stored in a member variable
+  `_camera` when created in `_ready()`, and `_respawn()` uses it.
+- **Verification:** FIXED and verified. Harness CAMERA-CURRENT (the
+  viewport camera is the player's camera) and CAMERA-FOLLOWS (camera centre
+  clamps to (2240, 1080) at the map edge) pass; diagnostic run confirmed the
+  camera node exists and `is_local_player()` is true after scene reloads.
+
+## QA-005 — The host's own game appears in its own "Games found" list
+
+- **Severity:** Low
+- **Affected feature:** Multiplayer discovery / lobby
+- **Steps to reproduce:** Host a game from the Local Multiplayer screen and
+  watch the "Games found on this Wi-Fi" list.
+- **Expected result:** Only other hosts' games are listed.
+- **Actual result (v2.0):** The host also listens on the discovery port
+  (7778), so it receives its own broadcast and adds a "Join game at
+  <own IP>" button for itself.
+- **Root cause:** No filtering of discovery packets by sender in
+  `main.gd::_process()`.
+- **Fix (v2.1):** Packets whose sender IP is one of the device's own local
+  addresses (`IP.get_local_addresses()`) are ignored.
+- **Verification:** FIXED, verified by code review only. A live check was
+  attempted (temporary host-and-observe hook): the sandbox blocks UDP
+  broadcast at the OS level (`PermissionError: [Errno 1] Operation not
+  permitted` when sending a broadcast from Python), so no discovery packet
+  can arrive on this machine at all — the live test is inconclusive here,
+  not a failure of the fix. Must be re-checked on real phones on real Wi-Fi.
+
+## QA-006 — START MATCH can be double-tapped, sending start_match twice
+
+- **Severity:** Low
+- **Affected feature:** Lobby
+- **Steps to reproduce:** Double-tap START MATCH in the lobby.
+- **Expected result:** One match start.
+- **Actual result (v2.0):** Nothing guards the button; `start_match` is
+  RPC'd twice and `change_scene_to_file` runs twice.
+- **Root cause:** No in-progress guard in `main.gd::_on_start_pressed()`.
+- **Fix (v2.1):** `_starting_match` flag: the first press sets it and later
+  presses return early; cleared when leaving the lobby.
+- **Verification:** FIXED, verified by code review (the guard is two lines
+  on the only path that sends the RPC; the double-tap itself was not
+  exercised live because it needs UI automation).
+
+## QA-007 — GameData.HELMET_NAMES labels the helmets wrong
+
+- **Severity:** Low
+- **Affected feature:** Customization data
+- **Steps to reproduce:** Read `game_data.gd`: index 1 is called "Cap" and
+  index 3 "Hood", while the textures are green helmet (1), tan cap (2),
+  black helmet (3) — and `main.gd` labels them "Helmet", "Cap",
+  "Black helmet".
+- **Expected result:** One consistent set of names matching the art.
+- **Actual result (v2.0):** Two conflicting lists; `GameData.HELMET_NAMES`
+  is wrong (and unused — `main.gd` has its own correct list).
+- **Root cause:** The two lists drifted apart.
+- **Fix (v2.1):** `GameData.HELMET_NAMES` corrected to
+  `["No helmet", "Helmet", "Cap", "Black helmet"]`.
+- **Verification:** FIXED, verified by inspection against the texture
+  files and `main.gd`.
+
+## QA-008 — Menu background is so dark the sky is invisible
+
+- **Severity:** Low
+- **Affected feature:** Main menu visuals
+- **Steps to reproduce:** Look at the main menu screenshot.
+- **Expected result:** The procedural day sky (gradient + sun + green
+  ground band) is visible behind the panel.
+- **Actual result (v2.0):** The dim overlay (`Color(0.03, 0.04, 0.08, 0.72)`)
+  buries the gradient almost completely; the menu looks like night and the
+  sun is a faint smudge.
+- **Root cause:** Dim alpha 0.72.
+- **Fix (v2.1):** Dim alpha reduced to 0.45 — buttons stay readable, the
+  sky and sun show.
+- **Verification:** FIXED and verified by screenshot (menu now shows the
+  blue gradient sky, sun glow and green ground band).
+
+## QA-009 — Script error when the scene changes while panels are being centred
+
+- **Severity:** Low
+- **Affected feature:** UI (regression introduced by the QA-001 fix)
+- **Steps to reproduce:** Run with `--auto-host`: the menu's deferred
+  `_center_all_panels()` is still awaiting a frame when the scene changes
+  to the game.
+- **Expected result:** No errors.
+- **Actual result:** `SCRIPT ERROR: Invalid access to property or key
+  'process_frame' on a base object of type 'null instance'` at
+  `main.gd:_center_all_panels` — one error per `--auto-host` run, caught by
+  the smoke test.
+- **Root cause:** The awaited centring function resumed after its scene
+  was replaced, so `get_tree()` was null.
+- **Fix (v2.1):** `is_inside_tree()` guard after each await in both
+  `main.gd` and `game.gd`; the function returns early if its scene is gone.
+- **Verification:** FIXED and verified. Smoke test and harness both run
+  with 0 script errors after the fix.
+
+## QA-010 — Drawn-in rifle peeks out at straight up/down aim (known artifact)
+
+- **Severity:** Low
+- **Affected feature:** Sprites / weapons
+- **Steps to reproduce:** Aim straight up or straight down.
+- **Expected result:** Only the rotated weapon sprite is visible.
+- **Actual result:** The soldier art has a rifle drawn in, and the separate
+  rotated weapon sprite is drawn over it; at straight up/down aim a small
+  bit of the drawn-in rifle can peek out at the base (reads as a foregrip).
+- **Root cause:** Source art limitation — the sprite sheet's soldier frames
+  include a rifle.
+- **Fix:** None (would need re-cutting the source art). Documented in
+  README.md.
+- **Verification:** Known issue, carried over from v2.0; visible in
+  rendered frames only at the extreme aim angles.
+
+## QA-011 — Music restarts on every scene change (known, not fixed)
+
+- **Severity:** Low
+- **Affected feature:** Audio
+- **Steps to reproduce:** Go from the menu into a match: the music loop
+  restarts from the beginning.
+- **Expected result:** Music continues (or fades) across the transition.
+- **Actual result:** A new `GameAudio` node is created per scene and its
+  `_ready()` starts the music loop from the start.
+- **Root cause:** Audio is per-scene, not an autoload/persistent node.
+- **Fix:** None in this pass — fixing it properly needs a persistent audio
+  autoload, a bigger refactor than a QA fix should carry. Logged for a
+  future pass.
+- **Verification:** Not fixed; confirmed by code inspection (cannot be
+  verified by ear on this machine — no sound hardware).
+
+## QA-012 — Jetpack loop has an audible pulse (known, not fixed)
+
+- **Severity:** Low
+- **Affected feature:** Audio
+- **Steps to reproduce:** Fly with the jetpack for several seconds.
+- **Expected result:** A steady jetpack hiss.
+- **Actual result:** `_make_noise_loop()` reuses `_make_noise_burst()`,
+  whose envelope decays quadratically to zero over the 1-second loop, so
+  the sound pulses once a second.
+- **Root cause:** Burst envelope reused for a looped sound.
+- **Fix:** None in this pass — the fix (flat envelope for the loop) is
+  small but cannot be verified by ear on this machine (no sound hardware),
+  and this QA pass does not ship unverified audio changes.
+- **Verification:** Not fixed; confirmed by code inspection.
+
+## QA-013 — Unused asset files are shipped in the APK (known, not fixed)
+
+- **Severity:** Low
+- **Affected feature:** Packaging / resources
+- **Steps to reproduce:** `assets/items/` (ammobox, grenade, healthkit),
+  `assets/effects/` (explosion2, fireball2, smoke2, rocket),
+  `assets/backgrounds/snow.png` are never referenced by any script.
+- **Expected result:** Only used resources are exported.
+- **Actual result:** They are exported (export filter is `all_resources`)
+  and add a little weight to the APK.
+- **Root cause:** Slices from the user's asset pack that the game does not
+  use (pickups are drawn procedurally; the menu uses a gradient sky).
+- **Fix:** None — the files are user-provided art and may be used later;
+  deleting them was not requested.
+- **Verification:** Not fixed; confirmed by grep (no references).
+
+## QA-014 — Real two-phone LAN join cannot be tested on this machine (limitation)
+
+- **Severity:** N/A (test limitation, not a product bug)
+- **Affected feature:** LAN multiplayer join
+- **Steps to reproduce:** N/A — the sandbox blocks UDP (ENet's transport)
+  and has no Android emulator (`/dev/kvm` absent); a broadcast send fails
+  with `PermissionError: [Errno 1] Operation not permitted`.
+- **Expected result:** A two-phone join test on real hardware.
+- **Actual result:** Not possible here.
+- **What was verified instead:** Code review of the join path
+  (`request_spawn` only after the client loads the game scene,
+  4 s re-announce, 8 s timeout with a Back/Retry error panel, peer
+  disconnect despawns the player, host uses its LAN address, port 7777,
+  no hardcoded IPs), the host smoke test, and the error panel rendering.
+  The 8 s timeout + error panel path is exercised by the harness
+  (ERROR-PANEL check).
+- **Verification:** UNTESTED on real devices — must be checked on two
+  phones on the same Wi-Fi before calling multiplayer "verified".
+
+## QA-015 — ObjectDB leak warning at exit (observed, not a runtime leak)
+
+- **Severity:** Low
+- **Affected feature:** Shutdown / memory
+- **Steps to reproduce:** Run the game (menu or smoke test) and quit; the
+  log shows `WARNING: ObjectDB instances leaked at exit`.
+- **Expected result:** Clean shutdown with no leaked instances.
+- **Actual result:** With `--verbose`, the leaked instances are one
+  `AudioStreamWAV` and one `AudioStreamPlaybackWAV` — the procedurally
+  generated audio streams held by `GameAudio`, stranded by the abrupt
+  `get_tree().quit()` at the end of a test run.
+- **Root cause:** Quit-time teardown order, not gameplay allocation: the
+  streams are created once per `GameAudio` node and reused; nothing
+  allocates per frame.
+- **Fix:** None — no evidence of growth during play; the harness (46
+  checks, ~25 s of play) and smoke test show the same constant warning.
+- **Verification:** Observed; not fixed. Worth one re-check on a phone if
+  a long session ever shows growth, but there is no sign of it here.
+
+---
+
+## Re-verified v2.0 builder fixes (all confirmed in this pass)
+
+| Builder claim (v2.0) | How re-verified |
+|---|---|
+| Grenade had no collision shape and fell through the world (fixed with CircleShape2D r=9) | Harness GRENADE-NO-FALL-THROUGH: max grenade Y 1373 vs floor top 1382; GRENADE-EXPLODES: gone after the 2 s fuse. |
+| HUD SCORE/pause buttons overlapped labels (moved) | Rendered frames: SCORE / II buttons sit clear of the Kills/Deaths/Players/weapon labels at 1280x720. |
+| HP/fuel ProgressBar fills rendered light grey (explicit green/blue fills) | Pixel measurement of rendered frames: HP bar full green at 100 HP, ~48% after 55 grenade damage; fuel bar 82% while refilling — matches the game's internal values. |
+| Join fix: server spawns a client only after `request_spawn` | Code review + 8 s timeout/error-panel path exercised (ERROR-PANEL). Real two-phone join still untested (QA-014). |
+| Bullets use swept raycast and stop at platforms | Smoke test: 23 shots fired, 0 bullets left (all impacted or expired); impact burst visible on a platform in the rendered frame; harness WPN-BULLET-CLEANUP passes. |
+
+## QA harness results (v2.1, final run)
+
+46 checks, 46 passed, 0 failed, 0 script errors. Coverage: boot/spawn,
+reload (+animation), death/respawn (+spawn protection), shotgun pellets
+(6), sniper, rocket explosion damage, SMG, grenade (spawn/bounce/explode),
+pickup walk-over, all 3 maps (static spawn/pickup validation + live load),
+TDM team/score/end, FFA end, rematch reload, pause (shows, freezes
+position and timer, resumes), scoreboard, error panel, camera
+(current/limits/follow). Baseline v2.0 run: 4 failures (RELOAD-ANIM,
+SPAWN-PROTECT, SPAWN-PROTECT-EXPIRES, GRENADE-SPAWN*) — the first three
+were the real bugs fixed above; GRENADE-SPAWN was a harness timing issue
+(the player was still dead from the rocket test) and was fixed in the
+harness itself. Final smoke test: host runs, spawns, moves (analog speed
+330 full / 68 at 0.3 push), jumps, jetpacks (fuel 100 -> 12), shoots in
+all directions (aim/gun rotation -45 / 180 / 90 deg), throws a grenade,
+23 shots, 0 script errors.
+
+*The harness itself (qa_harness.gd / qa_bootstrap.tscn) was a temporary
+test tool and was deleted before the v2.1 export; it is not shipped.
+
+---
+
+## v2.2 — joystick rework + fire fix (2026-11-18)
+
+## QA-016 — Gun kept firing non-stop after the finger lifted (fire button bug)
+
+- **Severity:** High
+- **Affected feature:** Firing / aim stick
+- **Steps to reproduce:** Aim and fire with the right stick, then switch
+  apps, pull down the notification shade, or cancel the gesture
+  (any release the OS never delivers as a touch-release event). The gun
+  keeps firing forever with no finger on the screen.
+- **Expected result:** Firing happens only while a finger is actively
+  holding the aim stick past the threshold, and stops the instant the
+  finger lifts. Never fires while dead, paused, or after the match ends.
+- **Actual result:** The firing state came from the aim knob's displaced
+  position, which was only cleared by an explicit touch-release event.
+  Any release the OS never delivered left the knob displaced and
+  `touch_firing` true forever.
+- **Root cause:** State derived from a visual (knob offset) instead of
+  from live touch ownership. No focus-out / pause handling existed, and
+  `_update_touch_state()` never re-validated that a touch was still
+  active.
+- **Fix:** Both sticks now track their own touch ID (`joystick.gd`).
+  `get_vector()` returns zero unless a finger is actively holding the
+  stick. The sticks reset themselves on `NOTIFICATION_WM_WINDOW_FOCUS_OUT`
+  and `NOTIFICATION_APPLICATION_PAUSED`; `game.gd` also resets all touch
+  state on focus-out (`_reset_all_touch_state()`) and `_update_touch_state()`
+  zeroes everything while paused. Firing is therefore true only while a
+  finger is down on the aim stick. The player also cannot fire while dead
+  (aim input is ignored when `alive` is false), while paused, or after
+  the match ends.
+- **Verification:** Joystick acceptance test, 21/21 passed, 0 script
+  errors — RELEASE-AIM-STOPS-FIRE (firing=false, shots frozen),
+  FOCUS-OUT-RESET (firing=false after a simulated focus loss, shots
+  frozen), FIRE-AFTER-DEATH (alive=false, shots frozen),
+  FIRE-WHILE-PAUSED (shots frozen while paused, resumes cleanly),
+  FIRE-AFTER-MATCH-END (shots frozen). Real-touch behaviour on a phone
+  still needs a human check (no touch hardware on this machine).
+
+## QA-017 — Joystick-test harness called take_damage() with 1 argument (test-only bug)
+
+- **Severity:** Low (test harness only, no gameplay impact)
+- **Affected feature:** `--joystick-test` harness
+- **Steps to reproduce:** Run the joystick acceptance test; the
+  FIRE-AFTER-DEATH step printed a script error and failed.
+- **Expected result:** The test kills the local player, then checks that
+  no shots are fired while dead.
+- **Actual result:** `SCRIPT ERROR: Invalid call to function 'take_damage'
+  in base 'CharacterBody2D (player.gd)'. Expected 2 arguments.` The
+  player stayed alive, so the step failed (20/21 on the first run).
+- **Root cause:** `player.gd` takes `take_damage(amount, from_id)`; the
+  harness called it with only the amount.
+- **Fix:** Harness now calls `lp.take_damage(500, 1)` (from_id 1 = the
+  host's own id, so no kill-credit side effects).
+- **Verification:** Re-ran the full acceptance test: 21/21 passed,
+  0 script errors.
+
+## QA-018 — JUMP button removed; jump/jetpack moved to the left stick
+
+- **Severity:** N/A (intentional control change, user-requested)
+- **Affected feature:** Controls
+- **Change:** The JUMP button, its handlers, and all `touch_jump_*`
+  references are gone. Pushing the left stick up while on the ground
+  jumps (rising-edge triggered, armed/re-arm flag — holding up through
+  a landing does NOT auto-jump again). Holding up while airborne is
+  jetpack thrust with the existing fuel rules (drains only while
+  thrusting, refills on the ground, no thrust at zero fuel, no automatic
+  flying). Pushing down while airborne fast-falls. Space is still a
+  keyboard jump fallback. The lobby and an in-game HUD hint (shown 10 s
+  after spawning) explain the change: "Left stick: move • Push up: jump /
+  fly • Right stick: aim & fire".
+- **Verification:** Acceptance tests PRESS-UP-JUMP (jumped, jetpacking,
+  fuel 85), STICK-UP-NO-REJUMP (no second jump while held), and the
+  smoke test phases 8–9 (jetpack climb, fuel 100 -> 56 -> 10, refill to
+  100). Discoverability on a real phone still needs a human check.
+
+## Joystick acceptance test results (v2.2, final run)
+
+21 checks, 21 passed, 0 failed, 0 script errors. Run:
+`xvfb-run -a godot --path . -- --auto-host --joystick-test` (~20 s).
+Coverage: press left/right (vec ±0.81, vel ±268, facing, run anim),
+press up = jump + jetpack (fuel drains), release stops (vec zero, knob
+0.0, no jetpack, vel 0), fuel stable with no input (refills to 100),
+press down = fast fall (vel.y 1073), diagonal up-right (vec 0.70/-0.70,
+len 0.99), diagonal speed normalized (vel.x 231 < 330), knob clamped to
+60 px, multi-touch (move + aim + firing together, 4 shots), releasing
+move only (aim keeps firing), releasing aim stops fire (shots frozen),
+focus-out reset, fire after death, respawn (alive, 100 HP), fire while
+paused (shots frozen, resume ok), fire after match end (shots frozen),
+stick-up no re-jump, resolution 1920 (stick still works).
+
+Smoke test re-run on v2.2: all 19 phases pass, 0 script errors — host
+runs, moves (330 full / 68 at 0.3 push), jetpacks, aims in all
+directions, shoots (23 shots), throws a grenade, picks up weapons.
+
+**Test-runner lesson (do not repeat):** Godot 4.3 only puts arguments
+after a `--` separator into `OS.get_cmdline_user_args()`. Running
+`godot --path . --auto-host --joystick-test` (no `--`) silently leaves
+the game sitting in the main menu forever — no test output, no error,
+just the menu rendering. The first three v2.2 test runs "hung" for
+this reason alone; nothing was wrong with the game. Always run tests as
+`godot --path . -- --auto-host --joystick-test` (same for `--smoke-test`).
+
+---
+
+## v2.3 — 10 maps + modern UI + host-lobby fix (2026-11-18)
+
+## QA-019 — HOST GAME shows the game world but no buttons (user-reported, real phone)
+
+- **Severity:** Critical (the host flow was unusable)
+- **Affected feature:** UI — host lobby (menu → Local Multiplayer → HOST GAME)
+- **Steps to reproduce:** On a real phone (v2.2), tap LOCAL MULTIPLAYER,
+  then HOST GAME.
+- **Expected result:** A host lobby with map selection, game mode, kill
+  limit, match time, player list and a START MATCH button.
+- **Actual result (v2.2, as reported by the user):** "Glitch when I click
+  host game." / "Blank, no option of map selection and any option." /
+  "I can see game world behind it with just no buttons." The game world
+  renders behind the lobby, but no buttons appear at all.
+- **Root cause:** The lobby panel used `PRESET_CENTER` plus manual offset
+  centring (`_center_all_panels` in `main.gd`). Hidden panels are centred
+  while their size is (0,0)/stylebox-only at startup and only re-centred
+  ~2 frames after being shown. The lobby's minimum height transiently
+  computed to ~2877 px (the autowrap hint label at width 0 wraps to ~85
+  one-character lines), the panel was sized to that height and never
+  shrank back, and it was positioned at (298, -1078.5) with the START
+  button at (320, -435.5) — mostly off-screen. Reproduced headlessly at
+  1280x720: lobby `visible=true` but `size=(684, 2877)`,
+  `position=(298, -1078.5)`. The world behind was visible because the
+  panel is semi-transparent and the game scene had already loaded behind
+  it. QA-001's centring fix never covered this screen's transient sizing.
+- **Fix (v2.3):** The fragile centring is gone — `_center_panel` /
+  `_center_all_panels` removed from `main.gd` and `game.gd`. Panels are
+  now full-rect containers (anchors 0–1, offsets 16/12/-16/-12) whose size
+  comes from the anchors, never from content minimum size. The tall lobby
+  sits inside a ScrollContainer so it fits any screen height. See QA-021
+  for the full UI rework.
+- **Verification:** FIXED and verified. Headless host-flow test after the
+  fix: lobby `visible=true size=(1248, 696) position=(16, 12)`, 10 map
+  buttons visible, START MATCH at (40, 626) fully in the viewport.
+  Full end-to-end flow check 19/19 (see "v2.3 release checklist" below).
+
+## QA-020 — After leaving a match (or a failed join), HOST GAME and JOIN do nothing until the app is restarted (FLOW-017)
+
+- **Severity:** High (found by the v2.3 flow check, not by a user report)
+- **Affected feature:** Networking — host/join after any disconnect
+- **Steps to reproduce:** Host a game, start a match, leave it (Back to
+  Lobby), then tap HOST GAME again — or fail a join (bad IP) and tap
+  JOIN again.
+- **Expected result:** HOST GAME shows the lobby again; JOIN tries to
+  connect again.
+- **Actual result (pre-fix):** Nothing happens. No lobby, no error, no
+  status message. The buttons are dead until the app is restarted.
+  Flow check: 7e (host again after leave) FAIL, 8a (bad-IP join) FAIL
+  with empty status, 9 (join-timeout error panel) FAIL — the game scene
+  never loaded because the start press was blocked.
+- **Root cause:** Four disconnect paths set
+  `multiplayer.multiplayer_peer = null` (`main.gd` `_on_connection_failed`,
+  `_leave_lobby`, join-timeout in `_process`; `game.gd`
+  `_on_leave_pressed`). In Godot 4.3 the getter then returns **null**, not
+  the default OfflineMultiplayerPeer. The host/join guards
+  (`if multiplayer.multiplayer_peer is not OfflineMultiplayerPeer: return`
+  in `_on_host_pressed` and `join_game`) therefore treat a disconnected
+  state as "already connected" and silently return. Confirmed by probe:
+  initial peer = OfflineMultiplayerPeer; after null-assign, peer = NULL
+  and `is not OfflineMultiplayerPeer` = true (blocks). The port itself
+  was NOT the problem — once all references were dropped, re-creating the
+  server on port 7777 returned OK (err 0).
+- **Fix (v2.3):** All four disconnects now restore the offline peer
+  (`multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()`) and
+  clear the held client peer (`_peer = null`). Both guards are also
+  null-safe (`!= null and is not OfflineMultiplayerPeer`), so a null peer
+  can never silently block host/join again.
+- **Verification:** FIXED and verified. The same flow check that failed
+  3 items before the fix passes 19/19 after it: host-again-after-leave
+  shows the lobby, bad-IP join shows "Could not reach that host. Check
+  the IP and Wi-Fi.", and the join-timeout error panel shows with working
+  Back/Retry buttons.
+
+## QA-021 — Modern UI rework (lobby overflow on phone screens)
+
+- **Severity:** Medium (usability)
+- **Affected feature:** UI — menus, lobby, HUD
+- **Steps to reproduce:** Open the host lobby at 1280x720 (v2.2 layout).
+- **Expected result:** Map selection, mode, kill limit, match time and
+  START MATCH all visible or reachable without guessing.
+- **Actual result (v2.2):** The lobby was 680 px wide with ~660 px of
+  content; on phone screens where stretch mode shrinks the logical height
+  below 720 it overflowed top/bottom, hiding the title/START button, and
+  the mode buttons sat at y=770 — below the viewport, reachable only by
+  scrolling a container that did not exist.
+- **Fix (v2.3):** Full-rect panels with rounded corners and a dark
+  translucent background; green accent (`Color(0.13, 0.65, 0.32)`) for
+  primary actions; big touch targets (min 56 px, menu buttons 64 px);
+  map thumbnails (96x64) on the lobby map buttons; selected-state
+  highlights on map/mode/limit/time buttons; ScrollContainer for the
+  lobby content with a fixed START MATCH action row at the bottom; HUD
+  dialog buttons (pause, score, grenade, switch, end screen, error
+  panel) styled the same way via `_style_hud_button` in `game.gd`.
+  Same flows and same `GameData` fields as before.
+- **Verification:** Headless flow check at 1280x720: menu buttons, HOST
+  GAME, JOIN, all 10 map buttons and START MATCH fully in the viewport;
+  mode (2/2), kill limit (3/3) and match time (3/3) all reachable by
+  scrolling the lobby; HUD buttons (grenade/switch/pause/score) and both
+  joysticks visible in-game. Screenshots: `/tmp/flow_menu.png`,
+  `/tmp/flow_lobby.png`, `/tmp/flow_game.png`.
+
+## QA-022 — Jungle Ruins map built from the user's asset pack
+
+- **Severity:** N/A (new content)
+- **Affected feature:** Maps — Jungle Ruins (map #6 of 10)
+- **Source:** `~/workspace/user/files/Jungle_Ruins_Godot_Asset_Pack.zip`
+  (environment atlas 1672x545, map overview 1672x406, placement guide).
+  The README states these are generated concept sheets, NOT pre-sliced
+  production sprites.
+- **Work done:** The atlas was sliced by hand into 12 sprites in
+  `assets/jungle/` (grass tile, platform, bridge, arch, tree, palm,
+  watchtower, statue, pillar, crate, rock, bush), each verified on
+  magenta and dark-green backgrounds — no dark box, all 4 corners
+  transparent, alpha ramp (transparent <28, opaque >110). The map
+  follows `docs/map_placement_guide.txt` exactly: 3200x1400 world, 6
+  zones (left spawn terrace with big tree + cave alcove with ammo; left
+  ruin/high route with stepped stone hill, three grass-topped platforms,
+  broken temple wall, crate cover, narrow wooden bridge; central temple
+  chamber with broad central platform, two elevated ledges, stone pillars
+  at the edges, one contested weapon pickup on an exposed mid-height
+  platform, lower tunnel beneath; right cliff + watchtower with circular
+  cave opening, tree on the upper terrace, bridge to the centre, secondary
+  weapon/ammo on a side route; far-right waterfall terrace with descending
+  stone platforms and a lower route behind/under the waterfall; lower cave
+  network with two connected underground corridors, stone arches, short
+  platforms, one open vertical shaft for jetpack traversal). The overview
+  was used as a layout reference only — it was NOT pasted in as one big
+  image; the map is rebuilt from modular tiles with matching collision.
+  Decor is separate from collision; only walkable platforms/walls get
+  collision.
+- **Verification:** Map load test: Jungle Ruins loads, spawns safely
+  (capsule clear), 23 collision shapes for 20 platforms + 3 walls,
+  camera limits (3200, 1400), high/mid/floor platforms landable. Zone
+  checks all pass: z1 terrace/cave, z2 high route, z3 temple + contested
+  pickup, z4 cliff/watchtower, z5 waterfall terrace, z6 cave network,
+  bridge to cliff — the player lands on a platform at every checked
+  position. No spawn inside a wall, no dead-end trap (cave network has
+  2 exits, verified by the reachability graph in the map generator).
+
+## v2.3 release checklist (per-map results)
+
+Full end-to-end flow check (`/tmp/flow_check.gd`, 1280x720, headless):
+**19/19 passed** — 1 menu buttons visible+tappable; 2a multiplayer
+screen; 2b host lobby full-rect on screen; 2c all 10 maps listed incl.
+Jungle Ruins; 2d START MATCH visible+tappable; 2e mode/kill-limit/
+match-time reachable by scrolling; 3 map selection changes + remembered
+(Jungle Ruins, `map_id=5`, button shows "✓ Jungle Ruins"); 4a game loads
+(Jungle Ruins, 3200x1400); 4b local player spawns; 4c spawn not inside a
+wall; 4d HUD shows (health/ammo/weapon/grenade/switch/pause/score,
+players 1/8); 7a pause opens/closes; 7b scoreboard opens/closes; 7c end
+screen at kill limit ("Player wins!", Rematch + Back to Lobby); 7d Back
+to Lobby returns to menu; 7e leaving the lobby returns to multiplayer
+screen; 8a bad IP shows "Could not reach that host. Check the IP and
+Wi-Fi." with no hang; 8b screen still usable after failed join; 9
+join-timeout error panel with Back/Retry visible. Zero script errors in
+the flow run (only the pre-existing headless audio-init message
+`ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN`, which
+appears in every headless run and does not occur on a real phone).
+
+All-maps load test (`/tmp/map_load_test.gd`): **47/47 passed** — per map:
+loads + spawns (capsule clear), collision shapes = platforms + 3 walls,
+camera limits = map size, high/mid/floor platforms landable. Jungle Ruins
+adds 7 zone-reachability checks, all pass.
+
+| Map | Size | Platforms | Spawns | Pickups | Load | Spawn safe | Collision | Camera | Landable |
+|---|---|---|---|---|---|---|---|---|---|
+| Catacombs | 3200x1400 | 17 | 8 | 6 | PASS | PASS | 20 shapes | PASS | PASS |
+| Military Base | 2880x1440 | 16 | 8 | 6 | PASS | PASS | 19 shapes | PASS | PASS |
+| Desert Outpost | 3000x1500 | 16 | 8 | 6 | PASS | PASS | 19 shapes | PASS | PASS |
+| Industrial Factory | 3200x1600 | 17 | 8 | 6 | PASS | PASS | 20 shapes | PASS | PASS |
+| Frozen Fortress | 2800x1500 | 16 | 8 | 6 | PASS | PASS | 19 shapes | PASS | PASS |
+| Jungle Ruins | 3200x1400 | 20 | 8 | 6 | PASS | PASS | 23 shapes | PASS | PASS (+7 zone checks) |
+| Space Station | 3000x1500 | 16 | 8 | 6 | PASS | PASS | 19 shapes | PASS | PASS |
+| City Underground | 3200x1600 | 17 | 8 | 6 | PASS | PASS | 20 shapes | PASS | PASS |
+| Volcanic Cavern | 3000x1500 | 18 | 8 | 6 | PASS | PASS | 21 shapes | PASS | PASS (lava pools avoidable, safe routes) |
+| Pirate Island | 3000x1500 | 16 | 8 | 6 | PASS | PASS | 19 shapes | PASS | PASS |
+
+Joystick acceptance test (re-run on final v2.3 code):
+**21/21 passed** — same coverage as v2.2 (directions, diagonals,
+knob clamp, release, multi-touch, focus-out reset, fire stops on
+release/death/pause/match-end, stick-up jump/no-re-jump, 1920 resolution).
+QA-016 fire fix intact.
+
+Smoke test (re-run on final v2.3 code, `-- --auto-host --smoke-test`):
+**all 19 phases (0–18) pass, 0 script errors** — host runs, moves (330
+full speed / 68 at 0.3 push), jetpacks (fuel 100 → 57 → 10, refills to
+100), aims in all directions, shoots (23 shots), throws a grenade, picks
+up weapons (SMG), switches weapons. Screenshots saved to
+`user://shot_aim.png` / `user://shot_explosion.png`.
+
+Map generation validation (`/tmp/gen_maps.py`): **0 errors, 0 warnings**
+on the final run — platform height 48, no overlaps, every platform
+reachable by a normal jump or jetpack from the floor, spawns capsule-clear
+and landing on a platform/floor within 60 px below, pickups with a
+platform top within 50 px below, Catacombs smoke-test columns clear,
+no spawn/pickup over lava.
+
+Known limits that still apply (unchanged from v2.2): two-phone LAN join
+untested on real phones (sandbox blocks UDP); real touch hardware
+untested; performance on a real phone untested; audio not verified by
+ear. The green strip seen at the top of headless game screenshots is a
+test-harness artifact (the harness adds the main scene manually, so the
+leftover START MATCH button renders shifted by the game camera) — it
+does not occur in the real app, where `change_scene_to_file` frees the
+main scene. The lobby's mode/kill-limit/match-time rows sit below the
+fold at 720p and need a scroll to reach — by design (ScrollContainer),
+verified reachable in the flow check.
+
+## v2.4 — FIRE button + multiplayer overhaul (2026-11-19)
+
+## QA-023 — Fire button triggers together with movement / grenade / weapon buttons (user-reported, real phone)
+
+**Report:** "The fire button is triggering with the movements grenade and
+weapon button. It shouldn't happen. It should work with only fire button."
+
+**Root cause (code audit, game.gd + joystick.gd):** the game grabbed ALL
+screen touches first in `_input`, and `_on_touch_press` routed by screen
+half (left → move stick, right → aim stick). `joystick.gd press_touch()`
+never checked whether the touch was inside the stick. The ONLY thing
+protecting the GRENADE / WEAPON / PAUSE / SCORE buttons was a
+`get_global_rect().has_point(pos)` check — and on a real phone (stretch
+mode `canvas_items` + aspect expand) the button rects are canvas-space
+while touch positions are viewport-pixel space, so the check can miss. A
+tap on GRENADE or WEAPON fell through to the aim stick, and since v2.3
+set `touch_firing = aim_vec.length() > 0.35`, the gun fired.
+
+**Fix (not a patch on the rect check):**
+1. The FIRE button owns its own touch ID (`_fire_touch_id`) and
+   `touch_firing` is true ONLY while that ID is actively held — nothing
+   else may ever set it.
+2. The aim stick is aim-only and can never cause firing.
+3. Game touches now go through `_unhandled_input` instead of `_input`,
+   so GUI buttons (grenade, weapon, pause, score, reload, fire) consume
+   their touches first and the game layer never sees them. A
+   coordinate-correct rect check (`_to_canvas_pos` via the canvas
+   transform inverse, verified against the actual stretch transform)
+   remains only as a belt-and-braces fallback.
+4. The QA-016 rule stands: firing state comes only from an actively held
+   fire-button touch, reset on focus-out / pause / death / match end.
+
+**New files:** `fire_button.gd` (FireButtonController: one touch ID,
+press edge, slide-off cancel past 1.6x radius, focus-out reset, drawn
+red circle + white bullet icon + glow while held), `weapons.gd`
+(WeaponData: one data-driven table for all 6 weapons),
+`bullet_pool.gd` (BulletPool: 96 pre-created pooled bullets),
+`shooting_sync.gd` (ShootingSync: host-side rate/ammo validation),
+`discovery.gd` (LanDiscovery: see QA-025).
+
+**Verification (fire test, `-- --auto-host --fire-test`):** move alone →
+0 shots; aim alone → 0 shots; GRENADE alone → 0 shots and 1 grenade;
+WEAPON alone → 0 shots and 1 weapon switch; FIRE alone → fires; hold
+FIRE + move + aim (3 fingers) → fires while moving and aiming; tap
+GRENADE while holding FIRE → grenade throws and firing continues only
+while FIRE is held; slide a finger off FIRE → firing stops. All pass
+(see the fire-test log below).
+
+## QA-024 — Mini Militia-style FIRE button system
+
+- Circular FIRE button, fixed bottom-right (screen space, never moves
+  with the camera), 90x90 px on the reference screen, semi-transparent
+  red circle, white bullet icon, white outline, shrinks to 0.9x while
+  pressed, pulsing glow while firing. Placed at the far corner; the aim
+  stick moved left/up to make room — no overlap with any control at
+  1280x720 or 1920x1080 (layout check in the fire test).
+- Press-and-hold = continuous automatic fire at the weapon's rate;
+  release = stop immediately. Single tap = one shot for semi-auto
+  weapons. Respects fire rate and reload: no firing at zero ammo, no
+  firing during reload, auto-reload at zero ammo.
+- Aiming: separate right-side stick, 360 degrees; the weapon orients to
+  the aim direction and the muzzle follows it. No aim input = shoot in
+  the facing direction. Never auto-aims in the movement direction.
+- Weapons (data-driven, `weapons.gd`): Pistol (new default sidearm, 10
+  dmg / 0.22 s / 12 mag / 1.0 s reload / low recoil), Assault Rifle
+  (12 / 0.13 / 30 / 1.2), SMG (8 / 0.07 / 32 / 1.0), Shotgun
+  (9x6 pellets / 0.8 / 6 / 1.8, wide spread, short range, strong recoil),
+  Sniper (60 / 0.9 / 5 / 1.6, slow, high damage), Rocket Launcher
+  (70 / 1.2 / 4 / 2.0, explosive, area damage + knockback).
+- Reloading: ammo count next to the weapon name ("Rifle 24/30"), a
+  dedicated RELOAD button, reload progress shown ("reloading 60%"), no
+  firing during reload, ammo refills after reload, reload animation +
+  sound. A dedicated "pistol" sound was added to `audio.gd`.
+- Multi-touch with per-finger touch IDs (move 910 / aim 911 / fire 912
+  in the tests); release detection and cancellation (slide-off, focus-out,
+  pause, death, match end) all reset firing state.
+- Effects: muzzle flash, bullet trails, per-weapon recoil (velocity kick
+  + gun kick), screen shake for shotgun/sniper/rocket (trauma-based),
+  weapon-specific sounds, impact sparks, hit effects.
+- Architecture: `FireButtonController` (fire_button.gd), `WeaponData`
+  (weapons.gd), `BulletPool` (bullet_pool.gd), `ShootingSync`
+  (shooting_sync.gd), aim/reload/fire split across player.gd
+  (`_read_input` / `_apply_aim_and_fire` / `start_reload`) and game.gd
+  (touch routing, HUD, reload button). Frame-rate independent (delta
+  based), resolution independent (anchors + canvas transform).
+
+## QA-025 — Multiplayer overhaul: rooms, discovery, lobby, host IP
+
+**Report:** "check the multiplayer, I am still not able to play."
+
+**Audit findings:** the host's LAN IP was never shown in the lobby or on
+the multiplayer screen (only "You are the host - pick a map and mode,
+then start!"); discovery broadcast only to 255.255.255.255:7778 (many
+routers/hotspots block the limited broadcast); the client's spawn
+depended on a single `request_spawn` RPC (one lost UDP packet = stuck
+until the 8 s timeout); clients decided damage/kills, not the host.
+
+**Fix:**
+- **Rooms (main.gd):** Create Room (name, max players 2–12, private +
+  password), Join Room, Quick LAN Match (first open lobby room with
+  space), Refresh Rooms, Manual IP Connection, Back. Host can change
+  settings, kick players, start when all ready or force-start (the
+  button says "START ANYWAY (n/m ready)" when not all ready).
+- **Discovery (discovery.gd):** room announcements carry the full card
+  (room name, host name, players/max, map, mode, status, IP, port,
+  private) and broadcast to every subnet broadcast address derived from
+  the host's IPs (e.g. 192.168.1.255) as well as 255.255.255.255.
+  Clients list rooms automatically, drop expired ones (5 s), and show
+  the full card. Manual IP entry is always the fallback.
+- **Host IP visible:** the multiplayer screen shows "Your IP on this
+  Wi-Fi: x.x.x.x" before hosting, and the lobby shows "HOST IP:
+  x.x.x.x — friends type this IP to join" big and clear. If no Wi-Fi IP
+  exists it says so plainly.
+- **Lobby:** player portraits, names, colours, HOST/YOU tags, per-player
+  READY status (toggle button; host force-start is explicit), KICK
+  buttons for the host, room settings summary, and the new controls hint.
+  Wrong password / full room / kicked all produce an exact message
+  (the password is never broadcast to other players).
+- **Spawn retry:** the client re-sends `request_spawn` every 2 s while
+  unspawned; the server's handler is idempotent (`_spawned` guard).
+  The host no longer errors on its own announce: `_announce_ready` is a
+  no-op on the server (it spawns via `_spawn_self`).
+- **Reconnect:** after a host disconnect, `GameData.last_host_ip` is
+  saved and the multiplayer screen prefills it with "tap JOIN to
+  reconnect". Host disconnect ends the match safely on every client
+  with a clear message — never a stuck loading screen.
+- **Modes:** Survival (round-based, one life per round, first to the
+  round limit wins) and Last Man Standing (one life for the whole match)
+  added to FFA and TDM. All 10 maps now have 12 spawn points (4 extra
+  floor spawns each; Volcanic Cavern extras avoid the lava pools).
+- **Disconnects:** client disconnect removes the player, updates the
+  lobby/scoreboard, and re-checks Survival/LMS end conditions. Host
+  migration is intentionally skipped (safe-exit instead, per spec).
+
+## QA-026 — Host-authoritative combat
+
+- The host validates every shot (`shooting_sync.gd`): shots arriving
+  sooner than 0.75x the weapon rate are rejected, ammo is mirrored from
+  the client's replicated magazine (increases adopted = reload/pickup),
+  shots at 0 ammo are rejected. No duplicate shots from latency.
+- Bullet collision is decided by the host's simulation; damage, kill
+  credit, health, deaths and respawns are host-owned. `take_damage` /
+  `take_explosion_damage` / `add_kill` / `give_pickup` reject remote
+  senders (only the host, id 0/1, may call them). Kill credit was
+  removed from `take_damage` — the host credits the kill when its own
+  hit is lethal. Friendly fire: TDM with friendly fire off makes
+  teammates immune (checked in `bullet.gd`).
+- Lava damage now routes to the victim's owning peer (it used to call
+  `take_damage` directly on the server's copy of remote players, which
+  replication overwrote — lava only hurt the host).
+- RPCs to a peer that disconnected mid-flight are skipped
+  (`multiplayer.get_peers().has(...)` guard in `bullet.gd` and
+  `request_explosion` / `_update_lava`) instead of logging errors.
+- Movement keeps the MultiplayerSynchronizer (0.05 s) + owner simulation
+  + lerp interpolation; the host validates spawn requests (sender must
+  match the claimed peer id, room must not be full).
+
+## QA-027 — Semi-auto tap silently lost (real bug found by the fire test)
+
+**Symptom:** the fire test's pistol/shotgun bullet-count steps
+flip-flopped between runs (pistol 0 / shotgun 6, then pistol 1 /
+shotgun 0) with no code change.
+
+**Root cause:** the press edge was consumed in `_read_input`
+(physics) with `consume_press_edge()`, but `touch_firing` only updates
+in `_process`. A tap landing just after a physics step was consumed on
+a frame where `_want_fire` was still false — the shot never fired and
+the edge was gone. On a real phone the same 1-frame window would make
+an occasional pistol/shotgun/sniper tap do nothing.
+
+**Fix:** the player now peeks (`has_press_edge()`) in `_read_input`
+and the edge is consumed only in `_apply_aim_and_fire` when the shot
+actually fires. Taps during reload are discarded (a tap during reload
+does nothing). Releasing the button already clears the edge
+(`reset_input`), so a persisted edge only exists while the finger is
+still down — one tap can still only ever produce one shot. The
+fire test is stable across runs after the fix (25/25 twice).
+
+## QA-028 — Script errors when leaving a match (pre-existing, exposed by the flow test)
+
+**Symptom:** after END-MATCH, the flow test logged 4x `Cannot call
+method 'is_server' on a null value` (in `_update_pickup_spawn`,
+`_update_join_timeout`, `_retry_spawn_if_needed`, `_update_lava`).
+
+**Root cause:** `_on_leave_pressed()` sets the peer to offline and
+requests the scene change, but the scene change lands at the end of the
+frame — the game's `_process` tail still ran once with `multiplayer`
+already torn down. (The functions that returned early on `match_over`
+never reached the call, which is why only 4 of them errored.)
+
+**Fix:** a `_leaving` flag, set in `_on_leave_pressed()`, makes
+`_process` return immediately — checked both at the top of `_process`
+and after the test-dispatch chain, so the tail cannot run mid-frame
+either. The flow test now runs with zero script errors.
+
+## QA-029 — Joysticks move downwards on a real phone (user-reported, v2.4)
+
+**Symptom:** on a real phone, touching the left or the right joystick
+makes the knob jump to the bottom edge and the player drift downwards,
+on every touch, at every screen size. Both sticks are affected.
+
+**Root cause:** a coordinate-space mismatch in the touch conversion.
+`_to_canvas_pos()` converted touch positions with the viewport's
+canvas transform (`get_viewport().get_canvas_transform()`), which
+carries the CAMERA offset — the camera follows the player, so once the
+player leaves the spawn its origin is far from (0,0) — but the HUD
+`CanvasLayer` does not follow the camera. Every touch therefore landed
+~680 px too low (the camera was at y=1040, so the offset was exactly
+680 px on Catacombs). The joystick then computed the knob offset from
+that shifted point, clamped it to the 60 px radius, and the knob
+slammed to the bottom edge with a straight-down vector. The same
+offset also made FIRE-button taps miss the button whenever the camera
+had moved. Headless tests never caught it because they fed canvas-space
+points directly to `_on_touch_press`, bypassing `_unhandled_input`
+and `_to_canvas_pos` entirely. (The stretch scale was suspected first,
+but the repro proved the camera term is the culprit: the bug fires at
+1280x720, scale exactly 1.)
+
+**Reproduction (new `--scale-test` harness):** the harness drives the
+REAL `_unhandled_input` pipeline with viewport-pixel positions
+computed from each control's `get_global_transform_with_canvas()` at
+5 resolutions. Against the unfixed code it failed 40/70: every
+centre/up/left/right/diagonal/aim/fire step failed with
+`vec=(0, 1), knob=(0, 60)`, and the DIAG line showed
+`converted=(115, 1285)` for a stick centre at `(115, 605)` — 680 px
+too low, exactly the camera offset.
+
+**Fix:** (1) `_to_canvas_pos()` / `_to_viewport_pos()` now use the HUD
+layer's own transform (`hud.get_final_transform()`), which has no
+camera term — the correct converter for HUD touches. (2)
+`joystick.gd _update_from_point()` converts the incoming point into
+the stick's local space first
+(`get_global_transform_with_canvas().affine_inverse() * global_pos`),
+then measures the offset from the local centre (`size * 0.5`) — the
+base never moves, only the knob follows the finger. (3) The same local
+conversion in `fire_button.gd press_touch()` / `drag_touch()`, and in
+`is_hud_control_pos()`, which now tests each control with its own
+global transform with canvas instead of a shared rectangle in a
+possibly different space. Stick layout, sizes, dead zone, fire-button
+behaviour and all v2.4 multiplayer work are unchanged.
+
+**Verification:** scale test **70/70 passed** (14 steps × 5
+resolutions: 1280x720, 2400x1080, 1920x1080, 800x480, 2340x1080).
+Centre touch gives a zero vector and the knob stays centred; up/down/
+left/right/diagonal give matching vectors with correct magnitude; the
+knob never jumps down on a centred touch. The DIAG line now shows
+`converted=(115, 605)` = the stick centre, while the old conversion
+still prints `(115, 1285)` for the record. Joystick acceptance,
+fire-button, smoke, flow, net and menu-net tests all re-run clean on
+the fixed code (see v2.5 test logs).
+
+## QA-030 — Bullets and the player pass through obstacles (user-reported, v2.4)
+
+**Symptom:** bullets fly straight through crates and barrels, and the
+player walks straight through them. A crate is visual-only.
+
+**Root cause:** in `_build_arena()`, platforms and walls got collision
+shapes in the Arena `StaticBody2D` (layer 1), but ALL decor — crates,
+barrels, sandbags, rocks, columns, pillars, statues, watchtower, trees,
+bushes, palms, bridges, arches — was drawn as a bare `Sprite2D` with
+no collision. Bullets use a swept raycast (mask 3 = world + players)
+and the player uses `move_and_slide`, so both passed through decor.
+
+**Fix:** solid-looking decor now gets a real collision rectangle on
+layer 1 in the Arena, sized from the sprite's texture and centred on
+the sprite, so it covers exactly what the player sees. Solid: crate,
+barrels, sandbags, rock, column, pillar, statue, watchtower, jungle
+crate, jungle rock. Non-solid dressing (trees, palms, bushes, bridges,
+arches) keeps no collision and stays pass-through, as before.
+Grenades (mask 1) bounce off the new shapes automatically; the bullet
+raycast (mask 3) stops at them with the existing impact FX.
+
+**Map data fix:** a design-time check found 11 decor items sitting
+exactly on top of a spawn point or a pickup (the floor decor was
+placed at the same round x positions as the spawns). They were moved
+to a clear spot on the same platform: Military Base sandbags 600→750,
+barrels 1800→1950, crate 2600→2450, crate 1200→1350 (was on pickup
+(1200,680)); Desert Outpost sandbags 2400→2250; Industrial Factory
+barrels 600→750; Space Station barrels 2600→2450, column 2100→2250;
+City Underground crate 600→750; Volcanic Cavern crate 2400→2250;
+Pirate Island rock 2400→2250. The remaining near-misses (e.g. a
+Catacombs column 3 px from a spawn) are clear of the real 34×52 player
+capsule. Low-clearance solids (a column 6 px under the platform above
+it) never seal a route: each is a single narrow pillar on a wide-open
+floor or platform, jumpable (jump height ~155 px) or walk-around-able,
+and the static check below proves it.
+
+**Verification (new `--collision-test` harness, `--map=N` to pick the
+map):** **8/8 passed on Catacombs and 8/8 on Jungle Ruins.** (a) ray
+at a crate stops exactly at its face `(979, 1331)`; a ray aimed past
+the crate still stops at the face, so a target behind it is safe.
+(b) walking into a crate stops the player exactly at the capsule edge
+(x=962 for face 979). (c) a downward ray stops at the floor top
+(1352). (d) a ray through a tree passes clean through. (e) walking
+through a bush passes it. (f) static validation of ALL 10 maps:
+53 solid rects, 120 spawns, 60 pickups — no spawn or pickup inside a
+solid, no solid seals a platform, and the platform graph (jump/jetpack
+up to 320 px up, 340 px across) reaches every spawn and pickup from
+spawn#0. (g) a grenade thrown at a column/watchtower bounces back
+(x=614 vs face 623; x=2354 vs face 2363). One failure during
+development was a test bug (the bush ray started off-map at x=-52 and
+hit the left wall) — the test was fixed, not the game.
+
+## v2.4 test logs (final run, 2026-11-19)
+
+**Joystick acceptance test** (`-- --auto-host --joystick-test`):
+**21/21 passed.** One failure was found and fixed during the run:
+DIAG-UP-RIGHT failed because the test teleported the player to
+(300, 1350), directly under the Catacombs platform at (300, 1180, 420,
+48) — the player jumped, rose 72 px and pinned under the platform, so
+vel.y read 0 while jetpacking. That is a test-setup bug, not a game
+bug; the setup now teleports to open sky (2100, 1350) and the step
+passes (vel=(231,-407)).
+
+**Smoke test** (`-- --auto-host --smoke-test`): **all 19 phases (0–18)
+pass** — host runs, moves, jetpacks, aims, shoots (23 shots), throws a
+grenade, picks up weapons, switches weapons. The two `save_png` errors
+in headless output are the screenshot captures (no viewport texture in
+headless mode); the phases themselves all pass.
+
+**Fire-button test** (`-- --auto-host --fire-test`): **25/25 passed
+(two consecutive runs).** MOVE-ALONE-NO-FIRE, AIM-ALONE-NO-FIRE,
+GRENADE-ALONE-NO-FIRE, WEAPON-ALONE-NO-FIRE, PISTOL-TAP-ONE-SHOT,
+FIRE-HOLD-CONTINUOUS (19 shots in 2.5 s, want 14–22),
+FIRE-WHILE-MOVING, FIRE-DIAGONAL-AIM, FIRE-WHILE-JETPACK,
+FIRE-WHILE-JUMPING, SWITCH-SETUP, SWITCH-WHILE-FIRING (rifle→pistol
+setup now lands on the SMG, which keeps firing while held — switching
+onto a semi-auto correctly needs a fresh tap), EMPTY-MAG-BLOCKED,
+RELOAD-COMPLETES (mag 32/32), RELOAD-WHILE-MOVING (60% progress),
+THREE-FINGERS, GRENADE-WHILE-FIRING (grenade throws, firing continues
+only while FIRE is held), SLIDE-OFF-STOPS-FIRE, LAYOUT-1280,
+LAYOUT-1920-AND-TRANSFORM (physical grenade tap through
+`_unhandled_input` at 1920x1080 proves the transform-correct fallback),
+MP-SYNC-VALIDATION (first=true, too-fast=false, empty-mag=false),
+MP-SINGLE-SHOT-ONE-BULLET (exactly 1 pistol bullet),
+MP-SHOTGUN-SIX-PELLETS (exactly 6 pellets). Three failures were found
+and fixed during the run: FIRE-WHILE-JUMPING (jump-edge race — see
+below), SWITCH-WHILE-FIRING (wrong expectation for a semi-auto landing
+— see above), and the pistol/shotgun flip-flop (QA-027, real bug).
+
+Test-only notes: the jump-edge failure was a headless timing artifact
+(two `_process` calls with no physics frame between the release and the
+re-press, so the player never saw the stick drop and the jump edge did
+not arm). On a real phone, releases and presses are separated by many
+physics frames. The test re-arms the jump state in the setup; the game
+code is unchanged for this. The fire test's RELEASE-FIRE check has the
+same one-physics-frame race the old aim-release test had
+(`touch_firing` updates in `_process`, the player reads it in
+`_physics_process`) — watch for flakiness on re-runs.
+
+**Multiplayer test** (`-- --auto-host --net-test`): **11/11 passed.**
+PAYLOAD-ROUNDTRIP (fields match, malformed packets rejected),
+SUBNET-BROADCAST (255.255.255.255 + 198.19.0.255, lan_ip 198.19.0.2),
+DISCOVERY-BIND (listener bound), SPAWN-IDEMPOTENT (3x request_spawn →
+1 player), COMBAT-HIT (1 pistol shot at a player 300 px away → bullet
+despawned on impact), DAMAGE-DEATH-RESPAWN (health 100 → 70 after 30
+dmg, dead after lethal, respawned alive with 100 health),
+MODE-SURVIVAL (kill the only other player → round won → match ends,
+host 1 round), MODE-LMS (kill the only other player → match ends, local
+player last standing), DISCONNECT-CLEANUP (bot node gone, spawn entry
+erased), HOST-LEFT-SAFE-EXIT (error panel visible, last_host_ip saved).
+One failure was found and fixed during the run: the damage step ran
+inside the 2 s spawn-protection window, so `take_damage` was swallowed
+— the test now clears spawn protection first.
+
+**Menu network test** (`-- --menu-net-test`): **6/6 passed.**
+PAYLOAD-ROUNDTRIP, SUBNET-BROADCAST, BAD-IP-ERROR (joining
+999.999.999.999 → "Could not reach that host. Check the IP and Wi-Fi,
+then tap JOIN to retry."), CREATE-ROOM (host=true, server=true, lobby
+visible, 1 player, host-IP label shows the LAN IP), READY-TOGGLE (own
+ready state true after one tap), LEAVE-CLEANUP (clean leave, menu
+visible again).
+
+**Full-flow check** (`-- --flow-test`): **10/10 passed, 0 script
+errors.** MENU-VISIBLE → CREATE-ROOM (lobby + host IP shown) →
+START-MATCH → MATCH-LOADED → PLAY-FIRE (4 shots) → PAUSE (paused,
+panel visible) → RESUME → SCOREBOARD (opens and closes) → END-MATCH
+(match_over, end panel visible) → BACK-AT-MENU (main menu visible
+again). This is a new harness: the menu side hands the check to the
+game scene via `GameData.flow_phase` and the game side hands it back;
+the menu prints the final result. It also caught QA-028 (fixed).
+
+## v2.4 release checklist
+
+- Clean compile: all 13 scripts parse with `--check-only`, no script
+  errors in any test run.
+- `aapt2 dump badging`: package `com.lanarena.shooter`, versionCode 6,
+  versionName 2.4, targetSdk 34, permissions ONLY `INTERNET`,
+  `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`.
+- Signed with the same debug keystore as v2.3 (certificate SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v2.3 exactly — installs over v2.3 cleanly).
+- APK: `mini-militia-lan.apk`, 24,112,174 bytes, md5
+  `5ede468caf4152eba2d023f859ac2e63`.
+- Known limits that still apply (unchanged): real two-phone LAN join,
+  hotspot/routers and network latency cannot be tested on this build
+  machine (the sandbox blocks UDP between processes) — the user tests
+  that part with the step-by-step guide in README.md; real touch
+  hardware untested; performance on a real phone untested; audio not
+  verified by ear. The host-authoritative damage path for a REMOTE
+  victim (host → rpc_id → victim's peer) cannot be exercised in a
+  single process — it was verified by code review plus the local-victim
+  path and the shooting-sync validation tests. Simultaneous lethal hits
+  from two shooters could double-credit a kill (the host reads the
+  victim's replicated health, stale by ~0.05 s + latency) — accepted
+  edge case, noted here rather than hidden.
+
+## v2.5 test logs (final run, 2026-11-19)
+
+**Scale / coordinate test** (`-- --auto-host --scale-test`): **70/70
+passed** (14 steps × 5 resolutions: 1280x720, 2400x1080, 1920x1080,
+800x480, 2340x1080). Against the unfixed code the same harness failed
+40/70 — every centre/up/left/right/diagonal/aim/fire step failed with
+`vec=(0, 1), knob=(0, 60)`, and the DIAG line showed the touch
+converting to `(115, 1285)` for a stick centre at `(115, 605)` — 680 px
+too low, exactly the camera offset. After the fix the DIAG shows
+`converted=(115, 605)` = the stick centre at every resolution.
+
+**Collision test** (`-- --auto-host --collision-test`, and `--map=5` for
+Jungle Ruins): **8/8 passed on Catacombs and 8/8 on Jungle Ruins.**
+STATIC-ALL-MAPS (10 maps, 53 solid rects, 120 spawns, 60 pickups: all
+clear), BULLET-STOPS-SOLID (ray stops exactly at the crate face),
+BULLET-BLOCKS-TARGET (a ray past the crate still stops at its face),
+WALK-BLOCKED (player stops exactly at the capsule edge, x=962 for face
+979), BULLET-STOPS-FLOOR (ray stops at the floor top), GRENADE-BLOCKED
+(grenade bounces back off a column/watchtower), BULLET-PASSES-BUSH
+(ray passes clean through a tree), WALK-PASSES-BUSH (player walks
+through a bush). One failure during development was a test bug (the
+bush ray started off-map at x=-52 and hit the left wall) — the test was
+fixed, not the game.
+
+**Joystick acceptance test** (`-- --auto-host --joystick-test`):
+**21/21 passed.**
+
+**Fire-button test** (`-- --auto-host --fire-test`): **25/25 passed.**
+
+**Smoke test** (`-- --auto-host --smoke-test`): **all 19 phases pass**
+— host runs, moves, jetpacks, aims, shoots (23 shots), throws a
+grenade, picks up weapons, switches weapons.
+
+**Multiplayer test** (`-- --auto-host --net-test`): **11/11 passed.**
+
+**Menu network test** (`--menu-net-test`): **6/6 passed.**
+
+**Full-flow check** (`-- --flow-test`): **10/10 passed** (menu →
+create room → lobby → start match → play → pause → scoreboard → end
+screen → back).
+
+**Zero script errors in every run.**
+
+Three failures found and fixed while testing v2.5 (all test-setup
+issues, not game bugs): (1) FIRE-WHILE-MOVING and THREE-FINGERS failed
+because the player ran into the new solid column/barrels and could not
+cover the 100 px the check requires — the setups now teleport the
+player to a clear stretch of floor first; (2) FOCUS-OUT-RESET,
+RELEASE-FIRE-STOPS-FIRE and SLIDE-OFF-STOPS-FIRE each failed once with
+exactly one extra shot — a race: the shot baseline was captured before
+the release took effect in `touch_firing` (which only updates in
+`_update_touch_state()`), so a physics step in between could fire one
+shot — the setups now refresh the touch state and capture the baseline
+after the release; (3) MP-SINGLE-SHOT-ONE-BULLET and
+MP-SHOTGUN-SIX-PELLETS failed with 0 bullets — the player's own
+grenades, thrown earlier in the test, now bounce off the solid column
+and explode at point-blank range (the debug run caught the player at
+1 HP), so the player was dead at the bullet-count step and could not
+shoot — the setups now revive + heal the player first. The grenade
+hurting its thrower is intended Mini Militia behaviour, not a bug.
+The joystick and fire tests were re-run twice more after these fixes:
+21/21 and 25/25 both times.
+
+## v2.5 release checklist
+
+- Clean compile: `--headless --import` with no script errors; zero
+  script errors in every test run.
+- `aapt2 dump badging`: package `com.lanarena.shooter`, versionCode 7,
+  versionName 2.5, targetSdk 34, permissions ONLY `INTERNET`,
+  `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`.
+- Signed with the same debug keystore as v2.4 (certificate SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — verified, matches v2.4 — installs over v2.4 cleanly).
+- APK: `mini-militia-lan.apk`, 25,492,479 bytes, md5
+  `90fe7e3fad44dd249ba8afc9bccaf175`.
+- NOTE FOR v3.0: `export_presets.cfg` now has
+  `exclude_filter="gen_assets_v3/*"` — the v3.0 coordinator's
+  `gen_assets_v3/` staging folder (music + generated assets) was
+  landing in the v2.5 APK unused (+~4.7 MB) and is excluded from the
+  export only; the files are still in the project. Remove the filter
+  when v3.0 wires those assets into the game.
+- Known limits that still apply (unchanged from v2.4): real two-phone
+  LAN join, hotspot/routers and network latency cannot be tested on
+  this build machine (the sandbox blocks UDP between processes) — the
+  user tests that part with the step-by-step guide in README.md; real
+  touch hardware untested; performance on a real phone untested; audio
+  not verified by ear. The host-authoritative damage path for a REMOTE
+  victim cannot be exercised in a single process. Simultaneous lethal
+  hits from two shooters could double-credit a kill — accepted edge
+  case, noted here rather than hidden.
+
+## Phase 3 — Engine upgrade Godot 4.3 → 4.7.2 (2026-11-19, engine-only)
+
+- **Result: MIGRATED, no fallback needed.** Project now runs on Godot
+  4.7.2.stable.official.ed1daf0bf. No gameplay, map, UI, or feature
+  change was made. Diff against the v2.5 backup
+  (`~/workspace/mini-militia-lan-backup-v2.5/`) shows the ONLY code change
+  is `project.godot`: `config/features` `"4.3"` → `"4.7"`. The 4.7
+  re-import also generated `*.gd.uid` files (new in 4.4+, harmless) and
+  rewrote `.godot/`. No `.gd`/`.tscn` file was edited.
+- **Backup verified first:** v2.5 APK md5
+  `90fe7e3fad44dd249ba8afc9bccaf175` matches in both the project and the
+  backup; backup is 218 MB. The delivered v2.5 APK was NOT overwritten —
+  its md5 is unchanged after this phase.
+- **Migration notes reviewed (official docs, 4.3→4.4→4.5→4.6→4.7):**
+  no breaking change in any of the four guides touches an API this
+  project uses. Checked explicitly and NOT present in the code:
+  `OS.read_string_from_stdin`, GraphEdit `frame_rect_changed`,
+  `@export_file`, `JSONRPC.set_scope`, `Node.get_rpc_config`,
+  `RenderingServer.instance_set_interpolated` /
+  `instance_reset_physics_interpolation`, RichTextLabel
+  `UPDATE_WIDTH_IN_PERCENT`, `AudioEffectSpectrumAnalyzer.tap_back_pos`,
+  `type_exists`, `draw_list_begin`, OpenXR/EditorFileDialog APIs.
+  Behaviour changes checked and not applicable: `AudioStreamPlayer`
+  default `area_mask` 1→0 (project uses no `audio_bus_override` on
+  Area2D), mouse/keyboard device IDs 0→`DEVICE_ID_MOUSE`/`DEVICE_ID_KEYBOARD`
+  (project never compares `InputEvent.device`; touch-only input),
+  packed-array element setter no longer calling the property setter
+  (no such pattern in the code), Jolt 3D changes (2D game, GodotPhysics2D).
+  Typed virtual overrides needing an explicit `return` in 4.7: none —
+  all typed functions are the project's own helpers, not overrides.
+- **API breaks fixed: NONE.** Zero script errors on `--headless --import`
+  with 4.7.2 and zero script errors in every test run below. The
+  migration was clean with no code fix required.
+- **QA-029 preserved:** HUD touch conversion still uses
+  `hud.get_final_transform()` (`game.gd:1576`, `_to_canvas_pos`) —
+  `get_viewport().get_canvas_transform()` is NOT used for HUD touches
+  (it appears only in a scale-test diagnostic print and a comment).
+  Verified by diff + the joystick/fire tests passing (see below).
+- **Toolchain fixes found during this phase (environment, not game):**
+  (1) The 4.7.2 export templates were installed one level too deep
+  (`.../4.7.2.stable/templates/*.apk`); Godot expects them directly
+  under `.../4.7.2.stable/`. Moved them up; export then worked.
+  (2) `editor_settings-4.7.tres` pointed `java_sdk_path` at
+  `/usr/lib/jvm/java-17-openjdk-amd64`, which does not exist on this
+  machine; corrected to `/home/hatch/workspace/jdk17` (the real JDK 17,
+  Temurin 17.0.21). Android SDK path was already correct.
+- **Regression on 4.7.2 (all with `xvfb-run -a`, Godot 4.7.2 binary):**
+  joystick acceptance **21/21**, fire-button **25/25**, smoke **19/19
+  phases (0–18)**, scale **70/70**, collision **8/8 on all 10 maps**
+  (Catacombs, Military Base, Desert Outpost, Industrial Factory,
+  Frozen Fortress, Jungle Ruins, Space Station, City Underground,
+  Volcanic Cavern, Pirate Island), multiplayer **11/11**, menu network
+  **6/6**, full flow **9/9** (menu → create room → lobby → start match →
+  play/fire → pause/resume → scoreboard → end screen → back to menu).
+  Zero script errors in every log. The only error lines are the known
+  headless-environment noise: the audio-init `ERR_CANT_OPEN` (also
+  present on 4.3) and ALSA "No such file or directory" (no sound card
+  headless); neither occurs on a real phone.
+- **Android export proof (4.7.2 templates, debug):** exported to
+  `/tmp/v3-engine-test.apk` (29,534,306 bytes unsigned), signed with the
+  debug keystore to `/tmp/v3-engine-test-signed.apk` (29,589,831 bytes,
+  md5 `109a5f7e859f340e8e98f72e3239356d`). `aapt2 dump badging`:
+  package `com.lanarena.shooter`, versionCode 7, versionName 2.5,
+  permissions ONLY `INTERNET`, `ACCESS_NETWORK_STATE`,
+  `ACCESS_WIFI_STATE`. `apksigner verify` passes; signer certificate
+  SHA-256 `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v2.4/v2.5 — installs over v2.5 cleanly. No `gen_assets_v3/`
+  or music files inside the APK (exclude filter intact).
+- **NOTED DIFFERENCE — targetSdk 34 → 36:** the 4.7.2 Android template
+  targets SDK 36 (compileSdk 36, platformBuildVersion 16); v2.5 on the
+  4.3 template was targetSdk 34. This is baked into the engine
+  template, not a project setting — there is no export-preset option
+  to pin it. SDK 36 is newer and satisfies current Play requirements
+  (35+), so this is an improvement, not a regression. No action needed.
+- **APK size note:** the 4.7.2 test APK is ~29.5 MB vs 25.5 MB for v2.5
+  on 4.3 — the 4.7 engine runtime itself is ~4 MB larger. Not a
+  regression; expect the v3.0 APK to be ~29–30 MB before new assets.
+- **Version untouched per plan:** still 2.5 / versionCode 7;
+  `export_presets.cfg` still has `exclude_filter="gen_assets_v3/*"`.
+  The final phase bumps to 3.0 / code 8.
+- **Known limits unchanged from v2.5:** real two-phone LAN join,
+  hotspot/routers and latency still untested here (sandbox blocks UDP);
+  real touch hardware untested; performance on a real phone untested;
+  audio not verified by ear.
+
+## Sky Brawl asset pack — curation (2026-11-19 ~02:00 IST)
+
+- Source: user upload `~/workspace/user/files/sky_brawl_1000_game_assets.zip`,
+  extracted to `~/workspace/user/files/sky_brawl_asset_pack/sky_brawl_asset_pack/`
+  — 1,000 PNGs + manifest.json + README.md (visual starter assets only:
+  NO animation frames, NO collision meshes, NO weapon stats).
+- Full curation (selection, transparency results, resolution notes,
+  rejections, integration notes) in `SKY_BRAWL_USE.md`. V3_PLAN.md
+  Phase 2 (Gemini need) and Phase 5 (map art) updated from it.
+- SELECTED: 54 files, ~103 KB — backgrounds 13 (one per map), characters 5,
+  terrain tiles 5, map structures 16, props 2, weapons 1, effects 6,
+  pickups 6, UI 0. REJECTED: 946 files (palette duplicates; see
+  SKY_BRAWL_USE.md §Rejected). Import ONLY the 54 selected files.
+- Transparency (PIL, all 1,000 files): NO dark-box risk anywhere —
+  opaque corners/edges 0 in every sprite category. One exception:
+  terrain tiles are 0% fully transparent but 7–78% SEMI-transparent
+  (alpha ~90–110); selected tiles (6.7–28.9% semi) MUST be
+  alpha-flattened onto an opaque base before import or sky will show
+  through solid platforms. `terrain_003` (51%) and `terrain_008` (78%)
+  rejected partly for this.
+- Honest quality notes: the pack is ~7 base designs per category ×
+  palette swaps (1 robot × 5 colours; 1 rifle silhouette — cannot
+  distinguish SMG/Shotgun/Sniper/Rocket; 1 night-sky scene × 5 ground
+  palettes; ~8 real tile designs, the rest one blue-blob tile × ~130).
+  Characters are SINGLE 96×96 frames — lobby select-screen variants
+  only, NOT animated player replacements (97-frame soldier stays).
+  Backgrounds are 960×540 vs maps up to 3600 px wide and all contain
+  baked-in fake platform bars — use ONLY as a far parallax layer at
+  viewport scale, never stretched over the map; 5 of the 13 assignments
+  are POOR-fit (day maps: Military, Desert, Frozen, Jungle, Pirate —
+  keep the procedural gradient there). No mast/sail/wood-deck art for
+  Airship Fleet, no carved pillar for Ancient Temple, no neon skyline
+  for Neon City — those remain Gemini/procedural gaps.
+- Gemini impact: icons + crate/barrel set now COVERED by the pack;
+  tile strips PARTIALLY covered; menu background + 3 new-map skies
+  still NOT covered. If one late-night Gemini retry is spent, spend it
+  on the Neon City sky (see V3_PLAN.md Phase 2).
+- No game code touched by this curation (read-only on .gd/.tscn/.cfg);
+  no asset files copied into the project yet — Phase 5/6 builders
+  import the 54 selected files per SKY_BRAWL_USE.md.
