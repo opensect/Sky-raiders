@@ -88,5 +88,5 @@ func _physics_process(delta: float) -> void:
 func _explode() -> void:
 	var game = get_tree().get_first_node_in_group("game")
 	if game != null:
-		game.request_explosion(global_position, BLAST_RADIUS, BLAST_DAMAGE, owner_id)
+		game.request_explosion(global_position, BLAST_RADIUS, BLAST_DAMAGE, owner_id, -2)
 	queue_free()

@@ -96,6 +96,16 @@ var sync_position: Vector2 = Vector2.ZERO
 var sync_velocity: Vector2 = Vector2.ZERO
 
 var _shots_fired: int = 0
+var _shots_hit: int = 0 # Phase 4: distinct trigger pulls that hit a player (accuracy)
+var _hit_shot_keys: Array = [] # shot indices already counted as hits (shot_no / 10)
+# Phase 4 hitmarker state: the host tells the shooter about each hit
+# (hit_confirm RPC); the game polls _hitmark_seq and shows the marker
+# + a floating damage number. Only the local player's values are read.
+var _hitmark_seq: int = 0
+var _hitmark_dmg: int = 0
+var _hitmark_pos: Vector2 = Vector2.ZERO
+var _hitmark_lethal: bool = false
+var _hitmark_time: float = 0.0
 var _fire_cooldown: float = 0.0
 var _reload_timer: float = 0.0
 var _respawn_timer: float = 0.0
@@ -350,7 +360,7 @@ func _update_gun_texture() -> void:
 func _setup_sync() -> void:
 	_sync = MultiplayerSynchronizer.new()
 	var cfg := SceneReplicationConfig.new()
-	for prop in ["sync_position", "sync_velocity", "aim_angle", "facing", "health", "kills", "deaths", "weapon", "mag_ammo", "grenades", "alive", "fuel", "life_state"]:
+	for prop in ["sync_position", "sync_velocity", "aim_angle", "facing", "health", "kills", "deaths", "weapon", "mag_ammo", "grenades", "alive", "fuel", "life_state", "_shots_fired", "_shots_hit"]:
 		cfg.add_property(NodePath(prop))
 	_sync.replication_config = cfg
 	_sync.replication_interval = 0.033 # 30 snapshots/s (GAP-60, spec §21.F)
@@ -1122,6 +1132,34 @@ func add_kill() -> void:
 		return
 	kills += 1
 	_play_sound("pickup")
+
+
+# Phase 4 — accuracy: one trigger pull counts as a hit once, however
+# many of its pellets land (a shotgun's 7 pellets are one shot, not
+# seven). shot_no is _shots_fired * 10 + pellet index, so the key is
+# shot_no / 10. Called by the host only.
+func record_hit(shot_no: int) -> void:
+	var key := shot_no / 10
+	if _hit_shot_keys.has(key):
+		return
+	_hit_shot_keys.append(key)
+	_shots_hit += 1
+
+
+# Phase 4 — hitmarker: the host confirms each hit to the shooter
+# (damage dealt, where, and whether it was lethal). The game reads
+# _hitmark_seq on the local player and shows the marker + damage
+# number. Only the host may send this.
+@rpc("any_peer")
+func hit_confirm(dmg: int, pos: Vector2, lethal: bool) -> void:
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return
+	_hitmark_seq += 1
+	_hitmark_dmg = dmg
+	_hitmark_pos = pos
+	_hitmark_lethal = lethal
+	_hitmark_time = Time.get_ticks_msec() / 1000.0
 
 
 @rpc("any_peer")

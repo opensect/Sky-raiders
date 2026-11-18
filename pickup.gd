@@ -8,6 +8,13 @@ extends Area2D
 var kind: int = 1
 var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 
+# Phase 4 — Sky Brawl pickup icons (SKY_BRAWL_USE.md): the green
+# cross for health, the blue ammo bars for grenades. Weapon kinds
+# keep their text labels — the pack has no distinguishable weapon
+# icons, and one rifle glyph on all four would be worse than labels.
+const SB_HEALTH_TEX: Texture2D = preload("res://assets/skybrawl/pickups/pickup_007.png")
+const SB_AMMO_TEX: Texture2D = preload("res://assets/skybrawl/pickups/pickup_002.png")
+
 var _life: float = 20.0
 var _bob_t: float = 0.0
 var _base_y: float = 0.0
@@ -33,6 +40,22 @@ func _ready() -> void:
 	circle.radius = 22.0
 	shape.shape = circle
 	add_child(shape)
+	if kind == 5 or kind == 6:
+		# Phase 4: Sky Brawl icon sprite for health / grenades, over
+		# a faint colour glow (same shape as the weapon boxes).
+		var glow := Polygon2D.new()
+		glow.polygon = PackedVector2Array([
+			Vector2(-20, -14), Vector2(20, -14), Vector2(20, 14), Vector2(-20, 14),
+		])
+		glow.color = Color(KIND_COLOR.get(kind, Color(0.5, 0.9, 1.0)), 0.35)
+		add_child(glow)
+		var icon := Sprite2D.new()
+		icon.texture = SB_HEALTH_TEX if kind == 5 else SB_AMMO_TEX
+		icon.scale = Vector2(0.62, 0.62)
+		add_child(icon)
+		_base_y = position.y
+		body_entered.connect(_on_body_entered)
+		return
 	var box := Polygon2D.new()
 	box.polygon = PackedVector2Array([
 		Vector2(-20, -14), Vector2(20, -14), Vector2(20, 14), Vector2(-20, 14),

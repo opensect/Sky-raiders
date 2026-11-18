@@ -33,6 +33,7 @@ var drag: float = 0.0 # air drag; 0 for bullets
 var range_px: float = 0.0 # expires after travelling this far
 var pooled: bool = false
 var active: bool = false
+var shot_no: int = 0 # Phase 4: _shots_fired * 10 + pellet index (accuracy dedupe key)
 var _travelled: float = 0.0
 
 var _life: float = 1.4
@@ -72,6 +73,7 @@ func setup(p_pos: Vector2, p_dir: Vector2, p_speed: float, p_damage: int, p_kind
 	_life = p_life
 	grav = p_gravity
 	range_px = p_speed * p_life
+	shot_no = p_shot_no
 	_travelled = 0.0
 	velocity = p_vel if p_vel != Vector2.INF else direction * p_speed
 	_dead = false
@@ -196,7 +198,14 @@ func _hit_player(p: Node, hit_pos: Vector2) -> void:
 	if game != null:
 		game.spawn_impact_fx(hit_pos)
 		if explosive:
-			game.request_explosion(hit_pos, blast_radius, damage, owner_id)
+			game.request_explosion(hit_pos, blast_radius, damage, owner_id, kind)
+			# Phase 4: a rocket that hits a player directly counts as
+			# a hit shot (splash damage is confirmed per victim by
+			# request_explosion, which also posts the kill feed).
+			if multiplayer.is_server():
+				var shooter_e = game.players_node.get_node_or_null(str(owner_id))
+				if shooter_e != null:
+					shooter_e.record_hit(shot_no)
 		elif multiplayer.is_server():
 			# Host-authoritative damage (v2.4): only the server's
 			# simulation deals damage. Friendly fire: in Team
@@ -235,4 +244,15 @@ func _hit_player(p: Node, hit_pos: Vector2) -> void:
 					shooter.add_kill()
 				elif multiplayer.get_peers().has(shooter.get_multiplayer_authority()):
 					shooter.rpc_id(shooter.get_multiplayer_authority(), "add_kill")
+			# Phase 4: accuracy + hitmarker for the shooter, kill
+			# feed for everyone (suicides included — the feed shows
+			# them as self-kills, the credit above stays excluded).
+			if shooter != null and owner_id != p.peer_id:
+				shooter.record_hit(shot_no)
+				if shooter.get_multiplayer_authority() == multiplayer.get_unique_id():
+					shooter.hit_confirm(final_dmg, hit_pos, lethal)
+				elif multiplayer.get_peers().has(shooter.get_multiplayer_authority()):
+					shooter.rpc_id(shooter.get_multiplayer_authority(), "hit_confirm", final_dmg, hit_pos, lethal)
+			if lethal:
+				game.rpc("announce_kill", owner_id, p.peer_id, kind)
 	_despawn()

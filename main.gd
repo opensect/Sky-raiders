@@ -76,6 +76,16 @@ var _color_buttons: Array = []
 var _helmet_buttons: Array = []
 var _portrait_tex: TextureRect
 var _name_input: LineEdit
+# Phase 4 — settings screen controls.
+var _music_check: CheckButton
+var _fps_check: CheckButton
+var _invert_check: CheckButton
+var _fire_side_buttons: Array = []
+# Phase 4 — map vote (lobby): candidates on the ballot + vote counts.
+var _vote_candidates: Array = []
+var _vote_buttons: Array = []
+var _vote_box: VBoxContainer
+var _my_vote: int = -1 # my voted map id (-1 = no vote yet)
 
 # v2.4 menu net test (--menu-net-test): headless pass/fail harness.
 var _menu_net_test: bool = false
@@ -105,6 +115,10 @@ func _ready() -> void:
 	_audio = AUDIO_SCRIPT.new()
 	add_child(_audio)
 	_audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
+	_audio.set_music_enabled(GameData.music_enabled)
+	# Phase 6: the menu plays the calm track. The game scene stops
+	# it when a match starts (battle track) and restarts it on return.
+	_audio.play_menu_music()
 	_build_background()
 	_build_menu()
 	_build_customize()
@@ -454,6 +468,10 @@ func _build_menu() -> void:
 	var hint := _title_label("All phones must be on the same Wi-Fi network.", 18)
 	hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(hint)
+	# Phase 6: short music credit on the menu (full text is in Settings).
+	var credit := _title_label(GameData.MUSIC_CREDITS_SHORT, 16)
+	credit.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(credit)
 
 
 func _build_customize() -> void:
@@ -562,31 +580,107 @@ func _refresh_customize_buttons() -> void:
 
 func _on_portrait_prev() -> void:
 	_click()
-	GameData.portrait = (GameData.portrait + 14) % 15
+	GameData.portrait = (GameData.portrait + 19) % 20
 	GameData.save_settings()
 	_update_portrait()
 
 
 func _on_portrait_next() -> void:
 	_click()
-	GameData.portrait = (GameData.portrait + 1) % 15
+	GameData.portrait = (GameData.portrait + 1) % 20
 	GameData.save_settings()
 	_update_portrait()
+
+
+# Phase 4 — portraits 0-14 are the original soldier variants;
+# 15-19 are the Sky Brawl robot colour variants (lobby select only —
+# single static frames, never the in-game sprite).
+func _portrait_texture(i: int) -> Texture2D:
+	var idx := clampi(i, 0, 19)
+	if idx < 15:
+		return load("res://assets/characters/alt_%02d.png" % idx)
+	return load("res://assets/skybrawl/characters/character_%03d.png" % (idx - 14))
 
 
 func _update_portrait() -> void:
 	if _portrait_tex == null:
 		return
-	_portrait_tex.texture = load("res://assets/characters/alt_%02d.png" % GameData.portrait)
+	_portrait_tex.texture = _portrait_texture(GameData.portrait)
 
 
 func _build_settings() -> void:
 	_settings_panel = _panel()
 	var box := _vbox(_settings_panel, 12)
+	# Tall content scrolls (same pattern as the lobby).
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 12)
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(inner)
+	box = inner
 	box.add_child(_title_label("SETTINGS", 30))
+	box.add_child(_section_label("Audio"))
 	box.add_child(_slider_row("Sound volume", GameData.sfx_volume, _on_sfx_changed))
 	box.add_child(_slider_row("Music volume", GameData.music_volume, _on_music_changed))
+	# Phase 6: music on/off (separate from volume — off stops the
+	# track entirely; on resumes the menu track).
+	_music_check = CheckButton.new()
+	_music_check.text = "Music on"
+	_music_check.add_theme_font_size_override("font_size", 20)
+	_music_check.button_pressed = GameData.music_enabled
+	_music_check.toggled.connect(_on_music_enabled_toggled)
+	box.add_child(_music_check)
+	box.add_child(_section_label("Controls"))
 	box.add_child(_slider_row("Control sensitivity", GameData.sensitivity, _on_sensitivity_changed, 0.5, 2.0))
+	# Phase 4: FIRE button size (0.8x–1.3x) and side (right-handed
+	# default; left swaps the whole control cluster — see game.gd).
+	box.add_child(_slider_row("FIRE button size", GameData.fire_button_size, _on_fire_size_changed, 0.8, 1.3))
+	var fire_row := HBoxContainer.new()
+	fire_row.add_theme_constant_override("separation", 8)
+	box.add_child(fire_row)
+	var fire_lbl := Label.new()
+	fire_lbl.text = "FIRE button:"
+	fire_lbl.add_theme_font_size_override("font_size", 20)
+	fire_row.add_child(fire_lbl)
+	for side in [false, true]:
+		var b := Button.new()
+		b.text = "Left" if side else "Right"
+		b.custom_minimum_size = Vector2(120, 56)
+		_style_button(b, 20, 56)
+		b.pressed.connect(_on_fire_side_pressed.bind(side))
+		fire_row.add_child(b)
+		_fire_side_buttons.append(b)
+	_refresh_fire_side_buttons()
+	_fps_check = CheckButton.new()
+	_fps_check.text = "Show FPS counter (in matches)"
+	_fps_check.add_theme_font_size_override("font_size", 20)
+	_fps_check.button_pressed = GameData.show_fps
+	_fps_check.toggled.connect(_on_fps_toggled)
+	box.add_child(_fps_check)
+	_invert_check = CheckButton.new()
+	_invert_check.text = "Invert aim (up = down)"
+	_invert_check.add_theme_font_size_override("font_size", 20)
+	_invert_check.button_pressed = GameData.invert_aim
+	_invert_check.toggled.connect(_on_invert_toggled)
+	box.add_child(_invert_check)
+	# Phase 6: music attribution (CC BY 4.0 — must appear in-game).
+	box.add_child(_section_label("Music credits"))
+	var credits := Label.new()
+	credits.text = GameData.MUSIC_CREDITS
+	credits.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	credits.add_theme_font_size_override("font_size", 18)
+	credits.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(credits)
+	var version_lbl := Label.new()
+	version_lbl.text = "LAN Arena Shooter v2.5  •  LAN only — no accounts, no servers"
+	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	version_lbl.add_theme_font_size_override("font_size", 18)
+	version_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(version_lbl)
 	var back_btn := Button.new()
 	back_btn.text = "Back"
 	back_btn.custom_minimum_size = Vector2(0, 56)
@@ -630,6 +724,43 @@ func _on_music_changed(v: float) -> void:
 func _on_sensitivity_changed(v: float) -> void:
 	GameData.sensitivity = v
 	GameData.save_settings()
+
+
+func _on_music_enabled_toggled(on: bool) -> void:
+	GameData.music_enabled = on
+	GameData.save_settings()
+	if _audio != null:
+		_audio.set_music_enabled(on)
+
+
+func _on_fps_toggled(on: bool) -> void:
+	GameData.show_fps = on
+	GameData.save_settings()
+
+
+func _on_invert_toggled(on: bool) -> void:
+	GameData.invert_aim = on
+	GameData.save_settings()
+
+
+func _on_fire_size_changed(v: float) -> void:
+	GameData.fire_button_size = clampf(v, 0.8, 1.3)
+	GameData.save_settings()
+
+
+func _on_fire_side_pressed(left: bool) -> void:
+	_click()
+	GameData.fire_button_left = left
+	GameData.save_settings()
+	_refresh_fire_side_buttons()
+
+
+func _refresh_fire_side_buttons() -> void:
+	for i in _fire_side_buttons.size():
+		var left: bool = [false, true][i]
+		var b: Button = _fire_side_buttons[i]
+		b.text = ("✓ " if GameData.fire_button_left == left else "") + ("Left" if left else "Right")
+		_style_selected(b, GameData.fire_button_left == left, 20)
 
 
 func _build_multiplayer() -> void:
@@ -837,6 +968,30 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_map_pressed.bind(i))
 		map_grid.add_child(b)
 		_map_buttons.append(b)
+	# Phase 4 — map vote: every player picks one of 3 maps on the
+	# ballot (the host's pick + the next two). The host tallies the
+	# votes when the match starts; ties and no-votes keep the host's
+	# pick. Votes travel in the lobby player dicts (see set_vote).
+	inner.add_child(_section_label("Map vote — pick the next map:"))
+	_vote_box = VBoxContainer.new()
+	_vote_box.add_theme_constant_override("separation", 8)
+	inner.add_child(_vote_box)
+	for k in 3:
+		var vb := Button.new()
+		vb.text = ""
+		vb.custom_minimum_size = Vector2(0, 56)
+		vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_style_button(vb, 20, 56)
+		vb.pressed.connect(_on_vote_pressed.bind(k))
+		_vote_box.add_child(vb)
+		_vote_buttons.append(vb)
+	var vote_hint := Label.new()
+	vote_hint.text = "Most votes wins. If nobody votes, or on a tie, the host's map is played."
+	vote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vote_hint.add_theme_font_size_override("font_size", 18)
+	vote_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
+	inner.add_child(vote_hint)
 	inner.add_child(_section_label("Game mode:"))
 	var mode_row := HBoxContainer.new()
 	mode_row.add_theme_constant_override("separation", 8)
@@ -922,6 +1077,59 @@ func _on_map_pressed(i: int) -> void:
 	GameData.map_id = i
 	GameData.save_settings()
 	_broadcast_lobby()
+
+
+# Phase 4 — map vote: the ballot is the host's pick + the next two
+# maps. Everyone may vote; the host tallies at match start.
+func _vote_candidates_now() -> Array:
+	return [GameData.map_id, (GameData.map_id + 1) % GameData.MAP_NAMES.size(), (GameData.map_id + 2) % GameData.MAP_NAMES.size()]
+
+
+func _on_vote_pressed(slot: int) -> void:
+	_click()
+	var cands := _vote_candidates_now()
+	if slot < 0 or slot >= cands.size():
+		return
+	var map_choice: int = cands[slot]
+	_my_vote = map_choice
+	var my_id := multiplayer.get_unique_id()
+	if _is_host:
+		if _lobby_players.has(my_id):
+			_lobby_players[my_id]["vote"] = map_choice
+		_broadcast_lobby()
+	else:
+		rpc_id(1, "set_vote", map_choice)
+	_refresh_vote_buttons()
+
+
+@rpc("any_peer")
+func set_vote(map_choice: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _lobby_players.has(sender):
+		_lobby_players[sender]["vote"] = clampi(map_choice, 0, GameData.MAP_NAMES.size() - 1)
+		_broadcast_lobby()
+
+
+func _refresh_vote_buttons() -> void:
+	if _vote_buttons.is_empty():
+		return
+	_vote_candidates = _vote_candidates_now()
+	var counts := {}
+	for c in _vote_candidates:
+		counts[int(c)] = 0
+	for id in _lobby_players.keys():
+		var v: int = int((_lobby_players[id] as Dictionary).get("vote", -1))
+		if counts.has(v):
+			counts[v] = int(counts[v]) + 1
+	for k in _vote_buttons.size():
+		var mid: int = _vote_candidates[k]
+		var b: Button = _vote_buttons[k]
+		var mine: bool = _my_vote == mid
+		var n: int = int(counts[mid])
+		b.text = "%s%s  —  %d vote%s" % ["✓ " if mine else "", GameData.MAP_NAMES[mid], n, "" if n == 1 else "s"]
+		_style_selected(b, mine, 20)
 
 
 func _on_mode_pressed(i: int) -> void:
@@ -1017,6 +1225,7 @@ func _refresh_lobby_buttons() -> void:
 			GameData.MAP_NAMES[GameData.map_id], GameData.MODE_NAMES[GameData.game_mode],
 			GameData.kill_limit, GameData.match_minutes, "on" if GameData.friendly_fire else "off",
 		]
+	_refresh_vote_buttons()
 
 
 func _refresh_lobby_list() -> void:
@@ -1029,7 +1238,7 @@ func _refresh_lobby_list() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		var portrait := TextureRect.new()
-		portrait.texture = load("res://assets/characters/alt_%02d.png" % int(info.get("portrait", 0)))
+		portrait.texture = _portrait_texture(int(info.get("portrait", 0)))
 		portrait.custom_minimum_size = Vector2(36, 48)
 		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1233,6 +1442,7 @@ func _my_lobby_info() -> Dictionary:
 		"helmet": GameData.helmet,
 		"portrait": GameData.portrait,
 		"ready": ready,
+		"vote": _my_vote,
 		# Only used by register_lobby_player on the host; stripped
 		# before the player list is broadcast to anyone else.
 		"password": _join_password,
@@ -1375,6 +1585,12 @@ func _on_start_pressed() -> void:
 	_click()
 	if not _is_host or _starting_match:
 		return
+	# Phase 4: the map vote decides the map (host's pick on ties /
+	# no votes, per GameData.tally_map_vote).
+	var votes := {}
+	for id in _lobby_players.keys():
+		votes[id] = int((_lobby_players[id] as Dictionary).get("vote", -1))
+	GameData.map_id = GameData.tally_map_vote(votes, _vote_candidates_now(), GameData.map_id)
 	_starting_match = true
 	rpc("start_match", GameData.map_id, GameData.game_mode, GameData.kill_limit, GameData.match_minutes)
 
@@ -1409,6 +1625,7 @@ func _leave_lobby() -> void:
 	_joining = false
 	_join_rejected = false
 	_room_status = "lobby"
+	_my_vote = -1
 	_lobby_players.clear()
 
 

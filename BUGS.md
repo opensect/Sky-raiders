@@ -1611,3 +1611,159 @@ as comments). All runs below on Godot 4.7.2, headless Xvfb,
 - Version is still 2.5 / code 7 — the final phase bumps it. Do not
   remove the `gen_assets_v3/*` export exclusion. Do not generate
   Gemini assets until the user says so ("Not now wait").
+
+## Phase 4+6 — Common features + UI + music (2026-11-19 ~02:22–03:30 IST)
+
+All 11 features from RESEARCH_v3.md §(b) built (LAN-only, no internet/server/accounts).
+Built-in Godot UI kept (no gohud — research verdict). Version still 2.5 / code 7.
+Maps untouched (next phase). Physics constants untouched (only via physics_config.gd).
+QA-029 HUD touch fix preserved (hud.get_final_transform(); untouched code paths).
+
+### Features added
+- Kill feed (game.gd announce_kill RPC, host-only): "A ☠ B — Rifle", self-kills,
+  environmental deaths ("☠ X died"), 4 lines, 5 s fade. Host announces at the
+  bullet lethal branch and the explosion lethal branch; a host death watcher
+  covers killer-less deaths (lava etc.) with a fed-deaths set so no death is
+  fed twice. Streaks tracked from the same feed on every peer.
+- End-of-match stats: kills/deaths/K-D/accuracy (shots fired vs shots that hit —
+  new player._shots_hit, one trigger pull counts once however many pellets land;
+  _shots_fired/_shots_hit added to the MultiplayerSynchronizer list) + best
+  streak. Pure math in GameData.compute_stats (K/D = kills/max(deaths,1),
+  accuracy capped at 100%).
+- Real settings screen (main.gd): sound volume, music volume, music on/off,
+  joystick sensitivity, FIRE button size (0.8–1.3x) + side (Right/Left — left
+  mirrors the whole control cluster: move stick right, aim stick left, FIRE
+  bottom-left corner, button column left; touch routing switches to
+  nearest-stick in left-handed mode, half-routing untouched by default),
+  show FPS (Engine.get_frames_per_second() in the HUD), invert aim (aim Y
+  flipped in _update_touch_state). All in GameData, saved to user://settings.cfg.
+- Better scoreboard: sorted by kills, K/D + accuracy columns, TDM team-totals
+  header ("RED n — m BLUE"), self row highlighted white with "►" + "(YOU)".
+- Weapon info panel: pause menu → "Weapons" lists all 6 weapons from
+  weapons.gd (damage, shots/s, mag, reload, auto/tap, explosive).
+- Match countdown: 3-2-1-FIGHT + goal banner ("First to 10 kills • Catacombs" /
+  mode text). Host drives it, sync_countdown RPC keeps clients in step, clients
+  have a watchdog so a late joiner can never stay frozen. Input frozen during
+  the countdown; match clock starts after it. Skipped in all scripted harnesses.
+- Hitmarkers + damage numbers: host sends hit_confirm (damage, position,
+  lethal) to the shooter; centre "✕" (red on lethal) + a floating damage number
+  at the hit point. Explosions confirm per victim with falloff damage.
+- MVP / match summary screen: star icon (Sky Brawl pickup_012) + "MVP: name —
+  n kills, x% accuracy, best streak n", best-accuracy line, per-row K/D, ACC,
+  streak (rounds for Survival). Reuses end-of-match stats.
+- Map vote in lobby: ballot = host's pick + next two maps; every player votes
+  (vote travels in the lobby player dict, set_vote RPC); host tallies at start
+  via GameData.tally_map_vote (most votes wins, ties / no votes / off-ballot
+  votes keep the host's pick). Vote counts shown live on the buttons.
+- Health/grenade pickups: kinds 5/6 already existed in the rotation; now a
+  health pack is always among the 3 starting pickups, and kinds 5/6 render
+  with Sky Brawl icons (green cross pickup_007, blue ammo bars pickup_002).
+- Spectator mode (stretch, done): Survival/LMS — after death the spectate
+  camera follows a living player (smooth follow, "SPECTATING: name" label,
+  NEXT PLAYER button cycles). Respawning hands the camera back.
+
+### UI polish (all screens)
+- Menu: music credit line added under the hint.
+- Settings: rebuilt as Audio / Controls / Music credits sections, scrollable;
+  full CC BY 4.0 attribution text in-game (see below).
+- Lobby: map-vote section with live counts, Sky Brawl robot portraits
+  (portraits 15–19 in customize + lobby list; single static frames only).
+- HUD: kill feed (top-left), countdown + goal banner, hitmarker, FPS label,
+  spectator label + NEXT button, Sky Brawl hit spark (small impacts) and
+  explosion sunburst (large impacts) replace the old smoke/explosion sprites.
+- Pause: "Weapons" button added (sliders unchanged). End screen: MVP banner +
+  stats columns. All touch targets ≥ 56 px (unchanged system).
+
+### Music (Phase 6)
+- Tracks ship in the APK now: menu_at_rest.ogg (3:26, loops cleanly) and
+  battle_five_armies.ogg (2:35). audio.gd: play_menu_music / play_battle_music /
+  stop_music / set_music_enabled; menu track in menu/lobby/end screen, battle
+  track in matches, stopped on leaving a match (never overlaps, never plays on).
+  Battle loop restart is crossfaded between two players (1.5 s, starts 2 s
+  before the end); menu track loops cleanly via OGG loop=true. Procedural loop
+  kept only as a fallback if an OGG fails to load.
+- export_presets.cfg: exclude_filter="gen_assets_v3/*" REMOVED (key kept as
+  exclude_filter="" — deleting the key makes the editor error on import).
+  This supersedes the Phase 3B note "Do not remove the exclusion" — the
+  exclusion was for staging files; the OGGs are the shipped music now.
+- Attribution in-game (settings screen + short line on the menu), exact text:
+  "At Rest" Kevin MacLeod (incompetech.com) / "Five Armies" Kevin MacLeod
+  (incompetech.com) — Licensed under Creative Commons: By Attribution 4.0
+  License, http://creativecommons.org/licenses/by/4.0/
+- Test APK /tmp/v3-phase4-test-signed.apk (34,283,694 bytes, md5
+  cf8b219913ca43a8b0355eb9c0fadbb9): both OGGs inside (imported
+  .oggvorbisstr, menu 2,276,930 + battle 2,459,682 bytes), 15 Sky Brawl
+  PNGs inside, package com.lanarena.shooter, v2.5/code 7, only the 3
+  permissions, targetSdk 36 (4.7.2 template, as in Phase 3), apksigner
+  verify passes, signer cert SHA-256 f65f2fa3… matches v2.4/v2.5.
+
+### QA-036 — AudioStreamOggVorbis has no LOOP_FORWARD in Godot 4.7 (build break)
+- Severity: Blocking (compile error on import).
+- Cause: audio.gd set `stream.loop_mode = AudioStreamOggVorbis.LOOP_FORWARD`
+  with loop_begin/loop_end (the AudioStreamWAV API). In 4.7 OGG looping is
+  `loop` (bool) + `loop_offset` (float) — confirmed by ClassDB probe.
+- Fix: `stream.loop = true; stream.loop_offset = 0.0` for both tracks.
+  The battle crossfade does not rely on the loop flag (it is a safety net).
+
+### QA-037 — Spectator test vs the LMS elimination rule (test-only)
+- Severity: Low (test harness only, not the game).
+- Cause: the features-test spectator step killed the local player with only
+  one other player alive, so LMS ended the match (alive_count <= 1) and
+  _update_spectator stopped itself before the check ran.
+- Fix: the step spawns a second living bot (id 98) so the match stays live
+  while spectating, and removes it in the check. The game behaviour is
+  correct — spectator mode is only reachable while the match is still live.
+
+### QA-038 — Removing exclude_filter entirely breaks preset validation (build)
+- Severity: Low (export preset).
+- Cause: deleting the `exclude_filter` line from export_presets.cfg makes the
+  editor error "Couldn't find the given section preset.0 and key
+  exclude_filter" on every import.
+- Fix: keep the key with an empty value (`exclude_filter=""`).
+
+### Test results (Phase 4+6 final run, 2026-11-19, Godot 4.7.2, xvfb-run)
+- NEW --features-test: 11/11 (COUNTDOWN-FREEZE, COUNTDOWN-END,
+  KILLFEED-HITMARKER, END-STATS-MVP, SETTINGS-PERSIST, MAP-VOTE,
+  PICKUPS-HEALTH-GRENADE, MUSIC, SPECTATOR, SCOREBOARD, FIRE-LAYOUT).
+- Regression: joystick 21/21, fire-button 25/25, smoke 19 phases
+  (shots 23, fuel 100.0, local alive), physics --physics-test 31/31,
+  multiplayer --net-test 11/11, menu network --menu-net-test 6/6, full flow
+  (menu → create room → lobby → start match → play → pause → scoreboard →
+  end screen → back), scale 70/70, collision 8/8 on ALL 10 maps, perf
+  60 s soak mem +345,960 bytes (limit 50 MB), bullets drain to 0.
+- Voted-map load proof: --smoke-test --map=1 (Military Base, the tally
+  winner in the features test) passes, 23 shots, local alive.
+- Visual checks (non-headless screenshots, 1280x720): menu (credit line),
+  settings (all controls + exact attribution), lobby (players, robot
+  portraits, vote buttons with counts), in-match HUD (bars, timer, weapon,
+  buttons, Sky Brawl health-cross pickup visible in the world).
+- Script errors: none from this phase's code. The two `save_png` errors in
+  the headless smoke run are the known pre-existing headless noise
+  documented in v2.4 (no viewport texture headless); phases pass.
+- Honest limits (unchanged): real touch hardware and real two-phone LAN
+  join untested here (sandbox blocks UDP); battle-track crossfade timing
+  verified in code + headless state checks, not by listening; the map-vote
+  tally is unit-tested and the flow test covers the lobby, but a live
+  two-phone vote (client votes → host tallies → voted map loads) still
+  needs a real-phone check.
+
+### Notes for the next phase (maps)
+- Map vote ballot is derived from GameData.map_id (+1, +2 mod 10): when the
+  maps phase adds Neon City / Ancient Temple (and renumbers or extends
+  MAP_NAMES), the ballot follows automatically — no vote code changes needed.
+- The countdown sub-label and the lobby room-info line read
+  GameData.MAP_NAMES[map_id]; new maps appear there automatically.
+- Sky Brawl files imported (15, ~60 KB, all true transparency verified):
+  assets/skybrawl/pickups/{002,005,007,012}, effects/{001,003,004,005,006,009},
+  characters/{001–005}. Only 001/006 are used for impacts, 002/007 for
+  pickups, 012 for the MVP star, 001–005 as portraits; 003/004/005/009 are
+  imported but unused so far (rings/smoke/lightning — available for the maps
+  phase or later FX). Do NOT import the other 946 pack files.
+- Countdown is skipped whenever any test flag is set (including
+  --features-test, which drives it in step 1). If a future harness needs a
+  real countdown, it must set _countdown_active itself like the features test.
+- Accuracy counts gun hits only: rocket splash damage gives a hitmarker but
+  no accuracy credit (no shot number travels with an explosion). Grenade
+  throws are not shots. Documented, not a bug.
+- Simultaneous lethal hits from two shooters can still double-credit a kill
+  (pre-existing known issue from v2.4, unchanged).

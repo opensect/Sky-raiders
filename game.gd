@@ -359,6 +359,12 @@ const WEAPON_ICONS := {
 const EXPLOSION_TEX: Texture2D = preload("res://assets/effects/explosion1.png")
 const FIREBALL_TEX: Texture2D = preload("res://assets/effects/fireball1.png")
 const SMOKE_TEX: Texture2D = preload("res://assets/effects/smoke.png")
+# Phase 4/6 — Sky Brawl art (SKY_BRAWL_USE.md): flat-vector effects
+# with clean transparency. effect_006 is the small hit spark,
+# effect_001 the explosion sunburst.
+const SB_HIT_TEX: Texture2D = preload("res://assets/skybrawl/effects/effect_006.png")
+const SB_EXPLOSION_TEX: Texture2D = preload("res://assets/skybrawl/effects/effect_001.png")
+const SB_SMOKE_TEX: Texture2D = preload("res://assets/skybrawl/effects/effect_004.png")
 
 var players_node: Node2D
 var bullets_node: Node2D
@@ -395,6 +401,8 @@ var pause_panel: PanelContainer
 var end_panel: PanelContainer
 var end_title: Label
 var end_list: VBoxContainer
+var _end_box: VBoxContainer # Phase 4: MVP banner is inserted here
+var _mvp_nodes: Array = [] # Phase 4: banner widgets, cleared per match
 var end_rematch_btn: Button
 var error_panel: PanelContainer
 var error_label: Label
@@ -483,6 +491,41 @@ var _joy_pos_before: Vector2 = Vector2.ZERO
 var _joy_vel_before: Vector2 = Vector2.ZERO
 var _lava_cd: Dictionary = {} # peer id -> seconds until next lava damage tick
 var _round_wins: Dictionary = {} # v2.4 Survival: peer id -> rounds won
+# Phase 4 — kill feed, streaks, countdown, hitmarkers, spectator.
+var _kill_feed_list: VBoxContainer
+var _kill_feed_entries: Array = [] # {label, expiry}
+var _kill_streaks: Dictionary = {} # peer id -> current kill streak
+var _best_streaks: Dictionary = {} # peer id -> best kill streak this match
+var _fed_deaths: Dictionary = {} # peer id -> true once this death was fed (no double entries)
+var _alive_watch: Dictionary = {} # peer id -> was alive last frame (host death watcher)
+var _countdown_active: bool = false
+var _countdown_t: float = 0.0
+var _countdown_last_shown: int = -1
+var _fight_timer: float = 0.0
+var _countdown_label: Label
+var _countdown_sub: Label
+var _hitmarker_label: Label
+var _hitmark_timer: float = 0.0
+var _last_hitmark_seq: int = 0
+var fps_label: Label
+var _spectate_cam: Camera2D
+var _spectate_label: Label
+var _spectate_next_btn: Button
+var _spectate_target: Node = null
+var _spectate_idx: int = 0
+var _spectating: bool = false
+var _weapon_panel: PanelContainer
+var _weapon_list: VBoxContainer
+# Phase 4 — features test harness (--features-test).
+var _features_test: bool = false
+var _feat_steps: Array = []
+var _feat_step: int = 0
+var _feat_in_step: bool = false
+var _feat_timer: float = 0.0
+var _feat_passed: int = 0
+var _feat_failed: int = 0
+var _feat_done: bool = false
+var _feat_bot: Node = null
 var _round_number: int = 1 # v2.4 Survival: current round
 var _spawn_retry_timer: float = 0.0 # v2.4: request_spawn retry clock
 var _fire_test: bool = false # v2.4: --fire-test harness
@@ -535,6 +578,7 @@ func _ready() -> void:
 	_collision_test = "--collision-test" in OS.get_cmdline_user_args()
 	_physics_test = "--physics-test" in OS.get_cmdline_user_args()
 	_perf_test = "--perf-test" in OS.get_cmdline_user_args()
+	_features_test = "--features-test" in OS.get_cmdline_user_args()
 	# Test-only map override: --map=N loads that map (the collision
 	# test uses it to run its pass-through checks on Jungle Ruins).
 	for a in OS.get_cmdline_user_args():
@@ -543,6 +587,25 @@ func _ready() -> void:
 	audio = AUDIO_SCRIPT.new()
 	add_child(audio)
 	audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
+	audio.set_music_enabled(GameData.music_enabled)
+	# Phase 6: the match plays the battle track. The menu scene owns
+	# the menu track; leaving the match stops this one (see
+	# _on_leave_pressed) so music never overlaps or plays on.
+	audio.play_battle_music()
+	# Phase 4 — spectator camera (Survival/LMS): off until the local
+	# player dies with no respawn coming (see _update_spectator).
+	_spectate_cam = Camera2D.new()
+	_spectate_cam.name = "SpectateCam"
+	_spectate_cam.enabled = false
+	add_child(_spectate_cam)
+	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
+	# scripted harness (they move/shoot from frame one) and in the
+	# features test, which drives the countdown itself in step 1.
+	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test
+	if not _is_test_mode:
+		_countdown_active = true
+		_countdown_t = 3.0
+		_countdown_last_shown = -1
 	var map: Dictionary = MAPS[map_id]
 	map_size = map["size"]
 	_build_background(map)
@@ -557,6 +620,7 @@ func _ready() -> void:
 	shooting_sync = ShootingSync.new()
 	_build_hud()
 	_build_touch_controls()
+	_countdown_sub.text = _match_goal_text()
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
@@ -1362,6 +1426,15 @@ func _build_hud() -> void:
 	_outline_label(grenade_label)
 	right.add_child(grenade_label)
 
+	# Phase 4: FPS counter (settings toggle, off by default).
+	fps_label = Label.new()
+	fps_label.text = "FPS: --"
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	fps_label.add_theme_font_size_override("font_size", 18)
+	_outline_label(fps_label)
+	fps_label.visible = GameData.show_fps
+	right.add_child(fps_label)
+
 	message_label = Label.new()
 	message_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	message_label.offset_top = 96
@@ -1391,10 +1464,75 @@ func _build_hud() -> void:
 	hint_label.add_theme_constant_override("outline_size", 4)
 	hud.add_child(hint_label)
 
+	# Phase 4 — kill feed: top-left, under the HP/fuel bars, newest
+	# on top, 4 lines max, each line fades after 5 s.
+	_kill_feed_list = VBoxContainer.new()
+	_kill_feed_list.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_kill_feed_list.position = Vector2(16, 108)
+	_kill_feed_list.add_theme_constant_override("separation", 2)
+	hud.add_child(_kill_feed_list)
+
+	# Phase 4 — match countdown: huge centre number, with the match
+	# goal ("First to 10 kills") under it.
+	_countdown_label = Label.new()
+	_countdown_label.set_anchors_preset(Control.PRESET_CENTER)
+	_countdown_label.position = Vector2(-80, -140)
+	_countdown_label.size = Vector2(160, 140)
+	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_countdown_label.add_theme_font_size_override("font_size", 96)
+	_outline_label(_countdown_label)
+	_countdown_label.visible = false
+	hud.add_child(_countdown_label)
+	_countdown_sub = Label.new()
+	_countdown_sub.set_anchors_preset(Control.PRESET_CENTER)
+	_countdown_sub.position = Vector2(-300, 10)
+	_countdown_sub.size = Vector2(600, 40)
+	_countdown_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_countdown_sub.add_theme_font_size_override("font_size", 26)
+	_outline_label(_countdown_sub)
+	_countdown_sub.visible = false
+	hud.add_child(_countdown_sub)
+
+	# Phase 4 — hitmarker: a cross at screen centre, shown briefly
+	# on every confirmed hit (red when the hit was lethal).
+	_hitmarker_label = Label.new()
+	_hitmarker_label.text = "✕"
+	_hitmarker_label.set_anchors_preset(Control.PRESET_CENTER)
+	_hitmarker_label.position = Vector2(-30, -30)
+	_hitmarker_label.size = Vector2(60, 60)
+	_hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hitmarker_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_hitmarker_label.add_theme_font_size_override("font_size", 44)
+	_hitmarker_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	_outline_label(_hitmarker_label)
+	_hitmarker_label.visible = false
+	hud.add_child(_hitmarker_label)
+
+	# Phase 4 — spectator mode (Survival/LMS): label + NEXT button,
+	# only visible while spectating a living player.
+	_spectate_label = Label.new()
+	_spectate_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_spectate_label.offset_top = 140
+	_spectate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_spectate_label.add_theme_font_size_override("font_size", 24)
+	_outline_label(_spectate_label)
+	_spectate_label.visible = false
+	hud.add_child(_spectate_label)
+	_spectate_next_btn = Button.new()
+	_spectate_next_btn.text = "NEXT PLAYER >"
+	_style_hud_button(_spectate_next_btn)
+	_spectate_next_btn.custom_minimum_size = Vector2(200, 56)
+	_spectate_next_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_spectate_next_btn.position = Vector2(-100, -90)
+	_spectate_next_btn.visible = false
+	_spectate_next_btn.pressed.connect(_on_spectate_next_pressed)
+	hud.add_child(_spectate_next_btn)
+
 	_build_scoreboard()
 	_build_pause_menu()
 	_build_end_screen()
 	_build_error_panel()
+	_build_weapon_panel()
 
 
 # v2.3: dialogs are centred by a full-rect CenterContainer, not by manual
@@ -1493,6 +1631,14 @@ func _build_pause_menu() -> void:
 	resume_btn.custom_minimum_size = Vector2(0, 52)
 	resume_btn.pressed.connect(_toggle_pause)
 	box.add_child(resume_btn)
+	# Phase 4: weapon info — damage / fire rate / magazine / reload
+	# per weapon, straight from weapons.gd (read-only display).
+	var weapons_btn := Button.new()
+	weapons_btn.text = "Weapons"
+	_style_hud_button(weapons_btn)
+	weapons_btn.custom_minimum_size = Vector2(0, 52)
+	weapons_btn.pressed.connect(func() -> void: _show_weapon_panel(true))
+	box.add_child(weapons_btn)
 	var sfx_row := HBoxContainer.new()
 	box.add_child(sfx_row)
 	var sfx_lbl := Label.new()
@@ -1536,6 +1682,7 @@ func _build_end_screen() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	end_panel.add_child(box)
+	_end_box = box
 	end_title = Label.new()
 	end_title.text = ""
 	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1556,6 +1703,56 @@ func _build_end_screen() -> void:
 	back_btn.custom_minimum_size = Vector2(0, 56)
 	back_btn.pressed.connect(_on_leave_pressed)
 	box.add_child(back_btn)
+
+
+func _build_weapon_panel() -> void:
+	_weapon_panel = PanelContainer.new()
+	_weapon_panel.custom_minimum_size = Vector2(520, 0)
+	_weapon_panel.add_theme_stylebox_override("panel", _panel_style())
+	_weapon_panel.visible = false
+	_weapon_panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	_dialog_wrap().add_child(_weapon_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	_weapon_panel.add_child(box)
+	var title := Label.new()
+	title.text = "WEAPONS"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	box.add_child(title)
+	var hint := Label.new()
+	hint.text = "Damage is per hit. Rate is shots per second. Pick up weapons on the map — the pistol is your starting sidearm."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 18)
+	hint.add_theme_color_override("font_color", Color(0.78, 0.82, 0.88))
+	box.add_child(hint)
+	_weapon_list = VBoxContainer.new()
+	_weapon_list.add_theme_constant_override("separation", 4)
+	box.add_child(_weapon_list)
+	for id in WeaponData.TABLE.keys():
+		var w: Dictionary = WeaponData.TABLE[id]
+		var rate: float = 1.0 / float(w["rate"]) if float(w["rate"]) > 0.0 else 0.0
+		var lbl := Label.new()
+		lbl.text = "%s — DMG %d  •  %.1f/s  •  Mag %d  •  Reload %.1fs%s%s" % [
+			String(w["name"]), int(w["damage"]), rate, int(w["mag"]),
+			float(w["reload"]),
+			"  •  Auto" if bool(w["auto"]) else "  •  Tap to fire",
+			"  •  Explosive" if bool(w["explosive"]) else "",
+		]
+		lbl.add_theme_font_size_override("font_size", 20)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_weapon_list.add_child(lbl)
+	var close_btn := Button.new()
+	close_btn.text = "Close"
+	_style_hud_button(close_btn, true)
+	close_btn.custom_minimum_size = Vector2(0, 56)
+	close_btn.pressed.connect(func() -> void: _show_weapon_panel(false))
+	box.add_child(close_btn)
+
+
+func _show_weapon_panel(show: bool) -> void:
+	_weapon_panel.visible = show
+	# The pause menu stays behind it; closing returns to pause.
 
 
 func _build_error_panel() -> void:
@@ -1619,6 +1816,11 @@ func _on_leave_pressed() -> void:
 	# already torn down (script errors in the update tail). Stop it.
 	_leaving = true
 	get_tree().paused = false
+	# Phase 6: stop the battle track here — the menu scene starts its
+	# own menu track on load, so music never overlaps or keeps playing
+	# after leaving a match.
+	if audio != null:
+		audio.stop_music()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	get_tree().change_scene_to_file("res://main.tscn")
 
@@ -1660,10 +1862,16 @@ func _toggle_pause() -> void:
 
 
 func _build_touch_controls() -> void:
+	# Phase 4 — left-handed layout (settings: FIRE button on the
+	# left): the whole control cluster mirrors — move stick to the
+	# bottom-right, aim stick to the bottom-left, FIRE to the
+	# bottom-left corner, GRENADE/WEAPON/RELOAD column to the left.
+	# Touch routing mirrors with it (see _on_touch_press).
+	var lefty := GameData.fire_button_left
 	move_stick = JOYSTICK_SCRIPT.new()
 	move_stick.name = "MoveStick"
-	move_stick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	move_stick.position = Vector2(40, -190)
+	move_stick.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT if lefty else Control.PRESET_BOTTOM_LEFT)
+	move_stick.position = Vector2(-290, -190) if lefty else Vector2(40, -190)
 	move_stick.size = Vector2(150, 150)
 	hud.add_child(move_stick)
 
@@ -1674,19 +1882,23 @@ func _build_touch_controls() -> void:
 	# the two ever overlapping.
 	aim_stick = JOYSTICK_SCRIPT.new()
 	aim_stick.name = "AimStick"
-	aim_stick.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	aim_stick.position = Vector2(-290, -190)
+	aim_stick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
+	aim_stick.position = Vector2(140, -190) if lefty else Vector2(-290, -190)
 	aim_stick.size = Vector2(150, 150)
 	hud.add_child(aim_stick)
 
 	# v2.4 FIRE button: circular, bottom-right corner, screen space
 	# (HUD CanvasLayer, so it never moves with the camera). 90 px
 	# diameter on the 1280x720 reference — inside the 75-90 px spec.
+	# Phase 4: size comes from settings (0.8-1.3x), 12 px from the
+	# corner on its side.
+	var fb_d := 90.0 * clampf(GameData.fire_button_size, 0.8, 1.3)
 	fire_button = FIRE_BUTTON_SCRIPT.new()
 	fire_button.name = "FireButton"
-	fire_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	fire_button.position = Vector2(-102, -102)
-	fire_button.size = Vector2(90, 90)
+	fire_button.button_radius = fb_d * 0.5
+	fire_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
+	fire_button.position = Vector2(12, -12 - fb_d) if lefty else Vector2(-12 - fb_d, -12 - fb_d)
+	fire_button.size = Vector2(fb_d, fb_d)
 	hud.add_child(fire_button)
 
 	# v2.2: no JUMP button. Pushing the left stick up jumps; holding it up
@@ -1696,8 +1908,8 @@ func _build_touch_controls() -> void:
 	grenade_button.text = "GRENADE"
 	_style_hud_button(grenade_button)
 	grenade_button.custom_minimum_size = Vector2(110, 60)
-	grenade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	grenade_button.position = Vector2(-470, -260)
+	grenade_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
+	grenade_button.position = Vector2(360, -260) if lefty else Vector2(-470, -260)
 	grenade_button.pressed.connect(_on_grenade_pressed)
 	hud.add_child(grenade_button)
 
@@ -1705,8 +1917,8 @@ func _build_touch_controls() -> void:
 	switch_button.text = "WEAPON"
 	_style_hud_button(switch_button)
 	switch_button.custom_minimum_size = Vector2(110, 60)
-	switch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	switch_button.position = Vector2(-470, -180)
+	switch_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
+	switch_button.position = Vector2(360, -180) if lefty else Vector2(-470, -180)
 	switch_button.pressed.connect(_on_switch_pressed)
 	hud.add_child(switch_button)
 
@@ -1715,8 +1927,8 @@ func _build_touch_controls() -> void:
 	reload_button.text = "RELOAD"
 	_style_hud_button(reload_button)
 	reload_button.custom_minimum_size = Vector2(110, 60)
-	reload_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	reload_button.position = Vector2(-470, -340)
+	reload_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
+	reload_button.position = Vector2(360, -340) if lefty else Vector2(-470, -340)
 	reload_button.pressed.connect(_on_reload_pressed)
 	hud.add_child(reload_button)
 
@@ -1864,6 +2076,19 @@ func _on_touch_press(index: int, pos: Vector2) -> void:
 		return
 	if is_hud_control_pos(pos):
 		return
+	# Phase 4: in the mirrored (left-handed) layout the sticks swap
+	# sides, so route to the NEARER stick centre instead of by screen
+	# half. Default layout keeps the old half routing exactly (QA-016/
+	# QA-023 behaviour untouched).
+	if GameData.fire_button_left:
+		var dm := pos.distance_to(move_stick.get_global_rect().get_center())
+		var da := pos.distance_to(aim_stick.get_global_rect().get_center())
+		if dm <= da:
+			if move_stick.press_touch(index, pos):
+				_move_touch_id = index
+		elif aim_stick.press_touch(index, pos):
+			_aim_touch_id = index
+		return
 	var vp := get_viewport().get_visible_rect().size
 	if pos.x < vp.x * 0.5:
 		# press_touch() refuses if the stick already has a finger, so a
@@ -1940,11 +2165,19 @@ func _process(delta: float) -> void:
 	elif _perf_test:
 		_update_touch_state()
 		_update_perftest(delta)
+	elif _features_test:
+		_update_touch_state()
+		_update_featurestest(delta)
 	else:
 		_update_touch_state()
 	# The flow test (or a button) may have started leaving mid-frame.
 	if _leaving:
 		return
+	_update_countdown(delta)
+	_update_kill_feed(delta)
+	_update_hitmarker(delta)
+	_update_death_watcher()
+	_update_spectator(delta)
 	_update_hud(delta)
 	_update_broadcast(delta)
 	_update_pickup_spawn(delta)
@@ -1967,11 +2200,21 @@ func _update_touch_state() -> void:
 	# or any other control.
 	touch_move_vec = move_stick.get_vector()
 	var aim_vec = aim_stick.get_vector()
+	# Phase 4: invert aim (settings) flips the aim stick vertically.
+	if GameData.invert_aim:
+		aim_vec.y = -aim_vec.y
 	touch_aim = aim_vec
 	# GAP-09: the dead zone is applied once, in joystick.gd (0.20).
 	# Any non-zero aim vector counts as aiming here.
 	touch_aim_active = aim_vec.length() > 0.0
 	touch_firing = fire_button != null and fire_button.is_held()
+	# Phase 4: during the match countdown nobody moves, aims or fires
+	# — the fight starts on "FIGHT!".
+	if _countdown_active:
+		touch_move_vec = Vector2.ZERO
+		touch_aim = Vector2.ZERO
+		touch_aim_active = false
+		touch_firing = false
 
 
 func _update_hud(delta: float) -> void:
@@ -2020,6 +2263,15 @@ func _update_hud(delta: float) -> void:
 		reload_button.disabled = lp.reloading or lp.mag_ammo >= mag_total
 		reload_button.text = "RELOADING..." if lp.reloading else "RELOAD"
 	grenade_label.text = "Grenades: %d" % lp.grenades
+	# Phase 4: FPS counter (settings toggle).
+	if fps_label != null:
+		fps_label.visible = GameData.show_fps
+		if GameData.show_fps:
+			fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
+	# Phase 4: hitmarker — the host confirmed a hit for the local player.
+	if lp._hitmark_seq != _last_hitmark_seq:
+		_last_hitmark_seq = lp._hitmark_seq
+		_show_hitmarker(lp._hitmark_dmg, lp._hitmark_pos, lp._hitmark_lethal)
 	if match_over:
 		message_label.text = ""
 	elif not lp.alive:
@@ -2050,17 +2302,39 @@ func _update_scoreboard_rows(list: VBoxContainer) -> void:
 	for child in players_node.get_children():
 		rows.append(child)
 	rows.sort_custom(func(a, b) -> bool: return a.kills > b.kills)
+	# Phase 4: team totals header in Team Deathmatch.
+	if game_mode == 1:
+		var red := 0
+		var blue := 0
+		for child in players_node.get_children():
+			if child.team == 0:
+				red += child.kills
+			elif child.team == 1:
+				blue += child.kills
+		var totals := Label.new()
+		totals.text = "RED %d  —  %d BLUE" % [red, blue]
+		totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		totals.add_theme_font_size_override("font_size", 22)
+		list.add_child(totals)
 	var rank := 1
+	var my_id := multiplayer.get_unique_id()
 	for p in rows:
 		var team_txt := ""
 		if p.team == 0:
 			team_txt = " [RED]"
 		elif p.team == 1:
 			team_txt = " [BLUE]"
+		var st: Dictionary = GameData.compute_stats(p.kills, p.deaths, p._shots_fired, p._shots_hit)
+		var is_self := int(p.peer_id) == my_id
 		var lbl := Label.new()
-		lbl.text = "%d. %s%s  -  Kills: %d  Deaths: %d" % [rank, p.player_name, team_txt, p.kills, p.deaths]
+		lbl.text = "%s%d. %s%s  —  K %d  D %d  K/D %.2f  ACC %d%%%s" % [
+			"► " if is_self else "", rank, p.player_name, team_txt,
+			p.kills, p.deaths, float(st["kd"]), int(st["accuracy"]),
+			"  (YOU)" if is_self else "",
+		]
 		lbl.add_theme_font_size_override("font_size", 20)
-		lbl.add_theme_color_override("font_color", p.player_color)
+		# Phase 4: highlight self in white; everyone else in their colour.
+		lbl.add_theme_color_override("font_color", Color(1, 1, 1) if is_self else p.player_color)
 		list.add_child(lbl)
 		rank += 1
 
@@ -2075,6 +2349,266 @@ func _update_host_ip_label() -> void:
 		host_ip_label.visible = true
 	else:
 		host_ip_label.visible = false
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — kill feed, countdown, hitmarkers, spectator, end stats.
+# ---------------------------------------------------------------------------
+
+func _match_goal_text() -> String:
+	match game_mode:
+		0:
+			return "First to %d kills  •  %s" % [kill_limit, GameData.MAP_NAMES[map_id]]
+		1:
+			return "RED vs BLUE — first to %d kills  •  %s" % [kill_limit, GameData.MAP_NAMES[map_id]]
+		2:
+			return "Survival — last one standing wins the round  •  %s" % GameData.MAP_NAMES[map_id]
+		_:
+			return "Last Man Standing — one life, no respawns  •  %s" % GameData.MAP_NAMES[map_id]
+
+
+func _update_countdown(delta: float) -> void:
+	if _fight_timer > 0.0:
+		_fight_timer -= delta
+		if _fight_timer <= 0.0:
+			_countdown_label.visible = false
+			_countdown_sub.visible = false
+	if not _countdown_active:
+		return
+	if multiplayer.is_server():
+		_countdown_t -= delta
+		var n := int(ceil(_countdown_t))
+		if n != _countdown_last_shown:
+			_countdown_last_shown = n
+			rpc("sync_countdown", n)
+		if _countdown_t <= 0.0:
+			_countdown_active = false
+			rpc("sync_countdown", 0)
+	else:
+		# Watchdog: a client that missed the host's sync (late join)
+		# must never stay frozen — end the countdown locally.
+		_countdown_t -= delta
+		if _countdown_t <= 0.0:
+			_countdown_active = false
+			_fight_timer = 0.9
+	_update_countdown_labels()
+
+
+func _update_countdown_labels() -> void:
+	if _countdown_active:
+		var n := int(ceil(maxf(_countdown_t, 0.0)))
+		_countdown_label.text = str(maxi(n, 1))
+		_countdown_label.visible = true
+		_countdown_sub.text = _match_goal_text()
+		_countdown_sub.visible = true
+	elif _fight_timer > 0.0:
+		_countdown_label.text = "FIGHT!"
+		_countdown_label.visible = true
+		_countdown_sub.visible = false
+
+
+@rpc("any_peer", "call_local")
+func sync_countdown(n: int) -> void:
+	# Only the host drives the countdown; a late joiner syncs to it.
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return
+	if n > 0:
+		_countdown_active = true
+		_countdown_t = float(n)
+		_countdown_last_shown = n
+	else:
+		# n == 0: the fight starts. Show FIGHT! even on the host
+		# (its local call runs after _countdown_active was cleared).
+		_fight_timer = 0.9
+		_countdown_active = false
+		_countdown_last_shown = 0
+	_update_countdown_labels()
+
+
+func _player_name(peer_id: int) -> String:
+	var node = players_node.get_node_or_null(str(peer_id))
+	if node != null:
+		return String(node.player_name)
+	return "Player"
+
+
+func _kill_feed_weapon_text(weapon_id: int) -> String:
+	if weapon_id >= 0:
+		return String(WeaponData.get_weapon(weapon_id).get("name", "Rifle"))
+	if weapon_id == -2:
+		return "Grenade"
+	return "Explosion"
+
+
+@rpc("any_peer", "call_local")
+func announce_kill(killer_id: int, victim_id: int, weapon_id: int) -> void:
+	# Only the host announces kills (it decided the damage).
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return
+	# Streaks: every peer tracks them from the same feed, so the end
+	# screen agrees everywhere.
+	if killer_id > 0 and killer_id != victim_id:
+		var s := int(_kill_streaks.get(killer_id, 0)) + 1
+		_kill_streaks[killer_id] = s
+		_best_streaks[killer_id] = maxi(int(_best_streaks.get(killer_id, 0)), s)
+	_kill_streaks[victim_id] = 0
+	# Mark this death as fed so the host's death watcher (lava, falls,
+	# anything without a killer) does not post a second line for it.
+	_fed_deaths[victim_id] = true
+	_add_kill_feed_entry(killer_id, victim_id, weapon_id)
+
+
+func _add_kill_feed_entry(killer_id: int, victim_id: int, weapon_id: int) -> void:
+	if _kill_feed_list == null:
+		return
+	var victim_name := _player_name(victim_id)
+	var text := ""
+	if killer_id == 0:
+		text = "☠ %s died" % victim_name
+	elif killer_id == victim_id:
+		text = "%s blew themself up" % victim_name
+	else:
+		text = "%s  ☠  %s   —  %s" % [_player_name(killer_id), victim_name, _kill_feed_weapon_text(weapon_id)]
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 18)
+	_outline_label(lbl)
+	_kill_feed_list.add_child(lbl)
+	_kill_feed_entries.append({"label": lbl, "expiry": 5.0})
+	while _kill_feed_entries.size() > 4:
+		var old: Dictionary = _kill_feed_entries.pop_front()
+		(old["label"] as Label).queue_free()
+
+
+func _update_kill_feed(delta: float) -> void:
+	if _kill_feed_entries.is_empty():
+		return
+	var kept: Array = []
+	for e in _kill_feed_entries:
+		var d: Dictionary = e
+		d["expiry"] = float(d["expiry"]) - delta
+		if float(d["expiry"]) <= 0.0:
+			(d["label"] as Label).queue_free()
+		else:
+			kept.append(d)
+	_kill_feed_entries = kept
+
+
+func _update_death_watcher() -> void:
+	# Host only: a death with no killer (lava, barrel chain with no
+	# shooter, anything the bullet/explosion paths did not announce)
+	# still deserves one feed line — but never a second line for a
+	# death announce_kill already covered (see _fed_deaths).
+	if not multiplayer.is_server() or match_over:
+		return
+	for child in players_node.get_children():
+		var pid: int = child.peer_id
+		if child.alive:
+			_alive_watch[pid] = true
+			_fed_deaths.erase(pid)
+		elif bool(_alive_watch.get(pid, true)):
+			_alive_watch[pid] = false
+			if not _fed_deaths.has(pid):
+				rpc("announce_kill", 0, pid, -1)
+
+
+func _show_hitmarker(dmg: int, pos: Vector2, lethal: bool) -> void:
+	# Centre cross (red on a lethal hit) + a floating damage number
+	# at the hit point in the world.
+	if _hitmarker_label != null:
+		_hitmarker_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.2) if lethal else Color(1, 1, 1))
+		_hitmarker_label.visible = true
+		_hitmark_timer = 0.18
+	var num := Label.new()
+	num.text = str(dmg)
+	num.position = pos + Vector2(-14, -30)
+	num.add_theme_font_size_override("font_size", 22)
+	num.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2) if lethal else Color(1.0, 0.85, 0.3))
+	num.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	num.add_theme_constant_override("outline_size", 4)
+	fx_node.add_child(num)
+	var tw := create_tween()
+	tw.tween_property(num, "position:y", num.position.y - 44.0, 0.7)
+	tw.parallel().tween_property(num, "modulate:a", 0.0, 0.7)
+	tw.tween_callback(num.queue_free)
+
+
+func _update_hitmarker(delta: float) -> void:
+	if _hitmark_timer > 0.0:
+		_hitmark_timer -= delta
+		if _hitmark_timer <= 0.0 and _hitmarker_label != null:
+			_hitmarker_label.visible = false
+
+
+func _spectate_targets() -> Array:
+	var out: Array = []
+	for child in players_node.get_children():
+		if child.alive and child.get_multiplayer_authority() != multiplayer.get_unique_id():
+			out.append(child)
+	return out
+
+
+func _update_spectator(delta: float) -> void:
+	# Phase 4 (stretch) — Survival/LMS only: after death, watch a
+	# living player instead of staring at your own corpse. The
+	# spectate camera takes over; respawning hands it back.
+	if game_mode != 2 and game_mode != 3:
+		return
+	var lp = _get_local_player()
+	if lp == null or match_over:
+		if _spectating:
+			_stop_spectating()
+		return
+	if lp.alive:
+		if _spectating:
+			_stop_spectating()
+		return
+	var targets := _spectate_targets()
+	if targets.is_empty():
+		_spectate_label.text = "Eliminated! Waiting for the round to end..."
+		_spectate_label.visible = true
+		_spectate_next_btn.visible = false
+		if _spectate_cam != null:
+			_spectate_cam.enabled = false
+		_spectating = false
+		return
+	_spectating = true
+	if _spectate_target == null or not is_instance_valid(_spectate_target) or not _spectate_target.alive:
+		_spectate_idx = 0
+		_spectate_target = targets[0]
+	_spectate_cam.enabled = true
+	_spectate_cam.make_current()
+	# Smooth-follow the target (no teleport snapping).
+	_spectate_cam.global_position = _spectate_cam.global_position.lerp(_spectate_target.global_position, clampf(delta * 8.0, 0.0, 1.0))
+	_spectate_label.text = "SPECTATING: %s  —  you are out" % String(_spectate_target.player_name)
+	_spectate_label.visible = true
+	_spectate_next_btn.visible = targets.size() > 1
+
+
+func _on_spectate_next_pressed() -> void:
+	var targets := _spectate_targets()
+	if targets.is_empty():
+		return
+	_spectate_idx = (_spectate_idx + 1) % targets.size()
+	_spectate_target = targets[_spectate_idx]
+	if _spectate_cam != null and _spectate_target != null:
+		_spectate_cam.global_position = _spectate_target.global_position
+
+
+func _stop_spectating() -> void:
+	_spectating = false
+	_spectate_target = null
+	if _spectate_cam != null:
+		_spectate_cam.enabled = false
+	if _spectate_label != null:
+		_spectate_label.visible = false
+	if _spectate_next_btn != null:
+		_spectate_next_btn.visible = false
+	var lp = _get_local_player()
+	if lp != null and lp._camera != null:
+		lp._camera.make_current()
 
 
 func _start_broadcast() -> void:
@@ -2122,11 +2656,13 @@ func _update_broadcast(delta: float) -> void:
 
 func _spawn_initial_pickups() -> void:
 	# 3 pickups present at match start (GAP-37: the map was empty
-	# for the first 14 s), from distinct spots.
+	# for the first 14 s), from distinct spots. Phase 4: a health
+	# pack is always among them, so the new health pickup is visible
+	# from the first seconds.
 	if not multiplayer.is_server():
 		return
 	var spots: Array = MAPS[map_id]["pickups"]
-	var kinds := [1, 2, 3]
+	var kinds := [1, 5, 3]
 	for i in 3:
 		var spot_idx := (i * 2) % spots.size()
 		_spawn_pickup_at(spot_idx, kinds[i % kinds.size()])
@@ -2194,6 +2730,9 @@ func _update_join_timeout(delta: float) -> void:
 
 func _update_match_timer(delta: float) -> void:
 	if match_over:
+		return
+	# Phase 4: the clock only runs once the countdown has finished.
+	if _countdown_active:
 		return
 	if multiplayer.is_server():
 		_time_left -= delta
@@ -2351,7 +2890,8 @@ func _end_match(winner: String, reason: String) -> void:
 	match_over = true
 	var rows: Array = []
 	for child in players_node.get_children():
-		rows.append({"name": child.player_name, "kills": child.kills, "deaths": child.deaths, "team": child.team, "color": child.player_color, "rounds": int(_round_wins.get(child.peer_id, 0))})
+		# Phase 4: end stats carry shots/hits (accuracy) + best streak.
+		rows.append({"name": child.player_name, "kills": child.kills, "deaths": child.deaths, "team": child.team, "color": child.player_color, "rounds": int(_round_wins.get(child.peer_id, 0)), "shots": child._shots_fired, "hits": child._shots_hit, "streak": int(_best_streaks.get(child.peer_id, 0))})
 	rows.sort_custom(func(a, b) -> bool: return a["kills"] > b["kills"])
 	rpc("show_end_screen", winner, reason, rows)
 
@@ -2364,7 +2904,55 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 		return
 	match_over = true
 	_end_shown = true
+	# Phase 6: the match is over — back to the calm menu track.
+	if audio != null:
+		audio.play_menu_music()
 	end_title.text = "%s wins!\n%s" % [winner, reason] if winner != "DRAW" else "Draw!\n%s" % reason
+	# Phase 4: MVP / match summary banner (most kills, best accuracy).
+	# Rows arrive sorted by kills, so rows[0] is the MVP.
+	for n in _mvp_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	_mvp_nodes.clear()
+	if not rows.is_empty():
+		var mvp: Dictionary = rows[0]
+		var mvp_st: Dictionary = GameData.compute_stats(int(mvp["kills"]), int(mvp["deaths"]), int(mvp.get("shots", 0)), int(mvp.get("hits", 0)))
+		var mvp_row := HBoxContainer.new()
+		mvp_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		mvp_row.add_theme_constant_override("separation", 8)
+		var star := TextureRect.new()
+		star.texture = preload("res://assets/skybrawl/pickups/pickup_012.png")
+		star.custom_minimum_size = Vector2(36, 36)
+		star.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		star.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mvp_row.add_child(star)
+		var mvp_lbl := Label.new()
+		mvp_lbl.text = "MVP: %s — %d kills, %d%% accuracy, best streak %d" % [
+			String(mvp["name"]), int(mvp["kills"]), int(mvp_st["accuracy"]), int(mvp.get("streak", 0)),
+		]
+		mvp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mvp_lbl.add_theme_font_size_override("font_size", 22)
+		mvp_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		mvp_row.add_child(mvp_lbl)
+		_end_box.add_child(mvp_row)
+		_end_box.move_child(mvp_row, 1)
+		_mvp_nodes.append(mvp_row)
+		var best_acc := -1.0
+		var best_acc_name := ""
+		for r in rows:
+			var st: Dictionary = GameData.compute_stats(int(r["kills"]), int(r["deaths"]), int(r.get("shots", 0)), int(r.get("hits", 0)))
+			if int(r.get("shots", 0)) > 0 and float(st["accuracy"]) > best_acc:
+				best_acc = float(st["accuracy"])
+				best_acc_name = String(r["name"])
+		if best_acc_name != "":
+			var acc_lbl := Label.new()
+			acc_lbl.text = "Best accuracy: %s (%d%%)" % [best_acc_name, int(best_acc)]
+			acc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			acc_lbl.add_theme_font_size_override("font_size", 20)
+			acc_lbl.add_theme_color_override("font_color", Color(0.78, 0.82, 0.88))
+			_end_box.add_child(acc_lbl)
+			_end_box.move_child(acc_lbl, 2)
+			_mvp_nodes.append(acc_lbl)
 	for c in end_list.get_children():
 		c.queue_free()
 	var rank := 1
@@ -2374,11 +2962,12 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 			team_txt = " [RED]"
 		elif int(r["team"]) == 1:
 			team_txt = " [BLUE]"
+		var st2: Dictionary = GameData.compute_stats(int(r["kills"]), int(r["deaths"]), int(r.get("shots", 0)), int(r.get("hits", 0)))
 		var lbl := Label.new()
 		if game_mode == 2:
-			lbl.text = "%d. %s%s  -  Rounds: %d  Kills: %d  Deaths: %d" % [rank, String(r["name"]), team_txt, int(r.get("rounds", 0)), int(r["kills"]), int(r["deaths"])]
+			lbl.text = "%d. %s%s  -  Rounds: %d  Kills: %d  Deaths: %d  K/D: %.2f  ACC: %d%%" % [rank, String(r["name"]), team_txt, int(r.get("rounds", 0)), int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"])]
 		else:
-			lbl.text = "%d. %s%s  -  Kills: %d  Deaths: %d" % [rank, String(r["name"]), team_txt, int(r["kills"]), int(r["deaths"])]
+			lbl.text = "%d. %s%s  -  Kills: %d  Deaths: %d  K/D: %.2f  ACC: %d%%  Streak: %d" % [rank, String(r["name"]), team_txt, int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"]), int(r.get("streak", 0))]
 		lbl.add_theme_font_size_override("font_size", 22)
 		lbl.add_theme_color_override("font_color", r["color"])
 		end_list.add_child(lbl)
@@ -2392,7 +2981,9 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 
 func spawn_impact_fx(pos: Vector2, small: bool = false) -> void:
 	var spr := Sprite2D.new()
-	spr.texture = SMOKE_TEX if small else EXPLOSION_TEX
+	# Phase 4: Sky Brawl hit spark (small) / explosion sunburst
+	# (large) instead of the old smoke/explosion sprites.
+	spr.texture = SB_HIT_TEX if small else SB_EXPLOSION_TEX
 	spr.position = pos
 	spr.scale = Vector2(0.5, 0.5) if small else Vector2(0.7, 0.7)
 	spr.modulate = Color(1, 1, 1, 0.9)
@@ -2405,8 +2996,10 @@ func spawn_impact_fx(pos: Vector2, small: bool = false) -> void:
 		audio.play("hit")
 
 
-func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int) -> void:
+func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int, weapon_id: int = -1) -> void:
 	# FX on every peer; damage only on the server.
+	# weapon_id: the weapon that caused it (4 = rocket), -2 = grenade,
+	# -1 = barrel/other explosion (kill feed label).
 	_spawn_explosion_fx(pos, radius)
 	if multiplayer.is_server():
 		var killer = players_node.get_node_or_null(str(from_id))
@@ -2437,6 +3030,17 @@ func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int) -
 						killer.add_kill()
 					elif multiplayer.get_peers().has(killer.get_multiplayer_authority()):
 						killer.rpc_id(killer.get_multiplayer_authority(), "add_kill")
+				# Phase 4: hitmarker for the shooter/thrower on every
+				# victim actually hurt, kill feed on every lethal hit
+				# (self-kills included — no hitmarker for hurting
+				# yourself, but the feed shows it).
+				if amount > 0 and killer != null and from_id != child.peer_id:
+					if killer.get_multiplayer_authority() == multiplayer.get_unique_id():
+						killer.hit_confirm(amount, child.global_position, lethal)
+					elif multiplayer.get_peers().has(killer.get_multiplayer_authority()):
+						killer.rpc_id(killer.get_multiplayer_authority(), "hit_confirm", amount, child.global_position, lethal)
+				if lethal:
+					rpc("announce_kill", from_id, child.peer_id, weapon_id)
 		# Chain: barrels caught in the blast explode too (GAP-64).
 		for b in _barrels:
 			if not bool(b["alive"]):
@@ -5328,3 +5932,364 @@ func _update_perftest(delta: float) -> void:
 		var growth := OS.get_static_memory_usage() - _perf_mem0
 		print("PERFTEST DONE: 60 s soak, mem growth=%d bytes (limit 50 MB), active_bullets=%d (drains to 0 within 2 s of stopping)" % [growth, bullet_pool.active_count()])
 		get_tree().quit()
+
+
+# =====================================================================
+# Phase 4/6 — features test harness (--features-test).
+# One step per new feature, same setup/check shape as the other
+# harnesses. Prints FEATTEST <name>: PASS/FAIL lines + a DONE line.
+# =====================================================================
+
+func _update_featurestest(delta: float) -> void:
+	if _feat_done:
+		return
+	var lp = _get_local_player()
+	if lp == null:
+		_feat_timer += delta
+		if _feat_timer > 5.0:
+			_feat_done = true
+			print("FEATTEST DONE: 0/0 passed — no local player spawned")
+			get_tree().quit()
+		return
+	if _feat_steps.is_empty():
+		_featurestest_build_steps()
+		_feat_step = 0
+		_feat_in_step = false
+		_feat_timer = 0.0
+	if _feat_step >= _feat_steps.size():
+		_feat_done = true
+		print("FEATTEST DONE: %d/%d passed" % [_feat_passed, _feat_passed + _feat_failed])
+		get_tree().quit()
+		return
+	var step: Dictionary = _feat_steps[_feat_step]
+	if not _feat_in_step:
+		(step["setup"] as Callable).call()
+		_feat_in_step = true
+		_feat_timer = float(step["wait"])
+	_feat_timer -= delta
+	if _feat_timer <= 0.0:
+		var result: Array = (step["check"] as Callable).call()
+		var ok: bool = bool(result[0])
+		if ok:
+			_feat_passed += 1
+		else:
+			_feat_failed += 1
+		print("FEATTEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
+		_feat_step += 1
+		_feat_in_step = false
+		_feat_timer = 0.0
+
+
+func _featurestest_build_steps() -> void:
+	_feat_steps = [
+		{"name": "COUNTDOWN-FREEZE", "wait": 0.6, "setup": _ft_s_countdown, "check": _ft_c_countdown},
+		{"name": "COUNTDOWN-END", "wait": 3.0, "setup": _ft_s_release_all, "check": _ft_c_countdown_end},
+		{"name": "KILLFEED-HITMARKER", "wait": 0.9, "setup": _ft_s_killfeed, "check": _ft_c_killfeed},
+		{"name": "END-STATS-MVP", "wait": 0.3, "setup": _ft_s_endstats, "check": _ft_c_endstats},
+		{"name": "SETTINGS-PERSIST", "wait": 0.3, "setup": _ft_s_settings, "check": _ft_c_settings},
+		{"name": "MAP-VOTE", "wait": 0.2, "setup": _ft_s_noop, "check": _ft_c_mapvote},
+		{"name": "PICKUPS-HEALTH-GRENADE", "wait": 0.3, "setup": _ft_s_pickups, "check": _ft_c_pickups},
+		{"name": "MUSIC", "wait": 0.5, "setup": _ft_s_music, "check": _ft_c_music},
+		{"name": "SPECTATOR", "wait": 0.6, "setup": _ft_s_spectator, "check": _ft_c_spectator},
+		{"name": "SCOREBOARD", "wait": 0.2, "setup": _ft_s_scoreboard, "check": _ft_c_scoreboard},
+		{"name": "FIRE-LAYOUT", "wait": 0.2, "setup": _ft_s_firelayout, "check": _ft_c_firelayout},
+	]
+
+
+func _ft_s_release_all() -> void:
+	_ft_release_move()
+	_ft_release_aim()
+	_ft_release_fire()
+
+
+func _ft_s_countdown() -> void:
+	# Drive the countdown ourselves (it is off in test modes).
+	_countdown_active = true
+	_countdown_t = 3.0
+	_countdown_last_shown = -1
+	# Hold every control: nothing may move, aim or fire until FIGHT.
+	_ft_press_move(Vector2(60, 0))
+	_ft_press_aim(Vector2(60, 0))
+	_ft_press_fire()
+
+
+func _ft_c_countdown() -> Array:
+	var frozen: bool = touch_move_vec == Vector2.ZERO and touch_aim == Vector2.ZERO and not touch_firing
+	var shown: bool = _countdown_label.visible and _countdown_label.text == "3"
+	var sub: bool = _countdown_sub.visible and _countdown_sub.text.contains("First to")
+	var ok: bool = frozen and shown and sub
+	return [ok, "frozen=%s label=%s/%s sub=%s" % [frozen, _countdown_label.text, _countdown_label.visible, _countdown_sub.text]]
+
+
+func _ft_c_countdown_end() -> Array:
+	var ok: bool = not _countdown_active and _countdown_label.visible and _countdown_label.text == "FIGHT!"
+	return [ok, "countdown_active=%s label=%s" % [_countdown_active, _countdown_label.text]]
+
+
+func _ft_s_killfeed() -> void:
+	var lp = _get_local_player()
+	_ft_s_release_all()
+	_ft_set_weapon(5) # pistol: 10 dmg, one lethal shot vs 5 HP
+	lp.position = Vector2(300, 1320)
+	lp.sync_position = lp.position
+	lp.velocity = Vector2.ZERO
+	var b = players_node.get_node_or_null("99")
+	if b == null:
+		_do_spawn(99, "TestBot", 0, 0)
+		b = players_node.get_node_or_null("99")
+	_feat_bot = b
+	if b != null:
+		b.position = Vector2(600, 1320)
+		b.sync_position = b.position
+		b.velocity = Vector2.ZERO
+		b.health = 5
+		b._spawn_protect_timer = 0.0
+	lp._spawn_protect_timer = 0.0
+	_ft_press_aim(Vector2(60, 0))
+	_ft_press_fire()
+
+
+func _ft_c_killfeed() -> Array:
+	var lp = _get_local_player()
+	_ft_release_aim()
+	_ft_release_fire()
+	var feed_text := ""
+	for e in _kill_feed_entries:
+		feed_text += String((e["label"] as Label).text) + "|"
+	var feed_ok: bool = feed_text.contains("TestBot") and feed_text.contains("Pistol")
+	var hit_ok: bool = lp._hitmark_seq >= 1 and lp._shots_hit >= 1
+	var kill_ok: bool = lp.kills >= 1
+	var streak_ok: bool = int(_best_streaks.get(1, 0)) >= 1
+	var ok: bool = feed_ok and hit_ok and kill_ok and streak_ok
+	return [ok, "feed='%s' hitmark_seq=%d shots_hit=%d kills=%d best_streak=%d" % [feed_text, lp._hitmark_seq, lp._shots_hit, lp.kills, int(_best_streaks.get(1, 0))]]
+
+
+func _ft_s_endstats() -> void:
+	# Fake final rows: Player 5/2 with 20 shots 12 hits (K/D 2.50,
+	# 60% accuracy), TestBot 3/5 with 10 shots 2 hits (K/D 0.60, 20%).
+	var rows := [
+		{"name": "Player", "kills": 5, "deaths": 2, "team": -1, "color": Color(1, 0, 0), "rounds": 0, "shots": 20, "hits": 12, "streak": 3},
+		{"name": "TestBot", "kills": 3, "deaths": 5, "team": -1, "color": Color(0, 0, 1), "rounds": 0, "shots": 10, "hits": 2, "streak": 1},
+	]
+	show_end_screen("Player", "reached 10 kills!", rows)
+
+
+func _ft_c_endstats() -> Array:
+	var mvp_ok := false
+	for n in _mvp_nodes:
+		if n is HBoxContainer:
+			for c in n.get_children():
+				if c is Label and String(c.text).contains("MVP: Player") and String(c.text).contains("60%"):
+					mvp_ok = true
+	var row_ok := false
+	for c in end_list.get_children():
+		if c is Label and String(c.text).contains("K/D: 2.50") and String(c.text).contains("ACC: 60%"):
+			row_ok = true
+	var stats_ok := false
+	var st: Dictionary = GameData.compute_stats(10, 4, 20, 12)
+	stats_ok = absf(float(st["kd"]) - 2.5) < 0.01 and absf(float(st["accuracy"]) - 60.0) < 0.01
+	var st2: Dictionary = GameData.compute_stats(7, 0, 0, 0)
+	stats_ok = stats_ok and absf(float(st2["kd"]) - 7.0) < 0.01 and float(st2["accuracy"]) == 0.0
+	var ok: bool = end_panel.visible and mvp_ok and row_ok and stats_ok
+	# The match is not really over: put the panel away and resume.
+	var was_visible: bool = end_panel.visible
+	end_panel.visible = false
+	match_over = false
+	return [ok, "end_visible=%s mvp=%s row=%s stats=%s" % [was_visible, mvp_ok, row_ok, stats_ok]]
+
+
+func _ft_s_settings() -> void:
+	# Stash the real settings, then write distinctive test values.
+	_feat_data = {
+		"sfx": GameData.sfx_volume, "music": GameData.music_volume,
+		"enabled": GameData.music_enabled, "sens": GameData.sensitivity,
+		"fps": GameData.show_fps, "invert": GameData.invert_aim,
+		"fbsize": GameData.fire_button_size, "fbleft": GameData.fire_button_left,
+	}
+	GameData.sfx_volume = 0.44
+	GameData.music_volume = 0.33
+	GameData.music_enabled = false
+	GameData.sensitivity = 1.5
+	GameData.show_fps = true
+	GameData.invert_aim = true
+	GameData.fire_button_size = 1.2
+	GameData.fire_button_left = true
+	GameData.save_settings()
+
+
+func _ft_c_settings() -> Array:
+	# Wipe the values in memory, reload from disk, compare.
+	GameData.sfx_volume = 0.9
+	GameData.music_volume = 0.9
+	GameData.music_enabled = true
+	GameData.sensitivity = 0.9
+	GameData.show_fps = false
+	GameData.invert_aim = false
+	GameData.fire_button_size = 0.9
+	GameData.fire_button_left = false
+	GameData.load_settings()
+	var ok: bool = absf(GameData.sfx_volume - 0.44) < 0.01 and absf(GameData.music_volume - 0.33) < 0.01 and GameData.music_enabled == false and absf(GameData.sensitivity - 1.5) < 0.01 and GameData.show_fps == true and GameData.invert_aim == true and absf(GameData.fire_button_size - 1.2) < 0.01 and GameData.fire_button_left == true
+	var fps_ok: bool = fps_label.visible
+	# Restore the player's real settings.
+	GameData.sfx_volume = float(_feat_data["sfx"])
+	GameData.music_volume = float(_feat_data["music"])
+	GameData.music_enabled = bool(_feat_data["enabled"])
+	GameData.sensitivity = float(_feat_data["sens"])
+	GameData.show_fps = bool(_feat_data["fps"])
+	GameData.invert_aim = bool(_feat_data["invert"])
+	GameData.fire_button_size = float(_feat_data["fbsize"])
+	GameData.fire_button_left = bool(_feat_data["fbleft"])
+	GameData.save_settings()
+	ok = ok and fps_ok
+	return [ok, "persist_ok=%s fps_label_visible=%s (restored real settings)" % [ok, fps_ok]]
+
+
+func _ft_c_mapvote() -> Array:
+	var cands := [0, 1, 2]
+	var w1: int = GameData.tally_map_vote({2: 0, 3: 1, 4: 1}, cands, 0)
+	var w2: int = GameData.tally_map_vote({2: 0, 3: 1}, cands, 0)
+	var w3: int = GameData.tally_map_vote({}, cands, 2)
+	var w4: int = GameData.tally_map_vote({2: 5}, cands, 0) # vote for a map not on the ballot: ignored
+	var map_ok: bool = MAPS[w1].has("size") and MAPS[w1].has("spawns") and int(MAPS[w1]["spawns"].size()) == 12
+	var ok: bool = w1 == 1 and w2 == 0 and w3 == 2 and w4 == 0 and map_ok
+	return [ok, "tally 2-1=%d tie=%d none=%d off-ballot=%d voted_map=%s spawns=%d" % [w1, w2, w3, w4, GameData.MAP_NAMES[w1], int(MAPS[w1]["spawns"].size())]]
+
+
+func _ft_s_pickups() -> void:
+	var lp = _get_local_player()
+	lp.health = 40
+	lp.grenades = 0
+	# A real health pickup on a real spot (kind 5, Sky Brawl icon).
+	_spawn_pickup_at(0, 5)
+
+
+func _ft_c_pickups() -> Array:
+	var lp = _get_local_player()
+	lp.give_pickup(5)
+	var health_ok: bool = lp.health == 90
+	lp.give_pickup(6)
+	var gren_ok: bool = lp.grenades == 2
+	var node_ok := false
+	var icon_ok := false
+	for c in pickups_node.get_children():
+		if int(c.kind) == 5:
+			node_ok = true
+			for sub in c.get_children():
+				if sub is Sprite2D and (sub as Sprite2D).texture != null:
+					icon_ok = true
+			c.queue_free()
+	var ok: bool = health_ok and gren_ok and node_ok and icon_ok
+	return [ok, "health 40->%d grenades 0->%d pickup_node=%s icon=%s" % [lp.health, lp.grenades, node_ok, icon_ok]]
+
+
+func _ft_s_music() -> void:
+	audio.play_battle_music()
+
+
+func _ft_c_music() -> Array:
+	var battle_ok: bool = audio.current_track() == "battle" and audio.is_music_playing()
+	var battle_stream_ok: bool = audio._music_player.stream == audio.BATTLE_TRACK
+	var menu_loop_ok: bool = audio.MENU_TRACK.loop == true
+	audio.play_menu_music()
+	var menu_ok: bool = audio.current_track() == "menu" and audio.is_music_playing()
+	audio.set_music_enabled(false)
+	var off_ok: bool = not audio.is_music_playing()
+	audio.set_music_enabled(true)
+	var back_ok: bool = audio.current_track() == "menu" and audio.is_music_playing()
+	var credits_ok: bool = GameData.MUSIC_CREDITS.contains("\"At Rest\"") and GameData.MUSIC_CREDITS.contains("\"Five Armies\"") and GameData.MUSIC_CREDITS.contains("creativecommons.org/licenses/by/4.0")
+	audio.stop_music()
+	var stop_ok: bool = not audio.is_music_playing() and audio.current_track() == ""
+	# Leave the match music playing again for the steps after this one.
+	audio.play_battle_music()
+	var ok: bool = battle_ok and battle_stream_ok and menu_loop_ok and menu_ok and off_ok and back_ok and credits_ok and stop_ok
+	return [ok, "battle=%s stream=%s menu_loop=%s menu=%s off=%s back=%s credits=%s stop=%s" % [battle_ok, battle_stream_ok, menu_loop_ok, menu_ok, off_ok, back_ok, credits_ok, stop_ok]]
+
+
+func _ft_s_spectator() -> void:
+	game_mode = 3 # Last Man Standing: no respawn, spectator applies
+	var b = _feat_bot
+	if b == null or not is_instance_valid(b):
+		b = players_node.get_node_or_null("99")
+	if b != null and not b.alive:
+		b._respawn()
+		b.position = Vector2(600, 1320)
+		b.sync_position = b.position
+	# A second living player: with only one alive, LMS would end the
+	# match the moment the local player "dies" (alive_count <= 1),
+	# which is exactly what spectator mode must outlive.
+	var b2 = players_node.get_node_or_null("98")
+	if b2 == null:
+		_do_spawn(98, "TestBot2", 1, 0)
+		b2 = players_node.get_node_or_null("98")
+	if b2 != null and not b2.alive:
+		b2._respawn()
+		b2.position = Vector2(900, 1320)
+		b2.sync_position = b2.position
+	var lp = _get_local_player()
+	lp.alive = false
+	lp._respawn_timer = 30.0 # do not auto-respawn during the check
+
+
+func _ft_c_spectator() -> Array:
+	var ok: bool = _spectating and _spectate_cam.enabled and _spectate_label.visible and _spectate_target != null and String(_spectate_target.player_name) == "TestBot"
+	# Capture the diagnostic BEFORE cleanup clears it all.
+	var detail := "spectating=%s cam=%s target=%s label=%s" % [_spectating, _spectate_cam.enabled, String(_spectate_target.player_name) if _spectate_target != null else "none", _spectate_label.visible]
+	var lp = _get_local_player()
+	lp._respawn()
+	game_mode = 0
+	_stop_spectating()
+	# Remove the second bot again (it only existed to keep LMS alive).
+	var b2 = players_node.get_node_or_null("98")
+	if b2 != null:
+		b2.queue_free()
+		_spawned.erase(98)
+	return [ok, detail]
+
+
+func _ft_s_scoreboard() -> void:
+	_update_scoreboard_rows(scoreboard_list)
+	scoreboard_panel.visible = true
+
+
+func _ft_c_scoreboard() -> Array:
+	var kd_ok := false
+	var self_ok := false
+	var team_ok := false # TDM totals header: must be found below
+	for c in scoreboard_list.get_children():
+		if c is Label:
+			if String(c.text).contains("K/D") and String(c.text).contains("ACC"):
+				kd_ok = true
+			if String(c.text).contains("(YOU)"):
+				self_ok = true
+	# TDM totals header: flip the mode, rebuild, check, restore.
+	game_mode = 1
+	_update_scoreboard_rows(scoreboard_list)
+	for c in scoreboard_list.get_children():
+		if c is Label and String(c.text).contains("RED") and String(c.text).contains("BLUE"):
+			team_ok = true
+	game_mode = 0
+	_update_scoreboard_rows(scoreboard_list)
+	scoreboard_panel.visible = false
+	var ok: bool = kd_ok and self_ok and team_ok
+	return [ok, "kd_col=%s self=%s tdm_totals=%s" % [kd_ok, self_ok, team_ok]]
+
+
+func _ft_s_firelayout() -> void:
+	# Mirror routing on: presses must still land on the nearer stick.
+	GameData.fire_button_left = true
+	_on_touch_press(920, _ft_move_center())
+	_on_touch_press(921, _ft_aim_center())
+
+
+func _ft_c_firelayout() -> Array:
+	var move_ok: bool = move_stick.is_active()
+	var aim_ok: bool = aim_stick.is_active()
+	var size_ok: bool = absf(fire_button.size.x - 90.0 * clampf(GameData.fire_button_size, 0.8, 1.3)) < 1.0
+	_on_touch_release(920)
+	_on_touch_release(921)
+	GameData.fire_button_left = false
+	var ok: bool = move_ok and aim_ok and size_ok
+	return [ok, "mirror_move=%s mirror_aim=%s fire_size=%.0f (want %.0f)" % [move_ok, aim_ok, fire_button.size.x, 90.0 * clampf(GameData.fire_button_size, 0.8, 1.3)]]
+
+
+var _feat_data: Dictionary = {}

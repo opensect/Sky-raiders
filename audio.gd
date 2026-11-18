@@ -6,12 +6,28 @@ class_name GameAudio
 
 const MIX_RATE := 22050
 
+# Phase 6: real music tracks (Kevin MacLeod, CC BY 4.0 — attribution
+# in GameData.MUSIC_CREDITS, shown in the settings screen). The menu
+# track loops cleanly; the battle track restarts loud, so its loop
+# restart is crossfaded between two players (see _process).
+const MENU_TRACK: AudioStream = preload("res://gen_assets_v3/music/menu_at_rest.ogg")
+const BATTLE_TRACK: AudioStream = preload("res://gen_assets_v3/music/battle_five_armies.ogg")
+const XFADE_SECONDS := 1.5 # battle loop-restart crossfade window
+const XFADE_START_BEFORE_END := 2.0 # start the next loop this far before the end
+
 var _players: Array[AudioStreamPlayer] = []
 var _streams: Dictionary = {}
 var _music_player: AudioStreamPlayer
+var _music_xfade: AudioStreamPlayer # second player: battle loop crossfade
 var _jet_player: AudioStreamPlayer
 var sfx_volume: float = 0.8
 var music_volume: float = 0.5
+var music_enabled: bool = true
+var _current_track: String = "" # "" | "menu" | "battle" | "procedural"
+var _last_track: String = "" # remembered across a music on/off toggle
+var _xfade_t: float = -1.0 # >= 0 while a battle crossfade is running
+var _xfade_from: AudioStreamPlayer
+var _xfade_to: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -22,10 +38,19 @@ func _ready() -> void:
 		_players.append(p)
 	_music_player = AudioStreamPlayer.new()
 	add_child(_music_player)
+	_music_xfade = AudioStreamPlayer.new()
+	add_child(_music_xfade)
 	_jet_player = AudioStreamPlayer.new()
 	add_child(_jet_player)
 	_build_streams()
-	_start_music()
+	# No autostart: the scene that owns this node picks its track
+	# (menu -> play_menu_music, match -> play_battle_music), so music
+	# can never overlap or keep playing after a scene change.
+	# The procedural loop below is only a fallback if an OGG is missing.
+
+
+func _process(_delta: float) -> void:
+	_update_battle_xfade(_delta)
 
 
 func _build_streams() -> void:
@@ -67,8 +92,131 @@ func play(sound_name: String) -> void:
 func set_volumes(sfx: float, music: float) -> void:
 	sfx_volume = sfx
 	music_volume = music
-	if _music_player != null:
+	_apply_music_volume()
+
+
+func set_music_enabled(enabled: bool) -> void:
+	music_enabled = enabled
+	if not enabled:
+		# Remember the track so re-enabling resumes it.
+		_last_track = _current_track
+		_stop_all_music()
+	elif _last_track != "":
+		_play_track(_last_track)
+		_last_track = ""
+
+
+func current_track() -> String:
+	return _current_track
+
+
+func is_music_playing() -> bool:
+	return _music_player.playing or _music_xfade.playing
+
+
+func play_menu_music() -> void:
+	_play_track("menu")
+
+
+func play_battle_music() -> void:
+	_play_track("battle")
+
+
+func stop_music() -> void:
+	_last_track = ""
+	_stop_all_music()
+
+
+func _stop_all_music() -> void:
+	_current_track = ""
+	_xfade_t = -1.0
+	_music_player.stop()
+	_music_xfade.stop()
+
+
+func _apply_music_volume() -> void:
+	var db := linear_to_db(maxf(music_volume * 0.5, 0.001)) if music_enabled else -80.0
+	# During a battle crossfade the two players are volume-driven by
+	# _update_battle_xfade; outside it both sit at the target volume
+	# (the idle one is stopped, so its volume is irrelevant).
+	if _xfade_t < 0.0:
+		_music_player.volume_db = db
+		_music_xfade.volume_db = db
+
+
+func _play_track(track: String) -> void:
+	if not music_enabled:
+		_last_track = track
+		return
+	if _current_track == track and is_music_playing():
+		return
+	_stop_all_music()
+	_current_track = track
+	var stream: AudioStream = null
+	if track == "menu":
+		stream = MENU_TRACK
+	elif track == "battle":
+		stream = BATTLE_TRACK
+	if stream == null:
+		# Fallback: the old procedural loop (never expected — the
+		# OGGs ship in the APK — but the game must never go silent
+		# because a file failed to load).
+		_current_track = "procedural"
+		_music_player.stream = _make_music_loop()
 		_music_player.volume_db = linear_to_db(maxf(music_volume * 0.5, 0.001))
+		_music_player.play()
+		return
+	if stream is AudioStreamOggVorbis:
+		# Godot 4.7 OGG looping is a bool + offset (no loop_mode).
+		# The menu track fades in/out cleanly so the restart is
+		# inaudible; the battle track is crossfaded by
+		# _update_battle_xfade instead of relying on this loop.
+		stream.loop = true
+		stream.loop_offset = 0.0
+	_music_player.stream = stream
+	_music_player.volume_db = linear_to_db(maxf(music_volume * 0.5, 0.001))
+	_music_player.play()
+
+
+func _update_battle_xfade(delta: float) -> void:
+	if _current_track != "battle":
+		return
+	if _xfade_t >= 0.0:
+		# A crossfade is running: fade the old player out and the new
+		# one in over XFADE_SECONDS, then stop the old one.
+		_xfade_t += delta
+		var f := clampf(_xfade_t / XFADE_SECONDS, 0.0, 1.0)
+		var target_db := linear_to_db(maxf(music_volume * 0.5, 0.001))
+		if _xfade_from != null:
+			_xfade_from.volume_db = lerpf(target_db, -80.0, f)
+		if _xfade_to != null:
+			_xfade_to.volume_db = lerpf(-80.0, target_db, f)
+		if f >= 1.0:
+			if _xfade_from != null:
+				_xfade_from.stop()
+			# The faded-in player becomes the main one.
+			if _xfade_to == _music_xfade:
+				var tmp := _music_player
+				_music_player = _music_xfade
+				_music_xfade = tmp
+			_xfade_t = -1.0
+			_apply_music_volume()
+		return
+	# Start the next loop early: when the active player is about to
+	# hit the loud restart, begin the same track on the idle player
+	# at silence and crossfade into it.
+	var active := _music_player
+	if not active.playing or active.stream == null:
+		return
+	var remain := active.stream.get_length() - active.get_playback_position()
+	if remain <= XFADE_START_BEFORE_END and remain > 0.0:
+		var idle := _music_xfade
+		idle.stream = active.stream
+		idle.volume_db = -80.0
+		idle.play()
+		_xfade_from = active
+		_xfade_to = idle
+		_xfade_t = 0.0
 
 
 func start_jetpack() -> void:
@@ -81,13 +229,6 @@ func start_jetpack() -> void:
 
 func stop_jetpack() -> void:
 	_jet_player.stop()
-
-
-func _start_music() -> void:
-	var music := _make_music_loop()
-	_music_player.stream = music
-	_music_player.volume_db = linear_to_db(maxf(music_volume * 0.5, 0.001))
-	_music_player.play()
 
 
 # --- Synthesis helpers ---
