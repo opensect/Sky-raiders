@@ -1,8 +1,54 @@
-# LAN Arena Shooter — v2.5
+# LAN Arena Shooter — v3.0
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi.
+
+## What's new in v3.0 (Godot 4.7.2 + 13 unique maps + features + music)
+
+- **Engine upgrade: Godot 4.3 → 4.7.2.** No fallback, zero API breaks
+  (only `project.godot` changed: features "4.3" → "4.7"). The Android
+  template now targets SDK 36 (was 34) — baked into the 4.7.2 template,
+  and it satisfies current Play requirements (35+).
+- **13 unique maps** (was 10), each with 12 spawn points and 6 pickups,
+  its own theme, layout, cover, sightlines and look — no two maps share
+  a platform set. New: **Neon City** (3400×1800 vertical figure-eight
+  with a risky centre skybridge), **Ancient Temple** (stepped ziggurat
+  with a crypt tunnel below the floor), **Airship Fleet** (three
+  separate ship decks with gaps crossed by jump + jetpack, safety net
+  below, falling through a gap respawns you with no death). Rebuilt:
+  **Space Station**, **City Underground**, **Pirate Island**. Every map
+  validated: no spawn/pickup inside a solid, no route sealed off, every
+  area reachable, cover within 150 px of every spawn, at least one
+  explosive barrel per map.
+- **Physics rebuilt to the full Mini Militia spec (points 1–28).**
+  Fixed-timestep movement, gravity/jetpack/air control, swept bullets,
+  explosion falloff + knockback, solid collision, host-authoritative
+  sync (60 ticks/sec, 100 ms buffer), hit regions head 1.5× / torso
+  1.0× / legs 0.75× / arms 0.85×, velocity inheritance 0.15, coyote
+  0.10 s + jump buffer 0.12 s, fuel drain 45/s with regen delay, stuck
+  -player recovery. Verified by a 31-step physics harness on maps 0,
+  6, 10, 12 and 22 steps live on the Frozen Fortress ice (map 4).
+- **All common game features (11/11):** kill feed, end-of-match stats
+  (K/D, accuracy, best streak), real settings screen (sound/music
+  volume, music on/off, joystick sensitivity, FIRE button size
+  0.8–1.3× and left/right side, show FPS, invert aim — saved in
+  `user://settings.cfg`), better scoreboard (sorted by kills, K-D +
+  accuracy columns, TDM team totals, self highlighted), weapon info
+  panel (pause → Weapons, all 6 weapons), 3-2-1-FIGHT countdown +
+  goal banner, hitmarkers + floating damage numbers, MVP screen,
+  map vote (host's map + next two, live counts), health/grenade
+  pickups, and spectator mode (Survival / Last Man Standing, NEXT
+  PLAYER cycling). Modes: Deathmatch, Team Deathmatch, Survival,
+  Last Man Standing.
+- **Music:** menu track (`menu_at_rest`) in menu/lobby/end screens and
+  battle track (`battle_five_armies`) in matches, with a procedural
+  loop as fallback; music on/off and volume in settings. Sky Brawl
+  art is used throughout: map backgrounds (parallax layer), tiles,
+  structures, characters (lobby select), pickups and effects.
+- **Controls (unchanged from v2.5):** left stick move + jetpack,
+  right stick aim, big red FIRE button (hold = auto fire, tap = one
+  shot), RELOAD, grenade and weapon-switch buttons.
 
 ## What's new in v2.5 (joystick fix + solid obstacles + UI polish)
 
@@ -342,34 +388,35 @@ the phones only need to reach each other on local Wi-Fi.
 ## Maps
 
 Pick a map in the host lobby (tap a map in the grid; the picked one gets
-a ✓). Every map is 2400–3600 px wide, has 12 spawn points and 6 pickups,
-multiple routes, high ground and hiding spots, and its own look:
+a ✓). Every map has 12 spawn points and 6 pickups, multiple routes, high
+ground and hiding spots, and its own look — no two maps share a layout.
+The strongest weapons (Sniper / Rocket) are pinned to the centre spot of
+every map, and the HUD shows a countdown to the next one. In Team
+Deathmatch, teams spawn grouped: team RED on the left half, team BLUE on
+the right half.
 
-1. **Catacombs** — underground tombs, dark stone, torches, blue-grey
-   light. Five levels: upper entrance, main combat chamber, underground
-   tunnels, lower chamber, and vertical shafts connecting them.
-2. **Military Base** — destroyed installation: watchtower, metal bridge,
-   central building, underground bunker, sandbags and barriers.
-3. **Desert Outpost** — sand and rock: observation towers, a long aerial
-   route, a central tent battlefield, and an underground bunker.
-4. **Industrial Factory** — steel platforms, pipes, hanging walkways,
-   a big factory floor, and a maintenance tunnel below.
-5. **Frozen Fortress** — snow platforms, ice blocks, a watchtower and
-   bridge, a frozen courtyard, and an ice cave with hidden passages.
-6. **Jungle Ruins** — ancient ruins in the jungle: spawn terrace, high
-   ruin route, central temple, cliff with a watchtower, waterfall
-   terrace, and a cave network with a jetpack shaft. Built from the
-   Jungle Ruins asset pack.
-7. **Space Station** — metal floors, glass walkways, a control room,
-   central command chamber, and maintenance tunnels / engine room.
-8. **City Underground** — rooftops and bridges above, an urban street
-   with vehicles as cover in the middle, and a metro station with
-   railway tunnels below.
-9. **Volcanic Cavern** — dark volcanic rock, narrow bridges, elevated
-   platforms, and glowing lava pools below (they hurt — use the safe
-   routes around them).
-10. **Pirate Island Fortress** — fortress towers and bridges, a central
-    courtyard with a shipwreck, and treasure chambers with tunnels below.
+| # | Map | Size | Layout signature — what makes it different |
+|---|---|---|---|
+| 1 | **Catacombs** | 3200×1400 | Symmetric 3-3-3 stack with a wide central bridge; dark underground palette. |
+| 2 | **Military Base** | 2880×1440 | Tallest stack (7 levels) with a centred sniper perch — the highest platform in the game; smallest width. |
+| 3 | **Desert Outpost** | 3000×1500 | Classic staggered arena, sand palette, palms. The original template, kept as-is. |
+| 4 | **Industrial Factory** | 3200×1600 | Tallest map (1600); bridge decor; dusk grey-brown palette. |
+| 5 | **Frozen Fortress** | 2800×1500 | Smallest map, densest floor cover; snow effects and a low-friction ice zone on the floor. |
+| 6 | **Jungle Ruins** | 3200×1400 | The hand-designed map: dense overlapping centre (68% cover at mid height), 6 zones, watchtower and statues. |
+| 7 | **Space Station** | 3000×1500 | **Rebuilt in v3.0:** vertical station, no full-width floor — 3 disconnected deck segments, a central vertical shaft (fast, exposed) and side maintenance tunnels (slow, covered). Dark palette. |
+| 8 | **City Underground** | 3200×1600 | **Rebuilt in v3.0:** subway map — two stacked tunnel tubes (upper fast/exposed, lower slow/covered with pillars) joined by 3 stair shafts; hot zone on the centre platform between the tubes. |
+| 9 | **Volcanic Cavern** | 3000×1500 | Split floor: two lava pools (they hurt — use the safe routes around them). |
+| 10 | **Pirate Island** | 3000×1500 | **Rebuilt in v3.0:** asymmetric beached-ship map — stepped hull rising to a crow's-nest perch on the LEFT, open sand mid, and a below-deck tunnel on the RIGHT. |
+| 11 | **Neon City** | 3400×1800 | **New in v3.0:** vertical figure-eight — two rooftop tower routes, a street-level alley, and a centre skybridge (no cover — crossing it is the risk). Rain-slick cyberpunk night, purple-brick tiles. |
+| 12 | **Ancient Temple** | 3000×1750 | **New in v3.0:** stepped ziggurat in the centre (3 tiers to an altar top) flanked by colonnades, with a crypt tunnel running BELOW the floor. |
+| 13 | **Airship Fleet** | 3200×1500 | **New in v3.0:** the only map with no full-width floor — three separate ship decks with gaps crossed by jump + jetpack, a safety net below, and the Sniper/Rocket pinned to the centre ship's crow's nest. Falling through a gap respawns you on your own deck (no death, no kill credited). |
+
+Seven maps (Catacombs, Industrial Factory, Space Station, City
+Underground, Volcanic Cavern, Neon City, Ancient Temple) also draw a
+Sky Brawl arena image as a far parallax background behind the
+procedural sky; the five day maps (Military Base, Desert Outpost,
+Frozen Fortress, Jungle Ruins, Pirate Island) keep the procedural
+gradient, and Airship Fleet uses a warm sunset gradient.
 
 ## Controls
 
@@ -400,8 +447,9 @@ In short: **Left stick: move • Push up: jump / fly • Right stick: aim •
 FIRE button: hold to shoot.**
 
 **Solid cover:** crates, barrels, sandbags, rocks, columns, pillars,
-statues and watchtowers are solid — bullets stop at them, you cannot
-walk through them, and grenades bounce off them. Use them as cover.
+statues, watchtowers, and the Sky Brawl huts, stone blocks, shrine
+blocks and vents are solid — bullets stop at them, you cannot walk
+through them, and grenades bounce off them. Use them as cover.
 Trees, palms, bushes, bridges and arches are decoration — you and your
 bullets pass straight through them.
 
@@ -417,7 +465,10 @@ bullets pass straight through them.
 | Rocket Launcher | Automatic | 70 | 4 | 2.0 s | Explosive, area damage + knockback. |
 
 Pickups appear on the map — walk over one to grab that weapon, then tap
-WEAPON to switch between the weapons you own.
+WEAPON to switch between the weapons you own. The centre spot of every
+map only ever spawns the Sniper or the Rocket Launcher (alternating),
+and the HUD counts down to the next one; the other spots spawn SMG,
+Shotgun, Health or Grenades.
 
 ## HUD
 
@@ -444,18 +495,20 @@ No storage, notifications, location, microphone, or camera access.
 ## Notes
 
 - This is a debug build, signed with a debug key.
-- Version 2.5 (version code 7), package `com.lanarena.shooter`. APK
-  `mini-militia-lan.apk`: 25,492,479 bytes, md5
-  `90fe7e3fad44dd249ba8afc9bccaf175`, signed with the same debug key as
-  v2.4 (certificate SHA-256 matches v2.4, so it installs over v2.4).
+- Version 3.0 (version code 8), package `com.lanarena.shooter`. APK
+  `mini-militia-lan.apk`: 32,518,408 bytes, md5
+  `cf6495ff319d5d0704b597491644e48d`, signed with the same debug key as
+  v2.4/v2.5 (certificate SHA-256 matches, so it installs over v2.5).
+  Target SDK 36 (Godot 4.7.2 template).
 - The game was verified on this build machine with a rendered smoke test
-  (19 phases), a scripted QA harness driving the real game, a joystick
-  acceptance test (21/21), a scale test (70/70 across five screen
-  sizes), a collision test (8/8 on Catacombs and 8/8 on Jungle Ruins,
-  plus a static check of all 10 maps), a fire-button test (25/25),
+  on all 13 maps, a scripted QA harness driving the real game, a
+  joystick acceptance test (21/21), a scale test (70/70 across five
+  screen sizes), a collision test (8/8 on ALL 13 maps), a fire-button
+  test (25/25), a physics harness (31/31 on maps 0, 6, 10, 12; 22/22
+  live on the Frozen Fortress ice, map 4), a features test (11/11),
   a multiplayer test (11/11), a menu network test (6/6), and a full-flow
-  check (10/10: menu → create room → lobby → start match → play →
-  pause → scoreboard → end screen → back to menu) — all with no script
+  check (menu → create room → lobby → start match → play → pause →
+  scoreboard → end screen → back to menu) — all with zero script
   errors. The two-player join could not be tested on this build machine
   because its sandbox blocks UDP network traffic between processes — the
   host and join code uses standard Godot ENet networking, which works on
@@ -468,4 +521,4 @@ No storage, notifications, location, microphone, or camera access.
   sprite, and the separate weapon sprite is drawn over it. At a straight
   up or down aim a small bit of the drawn-in rifle can peek out at the
   base of the weapon — it reads as a foregrip and does not affect play.
-- Built with Godot 4.3.
+- Built with Godot 4.7.2.

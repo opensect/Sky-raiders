@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "3.0-dev" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "3.0" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
@@ -50,7 +50,7 @@ const PLAYER_COLORS: Array[Color] = [
 
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
 const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet"]
-const MAP_NAMES: Array[String] = ["Catacombs", "Military Base", "Desert Outpost", "Industrial Factory", "Frozen Fortress", "Jungle Ruins", "Space Station", "City Underground", "Volcanic Cavern", "Pirate Island"]
+const MAP_NAMES: Array[String] = ["Catacombs", "Military Base", "Desert Outpost", "Industrial Factory", "Frozen Fortress", "Jungle Ruins", "Space Station", "City Underground", "Volcanic Cavern", "Pirate Island", "Neon City", "Ancient Temple", "Airship Fleet"] # Phase 5: 13 maps; the vote ballot in main.gd already uses MAP_NAMES.size() for its mod arithmetic
 const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing"]
 # Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).
 # Exact text from gen_assets_v3/music/LICENCE.md.

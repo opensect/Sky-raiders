@@ -1767,3 +1767,339 @@ QA-029 HUD touch fix preserved (hud.get_final_transform(); untouched code paths)
   throws are not shots. Documented, not a bug.
 - Simultaneous lethal hits from two shooters can still double-credit a kill
   (pre-existing known issue from v2.4, unchanged).
+
+## Phase 5 — Maps: every map unique + playable (2026-11-19, Godot 4.7.2)
+
+13 maps (was 10). 7 kept with global fixes, 3 rebuilt, 3 new. Map
+generator + Python validator lived in /tmp/phase5 (lost in a runtime
+restart mid-phase — the validated MAPS block in game.gd is the record;
+the generator is NOT in the repo, so a future map tweak edits game.gd
+directly or rebuilds the generator from this section + MAP_AUDIT.md).
+
+### Maps changed / added
+- Kept (global fixes): Catacombs 3200x1400, Military Base 2880x1440,
+  Desert Outpost 3000x1500, Industrial Factory 3200x1600, Frozen
+  Fortress 2800x1500, Jungle Ruins 3200x1400, Volcanic Cavern 3000x1500.
+- REBUILT Space Station 3000x1500: vertical station, 3 disconnected
+  decks, central vertical shaft (fast/exposed) + side maintenance
+  tunnels (slow/covered). Was a Template A clone.
+- REBUILT City Underground 3200x1600: subway, two stacked tunnel
+  tubes (upper fast/exposed, lower slow/covered, pillars ~350 px)
+  + 3 stair shafts; hot zone on the centre platform between tubes.
+- REBUILT Pirate Island 3000x1500: asymmetric beached ship — stepped
+  hull to crow's nest LEFT, open sand mid, below-deck tunnel RIGHT.
+  Was a Template A clone; kept (not cut) as the asymmetric map.
+- NEW Neon City 3400x1800: vertical figure-eight, two rooftop towers,
+  street alley, centre skybridge (no cover) as the hot zone.
+- NEW Ancient Temple 3000x1750: stepped ziggurat (3 tiers to altar)
+  + crypt tunnel below the floor.
+- NEW Airship Fleet 3200x1500: disconnected decks (3 ships + safety
+  net); falling = respawn, no death (player.gd already respawns at
+  y > map_size.y + 200 with no kill credited — no new rule needed).
+- NOT done: Frozen Fortress duel shrink (~2200x1400) — deferred,
+  lowest priority; Frozen stays 2800x1500.
+
+### Global fixes (all 13 maps)
+- Centre-weapon pinning: pickups[3] is the centre spot (map centre
+  x) and spawns ONLY Sniper (3) / Rocket (4), alternating, with a
+  visible HUD countdown (CENTRE: SNIPER/ROCKET HERE or ... in Ns).
+  Initial pickups: SMG at spot 0, Sniper at centre, Health at spot 4.
+  Other spots spawn only SMG/Shotgun/Health/Grenades.
+- TDM spawn grouping: spawns[0:6] left half (team 0), spawns[6:12]
+  right half (team 1); FFA keeps round-robin order.
+- 2-3 solid floor decor per map at <=400 px spacing; 3-4 floor spawns
+  staggered onto upper platforms; centre pickup moved to the true
+  centre of each hot zone.
+- Volcanic Cavern floor re-segmented so the bounce pads (0.3x/0.7x
+  width) land on deck; Airship deck layout fixed the same way.
+- MAP_NAMES extended to 13 (Neon City, Ancient Temple, Airship
+  Fleet); the vote ballot already used MAP_NAMES.size(), so no vote
+  code change was needed.
+
+### Backgrounds / parallax (Sky Brawl art)
+- _build_background gained a FAR parallax layer: ParallaxBackground
+  (layer -100), ParallaxLayer motion_scale (0.25, 0), mirroring
+  1286 px, sprite scaled to ~1286x723 (viewport scale, ~1.3x upscale
+  of the 960x540 image) — NEVER stretched over the map. The
+  procedural gradient + hills stay in front at 50% alpha so the
+  horizon still matches each map's palette.
+- Image backgrounds only on the 7 GOOD/FAIR-fit maps (Catacombs 01,
+  Industrial 13, Space 18, City 04, Volcanic 09, Neon 20, Temple 19).
+  The 5 POOR-fit day maps (Military, Desert, Frozen, Jungle, Pirate)
+  keep the procedural gradient; Airship Fleet uses a warm sunset
+  gradient.
+- Sky Brawl files imported (21 only): assets/skybrawl/maps/bg_*.png
+  (7), assets/skybrawl/tiles/tile_neon.png + tile_temple.png
+  (alpha-flattened, 128x48; Airship reuses tile 11),
+  assets/skybrawl/structures/sb_*.png (12). New solid decor kinds
+  (sb_hut, sb_hut_pink, sb_hut_blue, sb_vent, sb_vent_orange,
+  sb_shrine, sb_block, sb_hut_green, sb_crate) added to
+  SOLID_DECOR_KINDS + DECOR_INSETS (inset 10); slabs/trapezoid/altar
+  are visual-only. TILE_TEX indices 10 (Neon) and 11 (Temple). The
+  other 946 pack files were NOT imported.
+
+### QA-039 — Rock decor does not block spawn-height sightlines
+- Severity: Medium (map validation).
+- Cause: a rock's solid rect is only 30 px tall, so a ray at spawn
+  height (32 px above the floor) passes 2 px over it. Rock/jrock
+  therefore do NOT break line of sight between floor spawns.
+- Fix: rock/jrock excluded from floor-lane fill; Volcanic's manual
+  floor rocks replaced with crate/column. (Generator rule, not a
+  game-code change.)
+
+### QA-040 — Collision-test ray needs a clear approach (floor cover)
+- Severity: Medium (test + map rule).
+- Cause: _ct_floor_cover fires a ray from 120 px left of the first
+  floor cover; if that cover's face is <150 px from the left edge
+  the ray starts outside the map and hits the wall.
+- Fix: generator enforces the first floor cover's face >=150 px
+  from the left edge on every map.
+
+### QA-041 — Harness run-ups must stay clear of solid floor decor
+- Severity: Medium (map rule; broke fire/features/physics).
+- Cause: the fire test and physics harness teleport to (300,1320)
+  on Catacombs and run right, the camera test teleports to
+  (1600,1320) and sprints right, and the Frozen ice test teleports
+  to (500,1420) and slides right. A crate/column in those runs
+  reads as vel.x=0 (a map bug, not a physics bug).
+- Fix: CLEAR_STRETCH in the generator — face-based intervals kept
+  free of floor decor: Catacombs [(280,500),(1500,1900)], Frozen
+  [(280,985),(1500,1900)]. The Frozen ice lane leaves one ~870 px
+  floor gap (120-1020); that IS the ice feature — the validator
+  allows a 950 px gap on map 4 only (650 px cap elsewhere).
+- Follow-up (same root cause): a general spawn#0 run-up rule was
+  added — no floor decor with face in (spawn0.x-20, spawn0.x+360)
+  on any map — after the same vel.x=0 failures appeared on Neon
+  City, Space Station and Airship Fleet (P03/P04a). The run-up
+  also forced two spawn moves (see QA-043).
+
+### QA-042 — Visual-only decor blocked spawn-cover placement
+- Severity: Medium (map validation).
+- Cause: the generator's decor-proximity checks counted ALL decor,
+  including visual-only palms. On Desert/Pirate a palm at x=150
+  vetoed every left-side cover candidate for spawn#0 while the
+  run-up vetoed the right side, so spawn#0 got no cover at all
+  (and the floor gap grew to 705 px).
+- Fix: proximity/clash checks count SOLID kinds only. Palms/trees/
+  bushes never block a cover or fill slot now.
+
+### QA-043 — Run-up vs line-of-sight: two floor spawns too close
+- Severity: Medium (map design).
+- Cause: on Space Station the floor spawns (250,1420) and
+  (550,1420) are 300 px apart with nothing between them once the
+  run-up removed the sb_hut at 420 — a clear LOS pair. Same on
+  Airship Fleet (200,1348) vs (700,1348), 500 px apart. Any solid
+  that blocks the ray at spawn height also blocks the running
+  player, so no decor can fix it — one spawn has to move.
+- Fix: Space spawn#1 moved (550,1420) -> (1400,1420) on deck B
+  (first floor spawn on the middle deck; cover crate at 1490,
+  barrels at 1800). Airship spawn#1 moved (700,1348) ->
+  (1400,1178) on the centre deck (the hot-zone deck). Both keep
+  TDM left-half grouping and BFS reachability from spawn#0.
+
+### QA-044 — Physics harness used Catacombs-tuned coordinates
+- Severity: Medium (test-only; no physics constants changed).
+- Cause: the harness teleported to fixed points that are mid-air
+  or inside a platform on taller/rebuilt maps: (300,1320) is
+  mid-air on Neon City (P01/P04a measured the "ground" run in the
+  air); (2100,1320) is mid-air on Neon so the jump-tap 0.15 s
+  release fired before landing; (1600,1370) is open air above
+  Neon's skybridge (P14); the grenade throw at (2100,1100) fell
+  650 px to the street on Neon (P15); (1600,1320) is INSIDE a
+  platform on Space Station ((1450,1280,300,48)) so the player
+  wedged and camera look-ahead read 0 (P19); the (0.2,0.3) throw
+  drift rolled the grenade off Space's deck B and Airship's net
+  before it could rest (P15 on maps 6/12); P18b ice-slide ran (and
+  failed) on every non-ice map.
+- Fix (game.gd, test code only): _phys_ground_at(x) helper (lowest
+  platform top at x) for jump/grenade setups; P01/P04a teleport to
+  spawn#0; P14 bad point is map-relative (plats[0].top + 18);
+  grenade throw is straight down (Vector2(0,1)) from 250 px above
+  the map floor; _phys_top_at(x) helper (highest platform top at
+  x) for the camera setup; P18b changed from "skip_map": 0 to
+  "only_map": 4 with runner support (SKIP when the step's only_map
+  != map_id). Physics constants untouched.
+
+### QA-045 — No explosive barrel on Space Station / Airship Fleet
+- Severity: Low (test-only gap, map fix).
+- Cause: P22 shoots a live barrel; neither map had a "barrels"
+  decor piece (Space's floor-kind cycle never included one;
+  Airship's cycle never placed one).
+- Fix: generator guarantees >=1 "barrels" on the floor of every
+  map (first free slot clear of spawns/pads/decor/run-up).
+  Space got barrels at 1800 (deck B), Airship at 600 (left deck).
+
+### QA-046 — Cover crate vs the harness's left run + the palm walk
+- Severity: Medium (test-only fixes + one decor move; the map
+  design is correct).
+- Cause: three requirements collide at spawn#0 — cover within
+  150 px, a clear RIGHT run (fire test, P03/P04a), and a clear
+  LEFT run (joystick PRESS-LEFT, 0.6 s check). Any cover within
+  150 px left blocks the left run after ~58 px; any cover within
+  150 px right blocks the right run. The same left cover at 210
+  sat behind the left palm on Desert/Pirate and blocked the
+  collision test's WALK-PASSES-BUSH (player stopped at x=178,
+  must pass 222).
+- Fix: (1) joystick test teleports to spawn#0 + 200 px right
+  before the two left-press steps (_jt_teleport_clear_left;
+  PRESS-LEFT and RESOLUTION-1920) — the run-up rule guarantees
+  360 px clear right of spawn#0 on every map, so the left run
+  from there is ~258 px. (2) The left palms on Desert Outpost
+  and Pirate Island moved 150 -> 400 (visual-only decor; the
+  walk path through the palm is now clear of the cover crate).
+  The cover crate stays where the audit wants it.
+
+### Test results (Phase 5 final run, 2026-11-19, Godot 4.7.2, xvfb-run)
+- Python validator: ALL VALIDATION CHECKS PASS on all 13 maps
+  (12 spawns + 6 pickups each; spawns[0:6] left / [6:12] right;
+  pickups[3] at map centre x; no spawn/pickup inside a solid; no
+  solid seals a platform; BFS reachability from spawn#0; bounce
+  pads at 0.3x/0.7x on solid deck and clear of decor; 0 floor
+  LOS pairs; cover within 150 px of every spawn; longest floor
+  gap <=650 px (950 on Frozen); no two maps share a platform set).
+- Collision: 8/8 on ALL 13 maps. Smoke: 13/13 maps pass (23 shots
+  on maps 0-5, 8; 32 shots on maps 6, 7, 9-12). Joystick 21/21.
+  Fire-button 25/25. Scale 70/70. Physics: 31/31 on maps 0, 6, 10,
+  12; 22/22 on map 4. Features 11/11. Multiplayer 11/11. Menu
+  network 6/6. Full flow (menu -> create room -> lobby -> start
+  match -> play -> pause -> scoreboard -> end screen -> back).
+  Zero script errors.
+- Script errors: none. (The known pre-existing headless
+  `save_png` noise from v2.4 still appears in smoke runs; phases
+  pass.)
+- Flaky threshold (not a map or physics defect): P02-air-accel on
+  Airship Fleet failed ONCE during the long loaded regression run
+  (air 0.25 s vs ground 0.20 s = 1.25x, want >1.3x) and passed
+  31/31 on a clean re-run right after (0.28 s vs 0.21 s = 1.33x).
+  The ratio is measured in real seconds under xvfb, so CPU load
+  compresses it toward 1.0. If it fails again, re-run it alone
+  before touching the map or the physics constants.
+- Honest limits (unchanged): real touch hardware and real
+  two-phone LAN join untested here (sandbox blocks UDP); the
+  map-vote tally is unit-tested and the flow test covers the
+  lobby, but a live two-phone vote still needs a real-phone check.
+
+### Notes for the next phase (final packaging)
+- Frozen Fortress duel shrink (~2200x1400) was NOT done — the map
+  is playable as-is at 2800x1500; shrink it only if the final
+  phase has spare time.
+- The Phase 5 map generator + validator were in /tmp/phase5 and
+  were lost in a runtime restart. The validated MAPS block in
+  game.gd is the source of truth. A future map tweak should edit
+  game.gd's MAPS directly (keep the rules in this section: cover
+  <=150 px, no floor LOS pairs, run-up clear right of spawn#0,
+  >=1 barrels per map, pads clear of decor) or rebuild the
+  generator from MAP_AUDIT.md + this section.
+- Version NOT bumped (still 2.5 / code 7). Do NOT build a final
+  delivery APK in this phase — packaging is the final phase's job.
+- Known pre-existing issue (unchanged): simultaneous lethal hits
+  from two shooters can double-credit a kill.
+
+## v3.0 — Final delivery (Phase 7, 2026-11-19, Godot 4.7.2)
+
+Phase 5's work was delivered uncommitted in the working tree (no Phase 5
+commit existed — `git log` showed only 2a16edb / aadc816 / 5fe7e0e).
+Verified present before packaging: 13 maps in `game.gd` MAPS (Neon City,
+Ancient Temple, Airship Fleet added; Space Station, City Underground,
+Pirate Island rebuilt), 13 entries in `game_data.gd` MAP_NAMES,
+`assets/skybrawl/{maps,structures,tiles}/` files, README 13-map table,
+BUGS.md Phase 5 section with QA-039–QA-046. This commit covers all of it.
+
+### Version bump (only code change in this phase, besides docs)
+- `export_presets.cfg`: version/name "2.5" → "3.0", version/code 7 → 8.
+- `main.gd`: in-game version label "LAN Arena Shooter v2.5" → "v3.0".
+- `game_data.gd`: `BUILD_VERSION` "3.0-dev" → "3.0" (join handshake
+  rejects mismatched builds, so the release build must carry "3.0").
+- No gameplay, map, physics or feature code was changed in this phase.
+
+### Final verification — full suite re-run from scratch on the final code
+All runs on Godot 4.7.2, headless Xvfb, runner `run_phase5_final.sh`.
+Zero script errors in every run (raw logs: `log4_*.txt`, not committed).
+
+- **P02-air-accel re-run alone first (Airship Fleet, map 12):** PASS —
+  air 0.27 s vs ground 0.20 s = 1.35x (want >1.3x). The single failure
+  in the Phase 5 loaded regression (1.25x) did not recur; it was a
+  CPU-load artefact of the real-seconds ratio under xvfb, not a map or
+  physics defect. Physics harness on map 12 in that run: 31/31.
+- **Collision:** 8/8 on ALL 13 maps (Catacombs, Military Base, Desert
+  Outpost, Industrial Factory, Frozen Fortress, Jungle Ruins, Space
+  Station, City Underground, Volcanic Cavern, Pirate Island, Neon City,
+  Ancient Temple, Airship Fleet), errors=0.
+- **Joystick acceptance:** 21/21. **Fire-button:** 25/25.
+  **Scale/coordinate:** 70/70.
+- **Physics harness `--physics-test`:** 31/31 on maps 0, 6, 10, 12;
+  22/22 on map 4 (live ice: P18a ice run vel.x=270, P18b ice slide
+  282 px in 1.5 s vs 46 px ground stop). Re-run after the version
+  bump: 31/31 on map 0 again, errors=0.
+- **Features:** 11/11. **Multiplayer:** 11/11. **Menu network:** 6/6.
+- **Full flow:** PASS, 9 steps — menu → create room → lobby → start
+  match → play/fire (3 shots) → pause → resume → scoreboard →
+  end screen → back at menu. Re-run after the version bump: PASS.
+- **Smoke:** 13/13 maps — players=1, local alive, shots fired 23
+  (maps 0–5, 8) / 32 (maps 6, 7, 9–12), bullet pool 160, fuel 100.0,
+  errors=0.
+- **T-01–T-75 status (Phase 3B, re-confirmed — no changes since):**
+  PASS headless: T-02, T-03, T-04, T-05/T-06, T-07, T-08, T-13,
+  T-17/T-18, T-19, T-24, T-25, T-26, T-40, T-42, T-44, T-49, T-50,
+  T-51, T-53, T-58, T-60, T-61, T-68, T-71, T-72. PASS by code path:
+  T-01, T-09, T-10, T-11, T-12, T-14, T-15, T-16, T-20, T-21, T-22,
+  T-23/T-43, T-27, T-28, T-29, T-30, T-41, T-45, T-46, T-47, T-55,
+  T-57, T-62 (items 1–2), T-64, T-65, T-66, T-69, T-70. PARTIAL:
+  T-33 (tap = 1 shot proven; 10-rapid-tap run not done), T-56
+  (event-ID dedupe in; simultaneous-lethal-hits double-credit edge
+  remains — see below), T-59 (smoothing/look-ahead measured; dead
+  zone, hard limits, victim shake code-path), T-62 (items 3–6
+  evidenced, 1–2 code-path), T-73 (60 s soak green, mem +350 KB;
+  the audit's 10-minute 8-player soak not run headless; FPS not
+  measurable headless), T-75 (gate ticked except the two-phone LAN
+  check). N/A: T-48 (weapon drop — out of scope), T-54 (no burst
+  weapon), T-67 (moving platforms — out of scope). USER-TO-TEST
+  (two real phones, sandbox blocks UDP): T-31, T-32, T-63, T-74.
+  T-34–T-39 are the suites themselves (joystick, smoke, fire,
+  flow, 0 script errors, map loads) — all re-run green above.
+  T-52: pass-through is the only mode (verified by code).
+- **Nothing fixed in the final pass:** no test failed, so no QA
+  number was issued in Phase 7 and no gameplay/map/physics/feature
+  code was touched. The only headless noise: ALSA `ERR_CANT_OPEN`
+  (no sound card in Xvfb; falls back to the dummy driver — does not
+  occur on a real phone) and one `WARNING: Sending failed!` in the
+  menu-net log (UDP broadcast blocked by the sandbox; suite still
+  6/6). The pre-existing headless `save_png` noise from v2.4 still
+  appears in smoke runs; phases pass.
+
+### v3.0 release checklist
+- `aapt2 dump badging`: package `com.lanarena.shooter`, versionCode 8,
+  versionName 3.0, targetSdk 36 (baked into the 4.7.2 template),
+  permissions ONLY `INTERNET`, `ACCESS_NETWORK_STATE`,
+  `ACCESS_WIFI_STATE`.
+- `apksigner verify` passes; signer certificate SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v2.4/v2.5 exactly — installs over v2.5 cleanly.
+- APK: `mini-militia-lan.apk`, 32,518,408 bytes, md5
+  `cf6495ff319d5d0704b597491644e48d`. Built with Godot 4.7.2
+  (`--export-release Android`) and signed with
+  `/home/hatch/.local/share/godot/keystores/debug.keystore`.
+- Contents verified: both music OGGs inside (`menu_at_rest.ogg`,
+  `battle_five_armies.ogg`, as imported `.oggvorbisstr`); Sky Brawl
+  textures inside as imported `.ctex` (5 characters, 6 effects,
+  7 map backgrounds, 4 pickups, 12 structures, new tiles).
+  NO staging files ship: no `STATUS.md`, no `.md`/`.txt` anywhere
+  in the APK (the only `gen_assets_v3/` entries are the two tiny
+  `.import` metadata files for the shipped music OGGs).
+- v2.5 APK safe in `~/workspace/mini-militia-lan-backup-v2.5/`,
+  md5 still `90fe7e3fad44dd249ba8afc9bccaf175`.
+
+### Honest limits (unchanged)
+- Real touch hardware untested; real two-phone LAN join untested
+  (sandbox blocks UDP) — the user tests with the two-device guide in
+  README.md. Live two-phone map vote also still needs a real-phone
+  check (tally is unit-tested, flow test covers the lobby).
+- Known pre-existing issue (unchanged): simultaneous lethal hits from
+  two shooters can double-credit a kill (host reads the victim's
+  replicated health, stale by ~0.05 s + latency).
+- Performance on a real phone untested; audio not verified by ear.
+- Frozen Fortress duel shrink (~2200x1400) was NOT done — the map is
+  playable as-is at 2800x1500.
+- The single late-night Gemini retry (Neon City sky) was NOT done in
+  this phase — the maps are built with Sky Brawl art; it remains an
+  iteration-phase decision, not a delivery blocker.

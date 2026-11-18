@@ -675,7 +675,7 @@ func _build_settings() -> void:
 	credits.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(credits)
 	var version_lbl := Label.new()
-	version_lbl.text = "LAN Arena Shooter v2.5  •  LAN only — no accounts, no servers"
+	version_lbl.text = "LAN Arena Shooter v3.0  •  LAN only — no accounts, no servers"
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
