@@ -207,30 +207,38 @@ const MAPS := [
 		"decor": [["bridge", 1300, 1040], ["barrels", 720, 1552], ["crate", 1320, 1552], ["column", 1620, 1552], ["sandbags", 1920, 1552], ["barrels", 2520, 1552], ["crate", 2820, 1552], ["column", 3120, 1552], ["crate", 210, 1552], ["crate", 810, 1552], ["crate", 1040, 1210], ["crate", 740, 1040], ["crate", 1140, 870], ["crate", 2740, 1380], ["crate", 2240, 1210], ["crate", 2340, 1040], ["crate", 2240, 870]],
 	},
 	{
-		"name": "Frozen Fortress", "size": Vector2(2800, 1500), "tile": 4,
+		# QA-033 (MAP_AUDIT §Similarity-3): rebuilt as the game's small
+		# duel map (~2200x1400, 2-4 players) instead of a Template A
+		# clone shifted to 2800. New layout: open ice-slide centre
+		# (floor x450-1750 is the low-friction zone, kept clear of
+		# floor decor so the slide run is unobstructed), hot zone on
+		# the frozen lake platform (850-1350 @1180, centre pickup at
+		# spot 3), dense cover on the flanks + platforms (the old
+		# map's signature), snow fx kept. Jump rises 170-172 px.
+		# TDM: spawns[0:6] left half, spawns[6:12] right half.
+		"name": "Frozen Fortress", "size": Vector2(2200, 1400), "tile": 4,
 		"sky_top": Color(0.55, 0.70, 0.90), "sky_bottom": Color(0.85, 0.90, 0.97),
 		"hill": Color(0.60, 0.70, 0.85), "sun": Color(0.95, 0.95, 1.00), "fx": "snow",
 		"platforms": [
-			Rect2(0, 1452, 2800, 48),
-			Rect2(250, 1280, 400, 48),
-			Rect2(1200, 1280, 440, 48),
-			Rect2(2200, 1280, 400, 48),
-			Rect2(100, 1110, 240, 48),
-			Rect2(650, 1110, 340, 48),
-			Rect2(1700, 1110, 340, 48),
-			Rect2(2500, 1110, 240, 48),
-			Rect2(400, 940, 320, 48),
-			Rect2(1150, 940, 400, 48),
-			Rect2(1950, 940, 320, 48),
-			Rect2(750, 770, 320, 48),
-			Rect2(1800, 770, 320, 48),
-			Rect2(250, 600, 260, 48),
-			Rect2(1100, 600, 360, 48),
-			Rect2(2400, 600, 260, 48),
+			Rect2(0, 1352, 2200, 48),
+			Rect2(150, 1180, 340, 48),
+			Rect2(850, 1180, 500, 48),
+			Rect2(1710, 1180, 340, 48),
+			Rect2(80, 1010, 220, 48),
+			Rect2(550, 1010, 300, 48),
+			Rect2(1350, 1010, 300, 48),
+			Rect2(1850, 1010, 220, 48),
+			Rect2(350, 840, 300, 48),
+			Rect2(950, 840, 300, 48),
+			Rect2(1550, 840, 300, 48),
+			Rect2(250, 670, 260, 48),
+			Rect2(950, 670, 300, 48),
+			Rect2(1690, 670, 260, 48),
+			Rect2(950, 500, 300, 48),
 		],
-		"spawns": [Vector2(300, 1420), Vector2(1350, 1248), Vector2(450, 1248), Vector2(800, 1078), Vector2(550, 908), Vector2(900, 738), Vector2(1900, 1420), Vector2(2500, 1420), Vector2(2350, 1248), Vector2(1850, 1078), Vector2(2100, 908), Vector2(1950, 738)],
-		"pickups": [Vector2(450, 1250), Vector2(2400, 1250), Vector2(1400, 1250), Vector2(1400, 910), Vector2(900, 740), Vector2(1250, 570)],
-		"decor": [["crate", 1020, 1452], ["column", 1320, 1452], ["barrels", 2220, 1452], ["crate", 210, 1452], ["crate", 540, 1280], ["crate", 890, 1110], ["crate", 640, 940], ["crate", 990, 770], ["crate", 2060, 1452], ["crate", 2590, 1452], ["crate", 2440, 1280], ["crate", 1940, 1110], ["crate", 2190, 940], ["crate", 2040, 770]],
+		"spawns": [Vector2(250, 1320), Vector2(700, 1320), Vector2(320, 1148), Vector2(700, 978), Vector2(500, 808), Vector2(380, 638), Vector2(1950, 1320), Vector2(1500, 1320), Vector2(1880, 1148), Vector2(1500, 978), Vector2(1700, 808), Vector2(1820, 638)],
+		"pickups": [Vector2(320, 1150), Vector2(1880, 1150), Vector2(380, 640), Vector2(1100, 1150), Vector2(1100, 810), Vector2(1820, 640)],
+		"decor": [["sandbags", 120, 1352], ["barrels", 1800, 1352], ["column", 150, 1010], ["crate", 250, 1010], ["crate", 450, 1180], ["crate", 1980, 1180], ["crate", 800, 1010], ["crate", 1400, 1010], ["crate", 600, 840], ["crate", 1600, 840], ["crate", 450, 670], ["crate", 1750, 670]],
 	},
 	{
 		"name": "Jungle Ruins", "size": Vector2(3200, 1400), "tile": 5,
@@ -552,6 +560,17 @@ var _centre_label: Label
 # Phase 3B physics systems (GAP-37/45/51/64/66):
 var _pickup_spot_timers: Dictionary = {} # spot index -> seconds until respawn
 var _damage_event_seq: int = 0 # unique damage event ids (GAP-43)
+# QA-031 (T-56): host-side kill-credit lock. Two shooters landing
+# lethal hits on the same victim in the same moment used to both
+# credit a kill: the host reads the victim's replicated health,
+# stale by ~33 ms + latency, so both hits computed lethal. The first
+# credit locks the victim (peer id -> lock msec); a second credit
+# inside KILL_CREDIT_LOCK_MS is denied. The lock expires after 1 s
+# so a later genuine kill in the victim's next life is never blocked
+# (respawn takes 3 s, and the lock is also cleared on disconnect /
+# round reset). Server-only: only the host ever populates it.
+var _kill_credit_lock: Dictionary = {}
+const KILL_CREDIT_LOCK_MS: int = 1000
 var _barrels: Array = [] # {rect, sprite, shape, hp, alive} (GAP-64)
 var _bounce_pads: Array = [] # {rect, area, cooldowns{peer: t}} (GAP-66)
 var _physics_test: bool = false # --physics-test harness (T-01..T-75 support)
@@ -567,6 +586,9 @@ var _perf_test: bool = false # --perf-test harness (GAP-73)
 var _perf_elapsed: float = 0.0
 var _perf_mem0: int = 0
 var _perf_done: bool = false
+var _perf_seconds: float = 60.0 # T-73: --perf-seconds=N overrides (default 60)
+var _perf_bots: int = 0 # T-73: --perf-bots=N idle bot players (default 0)
+var _perf_bots_spawned: bool = false
 var _initial_pickups_done: bool = false
 var _local_player: Node = null
 var _join_timer: float = 0.0
@@ -649,6 +671,9 @@ var _fire_done: bool = false
 var _fire_shots_before: int = 0
 var _fire_pos_before: Vector2 = Vector2.ZERO
 var _fire_grenades_before: int = 0
+var _ft_tap_left: int = 0 # T-33 rapid-tap driver: taps remaining
+var _ft_tap_timer: float = 0.0 # T-33: time until the next press/release
+var _ft_tap_phase: int = 0 # T-33: 0 = press next, 1 = release next
 var _fire_weapon_before: int = 0
 var _net_test: bool = false # v2.4: --net-test harness
 var _net_steps: Array = []
@@ -658,6 +683,9 @@ var _net_timer: float = 0.0
 var _net_passed: int = 0
 var _net_failed: int = 0
 var _net_done: bool = false
+var _nt_dc_kills_a: int = 0 # QA-031 double-credit test state
+var _nt_dc_first: bool = false
+var _nt_dc_second: bool = false
 # v2.4 full-flow check: handed over from the menu via GameData
 # (flow_phase 1 = in the match). The menu prints the final result
 # when we return (phase 2).
@@ -694,6 +722,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--map="):
 			map_id = clampi(int(a.trim_prefix("--map=")), 0, MAPS.size() - 1)
+		elif a.begins_with("--perf-seconds="):
+			_perf_seconds = maxf(10.0, float(a.trim_prefix("--perf-seconds=")))
+		elif a.begins_with("--perf-bots="):
+			_perf_bots = clampi(int(a.trim_prefix("--perf-bots=")), 0, 11)
 	audio = AUDIO_SCRIPT.new()
 	add_child(audio)
 	audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
@@ -831,10 +863,13 @@ func is_on_ice(pos: Vector2) -> bool:
 	# A floor-level zone; the player reads it in _apply_movement.
 	# The zone is a separate system (game-side query), not code
 	# inside the player controller.
+	# QA-033: the duel rebuild shrank the map to 2200x1400 (floor
+	# 1352) — the zone is the open slide lane x450-1750, kept clear
+	# of floor decor so the slide run is unobstructed.
 	if map_id != 4:
 		return false
-	var floor_top := 1452.0
-	return pos.y > floor_top - 60.0 and pos.x > 300.0 and pos.x < 2500.0
+	var floor_top := 1352.0
+	return pos.y > floor_top - 60.0 and pos.x > 450.0 and pos.x < 1750.0
 
 
 func has_line_of_sight(from: Vector2, to: Vector2) -> bool:
@@ -1015,8 +1050,8 @@ func _build_ice_zone(map: Dictionary) -> void:
 		return
 	var sheen := Polygon2D.new()
 	sheen.polygon = PackedVector2Array([
-		Vector2(300, 1452), Vector2(2500, 1452),
-		Vector2(2500, 1500), Vector2(300, 1500)])
+		Vector2(450, 1352), Vector2(1750, 1352),
+		Vector2(1750, 1400), Vector2(450, 1400)])
 	sheen.color = Color(0.65, 0.85, 1.0, 0.35)
 	sheen.z_index = -1
 	add_child(sheen)
@@ -1400,6 +1435,7 @@ func _on_peer_disconnected(id: int) -> void:
 	if multiplayer.is_server():
 		_spawned.erase(id)
 		_round_wins.erase(id)
+		clear_kill_credit(id) # QA-031: a gone victim holds no lock
 		if shooting_sync != null:
 			shooting_sync.reset_peer(id)
 		var node := players_node.get_node_or_null(str(id))
@@ -1596,7 +1632,12 @@ func _build_hud() -> void:
 
 	message_label = Label.new()
 	message_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	message_label.offset_top = 96
+	# QA-034: offset_top was 96 — the centre-weapon label (3rd row
+	# of the top bar, bottom ~y108) overlapped the 24 px message
+	# ("Waiting for other players...") on every solo match start.
+	# 116 clears it with room to spare; the kill feed lives at the
+	# top-left, so the centred message never collides with it.
+	message_label.offset_top = 116
 	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	message_label.add_theme_font_size_override("font_size", 24)
 	_outline_label(message_label)
@@ -2018,6 +2059,10 @@ func _toggle_pause() -> void:
 		# A finger held on FIRE while pausing must not resume firing
 		# on unpause from a stale touch (QA-016 rule).
 		_reset_all_touch_state()
+	# QA-035: the touch controls stay on top of the pause panel
+	# otherwise (same overlap as the end screen) — hide while
+	# paused, restore on resume.
+	_set_touch_controls_visible(not get_tree().paused)
 
 
 func _build_touch_controls() -> void:
@@ -2119,6 +2164,12 @@ func _on_reload_pressed() -> void:
 func _on_score_pressed() -> void:
 	_update_scoreboard_rows(scoreboard_list)
 	scoreboard_panel.visible = not scoreboard_panel.visible
+	# QA-035: same as pause/end — the sticks and buttons draw over
+	# the scoreboard while it is open. Reset any held touch first so
+	# a hidden FIRE button cannot keep firing (QA-016 rule).
+	if scoreboard_panel.visible:
+		_reset_all_touch_state()
+	_set_touch_controls_visible(not scoreboard_panel.visible)
 
 func _on_grenade_pressed() -> void:
 	var lp = _get_local_player()
@@ -2220,6 +2271,20 @@ func _reset_all_touch_state() -> void:
 	touch_aim = Vector2.ZERO
 	touch_aim_active = false
 	touch_firing = false
+
+
+# QA-035: hide/show the gameplay touch cluster (sticks, FIRE button,
+# RELOAD / GRENADE / WEAPON) when a full-screen panel opens (pause,
+# scoreboard, end screen) so the controls cannot draw over the
+# panel's text and buttons. The top-right SCORE / pause buttons stay
+# visible — they sit outside the centred panels. Callers reset the
+# touch state first (see _reset_all_touch_state) so a hidden FIRE
+# button cannot keep firing. Rematch reloads the scene, so there is
+# no end-screen restore path to maintain.
+func _set_touch_controls_visible(v: bool) -> void:
+	for c in [move_stick, aim_stick, fire_button, reload_button, grenade_button, switch_button]:
+		if c != null:
+			c.visible = v
 
 
 func _on_touch_press(index: int, pos: Vector2) -> void:
@@ -2616,6 +2681,38 @@ func _kill_feed_weapon_text(weapon_id: int) -> String:
 	if weapon_id == -2:
 		return "Grenade"
 	return "Explosion"
+
+
+# Host-side kill-credit lock (QA-031, T-56). Called by the host only,
+# from bullet.gd _hit_player and request_explosion, when a hit is
+# computed lethal. Returns true only for the FIRST credit for this
+# victim inside the lock window: the kill is awarded to the killer
+# (self-kills excluded, as before) and the kill feed is announced
+# exactly once. A second lethal hit in the same window returns false
+# and credits/announces nothing — no double kill, no double feed
+# line. After the window expires a new credit is allowed again, so
+# the victim's next life is unaffected.
+func try_credit_kill(killer_id: int, victim_id: int, weapon_id: int) -> bool:
+	if not multiplayer.is_server():
+		return false
+	var now := Time.get_ticks_msec()
+	if _kill_credit_lock.has(victim_id):
+		if now - int(_kill_credit_lock[victim_id]) < KILL_CREDIT_LOCK_MS:
+			return false
+	_kill_credit_lock[victim_id] = now
+	if killer_id != victim_id:
+		var killer = players_node.get_node_or_null(str(killer_id))
+		if killer != null:
+			if killer.get_multiplayer_authority() == multiplayer.get_unique_id():
+				killer.add_kill()
+			elif multiplayer.get_peers().has(killer.get_multiplayer_authority()):
+				killer.rpc_id(killer.get_multiplayer_authority(), "add_kill")
+	rpc("announce_kill", killer_id, victim_id, weapon_id)
+	return true
+
+
+func clear_kill_credit(peer_id: int) -> void:
+	_kill_credit_lock.erase(peer_id)
 
 
 @rpc("any_peer", "call_local")
@@ -3036,6 +3133,7 @@ func _check_round_end() -> void:
 func _reset_round() -> void:
 	# Next round: everyone respawns fresh (positions, health, weapons).
 	_round_number += 1
+	_kill_credit_lock.clear() # QA-031: fresh round, fresh locks
 	rpc("reset_round_remote_all")
 
 
@@ -3158,6 +3256,12 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 		rank += 1
 	end_rematch_btn.visible = multiplayer.is_server()
 	end_panel.visible = true
+	# QA-035: hide the touch controls under the end panel — the
+	# RELOAD/GRENADE/WEAPON column sat on top of the stats rows and
+	# the Rematch button (the FIRE button and sticks are dead input
+	# once the match is over, so hiding them loses nothing).
+	_reset_all_touch_state()
+	_set_touch_controls_visible(false)
 	audio.play("win")
 
 
@@ -3209,11 +3313,11 @@ func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int, w
 					child.take_explosion_damage(pos, radius, damage, from_id, event_id)
 				elif multiplayer.get_peers().has(child.get_multiplayer_authority()):
 					child.rpc_id(child.get_multiplayer_authority(), "take_explosion_damage", pos, radius, damage, from_id, event_id)
-				if lethal and killer != null and from_id != child.peer_id:
-					if killer.get_multiplayer_authority() == multiplayer.get_unique_id():
-						killer.add_kill()
-					elif multiplayer.get_peers().has(killer.get_multiplayer_authority()):
-						killer.rpc_id(killer.get_multiplayer_authority(), "add_kill")
+				if lethal:
+					# QA-031 (T-56): one credit per victim per lock
+					# window — the credit + feed announce go through
+					# the lock, not direct (as in bullet.gd).
+					try_credit_kill(from_id, child.peer_id, weapon_id)
 				# Phase 4: hitmarker for the shooter/thrower on every
 				# victim actually hurt, kill feed on every lethal hit
 				# (self-kills included — no hitmarker for hurting
@@ -3223,8 +3327,6 @@ func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int, w
 						killer.hit_confirm(amount, child.global_position, lethal)
 					elif multiplayer.get_peers().has(killer.get_multiplayer_authority()):
 						killer.rpc_id(killer.get_multiplayer_authority(), "hit_confirm", amount, child.global_position, lethal)
-				if lethal:
-					rpc("announce_kill", from_id, child.peer_id, weapon_id)
 		# Chain: barrels caught in the blast explode too (GAP-64).
 		for b in _barrels:
 			if not bool(b["alive"]):
@@ -4454,7 +4556,11 @@ func _ct_c_bullet_stops() -> Array:
 	if cover == Rect2():
 		return [true, "no low solid cover on this map — nothing to stop"]
 	var cy := cover.get_center().y
-	var from := Vector2(cover.position.x - 120.0, cy)
+	# QA-033: clamp the ray start inside the map — a cover near the
+	# left edge (e.g. Frozen Fortress sandbags at x=120) puts
+	# cover.x - 120 outside the arena, and the ray then hits the
+	# boundary wall at x=0 instead of the cover face.
+	var from := Vector2(maxf(cover.position.x - 120.0, 5.0), cy)
 	var to := Vector2(cover.position.x + 120.0, cy)
 	var hit := _ct_ray(from, to)
 	if hit.is_empty():
@@ -4471,7 +4577,10 @@ func _ct_c_bullet_blocks_target() -> Array:
 	if cover == Rect2():
 		return [true, "no low solid cover on this map"]
 	var cy := cover.get_center().y
-	var from := Vector2(cover.position.x - 120.0, cy)
+	# QA-033: same clamp as _ct_c_bullet_stops — a near-edge cover
+	# would otherwise let the boundary wall at x=0 stop the ray and
+	# pass this check for the wrong reason.
+	var from := Vector2(maxf(cover.position.x - 120.0, 5.0), cy)
 	var to := Vector2(cover.end.x + 120.0, cy)
 	var hit := _ct_ray(from, to)
 	if hit.is_empty():
@@ -4649,6 +4758,21 @@ func _update_firetest(delta: float) -> void:
 		(step["setup"] as Callable).call()
 		_fire_in_step = true
 		_fire_timer = float(step["wait"])
+	# T-33 rapid-tap driver: performs press/release pairs on a
+	# schedule (0.10 s hold, 0.25 s gap — press-to-press 0.35 s,
+	# comfortably above the pistol rate of 0.22 s).
+	if _ft_tap_left > 0:
+		_ft_tap_timer -= delta
+		if _ft_tap_timer <= 0.0:
+			if _ft_tap_phase == 0:
+				_ft_press_fire()
+				_ft_tap_phase = 1
+				_ft_tap_timer = 0.10
+			else:
+				_ft_release_fire()
+				_ft_tap_phase = 0
+				_ft_tap_left -= 1
+				_ft_tap_timer = 0.25
 	_fire_timer -= delta
 	if _fire_timer <= 0.0:
 		var result: Array = (step["check"] as Callable).call()
@@ -4658,6 +4782,16 @@ func _update_firetest(delta: float) -> void:
 		else:
 			_fire_failed += 1
 		print("FIRETEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
+		# QA-036: the T-33 rapid-tap driver must not leak into the
+		# next step. Under load its last tap can still be pending
+		# when this step ends (physics runs behind real time, so
+		# the 10th shot lands late) — the driver would then release
+		# the next step's FIRE press, and FIRE-HOLD-CONTINUOUS read
+		# 0 shots in the full regression. Stop the driver here.
+		if _ft_tap_left > 0:
+			_ft_tap_left = 0
+			_ft_tap_phase = 0
+			_ft_release_fire()
 		_fire_step += 1
 		_fire_in_step = false
 		_fire_timer = 0.0
@@ -4670,6 +4804,7 @@ func _firetest_build_steps() -> void:
 		{"name": "GRENADE-ALONE-NO-FIRE", "wait": 0.4, "setup": _ft_s_grenade_alone, "check": _ft_c_grenade_alone},
 		{"name": "WEAPON-ALONE-NO-FIRE", "wait": 0.4, "setup": _ft_s_weapon_alone, "check": _ft_c_weapon_alone},
 		{"name": "PISTOL-TAP-ONE-SHOT", "wait": 0.4, "setup": _ft_s_pistol_tap, "check": _ft_c_pistol_tap},
+		{"name": "PISTOL-TEN-RAPID-TAPS", "wait": 4.5, "setup": _ft_s_ten_taps, "check": _ft_c_ten_taps},
 		{"name": "FIRE-HOLD-CONTINUOUS", "wait": 2.5, "setup": _ft_s_fire_hold, "check": _ft_c_fire_hold},
 		{"name": "FIRE-WHILE-MOVING", "wait": 1.0, "setup": _ft_s_fire_moving, "check": _ft_c_fire_moving},
 		{"name": "FIRE-DIAGONAL-AIM", "wait": 1.0, "setup": _ft_s_fire_diagonal, "check": _ft_c_fire_diagonal},
@@ -4834,6 +4969,25 @@ func _ft_c_pistol_tap() -> Array:
 	var ok: bool = lp._shots_fired == _fire_shots_before + 1
 	_ft_release_fire()
 	return [ok, "shots=%d (was %d, want +1)" % [lp._shots_fired, _fire_shots_before]]
+
+
+func _ft_s_ten_taps() -> void:
+	# T-33: 10 rapid taps. The tap driver (in _update_firetest)
+	# performs the press/release pairs; the pistol's 0.22 s rate is
+	# respected by the 0.35 s press-to-press spacing, so every tap
+	# is a separate trigger pull. Mag refilled by _ft_set_weapon.
+	_ft_set_weapon(5)
+	_fire_shots_before = _ft_lp()._shots_fired
+	_ft_tap_left = 10
+	_ft_tap_phase = 0
+	_ft_tap_timer = 0.0
+
+
+func _ft_c_ten_taps() -> Array:
+	var lp = _ft_lp()
+	var n: int = lp._shots_fired - _fire_shots_before
+	var ok: bool = n == 10
+	return [ok, "shots fired for 10 rapid taps: %d (want 10)" % n]
 
 
 func _ft_s_fire_hold() -> void:
@@ -5244,12 +5398,16 @@ func _nettest_build_steps() -> void:
 		{"name": "DISCOVERY-BIND", "wait": 0.3, "setup": _nt_s_noop, "check": _nt_c_discovery_bind},
 		{"name": "SPAWN-IDEMPOTENT", "wait": 0.3, "setup": _nt_s_spawn_idem, "check": _nt_c_spawn_idem},
 		{"name": "COMBAT-HIT", "wait": 0.6, "setup": _nt_s_combat_hit, "check": _nt_c_combat_hit},
+		{"name": "DOUBLE-CREDIT-SHOT1", "wait": 0.6, "setup": _nt_s_dc_shot1, "check": _nt_c_dc_shot1},
+		{"name": "DOUBLE-CREDIT-SHOT2", "wait": 0.6, "setup": _nt_s_dc_shot2, "check": _nt_c_dc_shot2},
 		{"name": "DAMAGE-DEATH-RESPAWN", "wait": 0.3, "setup": _nt_s_damage, "check": _nt_c_damage},
 		{"name": "DAMAGE-RESPAWNED", "wait": 3.5, "setup": _nt_s_noop, "check": _nt_c_respawned},
 		{"name": "MODE-SURVIVAL", "wait": 0.8, "setup": _nt_s_survival, "check": _nt_c_survival},
 		{"name": "MODE-LMS", "wait": 0.8, "setup": _nt_s_lms, "check": _nt_c_lms},
 		{"name": "DISCONNECT-CLEANUP", "wait": 0.5, "setup": _nt_s_disconnect, "check": _nt_c_disconnect},
 		{"name": "HOST-LEFT-SAFE-EXIT", "wait": 0.3, "setup": _nt_s_host_left, "check": _nt_c_host_left},
+		{"name": "DOUBLE-CREDIT", "wait": 0.3, "setup": _nt_s_double_credit, "check": _nt_c_double_credit},
+		{"name": "DOUBLE-CREDIT-EXPIRE", "wait": 1.2, "setup": _nt_s_double_credit_expire, "check": _nt_c_double_credit_expire},
 	]
 
 
@@ -5349,6 +5507,54 @@ func _nt_c_combat_hit() -> Array:
 	return [ok, "shots=%d active pistol bullets after 0.6 s: %d (want 0 = hit)" % [lp._shots_fired, n]]
 
 
+func _nt_s_dc_shot1() -> void:
+	# QA-031 end-to-end: the victim bot sits at 5 HP and the local
+	# player fires one lethal pistol shot at it. The host's copy of
+	# the bot's health never drops in this harness (take_hit goes to
+	# the fake peer 99, which is not connected), so this reproduces
+	# the stale-health condition that used to double-credit kills.
+	var lp = _nt_lp()
+	_ft_set_weapon(5)
+	lp.position = Vector2(300, 1320)
+	lp.sync_position = lp.position
+	lp.velocity = Vector2.ZERO
+	var b = _nt_bot()
+	if b != null:
+		b.position = Vector2(600, 1320)
+		b.sync_position = b.position
+		b.velocity = Vector2.ZERO
+		b._spawn_protect_timer = 0.0
+		b.health = 5
+	_nt_dc_kills_a = lp.kills
+	_ft_press_aim(Vector2(60, 0))
+	_ft_press_fire()
+
+
+func _nt_c_dc_shot1() -> Array:
+	var lp = _nt_lp()
+	var ok: bool = lp.kills == _nt_dc_kills_a + 1
+	_ft_release_aim()
+	_ft_release_fire()
+	return [ok, "kills %d->%d after first lethal bullet (want +1)" % [_nt_dc_kills_a, lp.kills]]
+
+
+func _nt_s_dc_shot2() -> void:
+	# Second lethal bullet at the same 5 HP victim, inside the 1 s
+	# lock window: the host must deny the second credit.
+	var lp = _nt_lp()
+	_nt_dc_kills_a = lp.kills
+	_ft_press_aim(Vector2(60, 0))
+	_ft_press_fire()
+
+
+func _nt_c_dc_shot2() -> Array:
+	var lp = _nt_lp()
+	var ok: bool = lp.kills == _nt_dc_kills_a
+	_ft_release_aim()
+	_ft_release_fire()
+	return [ok, "kills %d->%d after second lethal bullet (want +0)" % [_nt_dc_kills_a, lp.kills]]
+
+
 func _nt_s_damage() -> void:
 	var lp = _nt_lp()
 	# Spawn protection (2 s) would swallow the damage: clear it.
@@ -5415,6 +5621,11 @@ func _nt_c_lms() -> Array:
 	match_over = false
 	end_panel.visible = false
 	game_mode = 0
+	# QA-031: MODE-SURVIVAL left kill_limit = 1 behind; with the
+	# DOUBLE-CREDIT-SHOT steps crediting the local player a kill,
+	# the per-frame FFA check would end the match instantly once
+	# FFA resumes (1 kill >= limit 1) and break HOST-LEFT-SAFE-EXIT.
+	kill_limit = GameData.kill_limit
 	return [ok, "match_over=%s (want true, local player last standing)" % over]
 
 
@@ -5439,6 +5650,45 @@ func _nt_c_host_left() -> Array:
 	error_panel.visible = false
 	_join_failed = false
 	return [ok, "error panel visible=%s last_host_ip=%s (want 192.168.1.5)" % [vis, GameData.last_host_ip]]
+
+
+func _nt_s_double_credit() -> void:
+	# QA-031 (T-56): two shooters land lethal hits on the same victim
+	# in the same tick. The host must credit exactly ONE kill (to the
+	# first shooter) and deny the second.
+	# No fake nodes are spawned: try_credit_kill only needs the
+	# killer node (peer 1, the local player) — the victim and the
+	# second shooter are bare ids, and a shooter with no node simply
+	# gets no add_kill, exactly as in production when the shooter
+	# has disconnected mid-flight.
+	var lp = _nt_lp()
+	_nt_dc_kills_a = lp.kills
+	_nt_dc_first = try_credit_kill(1, 99, 5)
+	_nt_dc_second = try_credit_kill(98, 99, 5)
+
+
+func _nt_c_double_credit() -> Array:
+	var lp = _nt_lp()
+	var ok: bool = _nt_dc_first and not _nt_dc_second
+	ok = ok and lp.kills == _nt_dc_kills_a + 1
+	return [ok, "first=%s second=%s kills A %d->%d (want +1)" % [_nt_dc_first, _nt_dc_second, _nt_dc_kills_a, lp.kills]]
+
+
+func _nt_s_double_credit_expire() -> void:
+	# The lock must expire: record the local player's kills now;
+	# the check runs 1.2 s later, past the 1 s lock, and a fresh
+	# credit must succeed (the victim's next life is never blocked).
+	# The credit goes through the local player because a fake remote
+	# peer can never receive its add_kill RPC in this harness.
+	var lp = _nt_lp()
+	_nt_dc_kills_a = lp.kills
+
+
+func _nt_c_double_credit_expire() -> Array:
+	var lp = _nt_lp()
+	var third: bool = try_credit_kill(1, 99, 5)
+	var ok: bool = third and lp.kills == _nt_dc_kills_a + 1
+	return [ok, "third credit after 1.2 s=%s kills A %d->%d (want +1)" % [third, _nt_dc_kills_a, lp.kills]]
 
 
 # =====================================================================
@@ -5530,6 +5780,11 @@ func _fl_s_pause() -> void:
 
 func _fl_c_paused() -> Array:
 	var ok: bool = get_tree().paused and pause_panel.visible
+	# LOOP 5: synchronous capture — the async _capture_shot lands
+	# after the RESUME step and shows the unpaused game instead.
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png("user://shot_pause.png")
+	print("FLOW SHOT NOW: user://shot_pause.png err=", err, " size=", img.get_size())
 	return [ok, "paused=%s pause panel visible=%s" % [get_tree().paused, pause_panel.visible]]
 
 
@@ -5548,6 +5803,11 @@ func _fl_s_score() -> void:
 
 func _fl_c_score() -> Array:
 	var shown: bool = scoreboard_panel.visible
+	# LOOP 5: synchronous capture before closing — the async version
+	# landed after the END-MATCH step and showed the end screen.
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png("user://shot_scoreboard.png")
+	print("FLOW SHOT NOW: user://shot_scoreboard.png err=", err, " size=", img.get_size())
 	_on_score_pressed()
 	var ok: bool = shown and not scoreboard_panel.visible
 	return [ok, "scoreboard opened=%s closed again=%s" % [shown, not scoreboard_panel.visible]]
@@ -5559,6 +5819,11 @@ func _fl_s_end() -> void:
 
 func _fl_c_end() -> Array:
 	var ok: bool = match_over and end_panel.visible
+	# LOOP 5: synchronous capture — the next step changes scene, so
+	# the async _capture_shot would die before saving.
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png("user://shot_end.png")
+	print("FLOW SHOT NOW: user://shot_end.png err=", err, " size=", img.get_size())
 	return [ok, "match_over=%s end panel visible=%s" % [match_over, end_panel.visible]]
 
 
@@ -5819,7 +6084,14 @@ func _phys_c_air_slide() -> Array:
 func _phys_s_fall() -> void:
 	# x=1000 falls to the y=1010 platform; max vy is tracked so the
 	# check does not depend on sampling the exact landing frame.
-	_phys_teleport(Vector2(1000, 300))
+	# QA-033: on the rebuilt Frozen Fortress (map 4) the Perch at
+	# (950,500) cuts the x=1000 fall to 182 px (max vy 677, want
+	# 950-1050). Use x=400 instead: a clear fall to the Top L
+	# platform (670), 452 px — enough to hit the 1000 cap.
+	if map_id == 4:
+		_phys_teleport(Vector2(400, 200))
+	else:
+		_phys_teleport(Vector2(1000, 300))
 	_phys_data["max_vy"] = 0.0
 	_phys_data["track_max_vy"] = true
 
@@ -5888,9 +6160,12 @@ func _phys_s_jump_tap() -> void:
 	_phys_data["min_y"] = gp.y + 6.0
 	_phys_data["jump_y0"] = gp.y + 6.0
 	_jt_press_move(Vector2(0, -60))
-	# Tap: release after a short hold via a timer (0.15 s, so physics
-	# lag cannot compress the hold window to nothing).
-	get_tree().create_timer(0.15).timeout.connect(_jt_release_move)
+	# Tap: release after a short hold via a timer.
+	# QA-036: 0.15 s was the load-flake — under a loaded machine
+	# the timer fires late in physics time and the tap apex crept
+	# to 124 px (cap 120). 0.12 s leaves the same margin on a fast
+	# machine (apex still >50 px) with less exposure to late firing.
+	get_tree().create_timer(0.12).timeout.connect(_jt_release_move)
 
 
 func _phys_c_jump_tap() -> Array:
@@ -6054,9 +6329,12 @@ func _phys_c_recoil_decay() -> Array:
 func _phys_s_ice() -> void:
 	_phys_data["ice_map"] = map_id == 4
 	if map_id == 4:
-		# Clear floor stretch x=500 (crate at 1000, rock at 1500 block
-		# the run from the old x=1400 start — that is why vel read 0).
-		_phys_teleport(Vector2(500, 1420))
+		# QA-033: the duel rebuild moved the floor to 1352 and the
+		# slide lane to x450-1750. Start the run at x=900: clear
+		# floor to the 0.7-width bounce pad at x1540 (640 px of
+		# clean ice — the old x=500 start would hit the 0.3-width
+		# pad at x660 after 160 px).
+		_phys_teleport(Vector2(900, 1320))
 		_jt_press_move(Vector2(60, 0))
 
 
@@ -6184,6 +6462,39 @@ func _update_perftest(delta: float) -> void:
 	if _perf_elapsed == 0.0:
 		_perf_mem0 = OS.get_static_memory_usage()
 		print("PERFTEST start: mem=%d bytes" % _perf_mem0)
+		# T-73: soak on the rifle with a topped-up reserve — the rifle
+		# is full-auto, so holding FIRE churns bullets continuously.
+		# (The pistol has infinite reserve but is semi-auto: holding
+		# FIRE fires exactly once. The rifle's 90 reserve + 30 mag
+		# runs dry after ~20 s, so the reserve is refilled here and
+		# again every 10 s below.)
+		lp._reserve[0] = 90
+		if _perf_bots > 0 and not _perf_bots_spawned:
+			# T-73: idle bot players, instantiated directly (NOT via
+			# the MultiplayerSpawner — a fake never-connected peer id
+			# makes the spawner log an engine RPC error; direct
+			# instantiation is clean, proven by the QA-031 probes).
+			# They stand idle; the local player provides the churn
+			# (full-auto fire + grenades). Honest limit: only 1 of
+			# the 8 players shoots.
+			_perf_bots_spawned = true
+			var spawns: Array = MAPS[map_id]["spawns"]
+			for i in _perf_bots:
+				var pid := 100 + i
+				var p = PLAYER_SCENE.instantiate()
+				p.name = str(pid)
+				p.peer_id = pid
+				p.player_index = (i + 2) % 12
+				p.player_name = "SoakBot%d" % pid
+				p.color_index = i % PLAYER_COLORS.size()
+				p.player_color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
+				p.helmet = 0
+				p.team = -1
+				players_node.add_child(p)
+				var spot: Vector2 = spawns[(i + 2) % spawns.size()]
+				p.position = spot
+				p.sync_position = spot
+			print("PERFTEST bots: %d idle bot players added (total %d)" % [_perf_bots, players_node.get_child_count()])
 	_perf_elapsed += delta
 	# Hold FIRE + wiggle the move stick; throw a grenade every 5 s.
 	_smoke_set_fire(true)
@@ -6194,13 +6505,16 @@ func _update_perftest(delta: float) -> void:
 	if lp != null and lp.grenades > 0 and int(_perf_elapsed) % 5 == 0 and int((_perf_elapsed - delta)) % 5 != 0:
 		lp.throw_grenade()
 	if int(_perf_elapsed) % 10 == 0 and int((_perf_elapsed - delta)) % 10 != 0:
-		print("PERFTEST t=%ds mem=%d bytes active_bullets=%d" % [int(_perf_elapsed), OS.get_static_memory_usage(), bullet_pool.active_count()])
-	if _perf_elapsed >= 60.0:
+		# T-73: keep the rifle fed so the soak churns the whole run.
+		if lp != null:
+			lp._reserve[0] = 90
+		print("PERFTEST t=%ds mem=%d bytes active_bullets=%d players=%d shots=%d" % [int(_perf_elapsed), OS.get_static_memory_usage(), bullet_pool.active_count(), players_node.get_child_count(), lp._shots_fired if lp != null else -1])
+	if _perf_elapsed >= _perf_seconds:
 		_smoke_set_fire(false)
 		_smoke_set_move(null)
 		_perf_done = true
 		var growth := OS.get_static_memory_usage() - _perf_mem0
-		print("PERFTEST DONE: 60 s soak, mem growth=%d bytes (limit 50 MB), active_bullets=%d (drains to 0 within 2 s of stopping)" % [growth, bullet_pool.active_count()])
+		print("PERFTEST DONE: %d s soak (%d players), mem growth=%d bytes (limit 50 MB), active_bullets=%d (drains to 0 within 2 s of stopping)" % [int(_perf_seconds), players_node.get_child_count(), growth, bullet_pool.active_count()])
 		get_tree().quit()
 
 

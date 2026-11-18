@@ -239,11 +239,11 @@ func _hit_player(p: Node, hit_pos: Vector2) -> void:
 				# The victim may have disconnected mid-flight: an
 				# RPC to a gone peer only logs an error, so skip it.
 				p.rpc_id(p.get_multiplayer_authority(), "take_hit", final_dmg, owner_id, kb_dir, kb, event_id)
-			if lethal and shooter != null and owner_id != p.peer_id:
-				if shooter.get_multiplayer_authority() == multiplayer.get_unique_id():
-					shooter.add_kill()
-				elif multiplayer.get_peers().has(shooter.get_multiplayer_authority()):
-					shooter.rpc_id(shooter.get_multiplayer_authority(), "add_kill")
+			if lethal:
+				# QA-031 (T-56): one credit per victim per lock window —
+				# a second shooter landing a lethal hit in the same
+				# moment gets nothing (no kill, no second feed line).
+				game.try_credit_kill(owner_id, p.peer_id, kind)
 			# Phase 4: accuracy + hitmarker for the shooter, kill
 			# feed for everyone (suicides included — the feed shows
 			# them as self-kills, the credit above stays excluded).
@@ -253,6 +253,4 @@ func _hit_player(p: Node, hit_pos: Vector2) -> void:
 					shooter.hit_confirm(final_dmg, hit_pos, lethal)
 				elif multiplayer.get_peers().has(shooter.get_multiplayer_authority()):
 					shooter.rpc_id(shooter.get_multiplayer_authority(), "hit_confirm", final_dmg, hit_pos, lethal)
-			if lethal:
-				game.rpc("announce_kill", owner_id, p.peer_id, kind)
 	_despawn()

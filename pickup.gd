@@ -93,7 +93,12 @@ func _on_body_entered(body: Node2D) -> void:
 		if p.alive:
 			if body.get_multiplayer_authority() == multiplayer.get_unique_id():
 				body.give_pickup(kind)
-			else:
+			elif multiplayer.get_peers().has(body.get_multiplayer_authority()):
+				# QA-032: the peer may have disconnected a split-second
+				# before touching the pickup (their puppet still
+				# overlaps the area on the host) — an RPC to a gone
+				# peer only logs an engine error, so skip it, exactly
+				# as bullet.gd / game.gd do for damage RPCs.
 				body.rpc_id(body.get_multiplayer_authority(), "give_pickup", kind)
 			rpc("despawn")
 

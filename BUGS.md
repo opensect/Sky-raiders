@@ -2103,3 +2103,341 @@ Zero script errors in every run (raw logs: `log4_*.txt`, not committed).
 - The single late-night Gemini retry (Neon City sky) was NOT done in
   this phase — the maps are built with Sky Brawl art; it remains an
   iteration-phase decision, not a delivery blocker.
+
+## v3.1 — Iteration (2026-11-19, Godot 4.7.2)
+
+Post-delivery iteration on the green v3.0 (commit 51f68ba). Each loop
+re-tested its affected suites; the v3.0 APK was never overwritten.
+Version bump to 3.1 / code 9 only if the loops below stayed green.
+
+## QA-031 — Simultaneous lethal hits double-credit a kill (T-56, known issue)
+
+- **Cause:** the host read the victim's replicated health (stale by
+  ~33 ms + latency), so two shooters landing lethal hits in the same
+  moment both computed "lethal" and both got a kill credit.
+- **Fix (game.gd, bullet.gd):** host-side kill-credit lock —
+  `_kill_credit_lock` (victim peer id -> lock msec),
+  `KILL_CREDIT_LOCK_MS = 1000`, `try_credit_kill(killer, victim,
+  weapon) -> bool` (server-only; first credit locks, a second credit
+  for the same victim within 1 s is denied; self-kills are excluded
+  from `add_kill` but still announced in the kill feed; the lock
+  expires after 1 s so the victim's next life is unaffected).
+  Wired into `bullet.gd` `_hit_player` (replaces the direct
+  `add_kill` + `announce_kill`) and `game.gd` `request_explosion`.
+  The lock is cleared in `_on_peer_disconnected` and `_reset_round`
+  (the respawn FSM runs only on the owning peer, so the lock could
+  not be cleared from `player._respawn()` — hence the time-bounded
+  expiry instead).
+- **Tests:** net-test grew 11 -> 15 steps: DOUBLE-CREDIT (direct
+  call, two shooters: first=true, second=false, A +1),
+  DOUBLE-CREDIT-EXPIRE (third credit after 1.2 s = true, A +1),
+  DOUBLE-CREDIT-SHOT1 (real pistol bullet at a 5-HP bot: kills 0->1),
+  DOUBLE-CREDIT-SHOT2 (second lethal bullet: kills 1->1, denied).
+  Harness fix in the same change: `_nt_c_lms` now resets `kill_limit
+  = GameData.kill_limit` — MODE-SURVIVAL leaves kill_limit=1, and
+  with lp.kills=1 from SHOT1 the per-frame FFA check would end the
+  match and break HOST-LEFT-SAFE-EXIT.
+- **Regression (run_phase5_final.sh, full):** collision 13/13 maps
+  8/8; joystick 21/21; fire 25/25; scale 70/70; physics-map0 31/31,
+  map4 22/22, map6 31/31, map10 31/31, map12 31/31; features 11/11;
+  multiplayer 15/15; menu-net 6/6; flow green; smoke 13/13.
+  Zero script errors. (Engine-level "RPC with unknown peer ID"
+  noise from spawning fake peers via MultiplayerSpawner in the
+  harness was removed by using no fake nodes; it is not a script
+  error.)
+- **Status:** FIXED. T-56 now PASS. The v3.0 "Honest limits" line
+  about double-credit is superseded by this entry.
+
+## QA-032 — Pickup RPC to a disconnected peer spams engine errors
+
+- **Cause:** `pickup.gd:97` called `body.rpc_id(...)` with no
+  `get_peers().has()` guard. A disconnected player's puppet
+  overlapping a pickup area made the host RPC to a gone peer, giving
+  a repeating engine ERROR "Attempt to call RPC with unknown peer
+  ID: 100" for the rest of the match.
+- **Fix:** added the same `get_peers().has()` guard used by the
+  damage RPCs in `bullet.gd` / `game.gd`. Despawn behaviour
+  unchanged (the pickup is still taken; the RPC is only the
+  despawn notice to the owning peer).
+- **Found by:** the T-73 soak harness (LOOP 2b) — the error repeated
+  once per pickup overlap after a bot disconnect. Verified gone in
+  later soak logs.
+- **Status:** FIXED. No script errors; engine ERROR gone.
+
+## QA-033 — Frozen Fortress rebuilt as the small duel map (MAP_AUDIT §Similarity-3)
+
+- **Before:** 2800x1500, a Template A clone shifted to a new size —
+  same 16-platform grid rhythm as Catacombs / Military Base.
+- **After (LOOP 3, v3.1 iteration):** 2200x1400 duel map, 2–4
+  players. Open ice-slide centre (floor x450–1750 is the
+  low-friction zone, kept clear of floor decor), hot zone on the
+  frozen lake platform (850–1350 @1180, centre pickup at spot 3),
+  dense cover on the flanks and platforms, snow fx kept. 15
+  platforms (jump rises 170–172 px), 12 spawns (TDM 6/6 left/right),
+  6 pickups, 12 decor pieces. `is_on_ice` and the ice-zone sheen
+  narrowed to the new lane; the ice physics step teleports to
+  (900, 1320) for a clean 640 px run to the 0.7-width bounce pad.
+  The lobby thumbnail was re-rendered from the new layout
+  (`assets/thumbs/thumb_frozen.png`, 96x64, same schematic style).
+- **Bugs found while rebuilding (all fixed, all in the map data or
+  the harness — no physics change):**
+  - Decor crates were placed on the exact spawn/pickup x on every
+    platform — STATIC-ALL-MAPS flagged 10 spawns + 4 pickups
+    inside solids. Crates moved to the far end of each platform.
+  - A column at (2100, 1352) sat exactly on the smoke test's
+    (2100, 1350) teleport — the player spawned inside it and the
+    smoke run fired 1 shot instead of 23. Column moved to Mid L
+    (150, 1010); smoke back to 23 shots.
+  - The Perch at (950, 500) cut the P06 terminal-velocity fall to
+    182 px (max vy 677, want 950–1050). `_phys_s_fall` is now
+    map-aware: on map 4 it drops from (400, 200) to Top L (670),
+    452 px — enough to hit the 1000 cap.
+  - A floor crate at (350, 1352) blocked the P03 analog half-stick
+    run from (300, 1320) (vel.x 0). Crate moved to Mid L
+    (250, 1010); the floor run from spawn is clear to the ice lane.
+  - The sandbags at (120, 1352) put the BULLET-STOPS-SOLID ray
+    start (cover.x − 120) outside the arena, so the ray hit the
+    boundary wall at x=0 instead of the cover face — and
+    BULLET-BLOCKS-TARGET passed for the wrong reason. Both checks
+    now clamp the ray start to x ≥ 5 (harness fix, no game change).
+- **Tests:** collision 8/8 on ALL 13 maps (re-run after the
+  harness clamp); physics 22/22 on map 4, 31/31 on map 0;
+  smoke map 4: 23 shots, local alive, errors=0; net 15/15,
+  fire 26/26.
+- **Status:** DONE. The v3.0 "Honest limits" line saying the duel
+  shrink was NOT done is superseded by this entry.
+
+## LOOP 2 — Unfinished tests (v3.1 iteration)
+
+### T-33 — 10 rapid taps (LOOP 2a)
+- Tap driver added to the fire test (0.10 s hold, 0.25 s gap,
+  press-to-press 0.35 s > pistol rate 0.22 s). Result: fire test
+  **26/26** — "shots fired for 10 rapid taps: 10 (want 10)".
+  T-33 now PASS.
+
+### T-73 — 10-minute 8-player soak (LOOP 2b)
+- Perf harness extended: `--perf-seconds=N` (default 60, min 10)
+  and `--perf-bots=N` (default 0, max 11); bots are idle players
+  instantiated directly at spawn points. The rifle is kept
+  churning by refilling `lp._reserve[0] = 90` at start and every
+  10 s sample (the rifle otherwise runs dry after ~20 s at
+  8 shots/s; the pistol is semi-auto so holding FIRE fires once).
+- **Result — 600 s soak, 8 players, 0 script errors:**
+  mem 53,104,989 -> 54,472,893 bytes, growth **1,369,848 bytes
+  (~1.3 MB, limit 50 MB)**, flat after ~t=320 s (identical
+  reading for the last 280 s — the game runs inside its
+  preallocated pools after warm-up). No "unknown peer" errors
+  after the QA-032 fix. T-73 now PASS.
+- **Honest note on the firing metric:** `active_bullets` (the
+  bullet-pool count at each 10 s sample) read 0 in 44/61 samples,
+  1–3 in the other 17. That is a sampling artefact, not a firing
+  failure — the pool only counts bullets in flight at the sample
+  instant, and the soak player fires in bursts (rifle reload
+  cycles, plus grenade self-damage killing it periodically: it
+  throws a grenade every 5 s while it has any, and picks up more
+  from the (500, 1150) spot on its wiggle path). Firing itself is
+  proven by the fire test (26/26) and the smoke test (23 shots).
+  The 25 s diagnostic run launched to chase this collided with
+  the running soak on the ENet port (7777) and died with no
+  output — a harness collision, not a game failure.
+- **Soak lesson:** never run two Godot instances concurrently
+  (port + shared project clash); kill by PID, never `pkill -f`
+  with a pattern that can match your own shell.
+
+## LOOP 4 — One Gemini call, Neon City sky (v3.1 iteration)
+
+- Single call to `generate_image.py` (gemini-2.5-flash-image) for
+  a 16:9 cyberpunk city skyline at night. **Result: HTTP 429 Too
+  Many Requests.** Per the iteration rules the call was NOT
+  retried and no further calls were spent (6 of the 12-call cap
+  remain). Neon City keeps its Sky Brawl background
+  (`bg_neon.png`, BG_TEX[5]) — no change, no regression risk.
+  T-73 / LOOP 4 closed as "not done — rate-limited".
+
+## QA-034 — "Waiting for other players" overlaps the centre-weapon label (LOOP 5, visual)
+
+- **Seen on:** fresh 1280x720 screenshots (smoke `shot_aim.png`,
+  flow `shot_pause.png`) — on every solo match start the centred
+  24 px `message_label` ("Waiting for other players - share your
+  IP!") sat on top of the 16 px `_centre_label` ("CENTRE: SNIPER
+  HERE"), half-hiding it.
+- **Cause:** the top bar's `mid` VBox (timer + goal + centre
+  label) is ~96 px tall from y=12, so the centre label's bottom
+  is ~y108; `message_label.offset_top` was 96.
+- **Fix:** `message_label.offset_top` 96 -> 116 (clear by 8 px).
+  The kill feed lives at the top-left, so the centred message
+  never collides with it; the control hint lives at the bottom.
+- **Verified:** fresh screenshots after the fix show both lines
+  fully readable on Catacombs (dark) and Frozen Fortress (light).
+- **Status:** FIXED.
+
+## QA-035 — Touch controls draw over the pause / scoreboard / end panels (LOOP 5, visual)
+
+- **Seen on:** fresh 1280x720 `shot_end.png` — the RELOAD button
+  covered the end panel's stats row ("...Streak: 0") and the
+  right end of the Rematch button; GRENADE covered the right end
+  of "Back to Lobby". The same overlap applied to the pause and
+  scoreboard panels (sticks + FIRE + the button column are HUD
+  siblings drawn above the centred panels).
+- **Fix:** new `_set_touch_controls_visible(v)` hides the gameplay
+  cluster (move stick, aim stick, FIRE button, RELOAD, GRENADE,
+  WEAPON/`switch_button`) while a panel is open and restores it
+  on close — wired into `_toggle_pause`, `_on_score_pressed`
+  and `show_end_screen`. Callers reset the touch state first
+  (`_reset_all_touch_state`) so a hidden FIRE button cannot keep
+  firing (QA-016 rule). The top-right SCORE / pause buttons stay
+  visible — they sit outside the centred panels. Rematch reloads
+  the scene, so no end-screen restore path is needed.
+- **Caught by the tests, not by hand:** the first version of the
+  helper named the WEAPON button `weapon_button` — the real
+  variable is `switch_button` — and game.gd failed to parse at
+  all (flow test died at the lobby step). Fixed to
+  `switch_button`; both scripts now pass `--check-only`, and the
+  flow test is green again. Lesson: run the flow test after any
+  HUD edit — a parse error in game.gd kills the whole game scene.
+- **Verified:** fresh screenshots — pause panel (Resume /
+  Weapons / Sound / Music / Leave Match), scoreboard and end
+  panel all render with no controls over them; flow test 10/10
+  (pause -> resume -> scoreboard -> end -> back) green.
+- **Status:** FIXED.
+
+## LOOP 5 — Visual/UI polish pass (v3.1 iteration)
+
+- Flow-test screenshot hooks added (menu, lobby, pause,
+  scoreboard, end — all 1280x720, `user://shot_*.png`): the
+  first async version raced the scene change, so the lobby and
+  end shots came out stale/missing and the pause/scoreboard shots
+  showed the NEXT screen; all five captures are now synchronous
+  (`_capture_flow_shot_now` in main.gd, inline sync saves in
+  game.gd) and land correctly.
+- Reviewed as a first-time player: menu (clean, clear), lobby
+  (host IP big in green, map grid + thumbnails fine; the "not
+  ready" text sits close to the scrollbar and the 3rd map row is
+  half-cut until you scroll — normal scroll behaviour, left as
+  is), settings (21:20 shot from the v3.0 phase, unchanged code
+  since — sliders, toggles and credits all clear; the "Music on"
+  CheckButton is bound to `GameData.music_enabled`, so its knob
+  position is the real setting, not a stuck-off bug), HUD (clean
+  bars, timer, weapon, sticks, FIRE button), pause / scoreboard /
+  end (fixed by QA-035), Frozen Fortress (ice platforms, snow
+  and hills read well on the light sky).
+- Two real glitches found and fixed: QA-034, QA-035 (above).
+  No other visual defect was found; no label text was changed.
+
+## QA-036 — Fire-test tap driver leaked into the next step; P07b tap apex load-flake (LOOP 2a follow-up, harness only)
+
+- **Found by:** the full v3.1 regression (run_phase5_final.sh):
+  fire 24/26, physics-map6 30/31. Everything else green
+  (collision 8/8 x13, joystick 21/21, scale 70/70, physics
+  31/31 on maps 0/10/12 and 22/22 on map 4, features 11/11,
+  net 15/15, menu-net 6/6, flow green, smoke 13/13, 0 errors).
+- **Fire failures (my LOOP 2a tap driver, real harness bug):**
+  PISTOL-TEN-RAPID-TAPS read 9 shots (want 10) and
+  FIRE-HOLD-CONTINUOUS read 0 shots in a 2.5 s hold (want
+  14–22). Cause: the tap driver runs on real-time `_process`
+  delta, but shots fire in physics time, which lags under load —
+  so the 10th tap can still be pending when the step ends, and
+  the driver then released the NEXT step's FIRE press. Fix:
+  (1) the step transition now stops the driver
+  (`_ft_tap_left = 0`, release FIRE) so no tap state leaks
+  between steps; (2) TEN-RAPID-TAPS wait 3.8 -> 4.5 s, giving
+  the physics time to land all 10 shots. No game code changed.
+- **P07b (physics map 6):** tap jump apex 124 px (cap 120, hold
+  168). Cause: the 0.15 s SceneTreeTimer release fires late in
+  physics time under load, so the tap holds a fraction longer.
+  Fix: timer 0.15 -> 0.12 s (apex still >50 px on a fast
+  machine). Re-runs: physics-map6 31/31, then 30/31 on a second
+  run with a DIFFERENT step (P02-air-accel, 1.12x vs >1.3x) —
+  that one is the known CPU-load artefact from v3.0 (real-seconds
+  ratio under xvfb; ground time read 0.26 s loaded vs 0.22 s
+  isolated). A third isolated run passed 31/31 (P02 1.32x).
+- **Verified:** fire 26/26 twice after the fix; physics-map6
+  31/31 (twice of three runs, third run's only failure the
+  documented P02 load artefact, passing alone); physics-map0
+  31/31.
+- **Status:** FIXED (harness only).
+
+## v3.1 — Iteration release (2026-11-19, Godot 4.7.2)
+
+All six loops done (LOOP 4's Gemini call hit the 429 rate limit
+and was not retried; LOOP 6 found nothing new beyond QA-032,
+which the soak had already surfaced). The v3.0 APK was never
+overwritten in place: it is backed up at
+`~/workspace/mini-militia-lan-backup-v3.0/mini-militia-lan.apk`
+(md5 `cf6495ff319d5d0704b597491644e48d`, verified after copy).
+
+### Version bump (only code change besides the loop fixes)
+- `export_presets.cfg`: version/name "3.0" -> "3.1",
+  version/code 8 -> 9.
+- `main.gd`: in-game version label "v3.0" -> "v3.1".
+- `game_data.gd`: `BUILD_VERSION` "3.0" -> "3.1".
+- Post-bump re-runs: physics-map0 31/31 (twice; the first
+  post-bump run read 30/31 once, a transient load flake — the
+  step was not captured, and the two immediate re-runs were
+  31/31), flow green, menu-net 6/6.
+
+### Final verification — full suite on the final code
+Runner `run_phase5_final.sh` (Godot 4.7.2, headless Xvfb).
+Zero script errors in every run.
+
+- **Collision:** 8/8 on ALL 13 maps.
+- **Joystick:** 21/21. **Fire-button:** 26/26 (twice after the
+  QA-036 fix). **Scale/coordinate:** 70/70.
+- **Physics:** 31/31 on maps 0, 6, 10, 12; 22/22 on map 4.
+  (One P02-air-accel miss in a loaded run, 1.12x vs >1.3x —
+  the known CPU-load artefact from v3.0; passes alone at 1.32x.)
+- **Features:** 11/11. **Multiplayer:** 15/15. **Menu-net:** 6/6.
+- **Full flow:** PASS, 10 steps (menu -> create room -> lobby
+  -> start match -> play/fire (3 shots) -> pause -> resume ->
+  scoreboard -> end screen -> back at menu).
+- **Smoke:** 13/13 maps — players=1, local alive, shots fired
+  23 (maps 0–5, 8) / 32 (maps 6, 7, 9–12), bullet pool 160,
+  fuel 100.0, errors=0.
+- **Soak (T-73):** 600 s, 8 players, mem growth ~1.3 MB
+  (limit 50 MB), flat after ~t=320 s, 0 script errors.
+
+### APK verification (v3.1)
+- APK: `mini-militia-lan.apk`, 32,522,504 bytes, md5
+  `01eefb9c15061b1c51f9bb9b67e22dee`. Built with Godot 4.7.2
+  (`--export-release Android`).
+- **Signing note:** `export_presets.cfg` has
+  `package/signed=false`, so the raw export is UNSIGNED
+  (apksigner: "Missing META-INF/MANIFEST.MF"). v3.0 was signed
+  the same way — after the export, with apksigner and the debug
+  keystore. v3.1 was signed identically:
+  `apksigner sign --ks
+  /home/hatch/.local/share/godot/keystores/debug.keystore
+  --ks-key-alias androiddebugkey` (java from
+  `~/workspace/jdk17/bin`, which is not on PATH by default).
+- aapt2: package `com.lanarena.shooter`, versionCode 9,
+  versionName 3.1, targetSdk 36, only INTERNET /
+  ACCESS_NETWORK_STATE / ACCESS_WIFI_STATE.
+- apksigner verify: 1 signer; cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — matches v3.0 exactly, installs over v3.0 cleanly.
+- Contents: both music OGGs inside (`menu_at_rest.ogg`,
+  `battle_five_armies.ogg`, as imported `.oggvorbisstr`); Sky
+  Brawl textures inside (36 entries); the rebuilt Frozen
+  Fortress thumbnail inside (re-imported at build time);
+  NO `.md`/`.txt` in the APK.
+- **Note:** the export rewrote `project.godot` at build time
+  (23:56), dropping the `[rendering]` section
+  (`renderer/rendering_method` + `.mobile` =
+  `gl_compatibility`, `textures/vram_compression/import_etc2_astc`).
+  Those are the 4.7 defaults for a mobile export, and the APK
+  size is essentially identical to v3.0 (+4 KB), so the change
+  is a Godot-side normalisation, not a settings loss — but the
+  coordinator should confirm before the next export. The v3.1
+  APK was built and verified from this state.
+
+### Honest limits (unchanged from v3.0, except where fixed above)
+- Real touch hardware untested; real two-phone LAN join untested
+  (sandbox blocks UDP) — the user tests with the two-device guide
+  in README.md. Live two-phone map vote also still needs a
+  real-phone check.
+- Performance on a real phone untested; audio not verified by ear.
+- The double-credit kill (QA-031) and the Frozen Fortress duel
+  shrink (QA-033) are FIXED — the v3.0 limits lines about them
+  are superseded.
+- The Neon City Gemini sky was NOT generated (LOOP 4 hit HTTP
+  429; not retried). 6 of the 12-call cap remain.

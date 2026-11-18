@@ -168,6 +168,16 @@ func _capture_menu_shot() -> void:
 	get_tree().quit()
 
 
+# LOOP 5: synchronous capture — the async _capture_flow_shot dies
+# when the scene changes on the next frame (the lobby/end checks are
+# immediately followed by a scene change), so the lobby and end
+# screenshots must be taken in the same frame as the check.
+func _capture_flow_shot_now(path: String) -> void:
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png(path)
+	print("FLOW SHOT NOW: ", path, " err=", err, " size=", img.get_size())
+
+
 func _handle_cli_args() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--menu-net-test" in args:
@@ -675,7 +685,7 @@ func _build_settings() -> void:
 	credits.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(credits)
 	var version_lbl := Label.new()
-	version_lbl.text = "LAN Arena Shooter v3.0  •  LAN only — no accounts, no servers"
+	version_lbl.text = "LAN Arena Shooter v3.1  •  LAN only — no accounts, no servers"
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
@@ -1903,6 +1913,7 @@ func _flm_s_noop() -> void:
 
 func _flm_c_menu() -> Array:
 	var ok: bool = _menu_panel.visible
+	_capture_flow_shot_now("user://shot_menu.png")
 	return [ok, "main menu visible=%s" % _menu_panel.visible]
 
 
@@ -1919,6 +1930,7 @@ func _flm_c_lobby() -> Array:
 	var ip := LanDiscovery.lan_ip()
 	var label_ok := _host_ip_label.visible and (ip == "" or ip in _host_ip_label.text)
 	var ok: bool = _lobby_panel.visible and _is_host and label_ok
+	_capture_flow_shot_now("user://shot_lobby.png")
 	return [ok, "lobby visible=%s host=%s host-ip label ok=%s (lan_ip='%s')" % [_lobby_panel.visible, _is_host, label_ok, ip]]
 
 
