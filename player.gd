@@ -566,21 +566,20 @@ func _read_input() -> void:
 		if _aim_dir.length() > 1.0:
 			_aim_dir = _aim_dir.normalized()
 		_aiming = _aim_dir.length() > 0.0
-	# v2.4: firing comes ONLY from the FIRE button (see game.gd).
-	# The aim stick is aim-only and never fires. Semi-auto weapons
-	# (pistol, shotgun, sniper) fire one shot per fresh press.
+	# v3.2: firing comes from the AIM stick (see game.gd) — the right
+	# stick aims AND fires while held. Semi-auto weapons (pistol,
+	# shotgun, sniper) fire one shot per fresh deflection.
 	_want_fire = game.touch_firing
-	# Peek at the press edge — do NOT consume it here. _read_input
-	# runs in _physics_process but touch_firing only updates in
-	# _process, so a tap that lands just after a physics step would
-	# otherwise be consumed on a frame where _want_fire is still
-	# false and the semi-auto shot would be lost entirely (the tap
-	# would do nothing on a real phone too). The edge is consumed in
+	# Peek at the pending semi-auto shot — do NOT consume it here.
+	# _read_input runs in _physics_process but touch_firing only
+	# updates in _process, so a flick that lands just after a physics
+	# step would otherwise be lost entirely (the flick would do
+	# nothing on a real phone too). The edge is consumed in
 	# _apply_aim_and_fire when the shot actually fires, and discarded
-	# on respawn / while reloading.
+	# on respawn / while reloading / on weapon switch.
 	_fire_edge = false
-	if game.fire_button != null:
-		_fire_edge = game.fire_button.has_press_edge()
+	if game.has_method("has_aim_fire_edge"):
+		_fire_edge = game.has_aim_fire_edge()
 	# Keyboard / mouse fallback (desktop testing only; touch wins when active).
 	if _move_axis == 0.0:
 		var kb := Input.get_axis("ui_left", "ui_right")
@@ -593,7 +592,7 @@ func _read_input() -> void:
 		_jump_pressed = true
 	if not _aiming and game.touch_aim_active == false:
 		var mouse_pos := get_viewport().get_mouse_position()
-		# Mouse aims only — it never fires (the FIRE button shoots).
+		# Mouse aims only — it never fires (the right stick shoots).
 		# Clicks on HUD controls (fire / grenade / weapon / pause /
 		# score / reload) must not swing the aim.
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not game.is_hud_control_pos(mouse_pos):
@@ -739,25 +738,33 @@ func _apply_aim_and_fire(delta: float) -> void:
 			# Reserve transfer (GAP-39): move ammo from reserve to mag.
 			mag_ammo += _reload_transfer
 			_reload_transfer = 0
-		# A tap during reload does nothing — discard the edge so it
+		# A flick during reload does nothing — discard the edge so it
 		# cannot fire a shot the moment the reload finishes.
 		var game_r = get_tree().get_first_node_in_group("game")
-		if game_r != null and game_r.fire_button != null:
-			game_r.fire_button.consume_press_edge()
-	elif _want_fire and _fire_cooldown <= 0.0:
-		# v2.4: firing no longer requires aiming — without aim input
-		# the shot goes in the character's facing direction. Automatic
-		# weapons fire while held; semi-auto weapons (pistol, shotgun,
-		# sniper) fire one shot per fresh FIRE press.
+		if game_r != null:
+			game_r.consume_aim_fire_edge()
+	elif _fire_cooldown <= 0.0:
+		# v3.2: firing only happens while aiming (the shot goes where
+		# the aim stick points). Automatic weapons fire while the
+		# stick is held (_want_fire); semi-auto weapons (pistol,
+		# shotgun, sniper) fire ONLY on a fresh flick (_fire_edge),
+		# so a quick flick shoots even if the finger is already gone
+		# by the time this step runs (QA-027 carry-over).
 		var w: Dictionary = WEAPONS[weapon]
 		var semi: bool = not bool(w.get("auto", true))
-		if not semi or _fire_edge:
+		# Trigger rule: auto fires while held, semi fires ONLY on a
+		# fresh flick edge. A held semi-auto must NOT keep shooting
+		# (_want_fire alone never fires a semi weapon), and a stale
+		# edge must NEVER fire an auto weapon (the edge is only
+		# consumed by a shot, so an unconsumed edge would keep an
+		# auto weapon shooting forever after the stick is released).
+		if (not semi and _want_fire) or (semi and _fire_edge):
 			_fire()
-			if semi:
-				# The tap has now produced its one shot.
-				var game_f = get_tree().get_first_node_in_group("game")
-				if game_f != null and game_f.fire_button != null:
-					game_f.fire_button.consume_press_edge()
+			# The shot has consumed the flick (semi) / any stale edge
+			# (auto) — one edge, one shot, never more.
+			var game_f = get_tree().get_first_node_in_group("game")
+			if game_f != null:
+				game_f.consume_aim_fire_edge()
 	_update_anim()
 
 
@@ -921,6 +928,11 @@ func switch_weapon() -> void:
 	weapon = next_w
 	mag_ammo = int(WEAPONS[weapon]["mag"])
 	reloading = false
+	# v3.2: a pending semi-auto flick belongs to the old weapon — drop
+	# it so switching cannot fire a shot nobody asked for.
+	var game_sw = get_tree().get_first_node_in_group("game")
+	if game_sw != null:
+		game_sw.consume_aim_fire_edge()
 	_update_gun_texture()
 	_play_sound("click")
 
@@ -1232,11 +1244,11 @@ func _respawn() -> void:
 	_round_dead = false
 	_shake_trauma = 0.0
 	_gun_kick = 0.0
-	# Discard a stale FIRE press edge so a finger held while dead
+	# Discard a stale pending shot so a finger held while dead
 	# cannot fire a shot the instant we respawn.
 	var game0 = get_tree().get_first_node_in_group("game")
-	if game0 != null and game0.fire_button != null:
-		game0.fire_button.consume_press_edge()
+	if game0 != null:
+		game0.consume_aim_fire_edge()
 	position = spot
 	sync_position = position
 	velocity = Vector2.ZERO

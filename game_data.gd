@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "3.1" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "3.2" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
@@ -20,8 +20,9 @@ static var music_enabled: bool = true # Phase 6: music on/off (settings)
 static var sensitivity: float = 1.0
 static var show_fps: bool = false # Phase 4: FPS counter in the HUD
 static var invert_aim: bool = false # Phase 4: flip the aim stick vertically
-static var fire_button_size: float = 1.0 # Phase 4: FIRE button scale 0.8-1.3
-static var fire_button_left: bool = false # Phase 4: FIRE button on the left (swaps with the aim stick)
+# v3.2: the FIRE button is gone (right stick aims and shoots), so its
+# size/side settings are removed. Old save files carry the stale keys
+# harmlessly — the loader never reads them any more.
 static var host_ip: String = ""
 static var portrait: int = 0
 # Room settings (v2.4): configured when creating a room, shared with
@@ -78,8 +79,6 @@ static func save_settings() -> void:
 	cfg.set_value("controls", "sensitivity", sensitivity)
 	cfg.set_value("controls", "show_fps", show_fps)
 	cfg.set_value("controls", "invert_aim", invert_aim)
-	cfg.set_value("controls", "fire_button_size", fire_button_size)
-	cfg.set_value("controls", "fire_button_left", fire_button_left)
 	cfg.save(SAVE_PATH)
 
 
@@ -97,8 +96,6 @@ static func load_settings() -> void:
 	sensitivity = float(cfg.get_value("controls", "sensitivity", sensitivity))
 	show_fps = bool(cfg.get_value("controls", "show_fps", show_fps))
 	invert_aim = bool(cfg.get_value("controls", "invert_aim", invert_aim))
-	fire_button_size = clampf(float(cfg.get_value("controls", "fire_button_size", fire_button_size)), 0.8, 1.3)
-	fire_button_left = bool(cfg.get_value("controls", "fire_button_left", fire_button_left))
 
 
 # Phase 4 — map vote tally (pure function, tested by --features-test).

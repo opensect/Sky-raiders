@@ -1,8 +1,82 @@
-# LAN Arena Shooter — v3.0
+# LAN Arena Shooter — v3.2
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi.
+
+## What's new in v3.2 (totally new UI + right-stick firing + join fix)
+
+- **Totally new look everywhere (NEON ARENA).** Built with the free
+  gohud 1.3.0 UI library (MIT) — cyan-on-navy sci-fi theme, chamfered
+  corners, Orbitron titles + Rajdhani body text (SIL OFL 1.1), arena
+  background with a dark scrim — on every screen: menu, multiplayer,
+  lobby, HUD, pause, end-of-match, settings, customization, map vote,
+  countdown. The old green rounded look is gone. HP/fuel are gohud
+  GoBars; the timer turns amber under 30 s and red under 10 s; the
+  kill feed sits on dark chips so it reads over bright and dark maps.
+- **Map selection scrolls on a real phone (QA-048).** A drag starting
+  on a map button now scrolls the list (the button used to swallow
+  the drag). All 13 maps are reachable and tappable — verified at
+  1280x720 and 2400x1080. Drag-release over another button does not
+  select it.
+- **No more FIRE button — fire with the right stick (QA-049).**
+  Mini Militia style: push the right stick to aim and shoot, release
+  to stop. The aim stick has a cyan ring + crosshair. Semi-auto
+  weapons fire once per flick. RELOAD, GRENADE and WEAPON buttons
+  stay. See "Controls" below.
+- **Multiplayer join fixed (QA-047).** The joining phone used to get
+  stuck on "Connecting..." with 0/8 players while the host saw 2
+  players (the 2nd never moving) — the server spawned the player but
+  never replicated it to the client. The server now broadcasts every
+  spawn to all peers, re-sends on retry, and the client heals itself
+  from the server's player list; the error shows the real state (IP
+  tried, ENet status, whether the server answered). Simulated
+  two-peer test 14/14 — the live two-phone check is still yours to
+  do, see "Testing the join on two real phones" below.
+- **Permissions authorised + Google Play / Android compliant.**
+  Only three networking permissions (INTERNET, ACCESS_NETWORK_STATE,
+  ACCESS_WIFI_STATE — all install-time, none is a runtime permission,
+  so nothing to request at runtime). No data collected, no accounts,
+  no ads/analytics — see `PRIVACY_POLICY.md` and
+  `PLAY_SUBMISSION_CHECKLIST.md`. Target SDK 36, 64-bit arm64-v8a.
+  The app is NOT published to Play (that needs your own Play Console
+  account); the checklist tells you exactly what remains.
+
+### v3.2 build (delivered 2026-11-19, independently verified + exported)
+
+- **APK:** `mini-militia-lan.apk` — 35,728,737 bytes (~34 MB), md5
+  `cf1d7392f79bd1ba1f1104e26f18cf26`, versionCode **10**,
+  versionName **3.2**, targetSdk 36, minSdk 24, package
+  `com.lanarena.shooter`, arm64-v8a only. Built with Godot 4.7.2
+  (`--export-release Android`), signed with the same debug keystore
+  as v3.1 — `apksigner verify` passes, cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v3.1 exactly, so it installs over v3.1. Exactly the 3
+  permissions (INTERNET / ACCESS_NETWORK_STATE /
+  ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
+  fonts, gohud theme, arena background, Sky Brawl textures; no
+  `.md`/`.txt`, no `fire_button` leftovers. v3.1 APK backed up at
+  `~/workspace/mini-militia-lan-backup-v3.1/` (md5
+  `01eefb9c15061b1c51f9bb9b67e22dee`).
+- **Independent verification (fresh re-run on the shipped code, not
+  the builder's logs):** joystick 21/21, fire (right-stick) 26/26,
+  scale 70/70, physics 31/31 (maps 0/6/10/12) + 22/22 (Frozen ice,
+  map 4), features 11/11, net 15/15, menu-net 6/6, full flow DONE,
+  repl-sim 14/14, scroll 8/8 at 1280x720 AND 2400x1080, collision
+  8/8 on all 13 maps, smoke DONE on all 13 maps — **0 script errors
+  in every log**. Screenshots spot-checked vs the v3.1 baseline:
+  menu, lobby, HUD and end screens are visibly different (cyan
+  NEON ARENA theme, arena background); HUD hint + host-IP line now
+  visible (QA-050); no FIRE button anywhere (QA-049).
+- **AAB: NOT built — blocked on the release keystore.** No release
+  keystore exists anywhere on this machine; one must be created with
+  a password supplied by you via Secure Vault (never invented, never
+  written in a file). Exact steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md`. The APK above is the deliverable.
+- **Honest limits (unchanged):** real two-phone LAN join, real touch
+  hardware, real-phone performance and audio-by-ear are still
+  untested here (the sandbox blocks UDP sends; repl-sim 14/14 is the
+  in-process substitute). Mid-match rejoin is not supported.
 
 ## What's new in v3.0 (Godot 4.7.2 + 13 unique maps + features + music)
 
@@ -31,9 +105,8 @@ local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
   6, 10, 12 and 22 steps live on the Frozen Fortress ice (map 4).
 - **All common game features (11/11):** kill feed, end-of-match stats
   (K/D, accuracy, best streak), real settings screen (sound/music
-  volume, music on/off, joystick sensitivity, FIRE button size
-  0.8–1.3× and left/right side, show FPS, invert aim — saved in
-  `user://settings.cfg`), better scoreboard (sorted by kills, K-D +
+  volume, music on/off, joystick sensitivity, show FPS, invert aim —
+  saved in `user://settings.cfg`), better scoreboard (sorted by kills, K-D +
   accuracy columns, TDM team totals, self highlighted), weapon info
   panel (pause → Weapons, all 6 weapons), 3-2-1-FIGHT countdown +
   goal banner, hitmarkers + floating damage numbers, MVP screen,
@@ -46,9 +119,11 @@ local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
   loop as fallback; music on/off and volume in settings. Sky Brawl
   art is used throughout: map backgrounds (parallax layer), tiles,
   structures, characters (lobby select), pickups and effects.
-- **Controls (unchanged from v2.5):** left stick move + jetpack,
-  right stick aim, big red FIRE button (hold = auto fire, tap = one
-  shot), RELOAD, grenade and weapon-switch buttons.
+- **Controls (v3.2, right-stick firing):** left stick move — push up
+  to jump / fly with the jetpack; right stick aim AND fire while held,
+  release to stop. Semi-auto weapons (pistol, shotgun, sniper) fire
+  once per flick. RELOAD, grenade and weapon-switch buttons on the
+  right. No FIRE button.
 
 ## What's new in v2.5 (joystick fix + solid obstacles + UI polish)
 
@@ -364,16 +439,64 @@ the phones only need to reach each other on local Wi-Fi.
 
 ### If joining hangs on "Connecting..."
 
-- Wait for the 8-second timeout: the game shows an error with
-  **Back** and **Retry** — it never hangs forever. Tap **Retry**.
-- Check the IP you typed: it must match the host's lobby exactly
-  (four numbers with dots, e.g. 192.168.1.5). A wrong digit gives
-  "Could not reach that host".
+**Fixed in v3.2 (QA-047):** in v3.1 the joining phone could reach the
+game scene but never spawn — the host saw 2 players, the joiner saw
+0/8 and a stuck "Connecting...". v3.2 sends the spawn explicitly and
+syncs the full player list, so the joiner spawns or gets a clear
+error. If it still fails, the error now tells you exactly what
+happened:
+
+- **"Could not connect to 192.168.1.5. ENet: 2. Server answered: no.
+  Players seen: 0/8."** — read it like this:
+  - **The IP** is the one it tried. It must match the host's lobby
+    exactly (four numbers with dots). A wrong digit means the wrong
+    phone (or no phone).
+  - **ENet: 2** means the network link is up (2 = connected);
+    **ENet: 1** means it is still connecting; **ENet: 0** means no
+    link — the phones cannot reach each other at all (wrong network,
+    or the host app is closed).
+  - **Server answered: yes** means the host replied but the spawn
+    still did not land — that is a game bug, not your Wi-Fi; note the
+    exact text and tell the developer. **Server answered: no** means
+    the host never replied — a Wi-Fi/IP problem.
+  - **Players seen** is how many players your phone can see. 0/8
+    with "Server answered: yes" is the old v3.1 bug — update both
+    phones to v3.2.
+- Tap **Retry**: if the link is still up it re-asks the host for your
+  player; if the link is gone it takes you back to the menu with the
+  host IP already filled in — tap **JOIN** to try again.
+- Wait for the 8-second timeout: the game never hangs forever.
 - If the host's Wi-Fi changed (it switched networks or the hotspot
   restarted), the host IP changes too — read the new IP from the
   host's lobby and try again.
 - Restart the app on both phones and try again. The host creates the
   room first, then the joiner joins.
+- **Both phones must run the same version** (v3.2). A version
+  mismatch is refused with a clear message ("Version mismatch: host
+  runs 3.2, you run 3.1. Update and rejoin.").
+
+### Testing the join on two real phones (v3.2 acceptance test)
+
+The build machine cannot test two-phone play (its sandbox blocks UDP
+traffic between processes), so **run this check on two real phones
+before trusting a release**. It takes two minutes:
+
+1. Install the same v3.2 APK on both phones. Both on the same Wi-Fi.
+2. Host: LOCAL MULTIPLAYER → CREATE ROOM → I'M READY. Joiner:
+   LOCAL MULTIPLAYER → **QUICK LAN MATCH**.
+3. Host taps START MATCH. **Both phones must show Players: 2/8**
+   and both players must be visible in the world.
+4. **Move on the joining phone** (left stick). The 2nd player on the
+   HOST phone must move too. If the host's 2nd player stands frozen,
+   the join is still broken — note the exact error text from the
+   "Connecting..." section above.
+5. **Shoot on the joining phone** (right stick). The host must see
+   the shots and the kill feed must update.
+6. Joiner: leave the match (pause → Leave). The host must see
+   Players: 1/8 again, with no error spam.
+7. Repeat once with the room list (tap the room instead of QUICK LAN
+   MATCH) and once by typing the host IP manually — all three join
+   paths must work.
 
 ### If the host leaves or the game drops
 
@@ -427,13 +550,15 @@ gradient, and Airship Fleet uses a warm sunset gradient.
   hold it up in the air to fly with the jetpack.** The jetpack uses fuel
   (blue bar); it refills when you stand on the ground. Push the stick
   down while falling to drop faster.
-- **Right stick** — aim in any direction (full 360°). The weapon points
-  where the stick points and the character faces the aim direction.
-  The right stick only aims — it never fires.
-- **FIRE button** (big red circle, bottom-right corner) — hold it to
-  shoot continuously; tap it once for one shot with semi-auto weapons.
-  Let go and the gun stops at once. It works at the same time as the
-  move and aim sticks — one finger per control.
+- **Right stick** — aim AND shoot (QA-049, v3.2). Push the right
+  stick in any direction (full 360°) to aim — the weapon points
+  where the stick points and the character faces the aim direction —
+  and the gun fires while the stick is held. Release the stick and
+  the gun stops at once. Tap it once for one shot with semi-auto
+  weapons (pistol, shotgun, sniper). There is no FIRE button any
+  more: the right stick is the fire control, Mini Militia style.
+  It works at the same time as the move stick — one finger per
+  stick.
 - **RELOAD button** — reload the current weapon. You also reload
   automatically when the magazine is empty. You cannot fire while
   reloading; the ammo count shows the reload progress.
@@ -443,8 +568,7 @@ gradient, and Airship Fleet uses a warm sunset gradient.
 - **II button** — pause menu (Resume, sound/music volume, Leave Match).
 - **SCORE button** — show the scoreboard during a match.
 
-In short: **Left stick: move • Push up: jump / fly • Right stick: aim •
-FIRE button: hold to shoot.**
+In short: **Left stick: move • Push up: jump / fly • Right stick: aim and shoot (hold to fire, release to stop).**
 
 **Solid cover:** crates, barrels, sandbags, rocks, columns, pillars,
 statues, watchtowers, and the Sky Brawl huts, stone blocks, shrine
@@ -486,11 +610,21 @@ Shotgun, Health or Grenades.
 
 The game only asks for these three, all needed for LAN play:
 
-- `INTERNET`
-- `ACCESS_NETWORK_STATE`
-- `ACCESS_WIFI_STATE`
+- `INTERNET` — Android requires it for any app that opens network
+  sockets; here only local Wi-Fi sockets to the other phones in the
+  room. No internet traffic is ever sent.
+- `ACCESS_NETWORK_STATE` — to check that Wi-Fi is available before
+  hosting or joining.
+- `ACCESS_WIFI_STATE` — to read the phone's own Wi-Fi address so the
+  host can show it and joiners can type it.
 
 No storage, notifications, location, microphone, or camera access.
+All three are install-time permissions — Android grants them when
+the app is installed, so the game never shows a permission pop-up.
+Discovery uses UDP broadcast (not multicast), so no multicast
+permission is needed. See `PRIVACY_POLICY.md` for the full privacy
+policy (no data collected, no accounts, no ads, no analytics) and
+`PLAY_SUBMISSION_CHECKLIST.md` for the Google Play submission notes.
 
 ## Notes
 

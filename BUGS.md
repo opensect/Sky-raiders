@@ -2441,3 +2441,565 @@ Zero script errors in every run.
   are superseded.
 - The Neon City Gemini sky was NOT generated (LOOP 4 hit HTTP
   429; not retried). 6 of the 12-call cap remain.
+
+## v3.2 — Join / player-replication fix (QA-047) + permissions, signal, Play audits
+
+## QA-047 — Joining phone stuck on "Connecting...", 0/8 players, then "Could not connect" (real-phone bug, v3.1)
+
+**Reported 2026-11-19 ~09:42 IST, real phones, same Wi-Fi, Quick Play
+(Quick LAN Match).** Joining phone reached the game scene (world
+rendered, timer ran 4:39 → 4:23) but showed Players: 0/8, "Connecting..."
+never cleared, then the 8 s timeout showed "Could not connect - check
+the Wi-Fi and IP, then try again." Headless multiplayer tests passed
+15/15 at the time — they only ever checked the server side.
+
+**Decisive evidence (user, ~09:49 IST): on the HOST phone the 2nd
+player DID spawn and it showed 2 players — but the 2nd player never
+moved.** So ENet works, discovery works, the server spawns the client,
+but the spawned player never reaches the client: no local player to
+drive (host's 2nd player frozen), no "Connecting..." clear, 0 players
+on the client.
+
+**Root cause (two compounding defects, both in `game.gd`):**
+1. **Single-channel replication.** v3.1 relied ONLY on the
+   `MultiplayerSpawner`'s internal spawn RPC to materialise players
+   on clients (`spawner.spawn(data)` in `_do_spawn`). On real phones
+   that RPC never produced the player node on the joining client
+   (the client's own spawn, sent after its game scene and spawner
+   existed — the v2 fix — still did not arrive as a node). The
+   spawner's spawn RPC is the only channel, and there was no
+   fallback, no acknowledgement, and no way to know it was lost.
+   The host's own player was lost the same way: it is spawned while
+   the client is still in the menu scene (no spawner yet), and the
+   spawner's late-joiner catch-up only covers peers that connect
+   while the spawner is in the tree — the client connected while the
+   host was still in the menu.
+2. **No re-send.** `_do_spawn` returned early when `_spawned` already
+   had the pid, so a dropped spawn RPC was never re-sent. The
+   client's 2 s retry re-sent `request_spawn`, the server answered
+   "already spawned" and did nothing, and the client waited out the
+   8 s timeout. Retry in the error panel only re-sent the spawn
+   request, never re-established the connection, and the error text
+   was generic ("check the Wi-Fi and IP") with no state.
+
+**What was NOT the cause (checked, see audits below):** permissions
+(the three declared permissions are sufficient and are all
+install-time); signals (no missed/blocked connection — all handlers
+are connected in `_ready` before any join can start; nothing uses
+`set_block_signals`; no spawner spawned/despawned handler exists);
+the Quick Play path (it calls the same `join_game` as manual join,
+only the room is picked from discovery); the host IP (discovery
+worked and ENet established, so the IP was right).
+
+**Fix (v3.2, `game.gd`, all in the join/spawn path only):**
+- **Explicit spawn broadcast:** after `spawner.spawn(data)`, the
+  server also sends `rpc("spawn_player_remote", data)` to all peers.
+  The handler is idempotent (a node with that id already present is
+  left alone), so spawner + RPC double delivery is harmless. The
+  spawner is kept as the second channel.
+- **Server remembers spawn data:** `_spawn_data[pid] = data`, so the
+  server can re-send and answer list requests.
+- **Retry re-sends:** a re-request for an already-spawned pid now
+  calls `_send_all_players_to(pid)` (spawn RPCs + full list) instead
+  of returning silently. The client's 2 s retry (`_retry_spawn_if_needed`
+  → `_announce_ready`) now also sends `request_player_list`.
+- **Self-healing player list:** new RPC pair `request_player_list` /
+  `player_list_remote`. The server's list is authoritative: the client
+  spawns anything missing (its own player AND the host's player) and
+  drops any ghost the server no longer lists. This heals the client
+  even if every spawner RPC was lost.
+- **Late-joiner catch-up:** the server's game-scene `_on_peer_connected`
+  now re-sends all spawned players to the newcomer.
+- **Explicit despawn:** `_on_peer_disconnected` (server) erases
+  `_spawn_data` and broadcasts `despawn_player_remote(pid)` in
+  addition to freeing its own node.
+- **Error now shows real state:** the timeout error reads
+  "Could not connect to \<IP\>. ENet: \<status\>. Server answered:
+  yes/no. Players seen: N/8. Check the Wi-Fi and IP, then tap Retry."
+- **Retry now re-attempts the whole join:** if the ENet link is still
+  up, it re-requests spawn + player list; if the link itself is gone,
+  it returns to the menu with the host IP prefilled
+  (`GameData.last_host_ip`) for one-tap rejoin.
+- `GameData.BUILD_VERSION` bumped `"3.1"` → `"3.2"` (version
+  handshake must match on both phones).
+
+**Tests:**
+- **NEW `--repl-sim-test`: 14/14 PASS** (`--auto-host --repl-sim-test`).
+  Simulates the wire in one process (server instance + shadow client
+  instance; payloads delivered by hand): server spawns host+client;
+  shadow reproduces the v3.1 symptom (0 players, "Connecting...");
+  first spawn "lost", client retry → server re-sends 3 payloads,
+  shadow heals to 2 players, "Connecting..." clears, host player
+  visible, client player has a `MultiplayerSynchronizer` with
+  authority 2 (the input channel to the host); double delivery stays
+  idempotent (still 2 players); disconnect despawns on both sides
+  (1/1); **signal-path checks:** SIGNAL-ORDER (all multiplayer
+  handlers connected in `_ready` on both instances), SIGNAL-PEER-
+  CONNECTED (the `peer_connected` handler re-sends 3 payloads and
+  they heal a 0-player shadow), SIGNAL-GUARD (double
+  `_announce_ready` is a no-op), CONTROLS-ATTACH (a list-spawned
+  local player moves 316 px under the move stick — in-process the
+  shadow's player reads the first `game` node in the group, so the
+  press is driven on the server instance's stick; on a real phone
+  there is only one game instance, so the client reads its own).
+  Two sim artefacts, both documented in the test: the offline shadow
+  shows "Starting..." (its `is_server()` is true) where a real ENet
+  client shows "Connecting...", and the synchronizer node name is
+  auto-uniquified (`@MultiplayerSynchronizer@1335`), so the check
+  finds it by type.
+- **Net test: 15/15 PASS** (unchanged — SPAWN-IDEMPOTENT,
+  DOUBLE-CREDIT/QA-031, DISCONNECT-CLEANUP all still pass).
+- **Smoke test: PASS, 0 script errors** (19 phases; run without
+  `--headless` — with `--headless` the smoke screenshots hit a
+  pre-existing `save_png` null-image error because headless has no
+  viewport texture; not a game bug).
+- **Two-process join test (`--join-test-host` /
+  `--join-test-client-quick`): CANNOT RUN in this sandbox** — the OS
+  blocks UDP *sends* (`PermissionError` on `sendto`, verified with
+  plain Python sockets; bind works, send does not). The earlier
+  two-process runs failed the same way for environmental reasons,
+  not code reasons. **Live two-phone verification is still required
+  before calling QA-047 fixed: see "Testing the join on two real
+  phones" in README.md (host and client both 2/8, 2nd player moves
+  with the client's input).**
+
+**Known limitation (NOT fixed — needs a design decision, out of
+scope for v3.2):** a client whose ENet link drops mid-match cannot
+rejoin the running match. The host's lobby is gone once the match
+started (the host's `Main` scene no longer exists, so
+`register_lobby_player` has nowhere to go), and there is no
+join-running-match path. Retry in that case returns to the menu with
+the IP prefilled; the user must rejoin from the lobby and the host
+must start a new match. If mid-match rejoin is wanted later, the host
+needs to accept late joiners in the game scene (spawn + list on
+`peer_connected` is already in place server-side for this).
+
+### Permissions audit (QA-047, part of the join fix)
+
+**Checked 2026-11-19 against the v3.1 APK with aapt2
+(`aapt2 dump badging` + `dump xmltree`):** package
+`com.lanarena.shooter`, versionCode 9, versionName 3.1,
+targetSdkVersion **36**, minSdk 24, compileSdk 36, native-code
+`arm64-v8a` only, and exactly three permissions:
+`INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`.
+
+**Verdict: sufficient, nothing to add, nothing to request at runtime.**
+- All three are Android "normal" (install-time) permissions — none is
+  a runtime ("dangerous") permission, so there is nothing to request
+  with a pop-up; adding a runtime request for them would be wrong.
+  The in-app explanation was added instead (Multiplayer panel note:
+  "Permissions: Internet + network state only…", Settings → Privacy).
+- `NEARBY_WIFI_DEVICES` (Android 13+) is only for Wi-Fi Direct /
+  Wi-Fi scan APIs. The game uses raw sockets only, so it is not
+  needed.
+- `CHANGE_WIFI_MULTICAST_STATE` is only for acquiring a
+  `MulticastLock` to receive IP multicast. Discovery uses UDP
+  **broadcast** (255.255.255.255 / subnet broadcast), not multicast
+  groups, so it is not needed.
+- Android 17 (API 37) gates LAN access behind a new runtime
+  permission (`ACCESS_LOCAL_NETWORK`), but only for apps **targeting
+  API 37+**. This app targets 36, which keeps the old behaviour
+  (implicit grant tied to `INTERNET`). Do NOT add that permission
+  while targeting 36.
+- The evidence agrees: discovery worked and ENet established on the
+  real phones, so basic networking was never blocked; only the
+  replication channel (a game-level RPC, not an OS permission) failed.
+- **Re-verify at v3.2 export:** the final worker must run
+  `aapt2 dump badging` on the v3.2 APK/AAB and confirm exactly the
+  same three permissions, targetSdk 36, arm64-v8a.
+
+### Signal audit (QA-047, part of the join fix)
+
+**Checked 2026-11-19 by grepping every multiplayer signal in the
+project. Result: no blocked or missed signal.**
+- `main.gd:_ready` (lines 184–188) connects all five multiplayer
+  signals — `connected_to_server`, `connection_failed`,
+  `peer_connected`, `peer_disconnected`, `server_disconnected` —
+  before any join can start. No race.
+- `game.gd:_ready` (lines 776–778) connects `peer_connected`,
+  `peer_disconnected`, `server_disconnected` before the deferred
+  `_spawn_self` / `_announce_ready` calls. RPCs are only processed
+  during idle time, so no race there either.
+- No `MultiplayerSpawner` `spawned`/`despawned` signal is connected
+  anywhere; no custom `player_spawned`/`ready` signal exists.
+- No `set_block_signals` / `block_signals` anywhere in the project.
+- No handler is guarded by a stuck flag: `_ready_announced` is reset
+  by the 2 s retry and by Retry; the spawn path does not depend on
+  `peer_connected` firing in the game scene (the client was already
+  connected in the lobby, so that signal never refires for it —
+  spawn relies on `request_spawn`, which is correct).
+- "Connecting..." is not cleared by any signal: `_update_hud` sets it
+  while the local player is null and clears it (to `""`) once the
+  local player exists with 2+ players. So the stuck "Connecting..."
+  is exactly "no local player node", which is what QA-047 fixes.
+- **No signal change was needed.** If the two-phone test still fails
+  after QA-047, the error panel now reports the exact stage (IP
+  tried, ENet state, server answered, players seen) instead of
+  guessing.
+
+### Google Play / Android compliance (QA-047)
+
+- **Play-ready in code and policy (v3.2):** targetSdk 36 (Play
+  requires 35+), 64-bit arm64-v8a only, exactly the three necessary
+  permissions, no personal data collected/shared, no ads/analytics/
+  tracking SDKs (verified by code search), privacy policy written
+  (`PRIVACY_POLICY.md` + Settings → Privacy in-app), version
+  v3.2 / versionCode 10 at export.
+- **NOT published:** no Play Console account is connected here;
+  publishing needs the user's own account. See
+  `PLAY_SUBMISSION_CHECKLIST.md` for the full handoff (account,
+  content rating, data safety form, store listing assets, AAB +
+  release-signing setup). The release keystore was NOT created here:
+  it needs a password from the user via the Secure Vault, and
+  keystore passwords must never go in files, chat, or memory.
+- **Direct-install APK stays on the same debug keystore as v3.1**
+  (cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`)
+  so it installs over v3.1 cleanly; the Play AAB needs its own
+  release keystore (see the checklist).
+- **Android networking compliance:** plain UDP/ENet sockets with the
+  three permissions above at targetSdk 36; no background service
+  (networking only while in the foreground — if the phone sleeps,
+  the link drops and Retry returns to the menu); no multicast, so no
+  `MulticastLock`. Acceptance test for this block is the two-phone
+  join test in README.md.
+
+### Multiplayer testing methods — research note (2026-11-19, QA-047)
+
+**Question:** how do you test Godot 4 multiplayer signals/replication
+without real networking?
+
+**What the ecosystem does (researched 2026-11-19):**
+- **Two editor instances on loopback** — the standard documented
+  approach (Debug → Customize Run Instances, or two command lines
+  with `--host` / `--join=127.0.0.1`, e.g. the Godot Multiplayer
+  Starter and the Packt multiplayer chapters). Both instances use
+  real ENet/UDP sockets on 127.0.0.1.
+- **Headless dedicated server** — one instance runs `--headless` as
+  the server, a second (windowed or headless) joins it. Same
+  requirement: real UDP sockets.
+- **GUT-based multiplayer tests** — exist in the community, but they
+  still drive real `ENetMultiplayerPeer` connections underneath.
+- **Fake-input drivers** — e.g. `GbPads.fake` in the Godot
+  Multiplayer Template ("Gem Brawl"): pretend gamepads drive players
+  in tests instead of hardware. The pattern is to simulate the
+  *inputs and events*, not the transport.
+- **Godot ships no virtual/in-process transport.** `SceneTreeMultiplayer`
+  needs a `MultiplayerPeer`; the only offline peer is
+  `OfflineMultiplayerPeer`, which is single-peer only (no replication,
+  no `peer_connected` events, no RPC delivery). There is no official
+  "loopback peer", "fake peer", or "in-memory transport" for testing.
+
+**What this sandbox allows (verified):** UDP `bind()` works, but UDP
+`sendto()` fails with `PermissionError: Operation not permitted`
+(verified with plain Python sockets, 2026-11-19, twice). So even
+loopback two-peer ENet is impossible here — the earlier two-process
+join-test runs failed for this environmental reason, not a code
+reason. Do not retry real-network two-peer runs in this sandbox.
+
+**What we do instead (`--repl-sim-test`, game.gd):** in-process
+two-instance simulation. A server Game instance plus a shadow client
+Game instance live in one process; the server's spawn/list payloads
+are captured (`_send_all_players_to` sim hook) and delivered to the
+shadow by hand, and signal handlers (`_on_peer_connected`,
+`_announce_ready` guard, `_retry_spawn_if_needed`) are invoked
+directly. This proves handler logic, ordering, idempotency, retry
+re-send, the "Connecting..." clear, and controls attach. It does NOT
+prove live ENet delivery, real latency/loss behaviour, or Android
+runtime behaviour — those need two real phones (README.md "Testing
+the join on two real phones").
+
+**Signal checks in the sim (QA-047):** peer_connected handler
+re-sends all players (SIGNAL-PEER-CONNECTED); signal connection
+order verified structurally (`peer_connected.is_connected(...)`
+right after `_ready`) (SIGNAL-ORDER); `_ready_announced` guard set
++ hold on double announce (SIGNAL-GUARD); dropped first spawn +
+retry re-send (RETRY-RESEND); "Connecting..." clears (CONNECTING-
+CLEARS); controls attach — move stick moves a list-spawned player
+(CONTROLS-ATTACH).
+
+## QA-048 — Cannot scroll while selecting the map on a real phone (user-reported, v3.1)
+
+**Symptom:** in the lobby the map list does not scroll — a finger
+drag starting on a map button does nothing, so the lower maps
+(and the mode / limit / time rows below them) are unreachable on a
+phone. The same drag on a label or on empty space scrolled fine.
+
+**Root cause (proven, SCROLL_BUG.md):** a touch drag starting on
+an enabled `Button` is captured by the button and never reaches the
+`ScrollContainer` — the container's native drag handling only sees
+drags that start on non-capturing children. The lobby's map, vote,
+mode, limit and time buttons are all enabled buttons inside the
+scrolled area, so every drag on them was swallowed.
+
+**Fix (main.gd):** every button inside the three scrolled panels
+(lobby, multiplayer, settings) is connected to
+`_on_scrolled_button_gui_input` — on `InputEventScreenDrag` it
+forwards the drag to its `ScrollContainer`
+(`scroll.scroll_vertical -= event.relative.y`) and on release it
+suppresses the click if the finger moved (so a drag-release over
+another button does not select it). The four autowrap lobby labels
+(host IP, room info, controls hint, join hint) got explicit
+`EXPAND_FILL` + minimum heights so they lay out predictably inside
+the scrolled panel. The multiplayer panel was restructured so the
+whole panel scrolls in one outer `ScrollContainer` (v3.1's fixed
+create/join sections totalled ~880 px, leaving the inner room-list
+scroll with zero height at 1280x720).
+
+**Test (`--scroll-test`, main.gd, 8 cases):** DRAG-ON-BUTTON,
+DRAG-ON-LABEL, TAP-MAP-SELECTS, DRAG-RELEASE-NO-SELECT,
+SCROLL-MAX-LAST-MAP-VISIBLE, TAP-LAST-MAP (map 12 — every map
+reachable and tappable), MP-ROOM-DRAG, SETTINGS-DRAG.
+**8/8 passed at 1280x720 AND at a genuine 2400x1080**
+(`--resolution 2400x1080` before `--`).
+
+**Two harness bugs found while fixing the 2400x1080 run (harness
+only, not game code):**
+- `_sc_vp_pos` fed CANVAS coordinates to `Input.parse_input_event`
+  as if they were viewport pixels. `get_canvas_transform()` is
+  identity — it does not carry the stretch — so at 2400x1080 every
+  tap landed a third of the screen off and missed its button (the
+  first "8/8 at 2400x1080" pass was a false pass: the resolution
+  flag had been placed after `--`, so the window was still 720p).
+  Fixed: viewport position = canvas position × (window size /
+  visible-rect size) — 1.0 at 720p, 1.5 at 2400x1080 (`visible` is
+  1600x720 with stretch expand). Same fix for `_sc_vp_scale`
+  (was 1.0 at both resolutions).
+- The step check fired 0.6 s after the async drag setup started,
+  but at 2400x1080 under llvmpipe a frame can take 100+ ms, so
+  only some of the 4 drag steps (1 frame apart) had applied —
+  DRAG-ON-BUTTON measured exactly 150 (= 3 of 4 steps), the label
+  drag 50, settings 0. Fixed: `_sc_drag_done` gates the check —
+  the check waits for the async drag to finish (hard-capped at
+  +2 s). After both fixes: DRAG-ON-BUTTON 200, DRAG-ON-LABEL 200,
+  SETTINGS-DRAG 119 at 2400x1080.
+
+## QA-049 — FIRE button removed; firing moves to the right joystick (user-requested, v3.2)
+
+**Change (CONTROLS_CHANGE.md):** the dedicated red FIRE button is
+gone — Mini Militia style. The right stick aims AND fires while
+held; release stops firing. The aim stick has a cyan ring +
+crosshair cue (`joystick.gd is_aim`). New hint text everywhere:
+"Left stick: move • Push up: jump / fly • Right stick: aim and
+shoot". RELOAD / GRENADE / WEAPON buttons stay. Dead zone is the
+real 0.20 from `joystick.gd:24` (not 0.35 as the spec first said).
+Semi-auto weapons fire once per fresh ZERO→non-zero stick
+transition, via a pending-shot flag (`_aim_fire_pending`,
+`_aim_vec_prev_nonzero`) — the QA-027 carry-over. Layout is now
+fixed (move bottom-left, aim bottom-right, no lefty mirror);
+`fire_button.gd` deleted; `GameData.fire_button_size` /
+`fire_button_left` and their save keys removed (old save files
+carry the stale keys harmlessly).
+
+**Kept untouched:** `weapons.gd` weapon table, bullet pool, muzzle
+flash / trails / recoil / shake, host-validated shooting sync
+(`shooting_sync.gd`), QA-031 kill-credit lock.
+
+**Real bug found by the fire test while making this change:**
+the first green run was 24/26 — GRENADE-ALONE-NO-FIRE and
+WEAPON-ALONE-NO-FIRE failed (shots fired with no aim input). The
+grenade tap never touched the aim stick, yet shots fired: the
+original trigger `( _want_fire or _fire_edge )` let a STALE pending
+edge fire an AUTO weapon forever, because auto shots never
+consumed the edge (armed by an earlier aim flick, never consumed).
+Fixed: trigger rule is now `(not semi and _want_fire) or (semi
+and _fire_edge)` — auto fires ONLY while held, semi fires ONLY on
+a fresh flick edge; any shot consumes the edge; `_respawn` and
+`switch_weapon()` discard a stale edge. A synchronous arm in
+`_on_touch_press` covers a flick pressed and released between two
+`_process` frames.
+
+**Test (fire test rewritten as the right-stick suite, 26 cases,
+game.gd):** MOVE-ALONE-NO-FIRE, AIM-ALONE-FIRES (8 shots),
+GRENADE/WEAPON-ALONE-NO-FIRE, PISTOL-TAP-ONE-SHOT (+1),
+PISTOL-TEN-RAPID-TAPS (10/10), FIRE-HOLD-CONTINUOUS (19 in 2.5 s),
+FIRE-WHILE-MOVING / DIAGONAL / JETPACK / JUMPING,
+SWITCH-WHILE-FIRING, EMPTY-MAG-BLOCKED, RELOAD-COMPLETES,
+THREE-FINGERS, GRENADE-WHILE-FIRING, SLIDE-OFF (firing continues
+while the finger slides off the stick base — knob clamps at
+radius, Mini Militia behaviour; only release stops it),
+LAYOUT-1280/1920, MP-SYNC-VALIDATION, MP-SINGLE-SHOT-ONE-BULLET
+(1), MP-SHOTGUN-SEVEN-PELLETS (7). **FIRETEST DONE: 26/26 passed,
+0 script errors.** QA-024 (the v2.4 FIRE-button system) is
+superseded by this change.
+
+## QA-050 — HUD bottom hint and host-IP line invisible since v2.5 (found during the v3.2 screenshot review)
+
+**Symptom:** the in-game bottom hint ("Left stick: move…") and the
+host-IP line never appeared on any HUD screenshot. The game was
+running fine — the labels were simply never drawn.
+
+**Root cause:** both labels used `PRESET_BOTTOM_WIDE` with only
+`offset_bottom` set, which gives a NEGATIVE-height rect — the text
+draws off-screen. Git log shows the offset bug dates to the v2.5
+baseline, so the hint was invisible since then (nobody noticed
+because the HUD still worked).
+
+**Fix (game.gd):** `host_ip_label` gets `offset_top=-32`,
+`offset_bottom=-8`; `hint_label` gets `offset_top=-64`,
+`offset_bottom=-40` — both now sit above the floor, readable with
+the theme outline. Verified on the fresh HUD screenshot: the
+controls hint and "You are the HOST. Your IP: …" both show.
+
+## v3.2 full regression — previous bugs re-verified (2026-11-19)
+
+Every suite re-run after the v3.2 changes (theme, scroll, controls,
+QA-047 join fix). All green, 0 script errors in every log.
+
+| Suite | Result |
+|---|---|
+| Joystick | 21/21 PASS |
+| Scale (1280x720 / 2400x1080 / 1920x1080 / 800x480 / 2340x1080) | 70/70 PASS |
+| Smoke | DONE (players=1, local_alive=true, shots=23, bullets=160, fuel=100.0) |
+| Full flow (menu → create room → lobby → start → play → pause → scoreboard → end → back) | DONE |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (Catacombs spot-check) | 8/8 PASS |
+| Physics (spec points 1–28) | 31/31 PASS |
+| Features (11 common features) | 11/11 PASS |
+| Fire (right-stick suite, QA-049) | 26/26 PASS |
+| Replication sim (QA-047) | 14/14 PASS |
+| Scroll 1280x720 (QA-048) | 8/8 PASS |
+| Scroll 2400x1080 genuine (QA-048) | 8/8 PASS |
+
+### Previous-bug regression table (QA-001…QA-047)
+
+| QA | Still fixed? | Evidence in v3.2 |
+|---|---|---|
+| QA-001 centred panels off-centre/clipped | Yes | Flow test DONE; screenshots: menu, lobby, pause, scoreboard, end all centred, no clipping |
+| QA-002 spawn protection | Yes | Physics 31/31; spawn-protection logic untouched by v3.2 (UI/input only) |
+| QA-003 animation freezes during reload | Yes | Smoke DONE (reload cycle runs, anim=idle); fire test RELOAD-COMPLETES |
+| QA-004 camera smoothing reset on respawn | Yes | Physics 31/31; camera code untouched by v3.2 |
+| QA-005 host's own game in its own room list | Yes | Menu-net 6/6; discovery code untouched |
+| QA-006 START MATCH double-tap | Yes | Flow test DONE (single start); lobby code untouched except styling |
+| QA-007 HELMET_NAMES labels wrong | Yes | Customize screenshot verified; data untouched |
+| QA-008 menu background too dark | Yes | Menu screenshot: arena background + scrim, sky visible |
+| QA-009 script error on scene change while centring | Yes | 0 script errors across all 13 suite logs |
+| QA-010 rifle peeks out at straight up/down aim | Known artifact, unchanged | Documented as known in v3.1; not a fix target; no change in v3.2 |
+| QA-011 music restarts on every scene change | Known, not fixed | Documented; music code untouched in v3.2 |
+| QA-012 jetpack loop audible pulse | Known, not fixed | Documented; audio untouched in v3.2 |
+| QA-013 unused asset files shipped in APK | Known, not fixed | Documented; only arena_map_02.png newly imported in v3.2 |
+| QA-014 real two-phone LAN join untestable here | Limitation, unchanged | Sandbox still blocks UDP sends (verified twice); repl-sim 14/14 is the in-process substitute; real two-phone check still owed to the user |
+| QA-015 ObjectDB leak warning at exit | Observed, not a runtime leak | Same exit notice as before (2 resources in use at exit in the smoke log); not a script error |
+| QA-016 gun kept firing after finger lifted | Yes — re-fixed under the new input path | Fire test: AIM-FIRE-RELEASE (firing false, aim zero); joystick test FIRE-WHILE-PAUSED / FIRE-AFTER-MATCH-END |
+| QA-017 joystick-test take_damage() 1-arg (test-only) | Yes | Joystick 21/21 PASS |
+| QA-018 JUMP button removed; jump on left stick | Yes | Joystick test STICK-UP-NO-REJUMP; hint text documents it |
+| QA-019 HOST GAME shows world, no buttons | Yes | Flow test DONE; lobby screenshot shows all buttons |
+| QA-020 HOST/JOIN dead after leaving a match (FLOW-017) | Yes | Flow test DONE (back to menu, host again) |
+| QA-021 modern UI rework, lobby overflow | Yes — superseded by the v3.2 redesign | Lobby + multiplayer screenshots: no overflow; multiplayer panel scrolls as one outer container |
+| QA-022 Jungle Ruins map from asset pack | Yes | Map present; scroll test TAP-LAST-MAP selects map 12; all 13 maps reachable |
+| QA-023 fire button triggers with movement/grenade/weapon | Yes — the button is gone | Fire test GRENADE/WEAPON-ALONE-NO-FIRE; joystick MULTI-TOUCH (move+aim fires, no cross-talk) |
+| QA-024 Mini Militia-style FIRE button system | Superseded | Replaced by right-stick firing, QA-049; fire_button.gd deleted |
+| QA-025 multiplayer overhaul (rooms, discovery, host IP) | Yes | Net 15/15, menu-net 6/6; HUD screenshot shows host IP line |
+| QA-026 host-authoritative combat | Yes | Net 15/15; fire test MP-SYNC-VALIDATION |
+| QA-027 semi-auto tap silently lost | Yes — carried into the new input path | Fire test PISTOL-TAP-ONE-SHOT (+1), PISTOL-TEN-RAPID-TAPS (10/10); pending-edge flag + synchronous arm |
+| QA-028 script errors when leaving a match | Yes | 0 script errors in flow + all suite logs |
+| QA-029 joysticks move downwards on real phone | Yes | Joystick 21/21; scale 70/70 across 5 resolutions; transform untouched by v3.2 (only the aim-stick visual cue added) |
+| QA-030 bullets/player pass through obstacles | Yes | Collision 8/8 (Catacombs); physics 31/31 |
+| QA-031 simultaneous lethal hits double-credit a kill | Yes | Fire test MP cases; kill-credit lock untouched; code path verified |
+| QA-032 pickup RPC to disconnected peer spams errors | Yes | Net 15/15; 0 script errors |
+| QA-033 Frozen Fortress rebuilt as small duel map | Yes | Map present in the 13-map set; scroll test reaches map 12 |
+| QA-034 "Waiting for other players" overlaps centre-weapon label | Yes | HUD screenshot: no overlap (waiting line below centre label) |
+| QA-035 touch controls draw over pause/scoreboard/end panels | Yes | Pause + scoreboard screenshots: sticks hidden behind panels |
+| QA-036 fire-test tap driver leak / P07b load-flake (harness only) | Yes | Fire test 26/26 (rewritten suite, no leaked driver) |
+| QA-037 spectator test vs LMS elimination rule (test-only) | Yes | Features test 11/11 (SPECTATOR, second living bot keeps match live) |
+| QA-038 removing exclude_filter breaks preset validation (build) | Yes | Export preset keeps `exclude_filter=""`; v3.2 export succeeded |
+| QA-039 rock decor does not block spawn-height sightlines | Yes | Map rule (rocks excluded from floor-lane fill); collision 8/8 × 13 maps |
+| QA-040 collision-test ray needs a clear approach (floor cover) | Yes | First floor cover face ≥150 px from left edge on every map; collision 8/8 × 13 |
+| QA-041 harness run-ups must stay clear of solid floor decor | Yes | CLEAR_STRETCH + spawn#0 run-up rule; physics 31/31, fire 26/26 |
+| QA-042 visual-only decor blocked spawn-cover placement | Yes | Proximity checks count solid kinds only; collision 8/8 × 13 maps |
+| QA-043 two floor spawns too close (Space Station / Airship Fleet) | Yes | Spawn#1 moved to another deck on both maps; TDM grouping kept |
+| QA-044 physics harness used Catacombs-tuned coordinates | Yes | Map-relative helpers (_phys_ground_at / _phys_top_at); physics 31/31 on maps 0/6/10/12 |
+| QA-045 no explosive barrel on Space Station / Airship Fleet | Yes | ≥1 barrels guaranteed on every map floor; physics P22 passes |
+| QA-046 cover crate vs harness left run + palm walk | Yes | Joystick test teleports clear of cover; Desert/Pirate palms moved to x=400 |
+| QA-047 join stuck on "Connecting...", 0/8 (real-phone, v3.1) | Fixed, sim-verified | Repl-sim 14/14 PASS (spawn broadcast + player-list heal + retry re-send + "Connecting..." clears); live two-phone ENet still needs the user's two phones — see README "Testing the join on two real phones" |
+
+### T-items (physics audit T-01–T-75, inside QA-030)
+
+Re-verified by the physics suite **31/31 PASS** (2026-11-19) plus the
+fire/collision suites. Harness-evidenced T-items (T-02…T-72 as listed
+in the audit) pass again; code-path T-items unchanged (no physics
+code touched in v3.2 — UI/input only). Still owed to the user's two
+real phones, as before: T-31/32/63/74 (two-phone checks).
+
+### Libraries used in v3.2
+
+| Library / asset | Version | Licence | Where used |
+|---|---|---|---|
+| gohud (Godot HUD/UI addon) | 1.3.0 | MIT | `res://addons/gohud/` — theme, buttons, panels, GoBar HP/fuel, preset `scifi_dark` via `res://ui/gohud_config.tres`; menus/panels/buttons/HUD styling only |
+| Orbitron (font) | variable | SIL OFL 1.1 | Titles, menu title, dialog titles (`main.gd`/`game.gd`); licence bundled in the project |
+| Rajdhani (font) | Regular/Medium/SemiBold/Bold | SIL OFL 1.1 | Body text, buttons, hints, HUD labels; licence bundled |
+| Sky Brawl asset pack | 1,000 PNGs (user-supplied) | Original starter assets (see pack README) | Map backgrounds, tiles, structures, characters, pickups, effects (v3.0/v3.1, unchanged in v3.2) |
+| Kevin MacLeod music ("At Rest", "Five Armies") | — | CC BY 4.0 | Menu + battle music (v3.0, unchanged; credited in-app) |
+| User's MiniShooter asset pack | 1 sprite sheet (97 soldier frames) | User-supplied | Soldiers (v2.3+, unchanged) |
+
+No other external library was added in v3.2. gohud was the only
+library that genuinely fit (UI/presentation only); joysticks, firing,
+physics, networking, maps and audio stay on the tested custom code.
+No paid library or asset was used.
+
+## v3.2 delivery record — exported + independently verified (2026-11-19, Worker 3)
+
+### APK
+- `mini-militia-lan.apk` — 35,728,737 bytes, md5
+  `cf1d7392f79bd1ba1f1104e26f18cf26`. Godot 4.7.2
+  (`--export-release Android`), `export_presets.cfg` version/code=10,
+  version/name="3.2", `GameData.BUILD_VERSION` "3.2".
+- aapt2: package `com.lanarena.shooter`, versionCode 10, versionName
+  3.2, targetSdk 36, minSdk 24, compileSdk 36, native-code
+  `arm64-v8a` only, exactly the 3 permissions INTERNET /
+  ACCESS_NETWORK_STATE / ACCESS_WIFI_STATE.
+- `apksigner verify` passes; signer cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — matches v3.1 exactly (same debug keystore
+  `~/.local/share/godot/keystores/debug.keystore`, alias
+  `androiddebugkey`), installs over v3.1. `package/signed=false` in
+  the preset, so the raw export was unsigned and was signed after
+  the export with apksigner, as in v3.0/v3.1.
+- Contents: both music OGGs (`menu_at_rest`, `battle_five_armies`),
+  Orbitron + Rajdhani fonts, gohud theme/assets, arena background,
+  Sky Brawl textures; NO `.md`/`.txt`; NO `fire_button` anywhere.
+  Size grew 32.5 MB → 35.7 MB (gohud addon + fonts + arena bg).
+  Export log: 0 script errors (only gohud_light-theme UID warnings
+  for the unused light theme + headless ALSA/Vulkan noise).
+- v3.1 APK backed up untouched at
+  `~/workspace/mini-militia-lan-backup-v3.1/mini-militia-lan.apk`
+  (md5 `01eefb9c15061b1c51f9bb9b67e22dee`, verified after copy).
+
+### Independent verification (Worker 3 re-ran everything from scratch on the shipped code; fresh logs /tmp/v32v_*.log)
+- Joystick 21/21, fire (right-stick) 26/26, scale 70/70, physics
+  31/31 (maps 0/6/10/12) + 22/22 (Frozen ice, map 4), features
+  11/11, net 15/15, menu-net 6/6, full flow DONE, repl-sim 14/14,
+  scroll 8/8 at 1280x720 AND 2400x1080, collision 8/8 on all 13
+  maps, smoke DONE on all 13 maps (19 phases each, 23–32 shots,
+  local alive). **0 script errors in total across all logs.**
+- Screenshot spot-check vs v3.1 baseline: menu, lobby, HUD and end
+  screens visibly different (cyan NEON ARENA theme, arena
+  background, Orbitron titles). HUD bottom hint + host-IP line
+  visible (QA-050 fixed). No FIRE button in the HUD (QA-049).
+  The end-screen "screenshot — first to 10 kills" line is the
+  smoke-test harness's own label (game.gd:4078), not a product bug.
+- Docs fixes made by the verifier (no gameplay code touched):
+  README "Controls" section still described the deleted FIRE button
+  ("the right stick only aims — it never fires") — rewritten to
+  right-stick firing. Regression table was missing QA-037…QA-046
+  rows (they existed only as Phase 4+6/Phase 5 entries) — all ten
+  rows added with evidence.
+
+### AAB — NOT built (blocked)
+- No release keystore exists anywhere on this machine (searched
+  `~` for `*.keystore` — only the Godot debug keystore). A release
+  keystore was NOT created: its password must come from the user via
+  Secure Vault, never invented and never written in a file. Exact
+  creation + signing steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md` ("Release signing" section), and
+  its status line now records this block. The APK is the
+  deliverable; the AAB is a bonus once the user supplies the
+  keystore password.
+
+### Honest limits (unchanged)
+- Real two-phone LAN join, real touch hardware, real-phone
+  performance, audio-by-ear: still untested here (sandbox blocks
+  UDP sends even on loopback; repl-sim 14/14 is the in-process
+  substitute). Mid-match rejoin unsupported. GoSurface modals left
+  out (risky); no separate map-vote screenshot.

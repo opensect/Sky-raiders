@@ -26,6 +26,10 @@ signal vector_changed(vector: Vector2)
 @export var vertical_sensitivity: float = 1.0
 @export var joystick_opacity: float = 0.85
 @export var return_duration: float = 0.08
+# v3.2 (CONTROLS_CHANGE.md §3): set on the AIM stick only — draws the
+# cyan ring + crosshair cue in _draw() so the player can see the right
+# stick is also the fire control. Visual only; never affects input.
+var is_aim: bool = false
 
 var _touch_id: int = -1
 var _knob_offset: Vector2 = Vector2.ZERO
@@ -156,11 +160,21 @@ func _draw() -> void:
 	var base_r := joystick_radius + 10.0
 	var active := _touch_id != -1
 	var at_max := _vector.length() >= 0.98
-	# Outer base: semi-transparent dark circle + visible border.
+	# Outer base: semi-transparent dark navy circle + ice border.
 	var base_col := Color(0.05, 0.10, 0.18, 0.55 * joystick_opacity) if active else Color(0.02, 0.03, 0.06, 0.32 * joystick_opacity)
-	var border_col := Color(1, 1, 1, 0.70 * joystick_opacity) if active else Color(1, 1, 1, 0.30 * joystick_opacity)
+	var border_col := Color(0.847, 0.957, 1.0, 0.70 * joystick_opacity) if active else Color(0.847, 0.957, 1.0, 0.30 * joystick_opacity)
 	draw_circle(center, base_r, base_col)
 	draw_arc(center, base_r, 0, TAU, 48, border_col, 3.0)
+	# v3.2 aim cue (visual only): cyan ring + small crosshair in the
+	# base so the right stick reads as the fire control too. The ring
+	# brightens while the stick is held (firing).
+	if is_aim:
+		var cue_col := Color(0.0, 0.898, 1.0, 0.85 * joystick_opacity) if active else Color(0.0, 0.898, 1.0, 0.45 * joystick_opacity)
+		draw_arc(center, base_r + 5.0, 0, TAU, 48, cue_col, 3.0)
+		var ch := 10.0
+		var ch_col := Color(0.0, 0.898, 1.0, 0.65 * joystick_opacity) if active else Color(0.0, 0.898, 1.0, 0.35 * joystick_opacity)
+		draw_line(center + Vector2(-ch, 0), center + Vector2(ch, 0), ch_col, 2.0)
+		draw_line(center + Vector2(0, -ch), center + Vector2(0, ch), ch_col, 2.0)
 	# Subtle feedback at maximum displacement: brighter ring.
 	if at_max:
 		draw_arc(center, base_r - 4.0, 0, TAU, 48, Color(1.0, 0.85, 0.3, 0.8 * joystick_opacity), 3.0)

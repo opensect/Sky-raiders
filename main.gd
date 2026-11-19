@@ -20,7 +20,13 @@ const MAP_THUMBS := {
 	8: preload("res://assets/thumbs/thumb_volcanic.png"),
 	9: preload("res://assets/thumbs/thumb_pirate.png"),
 }
-const MENU_BG: Texture2D = preload("res://assets/backgrounds/day.png")
+const MENU_BG: Texture2D = preload("res://assets/backgrounds/arena_blue.png")
+# v3.2 NEON ARENA fonts (SIL OFL 1.1 — see THEME_SPEC.md §1b).
+const FONT_TITLE: Font = preload("res://assets/fonts/orbitron/Orbitron-Variable.ttf")
+const FONT_BODY: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Regular.ttf")
+const FONT_BODY_MEDIUM: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Medium.ttf")
+const FONT_BODY_SEMIBOLD: Font = preload("res://assets/fonts/rajdhani/Rajdhani-SemiBold.ttf")
+const FONT_BODY_BOLD: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Bold.ttf")
 const HELMET_ICONS := {
 	1: preload("res://assets/headgear/helmet_green.png"),
 	2: preload("res://assets/headgear/cap_tan.png"),
@@ -80,7 +86,6 @@ var _name_input: LineEdit
 var _music_check: CheckButton
 var _fps_check: CheckButton
 var _invert_check: CheckButton
-var _fire_side_buttons: Array = []
 # Phase 4 — map vote (lobby): candidates on the ballot + vote counts.
 var _vote_candidates: Array = []
 var _vote_buttons: Array = []
@@ -108,9 +113,36 @@ var _flow_in_step: bool = false
 var _flow_timer: float = 0.0
 var _flow_passed: int = 0
 var _flow_failed: int = 0
+# v3.2 scroll test (--scroll-test) + screenshot mode (--shot-all).
+var _scroll_test: bool = false
+var _scroll_done: bool = false
+var _scroll_steps: Array = []
+var _scroll_step: int = 0
+var _scroll_in_step: bool = false
+var _scroll_timer: float = 0.0
+var _scroll_passed: int = 0
+var _scroll_failed: int = 0
+var _lobby_scroll: ScrollContainer
+var _mp_scroll: ScrollContainer
+var _settings_scroll: ScrollContainer
+var _controls_hint_label: Label
+var _map_section_label: Label
+var _scroll_hint_label: Label
+var _shot_all: bool = false
+var _shot_idx: int = 0
+# v3.2 join regression test (--join-test-host): auto-create a room
+# and auto-start the match, so a second process can join for real.
+var _join_test_host: bool = false
+var _join_test_client_quick: bool = false
 
 
 func _ready() -> void:
+	# v3.2 NEON ARENA: gohud scifi_dark drives every screen (see
+	# THEME_SPEC.md). Set once, early, before any panel is built;
+	# the root theme is inherited by all children.
+	GoUi.config = preload("res://ui/gohud_config.tres")
+	GoUi.use_preset(GoThemePresets.SCIFI_DARK)
+	theme = GoUi.theme()
 	GameData.load_settings()
 	_audio = AUDIO_SCRIPT.new()
 	add_child(_audio)
@@ -155,6 +187,14 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	_handle_cli_args()
+	if _join_test_host:
+		call_deferred("_jointest_host_begin")
+	if _join_test_client_quick:
+		call_deferred("_jointest_client_quick_begin")
+	if _scroll_test:
+		call_deferred("_scrolltest_begin")
+	if _shot_all:
+		call_deferred("_shotall_begin")
 	if "--menu-shot" in OS.get_cmdline_user_args():
 		get_tree().create_timer(3.0).timeout.connect(_capture_menu_shot)
 
@@ -180,6 +220,18 @@ func _capture_flow_shot_now(path: String) -> void:
 
 func _handle_cli_args() -> void:
 	var args := OS.get_cmdline_user_args()
+	if "--join-test-host" in args:
+		_join_test_host = true
+		return
+	if "--join-test-client-quick" in args:
+		_join_test_client_quick = true
+		return
+	if "--scroll-test" in args:
+		_scroll_test = true
+		return
+	if "--shot-all" in args:
+		_shot_all = true
+		return
 	if "--menu-net-test" in args:
 		_menu_net_test = true
 		return
@@ -207,56 +259,18 @@ func _cli_auto_host() -> void:
 
 
 func _build_background() -> void:
-	# Procedural crisp sky: the 79x102 background thumbnail is far too small
-	# to stretch across a 1280x720 screen (it blurred badly), so the menu
-	# background is drawn from gradients instead - crisp at any resolution.
-	# The thumbnails are still used at near-native size as map previews.
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0.42, 0.68, 0.88))
-	grad.set_color(1, Color(0.78, 0.90, 0.96))
-	var gtex := GradientTexture2D.new()
-	gtex.gradient = grad
-	gtex.fill_from = Vector2(0.5, 0)
-	gtex.fill_to = Vector2(0.5, 1)
-	gtex.width = 4
-	gtex.height = 256
+	# v3.2 NEON ARENA (THEME_SPEC.md §6): ONE imported image — the
+	# Sky Brawl blue arena (arena_map_02.png) — stretched full-rect,
+	# with a 0.55-alpha dark scrim over it so text stays readable.
+	# The old procedural gradient sky + sun + ground band is gone.
 	var bg := TextureRect.new()
-	bg.texture = gtex
+	bg.texture = MENU_BG
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	add_child(bg)
-	# Sun: soft radial glow (gradient texture, crisp at any size).
-	var sun_grad := Gradient.new()
-	sun_grad.set_color(0, Color(1.0, 0.95, 0.75, 0.95))
-	sun_grad.set_color(1, Color(1.0, 0.95, 0.75, 0.0))
-	var sun_tex := GradientTexture2D.new()
-	sun_tex.gradient = sun_grad
-	sun_tex.fill = GradientTexture2D.FILL_RADIAL
-	sun_tex.fill_from = Vector2(0.5, 0.5)
-	sun_tex.fill_to = Vector2(1.0, 0.5)
-	sun_tex.width = 128
-	sun_tex.height = 128
-	var sun := TextureRect.new()
-	sun.texture = sun_tex
-	sun.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	sun.position = Vector2(90, 70)
-	sun.custom_minimum_size = Vector2(170, 170)
-	sun.size = Vector2(170, 170)
-	sun.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	sun.stretch_mode = TextureRect.STRETCH_SCALE
-	add_child(sun)
-	# Ground band along the bottom.
-	var ground := ColorRect.new()
-	ground.color = Color(0.30, 0.48, 0.25)
-	ground.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	ground.offset_top = -90
-	add_child(ground)
 	var dim := ColorRect.new()
-	# QA FIX (v2.1): 0.72 alpha buried the gradient sky almost completely
-	# (the menu looked like night). 0.45 keeps the buttons readable while
-	# the day sky and sun actually show.
-	dim.color = Color(0.03, 0.04, 0.08, 0.45)
+	dim.color = Color(0.0, 0.035, 0.078, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 
@@ -276,53 +290,64 @@ func _build_background() -> void:
 # size), tall content lives in a ScrollContainer, and buttons have a
 # 56 px minimum touch target. This makes the bug structurally impossible.
 # ---------------------------------------------------------------------------
-const UI_ACCENT := Color(0.13, 0.65, 0.32) # green primary / selected
-const UI_ACCENT_HOVER := Color(0.16, 0.75, 0.38)
-const UI_ACCENT_PRESSED := Color(0.10, 0.52, 0.25)
-const UI_BTN := Color(0.16, 0.21, 0.29)
-const UI_BTN_HOVER := Color(0.23, 0.29, 0.39)
-const UI_BTN_PRESSED := Color(0.12, 0.16, 0.22)
-const UI_BTN_DISABLED := Color(0.10, 0.13, 0.18)
-const UI_FONT := Color(1, 1, 1)
-const UI_FONT_MUTED := Color(0.78, 0.82, 0.88)
-const UI_FONT_DISABLED := Color(0.55, 0.58, 0.62)
+# v3.2 NEON ARENA palette (THEME_SPEC.md §2 — measured from the
+# live scifi_dark theme tokens). No green accent anywhere; green
+# appears only as the semantic success token, sparingly.
+const UI_ACCENT := Color(0.0, 0.898, 1.0) # cyan #00E5FF — THE accent
+const UI_ACCENT_DARK := Color(0.012, 0.071, 0.102) # on-accent #03121A
+const UI_SUCCESS := Color(0.231, 1.0, 0.647) # mint #3BFFA5
+const UI_DANGER := Color(1.0, 0.302, 0.427) # coral #FF4D6D
+const UI_WARNING := Color(1.0, 0.773, 0.239) # amber #FFC53D
+const UI_FONT := Color(0.847, 0.957, 1.0) # ice #D8F4FF
+const UI_FONT_MUTED := Color(0.522, 0.655, 0.741) # muted #85A7BD
+const UI_FONT_DISABLED := Color(0.522, 0.655, 0.741)
+const UI_FONT_SECONDARY := Color(0.498, 0.706, 0.8) # secondary #7FB4CC
 
 
-func _btn_style(bg: Color) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.corner_radius_top_left = 10
-	s.corner_radius_top_right = 10
-	s.corner_radius_bottom_left = 10
-	s.corner_radius_bottom_right = 10
-	s.content_margin_left = 14
-	s.content_margin_right = 14
-	s.content_margin_top = 8
-	s.content_margin_bottom = 8
-	return s
+# v3.2 NEON ARENA styling (THEME_SPEC.md §4–§5).
+# The gohud scifi_dark theme drives the look: cut-corner navy
+# buttons with a steel-blue border, ice text. The old manual
+# StyleBoxFlat overrides (green, rounded) are deleted — a bare
+# use_preset() call alone changed almost nothing while every button
+# carried explicit overrides. _style_button now only clears stale
+# overrides, sets the Rajdhani font + size + touch target, and — for
+# primary/selected buttons — applies the theme's own GoStyleBoxCut
+# shape filled with the theme accent (cyan fill + dark text + "✓").
+
+func _cut_accent_stylebox() -> GoStyleBoxCut:
+	var sb := GoStyleBoxCut.new()
+	sb.bg_color = UI_ACCENT
+	sb.border_color = UI_ACCENT
+	sb.border_width = 1.0
+	sb.cut = 10.2
+	sb.cut_corners = GoStyleBoxCut.ALL
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	return sb
 
 
 func _style_button(b: Button, font_size: int = 22, min_h: int = 56, accent: bool = false) -> void:
-	var bg := UI_ACCENT if accent else UI_BTN
-	var hover := UI_ACCENT_HOVER if accent else UI_BTN_HOVER
-	var pressed := UI_ACCENT_PRESSED if accent else UI_BTN_PRESSED
-	var normal := _btn_style(bg)
-	if accent:
-		# Selected / primary buttons get a light rim so the green reads
-		# clearly against the dark panel and the selected state is
-		# obvious at a glance.
-		normal.border_color = Color(0.65, 0.95, 0.75)
-		normal.set_border_width_all(2)
-	b.add_theme_stylebox_override("normal", normal)
-	b.add_theme_stylebox_override("hover", _btn_style(hover))
-	b.add_theme_stylebox_override("pressed", _btn_style(pressed))
-	b.add_theme_stylebox_override("disabled", _btn_style(UI_BTN_DISABLED))
+	# Clear any manual stylebox overrides so the gohud theme shows.
+	for kind in ["normal", "hover", "pressed", "disabled"]:
+		b.remove_theme_stylebox_override(kind)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	b.add_theme_font_size_override("font_size", font_size)
 	b.add_theme_color_override("font_color", UI_FONT)
 	b.add_theme_color_override("font_hover_color", UI_FONT)
-	b.add_theme_color_override("font_pressed_color", UI_FONT)
+	b.add_theme_color_override("font_pressed_color", Color(0.0, 0.898, 1.0))
 	b.add_theme_color_override("font_disabled_color", UI_FONT_DISABLED)
-	b.add_theme_font_size_override("font_size", font_size)
+	if accent:
+		# Primary / selected: cyan fill + dark text (theme accent,
+		# theme cut-corner shape). Hover keeps the same fill.
+		var sb := _cut_accent_stylebox()
+		b.add_theme_stylebox_override("normal", sb)
+		b.add_theme_stylebox_override("hover", sb)
+		b.add_theme_color_override("font_color", UI_ACCENT_DARK)
+		b.add_theme_color_override("font_hover_color", UI_ACCENT_DARK)
+		b.add_theme_color_override("font_pressed_color", UI_ACCENT_DARK)
 	b.custom_minimum_size = Vector2(b.custom_minimum_size.x, min_h)
 
 
@@ -331,7 +356,27 @@ func _style_selected(b: Button, selected: bool, font_size: int = 22) -> void:
 	_style_button(b, font_size, int(b.custom_minimum_size.y), selected)
 
 
-func _panel(style_bg: Color = Color(0.07, 0.10, 0.15, 0.96)) -> PanelContainer:
+# Danger action (Leave / disconnect): danger-red fill via the same
+# cut-corner shape, white text.
+func _style_danger_button(b: Button, font_size: int = 22, min_h: int = 56) -> void:
+	_style_button(b, font_size, min_h, false)
+	var sb := GoStyleBoxCut.new()
+	sb.bg_color = Color(1.0, 0.302, 0.427, 0.92)
+	sb.border_color = UI_DANGER
+	sb.border_width = 1.0
+	sb.cut = 10.2
+	sb.cut_corners = GoStyleBoxCut.ALL
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sb)
+	b.add_theme_color_override("font_color", Color(1, 1, 1))
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+
+
+func _panel(style_bg: Color = Color(0.07, 0.11, 0.18, 0.96), transparent: bool = false) -> PanelContainer:
 	# Full-rect card: size comes from anchors, never from content minimum
 	# size, so a transiently wrong content size can never push it off-screen.
 	var p := PanelContainer.new()
@@ -340,22 +385,52 @@ func _panel(style_bg: Color = Color(0.07, 0.10, 0.15, 0.96)) -> PanelContainer:
 	p.offset_top = 12
 	p.offset_right = -16
 	p.offset_bottom = -12
-	var s := StyleBoxFlat.new()
-	s.bg_color = style_bg
-	s.corner_radius_top_left = 18
-	s.corner_radius_top_right = 18
-	s.corner_radius_bottom_left = 18
-	s.corner_radius_bottom_right = 18
-	s.border_color = Color(0.25, 0.32, 0.42)
-	s.set_border_width_all(1)
-	s.content_margin_left = 24
-	s.content_margin_right = 24
-	s.content_margin_top = 18
-	s.content_margin_bottom = 18
-	p.add_theme_stylebox_override("panel", s)
+	p.theme = GoUi.theme()
+	if transparent:
+		# Menu: no panel fill at all — title + buttons float over the
+		# arena background + scrim (as in the gohud demo proof shot).
+		p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	else:
+		# Theme's own cut-corner panel stylebox, slightly translucent
+		# so the arena artwork reads faintly through the edges.
+		var s := GoUi.theme().get_stylebox("panel", "PanelContainer")
+		if s != null:
+			var sb := s.duplicate()
+			if sb is GoStyleBoxCut:
+				(sb as GoStyleBoxCut).bg_color = Color(style_bg.r, style_bg.g, style_bg.b, 0.92)
+				(sb as GoStyleBoxCut).content_margin_left = 24
+				(sb as GoStyleBoxCut).content_margin_right = 24
+				(sb as GoStyleBoxCut).content_margin_top = 18
+				(sb as GoStyleBoxCut).content_margin_bottom = 18
+			p.add_theme_stylebox_override("panel", sb)
 	p.visible = false
 	add_child(p)
 	return p
+
+
+# SCROLL_BUG.md §4 — forward drags that start on a button inside a
+# ScrollContainer to the container. A Button captures the touch and
+# the ScrollContainer never sees the drag otherwise (proven root
+# cause). Taps still go through the button's normal pressed path.
+func _connect_scroll_button(b: Button, scroll: ScrollContainer) -> void:
+	b.gui_input.connect(_on_scrolled_button_gui_input.bind(scroll, b))
+
+
+func _on_scrolled_button_gui_input(event: InputEvent, scroll: ScrollContainer, b: Button) -> void:
+	# Touch drags ONLY. The MouseMotion branch is deliberately NOT
+	# here: pointing/emulate_touch_from_mouse duplicates every touch
+	# drag as mouse motion, so a motion branch would apply the same
+	# delta a second time (a 200 px drag scrolled 400 px). Desktop
+	# users scroll with the wheel, which the container handles natively.
+	if event is InputEventScreenDrag:
+		scroll.scroll_vertical -= event.relative.y
+
+
+# v3.2: gohud icons replace the hand-drawn _make_icon() shapes.
+func _gohud_icon(icon_name: String) -> Texture2D:
+	if GoUi.icons().has_icon(StringName(icon_name)):
+		return GoUi.icons().texture(StringName(icon_name))
+	return null
 
 
 func _vbox(parent: Control, sep: int = 12) -> VBoxContainer:
@@ -368,6 +443,7 @@ func _vbox(parent: Control, sep: int = 12) -> VBoxContainer:
 func _section_label(text: String) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
 	l.add_theme_font_size_override("font_size", 20)
 	l.add_theme_color_override("font_color", UI_FONT_MUTED)
 	return l
@@ -377,7 +453,22 @@ func _title_label(text: String, size: int = 30) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", FONT_TITLE)
 	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", UI_FONT)
+	return l
+
+
+# Body / hint / status text (THEME_SPEC.md §3): Rajdhani Regular, NOT
+# Orbitron — the variable Orbitron renders too thin and light at
+# 16-20 px to read (the menu subtitle showed this in the v3.2 shots).
+func _body_label(text: String, size: int = 18) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", FONT_BODY)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", UI_FONT_MUTED)
 	return l
 
 
@@ -393,64 +484,19 @@ func _click() -> void:
 		_audio.play("click")
 
 
-# v2.5: small icons drawn in code (no font glyphs, no external assets)
-# for the main menu buttons. White shapes on a transparent 48x48 image.
-func _make_icon(kind: String) -> Texture2D:
-	var img := Image.create(48, 48, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var white := Color(1, 1, 1, 1)
-	if kind == "play":
-		# Right-pointing triangle: (14,8) (14,40) (38,24).
-		for y in 48:
-			var half := 1.0 - absf(float(y) - 24.0) / 16.0
-			if half <= 0.0:
-				continue
-			var x_max := 14 + int(24.0 * half)
-			for x in range(14, x_max + 1):
-				img.set_pixel(x, y, white)
-	elif kind == "user":
-		# Head: circle at (24,16) r 8. Shoulders: half-ellipse at
-		# (24,46) rx 14 ry 12, only the top half (y >= 32).
-		for y in 48:
-			for x in 48:
-				var in_head := Vector2(x - 24, y - 16).length() <= 8.0
-				var dx := float(x - 24) / 14.0
-				var dy := float(y - 46) / 12.0
-				var in_body := y >= 32 and dx * dx + dy * dy <= 1.0
-				if in_head or in_body:
-					img.set_pixel(x, y, white)
-	else: # "gear"
-		# Ring (r 14, hole r 6) plus 8 teeth as small squares at r 18.
-		for y in 48:
-			for x in 48:
-				var d := Vector2(x - 24, y - 24).length()
-				if d <= 14.0 and d >= 6.0:
-					img.set_pixel(x, y, white)
-		for k in 8:
-			var ang := TAU * float(k) / 8.0
-			var cx := int(24 + cos(ang) * 18.0)
-			var cy := int(24 + sin(ang) * 18.0)
-			for oy in range(-3, 4):
-				for ox in range(-3, 4):
-					var px := cx + ox
-					var py := cy + oy
-					if px >= 0 and px < 48 and py >= 0 and py < 48:
-						img.set_pixel(px, py, white)
-	return ImageTexture.create_from_image(img)
-
-
 func _build_menu() -> void:
-	_menu_panel = _panel()
+	_menu_panel = _panel(Color(0.07, 0.11, 0.18, 0.96), true)
 	var box := _vbox(_menu_panel, 14)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	var title := _title_label("LAN ARENA SHOOTER", 46)
+	var title := _title_label("LAN ARENA SHOOTER", 40)
+	title.add_theme_color_override("font_color", UI_ACCENT)
 	box.add_child(title)
-	var sub := _title_label("2D shooter - local Wi-Fi only, no accounts", 20)
+	var sub := _body_label("2D shooter - local Wi-Fi only, no accounts", 20)
 	sub.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(sub)
 	var mp_btn := Button.new()
 	mp_btn.text = "LOCAL MULTIPLAYER"
-	mp_btn.icon = _make_icon("play")
+	mp_btn.icon = _gohud_icon("play")
 	mp_btn.expand_icon = true
 	mp_btn.custom_minimum_size = Vector2(420, 64)
 	mp_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -459,7 +505,7 @@ func _build_menu() -> void:
 	box.add_child(mp_btn)
 	var cust_btn := Button.new()
 	cust_btn.text = "CUSTOMIZATION"
-	cust_btn.icon = _make_icon("user")
+	cust_btn.icon = _gohud_icon("user")
 	cust_btn.expand_icon = true
 	cust_btn.custom_minimum_size = Vector2(420, 64)
 	cust_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -468,18 +514,18 @@ func _build_menu() -> void:
 	box.add_child(cust_btn)
 	var set_btn := Button.new()
 	set_btn.text = "SETTINGS"
-	set_btn.icon = _make_icon("gear")
+	set_btn.icon = _gohud_icon("settings")
 	set_btn.expand_icon = true
 	set_btn.custom_minimum_size = Vector2(420, 64)
 	set_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(set_btn, 26, 64)
 	set_btn.pressed.connect(func() -> void: _click(); _show_only(_settings_panel))
 	box.add_child(set_btn)
-	var hint := _title_label("All phones must be on the same Wi-Fi network.", 18)
+	var hint := _body_label("All phones must be on the same Wi-Fi network.", 18)
 	hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(hint)
 	# Phase 6: short music credit on the menu (full text is in Settings).
-	var credit := _title_label(GameData.MUSIC_CREDITS_SHORT, 16)
+	var credit := _body_label(GameData.MUSIC_CREDITS_SHORT, 16)
 	credit.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(credit)
 
@@ -623,6 +669,7 @@ func _build_settings() -> void:
 	var box := _vbox(_settings_panel, 12)
 	# Tall content scrolls (same pattern as the lobby).
 	var scroll := ScrollContainer.new()
+	_settings_scroll = scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
@@ -645,25 +692,15 @@ func _build_settings() -> void:
 	box.add_child(_music_check)
 	box.add_child(_section_label("Controls"))
 	box.add_child(_slider_row("Control sensitivity", GameData.sensitivity, _on_sensitivity_changed, 0.5, 2.0))
-	# Phase 4: FIRE button size (0.8x–1.3x) and side (right-handed
-	# default; left swaps the whole control cluster — see game.gd).
-	box.add_child(_slider_row("FIRE button size", GameData.fire_button_size, _on_fire_size_changed, 0.8, 1.3))
-	var fire_row := HBoxContainer.new()
-	fire_row.add_theme_constant_override("separation", 8)
-	box.add_child(fire_row)
-	var fire_lbl := Label.new()
-	fire_lbl.text = "FIRE button:"
-	fire_lbl.add_theme_font_size_override("font_size", 20)
-	fire_row.add_child(fire_lbl)
-	for side in [false, true]:
-		var b := Button.new()
-		b.text = "Left" if side else "Right"
-		b.custom_minimum_size = Vector2(120, 56)
-		_style_button(b, 20, 56)
-		b.pressed.connect(_on_fire_side_pressed.bind(side))
-		fire_row.add_child(b)
-		_fire_side_buttons.append(b)
-	_refresh_fire_side_buttons()
+	# v3.2: the FIRE button is gone — the right stick aims AND fires
+	# (CONTROLS_CHANGE.md). No size/side setting remains.
+	var controls_note := Label.new()
+	controls_note.text = "Controls: left stick moves, push up to jump / fly, right stick aims and shoots."
+	controls_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	controls_note.add_theme_font_override("font", FONT_BODY)
+	controls_note.add_theme_font_size_override("font_size", 18)
+	controls_note.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(controls_note)
 	_fps_check = CheckButton.new()
 	_fps_check.text = "Show FPS counter (in matches)"
 	_fps_check.add_theme_font_size_override("font_size", 20)
@@ -684,8 +721,25 @@ func _build_settings() -> void:
 	credits.add_theme_font_size_override("font_size", 18)
 	credits.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(credits)
+	var font_credit := Label.new()
+	font_credit.text = "Orbitron © 2018 The Orbitron Project Authors, Rajdhani © 2014 Indian Type Foundry — SIL Open Font License 1.1"
+	font_credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	font_credit.add_theme_font_override("font", FONT_BODY)
+	font_credit.add_theme_font_size_override("font_size", 16)
+	font_credit.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(font_credit)
+	# v3.2 QA-047: privacy policy in-app (Play compliance). The full
+	# policy is also in PRIVACY_POLICY.md in the project.
+	box.add_child(_section_label("Privacy"))
+	var privacy_lbl := Label.new()
+	privacy_lbl.text = "LAN Arena Shooter collects no personal data. No accounts, no sign-in, no ads, no analytics, no tracking. Phones talk directly to each other over your Wi-Fi (LAN) only — nothing is sent to the internet or any server. Settings (name, controls, volume) stay on your phone."
+	privacy_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	privacy_lbl.add_theme_font_override("font", FONT_BODY)
+	privacy_lbl.add_theme_font_size_override("font_size", 18)
+	privacy_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(privacy_lbl)
 	var version_lbl := Label.new()
-	version_lbl.text = "LAN Arena Shooter v3.1  •  LAN only — no accounts, no servers"
+	version_lbl.text = "LAN Arena Shooter v3.2  •  LAN only — no accounts, no servers"
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
@@ -697,6 +751,7 @@ func _build_settings() -> void:
 	_style_button(back_btn, 22, 56)
 	back_btn.pressed.connect(func() -> void: _click(); _show_only(_menu_panel))
 	box.add_child(back_btn)
+	_connect_scroll_button(back_btn, _settings_scroll)
 
 
 func _slider_row(label_text: String, value: float, on_change: Callable, min_v: float = 0.0, max_v: float = 1.0) -> HBoxContainer:
@@ -753,31 +808,11 @@ func _on_invert_toggled(on: bool) -> void:
 	GameData.save_settings()
 
 
-func _on_fire_size_changed(v: float) -> void:
-	GameData.fire_button_size = clampf(v, 0.8, 1.3)
-	GameData.save_settings()
-
-
-func _on_fire_side_pressed(left: bool) -> void:
-	_click()
-	GameData.fire_button_left = left
-	GameData.save_settings()
-	_refresh_fire_side_buttons()
-
-
-func _refresh_fire_side_buttons() -> void:
-	for i in _fire_side_buttons.size():
-		var left: bool = [false, true][i]
-		var b: Button = _fire_side_buttons[i]
-		b.text = ("✓ " if GameData.fire_button_left == left else "") + ("Left" if left else "Right")
-		_style_selected(b, GameData.fire_button_left == left, 20)
-
-
 func _build_multiplayer() -> void:
 	_mp_panel = _panel()
 	var box := _vbox(_mp_panel, 12)
 	box.add_child(_title_label("LOCAL MULTIPLAYER", 30))
-	var hint := _title_label("All phones must be on the same Wi-Fi network (or one phone's hotspot).", 18)
+	var hint := _body_label("All phones must be on the same Wi-Fi network (or one phone's hotspot).", 18)
 	hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(hint)
 	# v2.4: show our own LAN IP up front, so the host can read it out
@@ -787,6 +822,29 @@ func _build_multiplayer() -> void:
 	_my_ip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_my_ip_label.add_theme_font_size_override("font_size", 20)
 	box.add_child(_my_ip_label)
+	# v3.2 QA-047: in-app permission explanation (Android / Play).
+	# LAN play uses plain Wi-Fi sockets only — no accounts, no
+	# internet, no location. The app needs only Internet + network
+	# state, both granted at install with no pop-up.
+	var perm_note := Label.new()
+	perm_note.text = "Permissions: Internet + network state only, so phones on this Wi-Fi can find each other. No location, no accounts, no data leaves your phones."
+	perm_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	perm_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	perm_note.add_theme_font_override("font", FONT_BODY)
+	perm_note.add_theme_font_size_override("font_size", 16)
+	perm_note.add_theme_color_override("font_color", UI_FONT_MUTED)
+	box.add_child(perm_note)
+	# v3.2: the whole panel scrolls (see note below at the room list).
+	var scroll := ScrollContainer.new()
+	_mp_scroll = scroll
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 12)
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(inner)
+	box = inner
 
 	# --- Create a room ---
 	box.add_child(_section_label("Create a room:"))
@@ -811,6 +869,7 @@ func _build_multiplayer() -> void:
 		b.pressed.connect(_on_max_pressed.bind(n))
 		max_row.add_child(b)
 		_max_buttons.append(b)
+		_connect_scroll_button(b, _mp_scroll)
 	var priv_row := HBoxContainer.new()
 	priv_row.add_theme_constant_override("separation", 10)
 	box.add_child(priv_row)
@@ -833,6 +892,7 @@ func _build_multiplayer() -> void:
 	_style_button(create_btn, 26, 64, true)
 	create_btn.pressed.connect(_on_create_room_pressed)
 	box.add_child(create_btn)
+	_connect_scroll_button(create_btn, _mp_scroll)
 
 	# --- Join a room ---
 	box.add_child(_section_label("Join a room:"))
@@ -851,6 +911,7 @@ func _build_multiplayer() -> void:
 	_style_button(join_btn, 26, 60, true)
 	join_btn.pressed.connect(_on_join_pressed)
 	join_row.add_child(join_btn)
+	_connect_scroll_button(join_btn, _mp_scroll)
 	var pw_row := HBoxContainer.new()
 	pw_row.add_theme_constant_override("separation", 10)
 	box.add_child(pw_row)
@@ -874,25 +935,26 @@ func _build_multiplayer() -> void:
 	_style_button(quick_btn, 22, 60, true)
 	quick_btn.pressed.connect(_on_quick_match_pressed)
 	quick_row.add_child(quick_btn)
+	_connect_scroll_button(quick_btn, _mp_scroll)
 	var refresh_btn := Button.new()
 	refresh_btn.text = "REFRESH"
 	refresh_btn.custom_minimum_size = Vector2(160, 60)
 	_style_button(refresh_btn, 22, 60)
 	refresh_btn.pressed.connect(_on_refresh_pressed)
 	quick_row.add_child(refresh_btn)
+	_connect_scroll_button(refresh_btn, _mp_scroll)
 
 	box.add_child(_section_label("Games found on this Wi-Fi:"))
-	var rooms_hint := _title_label("Tap a room to join it. If nothing appears, type the host IP above.", 18)
+	var rooms_hint := _body_label("Tap a room to join it. If nothing appears, type the host IP above.", 18)
 	rooms_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(rooms_hint)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	box.add_child(scroll)
+	# Room list: plain VBox inside the outer scroll (the v3.1 inner
+	# ScrollContainer got zero height — see the note at the top of
+	# this function). Room buttons forward drags to _mp_scroll.
 	_host_buttons = VBoxContainer.new()
 	_host_buttons.add_theme_constant_override("separation", 8)
 	_host_buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_host_buttons)
+	box.add_child(_host_buttons)
 	_status = Label.new()
 	_status.text = ""
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -905,6 +967,7 @@ func _build_multiplayer() -> void:
 	_style_button(back_btn, 22, 56)
 	back_btn.pressed.connect(func() -> void: _click(); _show_only(_menu_panel))
 	box.add_child(back_btn)
+	_connect_scroll_button(back_btn, _mp_scroll)
 	_refresh_max_buttons()
 
 
@@ -925,30 +988,44 @@ func _build_lobby() -> void:
 	_host_ip_label = Label.new()
 	_host_ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_host_ip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_host_ip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_host_ip_label.custom_minimum_size = Vector2(0, 30)
+	_host_ip_label.add_theme_font_override("font", FONT_BODY_BOLD)
 	_host_ip_label.add_theme_font_size_override("font_size", 24)
-	_host_ip_label.add_theme_color_override("font_color", Color(0.55, 0.95, 0.65))
+	_host_ip_label.add_theme_color_override("font_color", UI_ACCENT)
 	box.add_child(_host_ip_label)
 	_room_info_label = Label.new()
 	_room_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_room_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_room_info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_room_info_label.custom_minimum_size = Vector2(0, 24)
+	_room_info_label.add_theme_font_override("font", FONT_BODY)
 	_room_info_label.add_theme_font_size_override("font_size", 18)
 	_room_info_label.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(_room_info_label)
 	var controls_hint := Label.new()
-	controls_hint.text = "Left stick: move • Push up: jump / fly • Right stick: aim • FIRE button: hold to shoot"
+	controls_hint.text = "Left stick: move • Push up: jump / fly • Right stick: aim and shoot"
 	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	controls_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	controls_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls_hint.custom_minimum_size = Vector2(0, 24)
+	controls_hint.add_theme_font_override("font", FONT_BODY)
 	controls_hint.add_theme_font_size_override("font_size", 18)
-	controls_hint.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+	controls_hint.add_theme_color_override("font_color", UI_FONT)
+	_controls_hint_label = controls_hint
 	box.add_child(controls_hint)
 	var join_hint := Label.new()
 	join_hint.text = "Friends join from LOCAL MULTIPLAYER — they tap your room, or type the host IP above."
 	join_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	join_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	join_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	join_hint.custom_minimum_size = Vector2(0, 24)
+	join_hint.add_theme_font_override("font", FONT_BODY)
 	join_hint.add_theme_font_size_override("font_size", 18)
 	join_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(join_hint)
 	var scroll := ScrollContainer.new()
+	_lobby_scroll = scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
@@ -960,7 +1037,8 @@ func _build_lobby() -> void:
 	_lobby_list = VBoxContainer.new()
 	_lobby_list.add_theme_constant_override("separation", 4)
 	inner.add_child(_lobby_list)
-	inner.add_child(_section_label("Map:"))
+	_map_section_label = _section_label("Map:")
+	inner.add_child(_map_section_label)
 	var map_grid := GridContainer.new()
 	map_grid.columns = 2
 	map_grid.add_theme_constant_override("h_separation", 8)
@@ -978,6 +1056,17 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_map_pressed.bind(i))
 		map_grid.add_child(b)
 		_map_buttons.append(b)
+		_connect_scroll_button(b, _lobby_scroll)
+	# THEME_SPEC.md §8: visible scroll hint under the map grid — it
+	# is also a label, so a drag starting on it scrolls (SCROLL_BUG.md).
+	var scroll_hint := Label.new()
+	scroll_hint.text = "Scroll for more maps ↓"
+	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	scroll_hint.add_theme_font_override("font", FONT_BODY)
+	scroll_hint.add_theme_font_size_override("font_size", 18)
+	scroll_hint.add_theme_color_override("font_color", UI_ACCENT)
+	_scroll_hint_label = scroll_hint
+	inner.add_child(scroll_hint)
 	# Phase 4 — map vote: every player picks one of 3 maps on the
 	# ballot (the host's pick + the next two). The host tallies the
 	# votes when the match starts; ties and no-votes keep the host's
@@ -996,6 +1085,7 @@ func _build_lobby() -> void:
 		vb.pressed.connect(_on_vote_pressed.bind(k))
 		_vote_box.add_child(vb)
 		_vote_buttons.append(vb)
+		_connect_scroll_button(vb, _lobby_scroll)
 	var vote_hint := Label.new()
 	vote_hint.text = "Most votes wins. If nobody votes, or on a tie, the host's map is played."
 	vote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1015,6 +1105,7 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_mode_pressed.bind(i))
 		mode_row.add_child(b)
 		_mode_buttons.append(b)
+		_connect_scroll_button(b, _lobby_scroll)
 	var ff_row := HBoxContainer.new()
 	ff_row.add_theme_constant_override("separation", 8)
 	inner.add_child(ff_row)
@@ -1024,6 +1115,7 @@ func _build_lobby() -> void:
 	_ff_check.button_pressed = GameData.friendly_fire
 	_ff_check.toggled.connect(_on_friendly_fire_toggled)
 	ff_row.add_child(_ff_check)
+	_ff_check.gui_input.connect(_on_scrolled_button_gui_input.bind(_lobby_scroll, _ff_check))
 	var limit_row := HBoxContainer.new()
 	limit_row.add_theme_constant_override("separation", 8)
 	inner.add_child(limit_row)
@@ -1039,6 +1131,7 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_limit_pressed.bind(kl))
 		limit_row.add_child(b)
 		_limit_buttons.append(b)
+		_connect_scroll_button(b, _lobby_scroll)
 	var time_row := HBoxContainer.new()
 	time_row.add_theme_constant_override("separation", 8)
 	inner.add_child(time_row)
@@ -1054,6 +1147,7 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_time_pressed.bind(mins))
 		time_row.add_child(b)
 		_time_buttons.append(b)
+		_connect_scroll_button(b, _lobby_scroll)
 	# Fixed action row — always visible, never scrolled away.
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 10)
@@ -1074,7 +1168,7 @@ func _build_lobby() -> void:
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave"
 	leave_btn.custom_minimum_size = Vector2(140, 64)
-	_style_button(leave_btn, 22, 64)
+	_style_danger_button(leave_btn, 22, 64)
 	leave_btn.pressed.connect(_on_lobby_leave_pressed)
 	btn_row.add_child(leave_btn)
 	_refresh_lobby_buttons()
@@ -1268,7 +1362,7 @@ func _refresh_lobby_list() -> void:
 		var is_ready: bool = bool(info.get("ready", false))
 		ready_lbl.text = "READY ✓" if is_ready else "not ready"
 		ready_lbl.add_theme_font_size_override("font_size", 20)
-		ready_lbl.add_theme_color_override("font_color", Color(0.55, 0.95, 0.65) if is_ready else UI_FONT_MUTED)
+		ready_lbl.add_theme_color_override("font_color", UI_SUCCESS if is_ready else UI_FONT_MUTED)
 		row.add_child(ready_lbl)
 		# The host can remove a player from the room.
 		if _is_host and int(id) != 1 and int(id) != multiplayer.get_unique_id():
@@ -1278,6 +1372,7 @@ func _refresh_lobby_list() -> void:
 			_style_button(kick_btn, 20, 56)
 			kick_btn.pressed.connect(_on_kick_pressed.bind(int(id)))
 			row.add_child(kick_btn)
+			_connect_scroll_button(kick_btn, _lobby_scroll)
 		_lobby_list.add_child(row)
 
 
@@ -1696,6 +1791,7 @@ func _refresh_room_list() -> void:
 			b.text += " (IN GAME)"
 		b.pressed.connect(join_game.bind(ip))
 		_host_buttons.add_child(b)
+		_connect_scroll_button(b, _mp_scroll)
 
 
 func _process(delta: float) -> void:
@@ -1723,10 +1819,402 @@ func _process(delta: float) -> void:
 		_update_menu_nettest(delta)
 	if _flow_test:
 		_update_flowtest(delta)
+	if _scroll_test:
+		_update_scrolltest(delta)
+	if _shot_all:
+		_update_shotall(delta)
 
 
 func _set_status(text: String) -> void:
 	_status.text = text
+
+
+# =====================================================================
+# v3.2 SCROLL TEST (--scroll-test) — SCROLL_BUG.md §5
+# Drives REAL touch drags through Input.parse_input_event (the real
+# viewport GUI path) on the host lobby: drag starting on a map button
+# must scroll, taps must still select, a drag-release over another
+# button must not select it, and the last map must be reachable.
+# Run: xvfb-run -a godot --path . -- --scroll-test
+# (add --resolution 2400x1080 for the tall-phone pass)
+# =====================================================================
+
+func _scrolltest_begin() -> void:
+	GameData.room_name = "ScrollTest"
+	GameData.max_players = 4
+	GameData.room_private = false
+	GameData.room_password = ""
+	_room_name_input.text = "ScrollTest"
+	_create_room()
+
+
+func _sc_vp_pos(ctrl: Control, local: Vector2) -> Vector2:
+	# Canvas position of the point, then into VIEWPORT pixels — the
+	# space touch events live in. get_canvas_transform() does NOT
+	# carry the stretch (it is identity here); the real scale is
+	# window size / visible-rect size (1.0 at 1280x720, 1.5 at
+	# 2400x1080 with stretch expand). The old code fed canvas
+	# coordinates as viewport coordinates, so at 2400x1080 every tap
+	# landed a third of the screen off and missed its button.
+	var canvas_pos: Vector2 = ctrl.get_global_transform_with_canvas() * local
+	var s := _sc_vp_scale_vec()
+	return Vector2(canvas_pos.x * s.x, canvas_pos.y * s.y)
+
+
+func _sc_vp_scale_vec() -> Vector2:
+	var vis := get_viewport().get_visible_rect().size
+	var win := get_window().size
+	return Vector2(win.x / vis.x, win.y / vis.y)
+
+
+func _sc_press(idx: int, vp_pos: Vector2) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = idx
+	e.position = vp_pos
+	e.pressed = true
+	Input.parse_input_event(e)
+
+
+func _sc_release(idx: int, vp_pos: Vector2) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = idx
+	e.position = vp_pos
+	e.pressed = false
+	Input.parse_input_event(e)
+
+
+func _sc_drag(idx: int, vp_pos: Vector2, rel: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = idx
+	e.position = vp_pos
+	e.relative = rel
+	Input.parse_input_event(e)
+
+
+# Press at vp_pos, drag up by total_px CANVAS px in 50 canvas-px
+# steps, release. Positions are viewport px (scaled by the canvas
+# transform), so the finger path matches the intended canvas drag
+# at every window size.
+# _sc_drag_done gates the step check: the drag is async (a frame
+# between steps, so the button sees the pointer leave), and at
+# 2400x1080 under llvmpipe a frame can take 100+ ms — the 0.6 s
+# check wait would otherwise fire with only some steps applied
+# (DRAG-ON-BUTTON measured exactly 150 = 3 of 4 steps, the label
+# drag 50 = 1 step, settings 0). The check waits for the drag to
+# finish (hard-capped at +2 s so a stuck drag cannot hang the suite).
+var _sc_drag_done: bool = true
+
+
+func _sc_drag_up(idx: int, vp_pos: Vector2, total_px: float, vp_scale: float = 1.0) -> void:
+	# A frame between press / each drag step / release, like a real
+	# finger: without the frames the button never sees the pointer
+	# leave its rect while the list scrolls under it, and a
+	# drag-release can falsely count as a tap on the original button.
+	_sc_drag_done = false
+	_sc_press(idx, vp_pos)
+	await get_tree().process_frame
+	var steps := int(total_px / 50.0)
+	var cur := vp_pos
+	for i in steps:
+		cur += Vector2(0, -50.0 * vp_scale)
+		_sc_drag(idx, cur, Vector2(0, -50.0 * vp_scale))
+		await get_tree().process_frame
+	_sc_release(idx, cur)
+	_sc_drag_done = true
+
+
+func _sc_vp_scale(ctrl: Control) -> float:
+	# The stretch scale (viewport px per canvas px): 1.0 at
+	# 1280x720, 1.5 at 2400x1080. Neither the control's canvas
+	# transform nor get_canvas_transform() carries it (both report
+	# 1.0); it is window size / visible-rect size.
+	return _sc_vp_scale_vec().y
+
+
+func _sc_tap(idx: int, vp_pos: Vector2) -> void:
+	_sc_press(idx, vp_pos)
+	_sc_release(idx, vp_pos)
+
+
+func _update_scrolltest(delta: float) -> void:
+	if _scroll_done:
+		return
+	if _scroll_steps.is_empty():
+		_scrolltest_build_steps()
+		_scroll_step = 0
+		_scroll_in_step = false
+		_scroll_timer = 0.0
+	if _scroll_step >= _scroll_steps.size():
+		_scroll_done = true
+		print("SCROLLTEST DONE: %d/%d passed" % [_scroll_passed, _scroll_passed + _scroll_failed])
+		get_tree().quit()
+		return
+	var step: Dictionary = _scroll_steps[_scroll_step]
+	if not _scroll_in_step:
+		(step["setup"] as Callable).call()
+		_scroll_in_step = true
+		_scroll_timer = float(step["wait"])
+	_scroll_timer -= delta
+	# The check waits for an in-flight async drag to finish (see
+	# _sc_drag_up): at slow frame rates the drag steps outlive the
+	# step's wait, and checking early measures a partial drag.
+	if _scroll_timer <= 0.0 and (_sc_drag_done or _scroll_timer < -2.0):
+		var result: Array = (step["check"] as Callable).call()
+		var ok: bool = bool(result[0])
+		if ok:
+			_scroll_passed += 1
+		else:
+			_scroll_failed += 1
+		print("SCROLLTEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
+		_scroll_step += 1
+		_scroll_in_step = false
+		_scroll_timer = 0.0
+
+
+func _scrolltest_build_steps() -> void:
+	_scroll_steps = [
+		{"name": "DRAG-ON-BUTTON", "wait": 0.6, "setup": _sct_s_drag_button, "check": _sct_c_drag_button},
+		{"name": "DRAG-ON-LABEL", "wait": 0.6, "setup": _sct_s_drag_label, "check": _sct_c_drag_label},
+		{"name": "TAP-MAP-SELECTS", "wait": 0.6, "setup": _sct_s_tap_map, "check": _sct_c_tap_map},
+		{"name": "DRAG-RELEASE-NO-SELECT", "wait": 0.6, "setup": _sct_s_drag_release, "check": _sct_c_drag_release},
+		{"name": "SCROLL-MAX-LAST-MAP-VISIBLE", "wait": 0.5, "setup": _sct_s_scroll_max, "check": _sct_c_last_visible},
+		{"name": "TAP-LAST-MAP", "wait": 0.6, "setup": _sct_s_tap_last, "check": _sct_c_tap_last},
+		{"name": "MP-ROOM-DRAG", "wait": 0.6, "setup": _sct_s_mp_drag, "check": _sct_c_mp_drag},
+		{"name": "SETTINGS-DRAG", "wait": 0.6, "setup": _sct_s_settings_drag, "check": _sct_c_settings_drag},
+	]
+
+
+func _sct_s_drag_button() -> void:
+	_lobby_scroll.scroll_vertical = 0
+	var b: Button = _map_buttons[0]
+	_sc_drag_up(800, _sc_vp_pos(b, b.size * 0.5), 200.0, _sc_vp_scale(b))
+
+
+func _sct_c_drag_button() -> Array:
+	var v := _lobby_scroll.scroll_vertical
+	return [v >= 150.0, "scroll_vertical=%d (want >=150 after 200 px drag on map button)" % int(v)]
+
+
+func _sct_s_drag_label() -> void:
+	# Drag on the "Map:" section label INSIDE the scroll area (the
+	# lobby controls_hint above the scroll cannot scroll it, and the
+	# "Scroll for more maps" hint sits below the fold at scroll 0).
+	# The scroll position only applies on the next frame, so wait
+	# for layout before measuring the label's position.
+	_lobby_scroll.scroll_vertical = 0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_sc_drag_up(801, _sc_vp_pos(_map_section_label, Vector2(_map_section_label.size.x * 0.5, _map_section_label.size.y * 0.5)), 200.0, _sc_vp_scale(_map_section_label))
+
+
+func _sct_c_drag_label() -> Array:
+	var v := _lobby_scroll.scroll_vertical
+	return [v >= 150.0, "scroll_vertical=%d (want >=150 after 200 px drag on label)" % int(v)]
+
+
+func _sct_s_tap_map() -> void:
+	_lobby_scroll.scroll_vertical = 0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_sc_tap(802, _sc_vp_pos(_map_buttons[1], _map_buttons[1].size * 0.5))
+
+
+func _sct_c_tap_map() -> Array:
+	var ok: bool = GameData.map_id == 1
+	return [ok, "map_id=%d (want 1 after tapping map button [1])" % GameData.map_id]
+
+
+func _sct_s_drag_release() -> void:
+	# Drag from button [0] up 200 px; the release lands over a
+	# different button — it must NOT select anything.
+	_sc_drag_up(803, _sc_vp_pos(_map_buttons[0], _map_buttons[0].size * 0.5), 200.0, _sc_vp_scale(_map_buttons[0]))
+
+
+func _sct_c_drag_release() -> Array:
+	var ok: bool = GameData.map_id == 1
+	return [ok, "map_id=%d (want still 1 — drag-release must not select)" % GameData.map_id]
+
+
+func _sct_s_scroll_max() -> void:
+	# Scroll just enough to bring the last map row into view (max
+	# scroll shows the mode/limit rows at the bottom — the last map
+	# row has scrolled past the top by then).
+	var b: Button = _map_buttons[12]
+	var btop: float = b.get_global_rect().position.y - _lobby_scroll.get_global_rect().position.y + _lobby_scroll.scroll_vertical
+	_lobby_scroll.scroll_vertical = btop - 100.0
+
+
+func _sct_c_last_visible() -> Array:
+	var b: Button = _map_buttons[12]
+	var brect := Rect2(_sc_vp_pos(b, Vector2.ZERO), b.size)
+	var srect := Rect2(_sc_vp_pos(_lobby_scroll, Vector2.ZERO), _lobby_scroll.size)
+	var inter := brect.intersection(srect)
+	var ok: bool = inter.size.y > 30.0
+	return [ok, "last map button visible height=%d px (want >30) at max scroll" % int(inter.size.y)]
+
+
+func _sct_s_tap_last() -> void:
+	await get_tree().process_frame
+	_sc_tap(804, _sc_vp_pos(_map_buttons[12], _map_buttons[12].size * 0.5))
+
+
+func _sct_c_tap_last() -> Array:
+	var ok: bool = GameData.map_id == 12
+	return [ok, "map_id=%d (want 12 — every map reachable and tappable)" % GameData.map_id]
+
+
+func _sct_s_mp_drag() -> void:
+	_show_only(_mp_panel)
+	# Fake a long room list (no real rooms on this sandbox Wi-Fi).
+	for c in _host_buttons.get_children():
+		c.queue_free()
+	for i in 12:
+		var b := Button.new()
+		b.text = "Test Room %d" % i
+		b.custom_minimum_size = Vector2(0, 56)
+		_style_button(b, 20, 56)
+		_host_buttons.add_child(b)
+		_connect_scroll_button(b, _mp_scroll)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_mp_scroll.scroll_vertical = 450
+	await get_tree().process_frame
+	var first: Button = _host_buttons.get_child(0)
+	_sc_drag_up(805, _sc_vp_pos(first, first.size * 0.5), 200.0, _sc_vp_scale(first))
+
+
+func _sct_c_mp_drag() -> Array:
+	var v := _mp_scroll.scroll_vertical
+	var mx := _mp_scroll.get_v_scroll_bar().max_value
+	var n := _host_buttons.get_child_count()
+	for c in _host_buttons.get_children():
+		c.queue_free()
+	_show_only(_lobby_panel)
+	return [v >= 100.0, "mp scroll_vertical=%d max=%d children=%d (want >=100 after 200 px drag on a room button)" % [int(v), int(mx), n]]
+
+
+func _sct_s_settings_drag() -> void:
+	_show_only(_settings_panel)
+	_settings_scroll.scroll_vertical = 0
+	# The Back button lives inside the settings scroll area.
+	var back_btn: Button = null
+	for c in _settings_scroll.get_children():
+		for sub in (c as VBoxContainer).get_children():
+			if sub is Button and (sub as Button).text == "Back":
+				back_btn = sub
+	if back_btn != null:
+		_sc_drag_up(806, _sc_vp_pos(back_btn, back_btn.size * 0.5), 150.0, _sc_vp_scale(back_btn))
+
+
+func _sct_c_settings_drag() -> Array:
+	var v := _settings_scroll.scroll_vertical
+	var mx := _settings_scroll.get_v_scroll_bar().max_value
+	_show_only(_menu_panel)
+	return [v > 0.0, "settings scroll_vertical=%d (max=%d, want >0 after drag on Back button)" % [int(v), int(mx)]]
+
+
+# =====================================================================
+# v3.2 SCREENSHOT MODE (--shot-all): captures every menu-side screen
+# to user://shot_*.png for the visual review (THEME_SPEC.md §9).
+# =====================================================================
+
+var _shot_steps: Array = []
+var _shot_step: int = 0
+var _shot_in_step: bool = false
+var _shot_timer: float = 0.0
+
+
+func _shotall_begin() -> void:
+	_shot_steps = [
+		{"name": "menu", "wait": 0.5, "setup": _shot_s_menu, "file": "user://shot_menu.png"},
+		{"name": "customize", "wait": 0.5, "setup": _shot_s_customize, "file": "user://shot_customize.png"},
+		{"name": "settings", "wait": 0.5, "setup": _shot_s_settings, "file": "user://shot_settings.png"},
+		{"name": "multiplayer", "wait": 0.5, "setup": _shot_s_multiplayer, "file": "user://shot_multiplayer.png"},
+		{"name": "lobby", "wait": 0.5, "setup": _shot_s_lobby, "file": "user://shot_lobby.png"},
+	]
+	_shot_step = 0
+	_shot_in_step = false
+	_shot_timer = 0.0
+
+
+func _update_shotall(delta: float) -> void:
+	if _shot_step >= _shot_steps.size():
+		print("SHOTALL DONE")
+		get_tree().quit()
+		return
+	var step: Dictionary = _shot_steps[_shot_step]
+	if not _shot_in_step:
+		(step["setup"] as Callable).call()
+		_shot_in_step = true
+		_shot_timer = float(step["wait"])
+	_shot_timer -= delta
+	if _shot_timer <= 0.0:
+		_capture_flow_shot_now(String(step["file"]))
+		_shot_step += 1
+		_shot_in_step = false
+		_shot_timer = 0.0
+
+
+func _shot_s_menu() -> void:
+	_show_only(_menu_panel)
+
+
+func _shot_s_customize() -> void:
+	_show_only(_custom_panel)
+
+
+func _shot_s_settings() -> void:
+	_show_only(_settings_panel)
+
+
+func _shot_s_multiplayer() -> void:
+	_show_only(_mp_panel)
+
+
+func _shot_s_lobby() -> void:
+	GameData.room_name = "ShotTest"
+	GameData.max_players = 4
+	GameData.room_private = false
+	GameData.room_password = ""
+	_room_name_input.text = "ShotTest"
+	_create_room()
+
+
+# =====================================================================
+# v3.2 JOIN TEST — host side (--join-test-host) + Quick Play client
+# side (--join-test-client-quick). Two real Godot processes on
+# loopback: host creates a room and auto-starts; the client finds the
+# room via discovery and joins with QUICK LAN MATCH (the exact path
+# the user used), then both sides report in game.gd (JOINTEST).
+# =====================================================================
+
+func _jointest_host_begin() -> void:
+	GameData.room_name = "JoinTest"
+	GameData.max_players = 4
+	GameData.room_private = false
+	GameData.room_password = ""
+	_room_name_input.text = "JoinTest"
+	_create_room()
+	print("JOINTEST HOST: room created, starting match in 3 s")
+	get_tree().create_timer(3.0).timeout.connect(_on_start_pressed)
+
+
+func _jointest_client_quick_begin() -> void:
+	# Wait for discovery to hear the host's broadcast, then press
+	# QUICK LAN MATCH exactly as the user did (room list NOT used,
+	# no manual IP). If no room is heard in 5 s, fail loudly —
+	# discovery itself is then the problem, not the spawn handshake.
+	for i in 50:
+		await get_tree().create_timer(0.1).timeout
+		if not _discovery.get_rooms().is_empty():
+			break
+	var rooms := _discovery.get_rooms()
+	print("JOINTEST CLIENT: rooms heard via discovery: ", rooms)
+	if rooms.is_empty():
+		print("JOINTEST CLIENT: FAIL — no room discovered in 5 s (broadcast/listen broken)")
+		get_tree().quit()
+		return
+	_on_quick_match_pressed()
 
 
 # =====================================================================

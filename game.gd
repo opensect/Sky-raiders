@@ -21,8 +21,25 @@ const PLAYER_SCENE: PackedScene = preload("res://player.tscn")
 const PICKUP_SCENE: PackedScene = preload("res://pickup.tscn")
 const BULLET_SCENE: PackedScene = preload("res://bullet.tscn")
 const JOYSTICK_SCRIPT: Script = preload("res://joystick.gd")
-const FIRE_BUTTON_SCRIPT: Script = preload("res://fire_button.gd")
 const AUDIO_SCRIPT: Script = preload("res://audio.gd")
+
+# v3.2 NEON ARENA theme (THEME_SPEC.md): Orbitron titles, Rajdhani
+# body/numbers, cyan-on-navy. Fonts are SIL OFL 1.1 (see Settings
+# credit line in main.gd). The gohud theme drives the look; these
+# consts are only for the few places game code still sets a colour
+# directly (HUD numbers, bar inks).
+const FONT_TITLE: Font = preload("res://assets/fonts/orbitron/Orbitron-Variable.ttf")
+const FONT_BODY: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Regular.ttf")
+const FONT_BODY_MEDIUM: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Medium.ttf")
+const FONT_BODY_SEMIBOLD: Font = preload("res://assets/fonts/rajdhani/Rajdhani-SemiBold.ttf")
+const FONT_BODY_BOLD: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Bold.ttf")
+const UI_ACCENT := Color(0.0, 0.898, 1.0) # cyan #00E5FF
+const UI_ACCENT_DARK := Color(0.012, 0.071, 0.102) # on-accent #03121A
+const UI_FONT := Color(0.847, 0.957, 1.0) # ice #D8F4FF
+const UI_FONT_MUTED := Color(0.522, 0.655, 0.741) # muted #85A7BD
+const UI_SUCCESS := Color(0.231, 1.0, 0.647) # mint #3BFFA5
+const UI_DANGER := Color(1.0, 0.302, 0.427) # coral #FF4D6D
+const UI_WARNING := Color(1.0, 0.773, 0.239) # amber #FFC53D
 
 const PORT := 7777
 const DISCOVERY_PORT := 7778
@@ -494,10 +511,8 @@ var match_over: bool = false
 var _leaving: bool = false # set when leaving for the menu: _process must stop (multiplayer is torn down before the scene change lands)
 
 var hud: CanvasLayer
-var hp_bar: ProgressBar
-var fuel_bar: ProgressBar
-var hp_value_label: Label
-var fuel_value_label: Label
+var hp_bar: GoBar # v3.2: gohud bar (label + VALUE readout built in)
+var fuel_bar: GoBar
 var kills_label: Label
 var deaths_label: Label
 var players_label: Label
@@ -521,7 +536,6 @@ var error_panel: PanelContainer
 var error_label: Label
 var move_stick
 var aim_stick
-var fire_button # FireButtonController (v2.4)
 var grenade_button: Button
 var switch_button: Button
 var reload_button: Button # v2.4
@@ -536,8 +550,9 @@ var max_players: int = 8 # room setting (GameData); MAX_PLAYERS is the cap
 # v2.2: the left stick is a full 2D vector now (x = move, y = jump/fly).
 # There is no JUMP button any more — pushing the left stick up jumps,
 # holding it up while airborne is the jetpack.
-# v2.4: firing comes ONLY from the FIRE button (fire_button.is_held()).
-# The aim stick is aim-only and never fires (QA-023).
+# v3.2: firing comes from the AIM stick (Mini Militia style) — the
+# right stick aims AND fires while held (see _update_touch_state).
+# There is no FIRE button any more (CONTROLS_CHANGE.md).
 var touch_move_vec: Vector2 = Vector2.ZERO
 var touch_aim: Vector2 = Vector2.ZERO
 var touch_aim_active: bool = false
@@ -545,9 +560,18 @@ var touch_firing: bool = false
 
 var _move_touch_id: int = -1
 var _aim_touch_id: int = -1
-var _fire_touch_id: int = -1 # v2.4: the finger holding the FIRE button
+# v3.2 right-stick fire (CONTROLS_CHANGE.md §2): semi-auto weapons fire
+# once per fresh ZERO -> non-zero transition of the aim vector. The
+# transition arms one pending shot (QA-027 carry-over: a flick fires
+# even if the finger is gone by the time the shooting step runs);
+# the shooting step consumes it, reload/respawn/pause/countdown
+# discard it. Auto weapons ignore the flag and fire on touch_firing.
+var _aim_fire_pending: bool = false
+var _aim_vec_prev_nonzero: bool = false
 var _next_index: int = 1
 var _spawned: Dictionary = {}
+var _spawn_data: Dictionary = {} # v3.2 QA-047: pid -> spawn data dict, kept so the server can re-send a spawn (retry / late joiner) and answer player-list requests.
+var _server_answered: bool = false # v3.2 QA-047: any spawn/list packet received from the server (shown in the join error so a Wi-Fi problem can be told apart from a game bug).
 var _udp_broadcast: PacketPeerUDP
 var _udp_broadcast_sockets: Array[PacketPeerUDP] = [] # v2.4: one socket per broadcast address
 var _broadcast_timer: float = 0.0
@@ -607,7 +631,7 @@ var _smoke_shot_aim_done: bool = false
 var _smoke_shot_boom_done: bool = false
 var _smoke_move_idx: int = -1
 var _smoke_aim_idx: int = -1
-var _smoke_fire_idx: int = -1 # v2.4: fake FIRE-button touch index
+var _smoke_fire_owns_aim: bool = false # v3.2: _smoke_set_fire holds the aim stick when nothing else does
 var _hint_timer: float = 10.0
 var _joystick_test: bool = false
 var _joy_steps: Array = []
@@ -662,6 +686,7 @@ var _round_number: int = 1 # v2.4 Survival: current round
 var _spawn_retry_timer: float = 0.0 # v2.4: request_spawn retry clock
 var _fire_test: bool = false # v2.4: --fire-test harness
 var _fire_steps: Array = []
+var _ft_fire_owns_aim: bool = false # v3.2: _ft_press_fire holds the aim stick when nothing else does
 var _fire_step: int = 0
 var _fire_in_step: bool = false
 var _fire_timer: float = 0.0
@@ -675,6 +700,31 @@ var _ft_tap_left: int = 0 # T-33 rapid-tap driver: taps remaining
 var _ft_tap_timer: float = 0.0 # T-33: time until the next press/release
 var _ft_tap_phase: int = 0 # T-33: 0 = press next, 1 = release next
 var _fire_weapon_before: int = 0
+# v3.2 two-peer join regression test (--join-test-host / --join-test-client).
+var _join_test_host: bool = false
+var _join_test_client: bool = false
+var _join_test_timer: float = 0.0
+var _join_test_done: bool = false
+var _join_test_status_t: float = 0.0
+var _join_test_moved: bool = false
+var _join_test_pos_snap: Dictionary = {}
+# v3.2 QA-047 — replication simulation harness (--repl-sim-test).
+# True two-peer ENet cannot run in the sandbox (the OS blocks UDP
+# sends), so this simulates the wire in one process: a server game
+# instance plus a shadow client instance, with the server's spawn /
+# list payloads delivered to the shadow by hand. It proves the
+# handler logic and the retry re-send; it does NOT prove live ENet
+# delivery — that still needs two real phones (see BUGS.md QA-047).
+var _repl_sim_test: bool = false
+var _repl_sim_step: int = 0
+var _repl_sim_timer: float = 0.0
+var _repl_sim_passed: int = 0
+var _repl_sim_failed: int = 0
+var _repl_sim_done: bool = false
+var _repl_sim_sent: Array = [] # payloads _send_all_players_to recorded in sim mode
+var _repl_sim_shadow = null # second Game instance playing the client
+var _repl_sim_server_list: Array = []
+var _repl_sim_move_start: Vector2 = Vector2.ZERO # CONTROLS-ATTACH snapshot
 var _net_test: bool = false # v2.4: --net-test harness
 var _net_steps: Array = []
 var _net_step: int = 0
@@ -690,6 +740,9 @@ var _nt_dc_second: bool = false
 # (flow_phase 1 = in the match). The menu prints the final result
 # when we return (phase 2).
 var _flow_test: bool = false
+var _game_shots: bool = false # v3.2: --game-shots captures HUD/countdown/pause/scoreboard/end to user://shot_*.png
+var _gs_timer: float = 0.0
+var _gs_stage: int = -1
 var _flow_steps: Array = []
 var _flow_step: int = 0
 var _flow_in_step: bool = false
@@ -701,6 +754,10 @@ var _flow_done: bool = false
 
 func _ready() -> void:
 	add_to_group("game")
+	# v3.2 NEON ARENA: wire the gohud theme once, early, so the HUD
+	# and dialogs inherit it (same preset as the menu in main.gd).
+	GoUi.config = preload("res://ui/gohud_config.tres")
+	GoUi.use_preset(GoThemePresets.SCIFI_DARK)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	map_id = clampi(GameData.map_id, 0, MAPS.size() - 1)
 	game_mode = GameData.game_mode
@@ -717,6 +774,10 @@ func _ready() -> void:
 	_physics_test = "--physics-test" in OS.get_cmdline_user_args()
 	_perf_test = "--perf-test" in OS.get_cmdline_user_args()
 	_features_test = "--features-test" in OS.get_cmdline_user_args()
+	_game_shots = "--game-shots" in OS.get_cmdline_user_args()
+	_join_test_host = "--join-test-host" in OS.get_cmdline_user_args()
+	_join_test_client = "--join-test-client" in OS.get_cmdline_user_args() or "--join-test-client-quick" in OS.get_cmdline_user_args()
+	_repl_sim_test = "--repl-sim-test" in OS.get_cmdline_user_args()
 	# Test-only map override: --map=N loads that map (the collision
 	# test uses it to run its pass-through checks on Jungle Ruins).
 	for a in OS.get_cmdline_user_args():
@@ -743,7 +804,7 @@ func _ready() -> void:
 	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
 	# scripted harness (they move/shoot from frame one) and in the
 	# features test, which drives the countdown itself in step 1.
-	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test
+	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test
 	if not _is_test_mode:
 		_countdown_active = true
 		_countdown_t = 3.0
@@ -1371,6 +1432,11 @@ func _announce_ready() -> void:
 		# and request_spawn is idempotent anyway.
 		return
 	rpc_id(1, "request_spawn", multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.helmet, GameData.BUILD_VERSION)
+	# v3.2 QA-047: also ask for the full player list — if our spawn
+	# RPC was the one that got lost, the list heals us (it includes
+	# our own player and the host's player). The 2 s retry in
+	# _retry_spawn_if_needed re-sends both requests.
+	rpc_id(1, "request_player_list")
 
 
 func _retry_spawn_if_needed(delta: float) -> void:
@@ -1389,8 +1455,15 @@ func _retry_spawn_if_needed(delta: float) -> void:
 
 
 func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int) -> void:
+	# v3.2 QA-047: a re-request means the client's first spawn never
+	# landed (the v3.1 bug) — re-send it instead of silently assuming
+	# the client already has the player. The old code returned here
+	# and the single dropped spawn RPC was never re-sent.
 	if _spawned.has(pid):
+		if multiplayer.is_server():
+			_send_all_players_to(pid)
 		return
+	print("SPAWN: spawning peer ", pid, " (", pname, ") on ", "server" if multiplayer.is_server() else "client", " players_before=", players_node.get_child_count())
 	_spawned[pid] = true
 	var team := -1
 	if game_mode == 1:
@@ -1398,7 +1471,99 @@ func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int) -> vo
 	# Survival (2) and Last Man Standing (3) are free-for-all: team -1.
 	var data := {"id": pid, "index": _next_index, "name": pname, "color": color_idx, "helmet": helmet_style, "team": team}
 	_next_index += 1
+	_spawn_data[pid] = data
 	spawner.spawn(data)
+	# v3.2 QA-047: explicit spawn broadcast. v3.1 relied ONLY on the
+	# MultiplayerSpawner's internal spawn RPC; on real phones the
+	# client never received it (host showed 2 players, client 0).
+	# The handler is idempotent, so a double delivery (spawner +
+	# this RPC) is harmless. Guarded to real peers so offline
+	# harnesses (net test) stay silent.
+	if multiplayer.is_server() and multiplayer.get_peers().size() > 0:
+		rpc("spawn_player_remote", data)
+
+
+# v3.2 QA-047: send one peer every spawned player + the full list.
+# Used when a client re-requests its spawn (retry) and when a peer
+# connects to the game scene (late joiner / host player catch-up).
+func _send_all_players_to(peer_id: int) -> void:
+	if _repl_sim_test:
+		# Test hook: record what WOULD be sent — offline there are no
+		# real peers, so the guard below would skip the RPCs. The sim
+		# delivers the recorded payloads to the shadow client by hand.
+		for pid in _spawn_data.keys():
+			_repl_sim_sent.append({"kind": "spawn_player_remote", "to": peer_id, "data": (_spawn_data[pid] as Dictionary).duplicate()})
+		_repl_sim_sent.append({"kind": "player_list_remote", "to": peer_id, "data": _player_list_data()})
+		return
+	if not multiplayer.get_peers().has(peer_id):
+		return
+	for pid in _spawn_data.keys():
+		rpc_id(peer_id, "spawn_player_remote", _spawn_data[pid])
+	rpc_id(peer_id, "player_list_remote", _player_list_data())
+
+
+func _player_list_data() -> Array:
+	var out: Array = []
+	for k in _spawn_data.keys():
+		out.append(_spawn_data[k])
+	return out
+
+
+@rpc("any_peer")
+func spawn_player_remote(data: Dictionary) -> void:
+	# v3.2 QA-047: explicit spawn broadcast from the server (see
+	# _do_spawn). Idempotent: a player with this id already present
+	# is left alone, so spawner + RPC double delivery is harmless.
+	# The player's own _ready places it at a valid spawn point.
+	var pid := int(data.get("id", 0))
+	if pid <= 0:
+		return
+	if players_node.get_node_or_null(str(pid)) != null:
+		return
+	_server_answered = true
+	_spawned[pid] = true
+	var p := _spawn_player_node(data)
+	players_node.add_child(p)
+
+
+@rpc("any_peer")
+func despawn_player_remote(pid: int) -> void:
+	# v3.2 QA-047: explicit despawn to match the explicit spawn — the
+	# spawner's despawn RPC is the same single channel that lost the
+	# spawn in v3.1, so a disconnect is also announced directly.
+	var node := players_node.get_node_or_null(str(pid))
+	if node != null:
+		node.queue_free()
+
+
+@rpc("any_peer")
+func request_player_list() -> void:
+	# v3.2 QA-047: a client that missed its spawn asks for the whole
+	# player list; the server answers with every spawned player.
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender > 0:
+		rpc_id(sender, "player_list_remote", _player_list_data())
+
+
+@rpc("any_peer")
+func player_list_remote(players: Array) -> void:
+	# v3.2 QA-047: self-healing sync — the server's player list is
+	# the authority. Spawn anything missing locally (including our
+	# own player and the host's player, both of which v3.1 could
+	# lose), and drop any ghost the server no longer lists.
+	_server_answered = true
+	var seen := {}
+	for item in players:
+		var d := item as Dictionary
+		if d.is_empty():
+			continue
+		seen[int(d.get("id", 0))] = true
+		spawn_player_remote(d)
+	for child in players_node.get_children():
+		if not seen.has(int(child.get("peer_id"))):
+			child.queue_free()
 
 
 @rpc("any_peer")
@@ -1417,9 +1582,12 @@ func request_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, v
 	# Validate: the sender must be the peer it claims to be, the room
 	# must not be full, and the spawn index must be in range.
 	var sender := multiplayer.get_remote_sender_id()
+	print("SPAWN REQ: from sender=", sender, " claiming pid=", pid, " version='", version, "' players=", players_node.get_child_count(), "/", max_players)
 	if sender != 0 and sender != pid:
+		print("SPAWN REQ: REJECTED sender != pid")
 		return
 	if players_node.get_child_count() >= max_players:
+		print("SPAWN REQ: REJECTED room full")
 		return
 	_do_spawn(pid, pname, color_idx, helmet_style)
 
@@ -1428,12 +1596,20 @@ func _on_peer_connected(id: int) -> void:
 	print("Peer connected: ", id)
 	# v2: do NOT spawn here. The client sends request_spawn once its
 	# game scene (with MultiplayerSpawner) is ready.
+	# v3.2 QA-047: but DO re-send every already-spawned player to the
+	# newcomer. The spawner's late-joiner catch-up only covers peers
+	# that connect while the spawner is in the tree; our client
+	# connected while the host was still in the menu, so without this
+	# the host's own player never appears on the client.
+	if multiplayer.is_server():
+		_send_all_players_to(id)
 
 
 func _on_peer_disconnected(id: int) -> void:
 	print("Peer disconnected: ", id)
 	if multiplayer.is_server():
 		_spawned.erase(id)
+		_spawn_data.erase(id) # v3.2 QA-047: the list must forget them too
 		_round_wins.erase(id)
 		clear_kill_credit(id) # QA-031: a gone victim holds no lock
 		if shooting_sync != null:
@@ -1441,6 +1617,11 @@ func _on_peer_disconnected(id: int) -> void:
 		var node := players_node.get_node_or_null(str(id))
 		if node != null:
 			node.queue_free()
+		# v3.2 QA-047: tell every remaining client directly (same
+		# reason as the explicit spawn: do not rely on the spawner
+		# alone for membership changes).
+		if multiplayer.get_peers().size() > 0:
+			rpc("despawn_player_remote", id)
 		# v2.4: a disconnect mid-match can end a Survival round or a
 		# Last Man Standing match — re-check immediately.
 		if game_mode == 2:
@@ -1460,6 +1641,10 @@ func _on_server_disconnected() -> void:
 # v2.5: dark outline for HUD text so it stays readable over bright
 # map skies (Desert, Pirate) as well as dark ones (Catacombs, Space).
 func _outline_label(l: Label) -> void:
+	# v3.2 NEON ARENA: HUD numbers in Rajdhani Bold ice, with a dark
+	# outline so they stay readable over bright and dark maps alike.
+	l.add_theme_font_override("font", FONT_BODY_BOLD)
+	l.add_theme_color_override("font_color", UI_FONT)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	l.add_theme_constant_override("outline_size", 4)
 
@@ -1484,71 +1669,43 @@ func _build_hud() -> void:
 	left.add_theme_constant_override("separation", 6)
 	top.add_child(left)
 
-	# v2.5: health and jetpack fuel as a bar PLUS a number, so both read
-	# at a glance mid-fight.
+	# v3.2: health and jetpack fuel as gohud GoBars — the bar shows
+	# its own label + number (readout VALUE, set explicitly so the
+	# demo's "1 / 1" fraction can never appear), and the value is
+	# set instantly (ease_seconds 0) so hits read at a glance.
 	var hp_row := HBoxContainer.new()
 	hp_row.add_theme_constant_override("separation", 8)
 	left.add_child(hp_row)
 
-	hp_bar = ProgressBar.new()
-	hp_bar.min_value = 0
-	hp_bar.max_value = 100
-	hp_bar.value = 100
+	hp_bar = GoBar.new()
+	hp_bar.label_text = "HP"
+	hp_bar.readout = GoBar.Readout.VALUE
+	hp_bar.thickness = 26
+	hp_bar.ease_seconds = 0.0
+	hp_bar.segments = 0
+	hp_bar.label_size = 16
+	hp_bar.ink = UI_SUCCESS
 	hp_bar.custom_minimum_size = Vector2(220, 26)
 	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hp_bar.show_percentage = false
-	var hp_bg := StyleBoxFlat.new()
-	hp_bg.bg_color = Color(0, 0, 0, 0.65)
-	hp_bg.corner_radius_top_left = 4
-	hp_bg.corner_radius_top_right = 4
-	hp_bg.corner_radius_bottom_left = 4
-	hp_bg.corner_radius_bottom_right = 4
-	hp_bar.add_theme_stylebox_override("background", hp_bg)
-	var hp_fill := StyleBoxFlat.new()
-	hp_fill.bg_color = Color(0.25, 0.85, 0.3)
-	hp_fill.corner_radius_top_left = 4
-	hp_fill.corner_radius_top_right = 4
-	hp_fill.corner_radius_bottom_left = 4
-	hp_fill.corner_radius_bottom_right = 4
-	hp_bar.add_theme_stylebox_override("fill", hp_fill)
+	hp_bar.set_values(100, 100, false)
 	hp_row.add_child(hp_bar)
-	hp_value_label = Label.new()
-	hp_value_label.text = "100"
-	hp_value_label.add_theme_font_size_override("font_size", 22)
-	_outline_label(hp_value_label)
-	hp_row.add_child(hp_value_label)
 
 	var fuel_row := HBoxContainer.new()
 	fuel_row.add_theme_constant_override("separation", 8)
 	left.add_child(fuel_row)
 
-	fuel_bar = ProgressBar.new()
-	fuel_bar.min_value = 0
-	fuel_bar.max_value = 100
-	fuel_bar.value = 100
+	fuel_bar = GoBar.new()
+	fuel_bar.label_text = "FUEL"
+	fuel_bar.readout = GoBar.Readout.VALUE
+	fuel_bar.thickness = 18
+	fuel_bar.ease_seconds = 0.0
+	fuel_bar.segments = 0
+	fuel_bar.label_size = 14
+	fuel_bar.ink = UI_ACCENT
 	fuel_bar.custom_minimum_size = Vector2(220, 18)
 	fuel_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fuel_bar.show_percentage = false
-	var fuel_bg := StyleBoxFlat.new()
-	fuel_bg.bg_color = Color(0, 0, 0, 0.65)
-	fuel_bg.corner_radius_top_left = 4
-	fuel_bg.corner_radius_top_right = 4
-	fuel_bg.corner_radius_bottom_left = 4
-	fuel_bg.corner_radius_bottom_right = 4
-	fuel_bar.add_theme_stylebox_override("background", fuel_bg)
-	var fuel_fill := StyleBoxFlat.new()
-	fuel_fill.bg_color = Color(0.25, 0.6, 0.95)
-	fuel_fill.corner_radius_top_left = 4
-	fuel_fill.corner_radius_top_right = 4
-	fuel_fill.corner_radius_bottom_left = 4
-	fuel_fill.corner_radius_bottom_right = 4
-	fuel_bar.add_theme_stylebox_override("fill", fuel_fill)
+	fuel_bar.set_values(100, 100, false)
 	fuel_row.add_child(fuel_bar)
-	fuel_value_label = Label.new()
-	fuel_value_label.text = "100"
-	fuel_value_label.add_theme_font_size_override("font_size", 18)
-	_outline_label(fuel_value_label)
-	fuel_row.add_child(fuel_value_label)
 
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1645,19 +1802,28 @@ func _build_hud() -> void:
 
 	host_ip_label = Label.new()
 	host_ip_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	# Bottom-anchored labels need BOTH offsets: offset_bottom alone
+	# leaves a negative-height rect and the text draws off-screen
+	# (the v3.2 HUD shot proved the hint was invisible this way).
+	host_ip_label.offset_top = -32
 	host_ip_label.offset_bottom = -8
 	host_ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	host_ip_label.add_theme_font_size_override("font_size", 20)
+	_outline_label(host_ip_label)
 	host_ip_label.visible = false
 	hud.add_child(host_ip_label)
 
-	# v2.4 controls: left stick moves (push up = jump/fly), right
-	# stick aims, FIRE button shoots. Say so for the first seconds.
+	# v3.2 controls: left stick moves (push up = jump/fly), right
+	# stick aims and shoots. Say so for the first seconds.
 	hint_label = Label.new()
-	hint_label.text = "Left stick: move  •  Push up: jump / fly  •  Right stick: aim  •  FIRE button: hold to shoot"
+	hint_label.text = "Left stick: move  •  Push up: jump / fly  •  Right stick: aim and shoot"
 	hint_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	# Both offsets (see host_ip_label above): offset_bottom alone
+	# gives a negative-height rect and the text draws off-screen.
+	hint_label.offset_top = -64
 	hint_label.offset_bottom = -40
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.add_theme_font_override("font", FONT_BODY_MEDIUM)
 	hint_label.add_theme_font_size_override("font_size", 18)
 	hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
 	hint_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
@@ -1750,44 +1916,63 @@ func _dialog_wrap() -> CenterContainer:
 	return w
 
 
-func _panel_style() -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.05, 0.07, 0.12, 0.92)
-	s.corner_radius_top_left = 12
-	s.corner_radius_top_right = 12
-	s.corner_radius_bottom_left = 12
-	s.corner_radius_bottom_right = 12
-	s.content_margin_left = 18
-	s.content_margin_right = 18
-	s.content_margin_top = 14
-	s.content_margin_bottom = 14
+func _cut_accent_stylebox() -> GoStyleBoxCut:
+	var sb := GoStyleBoxCut.new()
+	sb.bg_color = UI_ACCENT
+	sb.border_color = UI_ACCENT
+	sb.border_width = 1.0
+	sb.cut = 10.2
+	sb.cut_corners = GoStyleBoxCut.ALL
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	return sb
+
+
+func _panel_style() -> StyleBox:
+	# v3.2 NEON ARENA: the dialog panel comes from the gohud theme
+	# (cut corners, navy fill, steel border), duplicated so the
+	# 0.92 alpha + content margins don't mutate the shared theme.
+	var base := GoUi.theme().get_stylebox("panel", "PanelContainer")
+	var s := base.duplicate() as StyleBox
+	if s is StyleBoxFlat:
+		var f := s as StyleBoxFlat
+		var c := f.bg_color
+		c.a = 0.92
+		f.bg_color = c
+		f.content_margin_left = 18
+		f.content_margin_right = 18
+		f.content_margin_top = 14
+		f.content_margin_bottom = 14
 	return s
 
 
-# Modern HUD/dialog button: dark translucent, rounded, white text.
+# v3.2 NEON ARENA HUD/dialog button: the gohud theme drives the look
+# (cut corners, navy fill, steel border, ice text); accent buttons
+# (Resume, Rematch, Retry, Close) get the cyan fill + dark text.
+# No manual green styleboxes any more — the old v3.1 green is gone.
 func _style_hud_button(b: Button, accent: bool = false) -> void:
-	var bg := Color(0.13, 0.65, 0.32, 0.92) if accent else Color(0.10, 0.13, 0.19, 0.85)
-	var hover := Color(0.16, 0.75, 0.38, 0.95) if accent else Color(0.16, 0.21, 0.29, 0.92)
-	var pressed := Color(0.10, 0.52, 0.25, 0.95) if accent else Color(0.07, 0.09, 0.13, 0.92)
-	for kind in ["normal", "hover", "pressed"]:
-		var s := StyleBoxFlat.new()
-		s.bg_color = bg if kind == "normal" else (hover if kind == "hover" else pressed)
-		s.corner_radius_top_left = 10
-		s.corner_radius_top_right = 10
-		s.corner_radius_bottom_left = 10
-		s.corner_radius_bottom_right = 10
-		s.content_margin_left = 10
-		s.content_margin_right = 10
-		s.content_margin_top = 6
-		s.content_margin_bottom = 6
-		b.add_theme_stylebox_override(kind, s)
+	for kind in ["normal", "hover", "pressed", "disabled"]:
+		b.remove_theme_stylebox_override(kind)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	b.add_theme_color_override("font_color", Color(1, 1, 1))
+	b.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
 	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_color_override("font_color", UI_FONT)
+	b.add_theme_color_override("font_hover_color", UI_FONT)
+	b.add_theme_color_override("font_pressed_color", UI_ACCENT)
+	if accent:
+		var sb := _cut_accent_stylebox()
+		b.add_theme_stylebox_override("normal", sb)
+		b.add_theme_stylebox_override("hover", sb)
+		b.add_theme_color_override("font_color", UI_ACCENT_DARK)
+		b.add_theme_color_override("font_hover_color", UI_ACCENT_DARK)
+		b.add_theme_color_override("font_pressed_color", UI_ACCENT_DARK)
 
 
 func _build_scoreboard() -> void:
 	scoreboard_panel = PanelContainer.new()
+	scoreboard_panel.theme = GoUi.theme()
 	scoreboard_panel.custom_minimum_size = Vector2(420, 0)
 	scoreboard_panel.add_theme_stylebox_override("panel", _panel_style())
 	scoreboard_panel.visible = false
@@ -1798,7 +1983,9 @@ func _build_scoreboard() -> void:
 	var title := Label.new()
 	title.text = "SCOREBOARD"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_override("font", FONT_TITLE)
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(title)
 	scoreboard_list = VBoxContainer.new()
 	scoreboard_list.add_theme_constant_override("separation", 4)
@@ -1812,6 +1999,7 @@ func _build_scoreboard() -> void:
 
 func _build_pause_menu() -> void:
 	pause_panel = PanelContainer.new()
+	pause_panel.theme = GoUi.theme()
 	pause_panel.custom_minimum_size = Vector2(420, 0)
 	pause_panel.add_theme_stylebox_override("panel", _panel_style())
 	pause_panel.visible = false
@@ -1823,7 +2011,9 @@ func _build_pause_menu() -> void:
 	var title := Label.new()
 	title.text = "PAUSED"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", FONT_TITLE)
 	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(title)
 	var resume_btn := Button.new()
 	resume_btn.text = "Resume"
@@ -1875,6 +2065,7 @@ func _build_pause_menu() -> void:
 
 func _build_end_screen() -> void:
 	end_panel = PanelContainer.new()
+	end_panel.theme = GoUi.theme()
 	end_panel.custom_minimum_size = Vector2(480, 0)
 	end_panel.add_theme_stylebox_override("panel", _panel_style())
 	end_panel.visible = false
@@ -1886,7 +2077,9 @@ func _build_end_screen() -> void:
 	end_title = Label.new()
 	end_title.text = ""
 	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	end_title.add_theme_font_override("font", FONT_TITLE)
 	end_title.add_theme_font_size_override("font_size", 30)
+	end_title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(end_title)
 	end_list = VBoxContainer.new()
 	end_list.add_theme_constant_override("separation", 4)
@@ -1907,6 +2100,7 @@ func _build_end_screen() -> void:
 
 func _build_weapon_panel() -> void:
 	_weapon_panel = PanelContainer.new()
+	_weapon_panel.theme = GoUi.theme()
 	_weapon_panel.custom_minimum_size = Vector2(520, 0)
 	_weapon_panel.add_theme_stylebox_override("panel", _panel_style())
 	_weapon_panel.visible = false
@@ -1918,7 +2112,9 @@ func _build_weapon_panel() -> void:
 	var title := Label.new()
 	title.text = "WEAPONS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_override("font", FONT_TITLE)
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(title)
 	var hint := Label.new()
 	hint.text = "Damage is per hit. Rate is shots per second. Pick up weapons on the map — the pistol is your starting sidearm."
@@ -1957,6 +2153,7 @@ func _show_weapon_panel(show: bool) -> void:
 
 func _build_error_panel() -> void:
 	error_panel = PanelContainer.new()
+	error_panel.theme = GoUi.theme()
 	error_panel.custom_minimum_size = Vector2(520, 0)
 	error_panel.add_theme_stylebox_override("panel", _panel_style())
 	error_panel.visible = false
@@ -1968,7 +2165,9 @@ func _build_error_panel() -> void:
 	error_label.text = ""
 	error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	error_label.add_theme_font_override("font", FONT_BODY_MEDIUM)
 	error_label.add_theme_font_size_override("font_size", 22)
+	error_label.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(error_label)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -2005,9 +2204,21 @@ func _on_retry_pressed() -> void:
 	error_panel.visible = false
 	_join_failed = false
 	_join_timer = 0.0
-	# Re-announce readiness: the server will spawn us if we are missing.
-	_ready_announced = false
-	_announce_ready()
+	_spawn_retry_timer = 0.0
+	# v3.2 QA-047: Retry re-attempts the whole join, not just the spawn
+	# request. If the ENet link is still up, re-request spawn + player
+	# list. If the link itself is gone, go back to the menu with the
+	# host IP prefilled so the user can rejoin in one tap — a dropped
+	# client cannot rejoin a running match from here, because the
+	# host's lobby is gone once the match started.
+	var peer = multiplayer.multiplayer_peer
+	var connected := peer is ENetMultiplayerPeer and (peer as ENetMultiplayerPeer).get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	if connected:
+		_ready_announced = false
+		_announce_ready()
+	else:
+		GameData.last_host_ip = GameData.host_ip
+		_on_leave_pressed()
 
 
 func _on_leave_pressed() -> void:
@@ -2056,7 +2267,7 @@ func _toggle_pause() -> void:
 	get_tree().paused = not get_tree().paused
 	pause_panel.visible = get_tree().paused
 	if get_tree().paused:
-		# A finger held on FIRE while pausing must not resume firing
+		# A finger held on the aim stick while pausing must not resume firing
 		# on unpause from a stale touch (QA-016 rule).
 		_reset_all_touch_state()
 	# QA-035: the touch controls stay on top of the pause panel
@@ -2066,44 +2277,28 @@ func _toggle_pause() -> void:
 
 
 func _build_touch_controls() -> void:
-	# Phase 4 — left-handed layout (settings: FIRE button on the
-	# left): the whole control cluster mirrors — move stick to the
-	# bottom-right, aim stick to the bottom-left, FIRE to the
-	# bottom-left corner, GRENADE/WEAPON/RELOAD column to the left.
-	# Touch routing mirrors with it (see _on_touch_press).
-	var lefty := GameData.fire_button_left
+	# v3.2 (CONTROLS_CHANGE.md): fixed layout, no left-handed mirror
+	# any more — the FIRE button it mirrored with is gone. Move stick
+	# bottom-left, aim stick bottom-right, RELOAD / GRENADE / WEAPON
+	# column above the aim stick on the right.
 	move_stick = JOYSTICK_SCRIPT.new()
 	move_stick.name = "MoveStick"
-	move_stick.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT if lefty else Control.PRESET_BOTTOM_LEFT)
-	move_stick.position = Vector2(-290, -190) if lefty else Vector2(40, -190)
+	move_stick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	move_stick.position = Vector2(40, -190)
 	move_stick.size = Vector2(150, 150)
 	hud.add_child(move_stick)
 
-	# v2.4: the aim stick moved left to make room for the FIRE button
-	# at the far bottom-right corner. Aim stick centre is ~215 px from
-	# the right edge; the FIRE button centre is ~57 px from the corner,
-	# so a right thumb can hold the aim stick and tap FIRE without
-	# the two ever overlapping.
+	# v3.2: the aim stick is back at the bottom-right (it moved left in
+	# v2.4 to make room for the FIRE button) — and it is also the fire
+	# control now: pushing it aims and shoots (Mini Militia style).
+	# is_aim draws the cyan ring + crosshair cue (joystick.gd).
 	aim_stick = JOYSTICK_SCRIPT.new()
 	aim_stick.name = "AimStick"
-	aim_stick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
-	aim_stick.position = Vector2(140, -190) if lefty else Vector2(-290, -190)
+	aim_stick.is_aim = true
+	aim_stick.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	aim_stick.position = Vector2(-290, -190)
 	aim_stick.size = Vector2(150, 150)
 	hud.add_child(aim_stick)
-
-	# v2.4 FIRE button: circular, bottom-right corner, screen space
-	# (HUD CanvasLayer, so it never moves with the camera). 90 px
-	# diameter on the 1280x720 reference — inside the 75-90 px spec.
-	# Phase 4: size comes from settings (0.8-1.3x), 12 px from the
-	# corner on its side.
-	var fb_d := 90.0 * clampf(GameData.fire_button_size, 0.8, 1.3)
-	fire_button = FIRE_BUTTON_SCRIPT.new()
-	fire_button.name = "FireButton"
-	fire_button.button_radius = fb_d * 0.5
-	fire_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
-	fire_button.position = Vector2(12, -12 - fb_d) if lefty else Vector2(-12 - fb_d, -12 - fb_d)
-	fire_button.size = Vector2(fb_d, fb_d)
-	hud.add_child(fire_button)
 
 	# v2.2: no JUMP button. Pushing the left stick up jumps; holding it up
 	# while airborne is the jetpack (see player.gd). The hint label in the
@@ -2112,8 +2307,8 @@ func _build_touch_controls() -> void:
 	grenade_button.text = "GRENADE"
 	_style_hud_button(grenade_button)
 	grenade_button.custom_minimum_size = Vector2(110, 60)
-	grenade_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
-	grenade_button.position = Vector2(360, -260) if lefty else Vector2(-470, -260)
+	grenade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	grenade_button.position = Vector2(-470, -260)
 	grenade_button.pressed.connect(_on_grenade_pressed)
 	hud.add_child(grenade_button)
 
@@ -2121,8 +2316,8 @@ func _build_touch_controls() -> void:
 	switch_button.text = "WEAPON"
 	_style_hud_button(switch_button)
 	switch_button.custom_minimum_size = Vector2(110, 60)
-	switch_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
-	switch_button.position = Vector2(360, -180) if lefty else Vector2(-470, -180)
+	switch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	switch_button.position = Vector2(-470, -180)
 	switch_button.pressed.connect(_on_switch_pressed)
 	hud.add_child(switch_button)
 
@@ -2131,8 +2326,8 @@ func _build_touch_controls() -> void:
 	reload_button.text = "RELOAD"
 	_style_hud_button(reload_button)
 	reload_button.custom_minimum_size = Vector2(110, 60)
-	reload_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT if lefty else Control.PRESET_BOTTOM_RIGHT)
-	reload_button.position = Vector2(360, -340) if lefty else Vector2(-470, -340)
+	reload_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	reload_button.position = Vector2(-470, -340)
 	reload_button.pressed.connect(_on_reload_pressed)
 	hud.add_child(reload_button)
 
@@ -2166,7 +2361,7 @@ func _on_score_pressed() -> void:
 	scoreboard_panel.visible = not scoreboard_panel.visible
 	# QA-035: same as pause/end — the sticks and buttons draw over
 	# the scoreboard while it is open. Reset any held touch first so
-	# a hidden FIRE button cannot keep firing (QA-016 rule).
+	# a hidden aim stick cannot keep firing (QA-016 rule).
 	if scoreboard_panel.visible:
 		_reset_all_touch_state()
 	_set_touch_controls_visible(not scoreboard_panel.visible)
@@ -2238,7 +2433,7 @@ func _to_viewport_pos(canvas_pos: Vector2) -> Vector2:
 # Used by the player's mouse fallback (desktop testing) and by the
 # touch router.
 func is_hud_control_pos(viewport_pos: Vector2) -> bool:
-	for c in [fire_button, grenade_button, switch_button, reload_button, pause_button, score_button]:
+	for c in [grenade_button, switch_button, reload_button, pause_button, score_button]:
 		if c == null:
 			continue
 		var ctrl := c as Control
@@ -2260,29 +2455,28 @@ func _notification(what: int) -> void:
 func _reset_all_touch_state() -> void:
 	_move_touch_id = -1
 	_aim_touch_id = -1
-	_fire_touch_id = -1
 	if move_stick != null:
 		move_stick.reset_input()
 	if aim_stick != null:
 		aim_stick.reset_input()
-	if fire_button != null:
-		fire_button.reset_input()
 	touch_move_vec = Vector2.ZERO
 	touch_aim = Vector2.ZERO
 	touch_aim_active = false
 	touch_firing = false
+	_aim_fire_pending = false
+	_aim_vec_prev_nonzero = false
 
 
-# QA-035: hide/show the gameplay touch cluster (sticks, FIRE button,
+# QA-035: hide/show the gameplay touch cluster (sticks,
 # RELOAD / GRENADE / WEAPON) when a full-screen panel opens (pause,
 # scoreboard, end screen) so the controls cannot draw over the
 # panel's text and buttons. The top-right SCORE / pause buttons stay
 # visible — they sit outside the centred panels. Callers reset the
-# touch state first (see _reset_all_touch_state) so a hidden FIRE
-# button cannot keep firing. Rematch reloads the scene, so there is
+# touch state first (see _reset_all_touch_state) so a hidden stick
+# cannot keep firing. Rematch reloads the scene, so there is
 # no end-screen restore path to maintain.
 func _set_touch_controls_visible(v: bool) -> void:
-	for c in [move_stick, aim_stick, fire_button, reload_button, grenade_button, switch_button]:
+	for c in [move_stick, aim_stick, reload_button, grenade_button, switch_button]:
 		if c != null:
 			c.visible = v
 
@@ -2290,28 +2484,11 @@ func _set_touch_controls_visible(v: bool) -> void:
 func _on_touch_press(index: int, pos: Vector2) -> void:
 	# All positions here are canvas space (converted in _unhandled_input).
 	# Order matters — check the controls first, sticks last:
-	# 1. FIRE button owns its touch (firing comes only from this id).
-	# 2. GUI buttons (belt-and-braces: _unhandled_input means the GUI
+	# 1. GUI buttons (belt-and-braces: _unhandled_input means the GUI
 	#    already declined them, but a stray touch must never reach a
 	#    stick — return without routing).
-	# 3. Sticks by screen half.
-	if fire_button != null and fire_button.press_touch(index, pos):
-		_fire_touch_id = index
-		return
+	# 2. Sticks by screen half (move left, aim right).
 	if is_hud_control_pos(pos):
-		return
-	# Phase 4: in the mirrored (left-handed) layout the sticks swap
-	# sides, so route to the NEARER stick centre instead of by screen
-	# half. Default layout keeps the old half routing exactly (QA-016/
-	# QA-023 behaviour untouched).
-	if GameData.fire_button_left:
-		var dm := pos.distance_to(move_stick.get_global_rect().get_center())
-		var da := pos.distance_to(aim_stick.get_global_rect().get_center())
-		if dm <= da:
-			if move_stick.press_touch(index, pos):
-				_move_touch_id = index
-		elif aim_stick.press_touch(index, pos):
-			_aim_touch_id = index
 		return
 	var vp := get_viewport().get_visible_rect().size
 	if pos.x < vp.x * 0.5:
@@ -2322,6 +2499,14 @@ func _on_touch_press(index: int, pos: Vector2) -> void:
 	else:
 		if aim_stick.press_touch(index, pos):
 			_aim_touch_id = index
+			# v3.2: a press that lands already deflected past the dead
+			# zone arms the semi-auto shot NOW (synchronously) — a
+			# flick pressed and released between two _process frames
+			# would otherwise never be seen by _update_touch_state
+			# and the shot would be lost (QA-027 carry-over).
+			if aim_stick.get_vector() != Vector2.ZERO:
+				_aim_fire_pending = true
+				_aim_vec_prev_nonzero = true
 
 
 func _on_touch_drag(index: int, pos: Vector2) -> void:
@@ -2329,11 +2514,6 @@ func _on_touch_drag(index: int, pos: Vector2) -> void:
 		move_stick.drag_touch(index, pos)
 	elif index == _aim_touch_id:
 		aim_stick.drag_touch(index, pos)
-	elif index == _fire_touch_id:
-		if fire_button != null:
-			fire_button.drag_touch(index, pos)
-			if not fire_button.is_held():
-				_fire_touch_id = -1
 
 
 func _on_touch_release(index: int) -> void:
@@ -2343,15 +2523,19 @@ func _on_touch_release(index: int) -> void:
 	elif index == _aim_touch_id:
 		_aim_touch_id = -1
 		aim_stick.release_touch(index)
-	elif index == _fire_touch_id:
-		_fire_touch_id = -1
-		if fire_button != null:
-			fire_button.release_touch(index)
 
 
 func _process(delta: float) -> void:
 	if _leaving:
 		return
+	if _join_test_host or _join_test_client:
+		_update_jointest(delta)
+		if _join_test_done:
+			return
+	if _repl_sim_test:
+		_update_replsimtest(delta)
+		if _repl_sim_done:
+			return
 	if get_tree().paused:
 		# Touch state must not stay stale while paused: zero it so the
 		# player cannot resume firing from a finger lifted mid-pause.
@@ -2362,6 +2546,8 @@ func _process(delta: float) -> void:
 			_update_joytest(delta)
 		if _flow_test:
 			_update_flowtest(delta)
+		if _game_shots:
+			_update_gameshots(delta)
 		return
 	if _smoke_test:
 		_update_smoke_test(delta)
@@ -2392,6 +2578,9 @@ func _process(delta: float) -> void:
 	elif _features_test:
 		_update_touch_state()
 		_update_featurestest(delta)
+	elif _game_shots:
+		_update_touch_state()
+		_update_gameshots(delta)
 	else:
 		_update_touch_state()
 	# The flow test (or a button) may have started leaving mid-frame.
@@ -2417,11 +2606,13 @@ func _update_touch_state() -> void:
 		touch_aim = Vector2.ZERO
 		touch_aim_active = false
 		touch_firing = false
+		_aim_fire_pending = false
+		_aim_vec_prev_nonzero = false
 		return
-	# QA-023: get_vector() is zero unless the stick has an actively held
-	# touch, and firing is true ONLY while the FIRE button has an
-	# actively held touch — never from a stick, a stale knob position,
-	# or any other control.
+	# v3.2 (CONTROLS_CHANGE.md §2): get_vector() is zero unless the
+	# stick has an actively held touch, and firing is true ONLY while
+	# the AIM stick is deflected past its 0.20 dead zone — never from
+	# a stale knob position or any other control.
 	touch_move_vec = move_stick.get_vector()
 	var aim_vec = aim_stick.get_vector()
 	# Phase 4: invert aim (settings) flips the aim stick vertically.
@@ -2431,7 +2622,15 @@ func _update_touch_state() -> void:
 	# GAP-09: the dead zone is applied once, in joystick.gd (0.20).
 	# Any non-zero aim vector counts as aiming here.
 	touch_aim_active = aim_vec.length() > 0.0
-	touch_firing = fire_button != null and fire_button.is_held()
+	# Semi-auto edge (QA-027 carry-over): a fresh ZERO -> non-zero
+	# transition arms one pending shot, so a quick flick fires even if
+	# the finger is gone by the time the shooting step runs. Holding a
+	# semi-auto weapon deflected does NOT re-arm (no auto-repeat).
+	var aim_now: bool = aim_vec != Vector2.ZERO
+	if aim_now and not _aim_vec_prev_nonzero:
+		_aim_fire_pending = true
+	_aim_vec_prev_nonzero = aim_now
+	touch_firing = aim_now
 	# Phase 4: during the match countdown nobody moves, aims or fires
 	# — the fight starts on "FIGHT!".
 	if _countdown_active:
@@ -2439,15 +2638,30 @@ func _update_touch_state() -> void:
 		touch_aim = Vector2.ZERO
 		touch_aim_active = false
 		touch_firing = false
+		_aim_fire_pending = false
+		_aim_vec_prev_nonzero = false
+
+
+# v3.2: the pending semi-auto shot (see _update_touch_state). Peeked by
+# the player in _read_input, consumed when the shot fires, discarded on
+# reload / respawn / weapon switch.
+func has_aim_fire_edge() -> bool:
+	return _aim_fire_pending
+
+
+func consume_aim_fire_edge() -> void:
+	_aim_fire_pending = false
 
 
 func _update_hud(delta: float) -> void:
 	var lp = _get_local_player()
 	var count := players_node.get_child_count()
 	players_label.text = "Players: %d/%d" % [count, MAX_PLAYERS]
-	# Timer.
+	# Timer (THEME_SPEC.md §3): ice normally, amber under 30 s,
+	# danger red under 10 s.
 	var t := int(maxf(0.0, _time_left))
 	timer_label.text = "%d:%02d" % [t / 60, t % 60]
+	timer_label.add_theme_color_override("font_color", UI_DANGER if t < 10 else (UI_WARNING if t < 30 else UI_FONT))
 	if game_mode == 1:
 		var red := 0
 		var blue := 0
@@ -2486,10 +2700,8 @@ func _update_hud(delta: float) -> void:
 		if not _join_failed:
 			message_label.text = "Connecting..." if multiplayer.is_server() == false else "Starting..."
 		return
-	hp_bar.value = lp.health
-	hp_value_label.text = str(lp.health)
-	fuel_bar.value = lp.fuel
-	fuel_value_label.text = str(int(lp.fuel))
+	hp_bar.set_values(lp.health, 100, false)
+	fuel_bar.set_values(lp.fuel, 100, false)
 	kills_label.text = "Kills: %d" % lp.kills
 	deaths_label.text = "Deaths: %d" % lp.deaths
 	weapon_icon.texture = WEAPON_ICONS[lp.weapon]
@@ -2747,13 +2959,30 @@ func _add_kill_feed_entry(killer_id: int, victim_id: int, weapon_id: int) -> voi
 		text = "%s  ☠  %s   —  %s" % [_player_name(killer_id), victim_name, _kill_feed_weapon_text(weapon_id)]
 	var lbl := Label.new()
 	lbl.text = text
+	lbl.add_theme_font_override("font", FONT_BODY_MEDIUM)
 	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", UI_FONT)
 	_outline_label(lbl)
-	_kill_feed_list.add_child(lbl)
-	_kill_feed_entries.append({"label": lbl, "expiry": 5.0})
+	# v3.2 NEON ARENA: each feed line sits on its own dark
+	# translucent chip (THEME_SPEC.md §3) so it reads over any map.
+	var chip := PanelContainer.new()
+	var chip_bg := StyleBoxFlat.new()
+	chip_bg.bg_color = Color(0.02, 0.05, 0.09, 0.72)
+	chip_bg.corner_radius_top_left = 4
+	chip_bg.corner_radius_top_right = 4
+	chip_bg.corner_radius_bottom_left = 4
+	chip_bg.corner_radius_bottom_right = 4
+	chip_bg.content_margin_left = 8
+	chip_bg.content_margin_right = 8
+	chip_bg.content_margin_top = 2
+	chip_bg.content_margin_bottom = 2
+	chip.add_theme_stylebox_override("panel", chip_bg)
+	chip.add_child(lbl)
+	_kill_feed_list.add_child(chip)
+	_kill_feed_entries.append({"label": lbl, "panel": chip, "expiry": 5.0})
 	while _kill_feed_entries.size() > 4:
 		var old: Dictionary = _kill_feed_entries.pop_front()
-		(old["label"] as Label).queue_free()
+		(old["panel"] as PanelContainer).queue_free()
 
 
 func _update_kill_feed(delta: float) -> void:
@@ -2764,7 +2993,11 @@ func _update_kill_feed(delta: float) -> void:
 		var d: Dictionary = e
 		d["expiry"] = float(d["expiry"]) - delta
 		if float(d["expiry"]) <= 0.0:
-			(d["label"] as Label).queue_free()
+			# Free the whole chip (the label goes with it).
+			if d.has("panel"):
+				(d["panel"] as PanelContainer).queue_free()
+			else:
+				(d["label"] as Label).queue_free()
 		else:
 			kept.append(d)
 	_kill_feed_entries = kept
@@ -3006,7 +3239,262 @@ func _update_join_timeout(delta: float) -> void:
 	# Spawn retries run every 2 s in _retry_spawn_if_needed; the
 	# timeout below is the last resort.
 	if _join_timer >= JOIN_TIMEOUT:
-		_show_error("Could not connect - check the Wi-Fi and IP, then try again.")
+		# v3.2 QA-047: show the actual state instead of a generic
+		# message, so a Wi-Fi/IP problem can be told apart from a
+		# game bug: which IP was tried, whether ENet is up, whether
+		# the server answered anything, and how many players were seen.
+		var peer = multiplayer.multiplayer_peer
+		var enet_state := "no network peer"
+		if peer is ENetMultiplayerPeer:
+			enet_state = "ENet: " + str((peer as ENetMultiplayerPeer).get_connection_status())
+		_show_error("Could not connect to %s.\n%s. Server answered: %s. Players seen: %d/8.\nCheck the Wi-Fi and IP, then tap Retry." % [
+			GameData.host_ip if GameData.host_ip != "" else "the host",
+			enet_state,
+			"yes" if _server_answered else "no",
+			players_node.get_child_count()])
+
+
+# v3.2 two-peer join regression test. Runs in the game scene on
+# BOTH processes: the host auto-started the match, the client joined
+# via Quick Play (or --auto-join). After 12 s each side prints its
+# verdict and quits. The client also holds the move stick from t=2 s
+# so the host can verify the client's player actually MOVES as seen
+# on the host (the frozen-2nd-player symptom).
+func _update_jointest(delta: float) -> void:
+	if _join_test_done:
+		return
+	_join_test_timer += delta
+	_join_test_status_t += delta
+	if _join_test_client and _join_test_timer >= 2.0 and move_stick != null and not move_stick.is_active():
+		_on_touch_press(930, move_stick.get_global_rect().get_center() + Vector2(60, 0))
+	if _join_test_status_t >= 2.0:
+		_join_test_status_t = 0.0
+		var lp = _get_local_player()
+		print("JOINTEST STATUS t=", int(_join_test_timer), "s role=", "host" if _join_test_host else "client",
+			" players=", players_node.get_child_count(), " local=", lp != null,
+			" peers=", multiplayer.get_peers(), " join_failed=", _join_failed,
+			" spawned=", _spawned.keys())
+	if _join_test_host and _join_test_timer >= 8.0 and _join_test_pos_snap.is_empty():
+		for child in players_node.get_children():
+			_join_test_pos_snap[int(child.peer_id)] = child.position
+	if _join_test_timer < 12.0:
+		return
+	_join_test_done = true
+	if _join_test_host:
+		var n := players_node.get_child_count()
+		var moved := false
+		for child in players_node.get_children():
+			var pid := int(child.peer_id)
+			if pid == 1:
+				continue
+			var before: Vector2 = _join_test_pos_snap.get(pid, child.position)
+			if child.position.distance_to(before) > 50.0:
+				moved = true
+		var ok: bool = n >= 2 and moved
+		print("JOINTEST HOST: %s — players=%d spawned=%s moved_remote=%s (want players>=2 and the remote player moving)" % ["PASS" if ok else "FAIL", n, _spawned.keys(), moved])
+	else:
+		var lp2 = _get_local_player()
+		var n2 := players_node.get_child_count()
+		var conn := "?"
+		var peer = multiplayer.multiplayer_peer
+		if peer is ENetMultiplayerPeer:
+			conn = str((peer as ENetMultiplayerPeer).get_connection_status())
+		var ok2: bool = lp2 != null and n2 >= 2
+		print("JOINTEST CLIENT: %s — local_spawned=%s players=%d connection=%s join_failed=%s join_timer=%.1f (want local player + players>=2)" % ["PASS" if ok2 else "FAIL", lp2 != null, n2, conn, _join_failed, _join_timer])
+	get_tree().quit()
+
+
+# =====================================================================
+# v3.2 QA-047 — replication simulation (--repl-sim-test).
+# One process plays BOTH roles: this instance is the server, a second
+# Game instance (the shadow) is the client. The server's spawn/list
+# payloads are delivered to the shadow by hand, simulating the wire.
+# Steps: (0) server spawns host + client; (1) shadow starts at the
+# v3.1 symptom state (0 players, "Connecting..."); (2) the first
+# spawn is "lost", the client retries, the server re-sends, the
+# shadow heals via the player list; (3) double delivery stays
+# idempotent; (4) disconnect despawns on the client. Verdict + quit.
+# =====================================================================
+
+func _repl_sim_check(label: String, ok: bool, detail: String = "") -> void:
+	if ok:
+		_repl_sim_passed += 1
+		print("REPLSIM %s: PASS %s" % [label, detail])
+	else:
+		_repl_sim_failed += 1
+		print("REPLSIM %s: FAIL %s" % [label, detail])
+
+
+func _repl_sim_deliver_recorded() -> void:
+	# Hand the recorded payloads to the shadow client, in order,
+	# exactly as the network would deliver them.
+	for item in _repl_sim_sent:
+		var d := item as Dictionary
+		if d.get("kind", "") == "spawn_player_remote":
+			_repl_sim_shadow.spawn_player_remote(d.get("data", {}))
+		elif d.get("kind", "") == "player_list_remote":
+			_repl_sim_shadow.player_list_remote(d.get("data", []))
+	_repl_sim_sent.clear()
+
+
+func _update_replsimtest(delta: float) -> void:
+	if _repl_sim_done:
+		return
+	_repl_sim_timer += delta
+	match _repl_sim_step:
+		0:
+			# Wait for the deferred self-spawn, then spawn the client.
+			if _repl_sim_timer < 1.0:
+				return
+			_do_spawn(2, "SimClient", 1, 0)
+			_repl_sim_check("SERVER-SPAWN", players_node.get_child_count() == 2 and _spawn_data.size() == 2,
+				"server players=%d spawn_data=%d (want 2/2)" % [players_node.get_child_count(), _spawn_data.size()])
+			_repl_sim_server_list = _player_list_data()
+			# Shadow client: a second Game instance (same map).
+			var shadow = load("res://game.tscn").instantiate()
+			_repl_sim_shadow = shadow
+			get_tree().root.add_child(shadow)
+			shadow._repl_sim_test = false # this instance owns the sim
+			shadow._repl_sim_done = true
+			_repl_sim_step = 1
+			_repl_sim_timer = 0.0
+		1:
+			# Wait for the shadow's own deferred self-spawn, then reset
+			# it to the v3.1 symptom state: 0 players, no local player.
+			if _repl_sim_timer < 1.5:
+				return
+			for child in _repl_sim_shadow.players_node.get_children():
+				child.queue_free()
+			# Freeing is deferred: wait a frame before counting.
+			_repl_sim_step = 2
+			_repl_sim_timer = 0.0
+		2:
+			if _repl_sim_timer < 0.3:
+				return
+			_repl_sim_shadow._spawned.clear()
+			_repl_sim_shadow._spawn_data.clear()
+			_repl_sim_shadow._local_player = null
+			_repl_sim_shadow._server_answered = false
+			_repl_sim_shadow._update_hud(0.0)
+			_repl_sim_check("BUG-STATE", _repl_sim_shadow.players_node.get_child_count() == 0 and (_repl_sim_shadow.message_label.text == "Connecting..." or _repl_sim_shadow.message_label.text == "Starting..."),
+				"shadow players=%d message='%s' (v3.1 symptom reproduced; a real ENet client shows 'Connecting...', the offline shadow shows 'Starting...')" % [_repl_sim_shadow.players_node.get_child_count(), _repl_sim_shadow.message_label.text])
+			# The first spawn is "lost" (v3.1): deliver nothing. The
+			# client retries -> server re-sends -> deliver by hand.
+			_repl_sim_sent.clear()
+			_do_spawn(2, "SimClient", 1, 0) # retry: already spawned
+			_repl_sim_check("RETRY-RESEND", _repl_sim_sent.size() == 3 and players_node.get_child_count() == 2,
+				"re-sent payloads=%d server players=%d (want 3 payloads, still 2 players)" % [_repl_sim_sent.size(), players_node.get_child_count()])
+			_repl_sim_deliver_recorded()
+			_repl_sim_step = 3
+			_repl_sim_timer = 0.0
+		3:
+			if _repl_sim_timer < 0.3:
+				return
+			_repl_sim_shadow._update_hud(0.0)
+			var lp = _repl_sim_shadow.players_node.get_node_or_null("2")
+			_repl_sim_check("CLIENT-HEALED", _repl_sim_shadow.players_node.get_child_count() == 2 and lp != null,
+				"shadow players=%d has_peer2=%s (want 2/true)" % [_repl_sim_shadow.players_node.get_child_count(), lp != null])
+			_repl_sim_check("CONNECTING-CLEARS", _repl_sim_shadow.message_label.text != "Connecting..." and _repl_sim_shadow._get_local_player() != null,
+				"message='%s' local=%s (want no 'Connecting...', local player found)" % [_repl_sim_shadow.message_label.text, _repl_sim_shadow._get_local_player() != null])
+			_repl_sim_check("HOST-PLAYER-TOO", _repl_sim_shadow.players_node.get_node_or_null("1") != null,
+				"host player visible on the client (v3.1 lost it as well)")
+			# The synchronizer's node name is auto-uniquified at runtime
+			# ("@MultiplayerSynchronizer@1335"), so find it by type.
+			var sync_node = null
+			if lp != null:
+				for c in lp.get_children():
+					if c is MultiplayerSynchronizer:
+						sync_node = c
+						break
+			_repl_sim_check("SYNC-CHANNEL", sync_node != null and lp != null and lp.get_multiplayer_authority() == 2,
+				"client player has synchronizer=%s authority=%s (input flows to host via this)" % [sync_node != null, lp.get_multiplayer_authority() if lp != null else -1])
+			# Double delivery must stay idempotent.
+			_repl_sim_shadow.player_list_remote(_repl_sim_server_list)
+			_repl_sim_step = 4
+			_repl_sim_timer = 0.0
+		4:
+			if _repl_sim_timer < 0.3:
+				return
+			_repl_sim_check("IDEMPOTENT", _repl_sim_shadow.players_node.get_child_count() == 2,
+				"shadow players=%d after the list arrived twice (want 2)" % [_repl_sim_shadow.players_node.get_child_count()])
+			# Disconnect: server forgets peer 2, client must despawn it.
+			_on_peer_disconnected(2)
+			_repl_sim_shadow.despawn_player_remote(2)
+			_repl_sim_step = 5
+			_repl_sim_timer = 0.0
+		5:
+			if _repl_sim_timer < 0.3:
+				return
+			_repl_sim_check("DESPAWN", players_node.get_child_count() == 1 and _repl_sim_shadow.players_node.get_child_count() == 1,
+				"server players=%d shadow players=%d (want 1/1)" % [players_node.get_child_count(), _repl_sim_shadow.players_node.get_child_count()])
+			# Steps 6-8: the signal-path checks (QA-047 audit items).
+			# Re-spawn peer 2 on the server, then reset the shadow to
+			# 0 players and heal it ONLY via the peer_connected
+			# signal handler — the path a late joiner takes.
+			_do_spawn(2, "SimClient", 1, 0)
+			for child in _repl_sim_shadow.players_node.get_children():
+				child.queue_free()
+			_repl_sim_shadow._spawned.clear()
+			_repl_sim_shadow._spawn_data.clear()
+			_repl_sim_shadow._local_player = null
+			_repl_sim_shadow._server_answered = false
+			_repl_sim_sent.clear()
+			_on_peer_connected(2)
+			_repl_sim_step = 6
+			_repl_sim_timer = 0.0
+		6:
+			if _repl_sim_timer < 0.3:
+				return
+			# SIGNAL-ORDER: the handlers were connected in _ready,
+			# before any event could fire (a connection made after
+			# the event is the classic missed-signal race).
+			_repl_sim_check("SIGNAL-ORDER", multiplayer.peer_connected.is_connected(_on_peer_connected) and multiplayer.peer_disconnected.is_connected(_on_peer_disconnected) and multiplayer.server_disconnected.is_connected(_on_server_disconnected) and _repl_sim_shadow.multiplayer.peer_connected.is_connected(_repl_sim_shadow._on_peer_connected),
+				"peer_connected/disconnected + server_disconnected connected on server and shadow (want all true)")
+			# SIGNAL-PEER-CONNECTED: the recorded payloads came from
+			# the signal handler; delivering them must heal the shadow.
+			_repl_sim_check("SIGNAL-PEER-CONNECTED", _repl_sim_sent.size() == 3,
+				"payloads recorded by the signal handler=%d (want 3: spawn x2 + list)" % _repl_sim_sent.size())
+			_repl_sim_deliver_recorded()
+			_repl_sim_shadow._update_hud(0.0)
+			_repl_sim_check("SIGNAL-HEALS", _repl_sim_shadow.players_node.get_child_count() == 2 and _repl_sim_shadow.players_node.get_node_or_null("2") != null and _repl_sim_shadow.message_label.text != "Connecting..." and _repl_sim_shadow.message_label.text != "Starting...",
+				"shadow players=%d message='%s' (want 2, no waiting text)" % [_repl_sim_shadow.players_node.get_child_count(), _repl_sim_shadow.message_label.text])
+			# SIGNAL-GUARD: _ready_announced blocks a double announce
+			# (checked on the server branch, which returns before any
+			# RPC — the guard logic is identical on the client).
+			_ready_announced = false
+			_announce_ready()
+			var guard_set := _ready_announced
+			_announce_ready()
+			_repl_sim_check("SIGNAL-GUARD", guard_set and _ready_announced,
+				"flag set after first announce=%s, still set after second (double announce is a no-op)=%s" % [guard_set, _ready_announced])
+			# CONTROLS-ATTACH: hold the move stick and watch the
+			# shadow's local player (pid 1) actually move. The press
+			# goes to THIS instance's stick: a player finds its game
+			# via get_first_node_in_group("game"), and in this one
+			# process that is the server instance — so the shadow's
+			# player reads the server instance's input state. (On a
+			# real phone there is only one game instance, so the
+			# client reads its own.) The shadow's own stick state is
+			# verified by the debug print in step 7.
+			var lp0 = _repl_sim_shadow.players_node.get_node_or_null("1")
+			if lp0 != null:
+				_repl_sim_move_start = lp0.position
+				_on_touch_press(930, move_stick.get_global_rect().get_center() + Vector2(60, 0))
+			_repl_sim_step = 7
+			_repl_sim_timer = 0.0
+		7:
+			if _repl_sim_timer < 1.0:
+				return
+			var lp1 = _repl_sim_shadow.players_node.get_node_or_null("1")
+			var moved := 0.0
+			if lp1 != null:
+				moved = lp1.position.distance_to(_repl_sim_move_start)
+			_on_touch_release(930)
+			_repl_sim_check("CONTROLS-ATTACH", moved > 50.0,
+				"list-spawned local player moved %.0f px under the move stick (want >50)" % moved)
+			_repl_sim_done = true
+			print("REPLSIM DONE: %d passed, %d failed (simulated wire only — live two-phone ENet still needs real phones, see BUGS.md QA-047)" % [_repl_sim_passed, _repl_sim_failed])
+			get_tree().quit()
 
 
 func _update_match_timer(delta: float) -> void:
@@ -3258,7 +3746,7 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 	end_panel.visible = true
 	# QA-035: hide the touch controls under the end panel — the
 	# RELOAD/GRENADE/WEAPON column sat on top of the stats rows and
-	# the Rematch button (the FIRE button and sticks are dead input
+	# the Rematch button (the sticks are dead input
 	# once the match is over, so hiding them loses nothing).
 	_reset_all_touch_state()
 	_set_touch_controls_visible(false)
@@ -3432,6 +3920,7 @@ func _smoke_set_aim(offset) -> void:
 		if _smoke_aim_idx != -1:
 			_on_touch_release(_smoke_aim_idx)
 			_smoke_aim_idx = -1
+		_smoke_fire_owns_aim = false
 		return
 	var pos: Vector2 = aim_stick.get_global_rect().get_center() + offset
 	if _smoke_aim_idx == -1:
@@ -3442,16 +3931,22 @@ func _smoke_set_aim(offset) -> void:
 
 
 func _smoke_set_fire(held: bool) -> void:
-	# v2.4: firing comes from the FIRE button, not the aim stick.
-	# Drives the real touch routing (fake index 952) like a thumb.
+	# v3.2: firing comes from the AIM stick — "fire" means holding the
+	# aim stick deflected. If the aim stick is already held by
+	# _smoke_set_aim, firing is already happening; otherwise hold it
+	# at a fixed firing offset (60,0) so the perf test can churn
+	# bullets without an aim driver. Ownership is tracked so a
+	# release here never drops an aim press owned by _smoke_set_aim.
 	if held:
-		if _smoke_fire_idx == -1:
-			_smoke_fire_idx = 952
-			_on_touch_press(_smoke_fire_idx, fire_button.get_global_rect().get_center())
+		if _smoke_aim_idx == -1:
+			_smoke_aim_idx = 951
+			_smoke_fire_owns_aim = true
+			_on_touch_press(_smoke_aim_idx, aim_stick.get_global_rect().get_center() + Vector2(60, 0))
 	else:
-		if _smoke_fire_idx != -1:
-			_on_touch_release(_smoke_fire_idx)
-			_smoke_fire_idx = -1
+		if _smoke_fire_owns_aim and _smoke_aim_idx != -1:
+			_on_touch_release(_smoke_aim_idx)
+			_smoke_aim_idx = -1
+			_smoke_fire_owns_aim = false
 
 
 func _update_smoke_test(delta: float) -> void:
@@ -3459,8 +3954,8 @@ func _update_smoke_test(delta: float) -> void:
 	var phase := int(_smoke_elapsed / 1.0)
 	# Phases (1s each): 0-1 idle, 2-3 move right, 4 small push, 5 move left,
 	# 6 release, 7-8 stick-up jump+jetpack, 9 land, 10-11 aim up-right+fire,
-	# 12 aim left+fire, 13 aim down (below fire threshold), 14 grenade,
-	# 15 weapon switch, 16+ summary.
+	# 12 aim left+fire, 13 tiny push below the dead zone (no aim, no fire),
+	# 14 grenade, 15 weapon switch, 16+ summary.
 	if phase != _smoke_phase:
 		_smoke_phase = phase
 		_log_smoke_phase(phase)
@@ -3489,9 +3984,11 @@ func _update_smoke_test(delta: float) -> void:
 		_smoke_set_aim(Vector2(-60, 0))
 		_smoke_set_fire(true)
 	elif _smoke_elapsed >= 13.0 and _smoke_elapsed < 14.0:
-		# Small down push: aims (0.32 > 0.25) but the FIRE button is
-		# released, so this phase aims without firing (aim-only check).
-		_smoke_set_aim(Vector2(0, 24))
+		# v3.2: there is no aim-without-fire any more — any deflection
+		# past the dead zone fires. This phase now pushes (0,10),
+		# BELOW the 0.20 dead zone, so the stick stays centred: no
+		# aim, no fire (dead-zone check).
+		_smoke_set_aim(Vector2(0, 10))
 		_smoke_set_fire(false)
 	else:
 		_smoke_set_aim(null)
@@ -3541,6 +4038,48 @@ func _capture_shot(path: String) -> void:
 	var img := get_viewport().get_texture().get_image()
 	var err := img.save_png(path)
 	print("SMOKE: screenshot ", path, " err=", err, " size=", img.get_size())
+
+
+# v3.2 GAME-SCREENSHOT MODE (--game-shots): staged captures of the
+# in-game screens for the visual review (THEME_SPEC.md §9) — the
+# countdown, the HUD (with a kill-feed chip), pause, scoreboard and
+# the end screen. Runs as auto-host; the countdown is NOT skipped
+# (this flag is deliberately left out of _is_test_mode in _ready).
+# Stages are 1 s apart so the async capture (2 frames) lands while
+# the screen is still in the staged state.
+func _update_gameshots(delta: float) -> void:
+	_gs_timer += delta
+	var stage := int(_gs_timer / 1.0)
+	if stage == _gs_stage:
+		return
+	_gs_stage = stage
+	match stage:
+		0:
+			pass # countdown "3" is showing
+		1:
+			_capture_shot("user://shot_countdown.png")
+		4:
+			# Countdown done — HUD + hint visible. Seed one kill-feed
+			# entry so the chip renders in the HUD shot.
+			_add_kill_feed_entry(1, 1, 0)
+			_capture_shot("user://shot_hud.png")
+		5:
+			if not get_tree().paused:
+				_toggle_pause()
+			_capture_shot("user://shot_pause.png")
+		6:
+			if get_tree().paused:
+				_toggle_pause()
+			_on_score_pressed()
+			_capture_shot("user://shot_scoreboard.png")
+		7:
+			if scoreboard_panel.visible:
+				_on_score_pressed()
+			_end_match("You", "screenshot — first to 10 kills")
+			_capture_shot("user://shot_end.png")
+		8:
+			print("GAMESHOTS DONE")
+			get_tree().quit()
 
 
 func _log_smoke_phase(phase: int) -> void:
@@ -3668,17 +4207,23 @@ func _jt_release_aim() -> void:
 	_on_touch_release(901)
 
 
-# v2.4: FIRE-button helpers (fake touch index 902) for the tests.
-func _jt_fire_center() -> Vector2:
-	return fire_button.get_global_rect().get_center()
+# v3.2: the FIRE button is gone — "fire" means deflecting the AIM
+# stick (fake touch index 902). If the aim stick is already held by
+# _jt_press_aim (901), pressing "fire" is a no-op (it already fires);
+# otherwise the 902 press owns the aim stick until released.
+var _jt_fire_owns_aim: bool = false
 
 
 func _jt_press_fire() -> void:
-	_on_touch_press(902, _jt_fire_center())
+	if not aim_stick.is_active():
+		_jt_fire_owns_aim = true
+		_on_touch_press(902, _jt_aim_center() + Vector2(60, 0))
 
 
 func _jt_release_fire() -> void:
-	_on_touch_release(902)
+	if _jt_fire_owns_aim:
+		_on_touch_release(902)
+		_jt_fire_owns_aim = false
 
 
 func _jt_press_aim_fire() -> void:
@@ -3839,10 +4384,10 @@ func _jt_s_multi_touch() -> void:
 
 func _jt_c_multi_touch() -> Array:
 	var lp = _jt_lp()
-	# v2.4: move + aim + FIRE are three independent fingers; firing
-	# comes only from the FIRE button.
-	var ok: bool = move_stick.is_active() and aim_stick.is_active() and fire_button.is_held() and touch_firing and lp._shots_fired > _joy_shots_before
-	return [ok, "move_active=%s aim_active=%s fire_held=%s firing=%s shots=%d (was %d)" % [move_stick.is_active(), aim_stick.is_active(), fire_button.is_held(), touch_firing, lp._shots_fired, _joy_shots_before]]
+	# v3.2: move + aim are two independent fingers; deflecting the aim
+	# stick fires (no separate FIRE finger any more).
+	var ok: bool = move_stick.is_active() and aim_stick.is_active() and touch_firing and lp._shots_fired > _joy_shots_before
+	return [ok, "move_active=%s aim_active=%s firing=%s shots=%d (was %d)" % [move_stick.is_active(), aim_stick.is_active(), touch_firing, lp._shots_fired, _joy_shots_before]]
 
 
 func _jt_s_release_move_only() -> void:
@@ -3850,14 +4395,16 @@ func _jt_s_release_move_only() -> void:
 
 
 func _jt_c_release_move_only() -> Array:
-	# Releasing the move finger must NOT disturb the aim finger or
-	# the FIRE finger.
-	var ok: bool = touch_move_vec == Vector2.ZERO and not move_stick.is_active() and aim_stick.is_active() and fire_button.is_held() and touch_firing
-	return [ok, "move_vec=%s move_active=%s aim_active=%s fire_held=%s firing=%s" % [touch_move_vec, move_stick.is_active(), aim_stick.is_active(), fire_button.is_held(), touch_firing]]
+	# Releasing the move finger must NOT disturb the aim finger —
+	# the aim stick stays held and keeps firing.
+	var ok: bool = touch_move_vec == Vector2.ZERO and not move_stick.is_active() and aim_stick.is_active() and touch_firing
+	return [ok, "move_vec=%s move_active=%s aim_active=%s firing=%s" % [touch_move_vec, move_stick.is_active(), aim_stick.is_active(), touch_firing]]
 
 
 func _jt_s_release_fire() -> void:
-	_jt_release_fire()
+	# v3.2: "release fire" means releasing the AIM stick — firing
+	# stops the moment the stick returns to centre.
+	_jt_release_aim()
 	# QA-029: refresh the touch state NOW, then capture the baseline.
 	# touch_firing only updates in _update_touch_state(), so without
 	# this a physics step between the release and the next _process
@@ -3867,11 +4414,11 @@ func _jt_s_release_fire() -> void:
 
 
 func _jt_c_release_fire_stops_fire() -> Array:
-	# v2.4: releasing FIRE stops the shooting, while the aim stick
-	# stays held — proving the aim stick alone never fires.
+	# v3.2: releasing the aim stick stops the shooting (there is no
+	# separate FIRE finger any more — the aim stick IS the fire control).
 	var lp = _jt_lp()
-	var ok: bool = not touch_firing and not fire_button.is_held() and aim_stick.is_active() and lp._shots_fired == _joy_shots_before
-	return [ok, "firing=%s fire_held=%s aim_active=%s shots=%d (was %d)" % [touch_firing, fire_button.is_held(), aim_stick.is_active(), lp._shots_fired, _joy_shots_before]]
+	var ok: bool = not touch_firing and not aim_stick.is_active() and lp._shots_fired == _joy_shots_before
+	return [ok, "firing=%s aim_active=%s shots=%d (was %d)" % [touch_firing, aim_stick.is_active(), lp._shots_fired, _joy_shots_before]]
 
 
 func _jt_s_press_aim() -> void:
@@ -3896,7 +4443,6 @@ func _jt_s_focus_out() -> void:
 	_notification(NOTIFICATION_WM_WINDOW_FOCUS_OUT)
 	move_stick._notification(NOTIFICATION_WM_WINDOW_FOCUS_OUT)
 	aim_stick._notification(NOTIFICATION_WM_WINDOW_FOCUS_OUT)
-	fire_button._notification(NOTIFICATION_WM_WINDOW_FOCUS_OUT)
 	# QA-029: capture the shot baseline AFTER the reset, not in the
 	# previous step's check — a shot can legitimately fire in the one
 	# frame between that check and this reset (the finger is still
@@ -3911,8 +4457,8 @@ func _jt_c_focus_out_reset() -> Array:
 	var lp = _jt_lp()
 	# A stale drag with the old aim touch index must NOT re-activate it.
 	_on_touch_drag(901, _jt_aim_center() + Vector2(42, -42))
-	var ok: bool = not touch_firing and touch_move_vec == Vector2.ZERO and touch_aim == Vector2.ZERO and not move_stick.is_active() and not aim_stick.is_active() and not fire_button.is_held() and lp._shots_fired == _joy_shots_before
-	return [ok, "firing=%s move_vec=%s aim_vec=%s move_active=%s aim_active=%s fire_held=%s shots=%d (was %d)" % [touch_firing, touch_move_vec, touch_aim, move_stick.is_active(), aim_stick.is_active(), fire_button.is_held(), lp._shots_fired, _joy_shots_before]]
+	var ok: bool = not touch_firing and touch_move_vec == Vector2.ZERO and touch_aim == Vector2.ZERO and not move_stick.is_active() and not aim_stick.is_active() and lp._shots_fired == _joy_shots_before
+	return [ok, "firing=%s move_vec=%s aim_vec=%s move_active=%s aim_active=%s shots=%d (was %d)" % [touch_firing, touch_move_vec, touch_aim, move_stick.is_active(), aim_stick.is_active(), lp._shots_fired, _joy_shots_before]]
 
 
 func _jt_s_kill_and_aim_fire() -> void:
@@ -4086,8 +4632,8 @@ func _scaletest_build_steps() -> void:
 		_scale_steps.append({"name": tag + "-AIM-CENTRE", "wait": 0.3, "setup": _st_s_press_aim_centre, "check": _st_c_aim_centre})
 		_scale_steps.append({"name": tag + "-AIM-UP", "wait": 0.3, "setup": _st_s_drag_aim.bind(Vector2(0, -60)), "check": _st_c_aim_up})
 		_scale_steps.append({"name": tag + "-AIM-RELEASE", "wait": 0.3, "setup": _st_s_release_aim, "check": _st_c_aim_released})
-		_scale_steps.append({"name": tag + "-FIRE-CENTRE", "wait": 0.3, "setup": _st_s_press_fire_centre, "check": _st_c_fire_held})
-		_scale_steps.append({"name": tag + "-FIRE-RELEASE", "wait": 0.3, "setup": _st_s_release_fire, "check": _st_c_fire_released})
+		_scale_steps.append({"name": tag + "-AIM-FIRE-CENTRE", "wait": 0.3, "setup": _st_s_press_fire_centre, "check": _st_c_fire_held})
+		_scale_steps.append({"name": tag + "-AIM-FIRE-RELEASE", "wait": 0.3, "setup": _st_s_release_fire, "check": _st_c_fire_released})
 
 
 # --- Scale-test touch drivers: real _unhandled_input with viewport pixels ---
@@ -4160,7 +4706,11 @@ func _st_s_release_aim() -> void:
 
 
 func _st_s_press_fire_centre() -> void:
-	_st_press(922, _st_screen_center(fire_button))
+	# v3.2: no FIRE button — the scale check now presses the AIM
+	# stick's screen centre and drags it 60 px right: the deflection
+	# must register as aiming AND firing at every resolution.
+	_st_press(922, _st_screen_center(aim_stick))
+	_st_drag(922, _st_screen_center(aim_stick) + Vector2(60, 0))
 
 
 func _st_s_release_fire() -> void:
@@ -4241,13 +4791,13 @@ func _st_c_aim_released() -> Array:
 
 
 func _st_c_fire_held() -> Array:
-	var ok: bool = fire_button.is_held()
-	return [ok, "held=%s" % fire_button.is_held()]
+	var ok: bool = touch_firing and aim_stick.is_active()
+	return [ok, "firing=%s aim_active=%s" % [touch_firing, aim_stick.is_active()]]
 
 
 func _st_c_fire_released() -> Array:
-	var ok: bool = not fire_button.is_held()
-	return [ok, "held=%s" % fire_button.is_held()]
+	var ok: bool = not touch_firing and touch_aim == Vector2.ZERO
+	return [ok, "firing=%s aim=%s" % [touch_firing, touch_aim]]
 
 
 # =====================================================================
@@ -4725,11 +5275,15 @@ func _ct_c_walk_passes_bush() -> Array:
 
 
 # =====================================================================
-# v2.4 FIRE-BUTTON ACCEPTANCE TEST (--fire-test)
+# v3.2 RIGHT-STICK-FIRE ACCEPTANCE TEST (--fire-test)
 # Drives the REAL touch routing with simulated touches (fake indices
-# 910/911/912), like the joystick test. Covers the spec's 12 scenarios
-# plus the QA-023 glitch regressions (move/aim/grenade/weapon must
-# never fire the gun).
+# 910 move / 911 aim), like the joystick test. Covers the
+# CONTROLS_CHANGE.md §5 cases: untouched 0 shots, aim deflect fires +
+# aim matches, release stops, move/grenade/weapon/reload/pause/score
+# alone 0 shots, move+aim-fire together, semi-auto flick exactly 1 +
+# hold exactly 1, auto hold continuous at table rate, no fire dead /
+# paused / match-end, focus-out reset — plus the QA-023 glitch
+# regressions (move/grenade/weapon must never fire the gun).
 # =====================================================================
 
 func _update_firetest(delta: float) -> void:
@@ -4782,7 +5336,7 @@ func _update_firetest(delta: float) -> void:
 		else:
 			_fire_failed += 1
 		print("FIRETEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
-		# QA-036: the T-33 rapid-tap driver must not leak into the
+		# QA-047: the T-33 rapid-tap driver must not leak into the
 		# next step. Under load its last tap can still be pending
 		# when this step ends (physics runs behind real time, so
 		# the 10th shot lands late) — the driver would then release
@@ -4800,7 +5354,7 @@ func _update_firetest(delta: float) -> void:
 func _firetest_build_steps() -> void:
 	_fire_steps = [
 		{"name": "MOVE-ALONE-NO-FIRE", "wait": 1.0, "setup": _ft_s_move_alone, "check": _ft_c_move_alone},
-		{"name": "AIM-ALONE-NO-FIRE", "wait": 1.0, "setup": _ft_s_aim_alone, "check": _ft_c_aim_alone},
+		{"name": "AIM-ALONE-FIRES", "wait": 1.0, "setup": _ft_s_aim_alone, "check": _ft_c_aim_alone},
 		{"name": "GRENADE-ALONE-NO-FIRE", "wait": 0.4, "setup": _ft_s_grenade_alone, "check": _ft_c_grenade_alone},
 		{"name": "WEAPON-ALONE-NO-FIRE", "wait": 0.4, "setup": _ft_s_weapon_alone, "check": _ft_c_weapon_alone},
 		{"name": "PISTOL-TAP-ONE-SHOT", "wait": 0.4, "setup": _ft_s_pistol_tap, "check": _ft_c_pistol_tap},
@@ -4828,7 +5382,11 @@ func _firetest_build_steps() -> void:
 	]
 
 
-# --- Fire-test helpers (fake touch indices 910 move / 911 aim / 912 fire) ---
+# --- Fire-test helpers (fake touch indices 910 move / 911 aim) ---
+# v3.2: there is no FIRE button — "press fire" means deflecting the
+# AIM stick. If the aim stick is already held by _ft_press_aim, the
+# press is a no-op (it already fires); otherwise the 911 press owns
+# the aim stick until _ft_release_fire.
 
 func _ft_lp():
 	return _get_local_player()
@@ -4840,10 +5398,6 @@ func _ft_move_center() -> Vector2:
 
 func _ft_aim_center() -> Vector2:
 	return aim_stick.get_global_rect().get_center()
-
-
-func _ft_fire_center() -> Vector2:
-	return fire_button.get_global_rect().get_center()
 
 
 func _ft_press_move(offset: Vector2) -> void:
@@ -4860,14 +5414,19 @@ func _ft_press_aim(offset: Vector2) -> void:
 
 func _ft_release_aim() -> void:
 	_on_touch_release(911)
+	_ft_fire_owns_aim = false
 
 
 func _ft_press_fire() -> void:
-	_on_touch_press(912, _ft_fire_center())
+	if not aim_stick.is_active():
+		_ft_fire_owns_aim = true
+		_on_touch_press(911, _ft_aim_center() + Vector2(60, 0))
 
 
 func _ft_release_fire() -> void:
-	_on_touch_release(912)
+	if _ft_fire_owns_aim:
+		_on_touch_release(911)
+		_ft_fire_owns_aim = false
 
 
 func _ft_set_weapon(id: int) -> void:
@@ -4916,8 +5475,10 @@ func _ft_s_aim_alone() -> void:
 
 
 func _ft_c_aim_alone() -> Array:
+	# v3.2: the aim stick IS the fire control — deflecting it fires.
+	# A (42,-42) push must aim up-right AND shoot.
 	var lp = _ft_lp()
-	var ok: bool = lp._shots_fired == _fire_shots_before and not touch_firing and absf(lp.aim_angle + PI * 0.25) < 0.35
+	var ok: bool = lp._shots_fired > _fire_shots_before and touch_firing and absf(lp.aim_angle + PI * 0.25) < 0.35
 	_ft_release_aim()
 	return [ok, "shots=%d (was %d) firing=%s aim_angle=%.2f" % [lp._shots_fired, _fire_shots_before, touch_firing, lp.aim_angle]]
 
@@ -4932,7 +5493,7 @@ func _ft_s_grenade_alone() -> void:
 func _ft_c_grenade_alone() -> Array:
 	var lp = _ft_lp()
 	# QA-023: a GRENADE tap must never grab a stick or fire the gun.
-	var ok: bool = lp._shots_fired == _fire_shots_before and not touch_firing and not move_stick.is_active() and not aim_stick.is_active() and not fire_button.is_held()
+	var ok: bool = lp._shots_fired == _fire_shots_before and not touch_firing and not move_stick.is_active() and not aim_stick.is_active()
 	_on_touch_release(913)
 	# The button handler itself still works: one grenade thrown.
 	_on_grenade_pressed()
@@ -4950,7 +5511,7 @@ func _ft_s_weapon_alone() -> void:
 
 func _ft_c_weapon_alone() -> Array:
 	var lp = _ft_lp()
-	var ok: bool = lp._shots_fired == _fire_shots_before and not touch_firing and not move_stick.is_active() and not aim_stick.is_active() and not fire_button.is_held()
+	var ok: bool = lp._shots_fired == _fire_shots_before and not touch_firing and not move_stick.is_active() and not aim_stick.is_active()
 	_on_touch_release(914)
 	_on_switch_pressed()
 	ok = ok and lp.weapon != _fire_weapon_before
@@ -5213,25 +5774,28 @@ func _ft_c_slide_off_a() -> Array:
 
 
 func _ft_s_slide_off_b() -> void:
-	# Drag the FIRE finger far off the button (300 px right).
-	_on_touch_drag(912, _ft_fire_center() + Vector2(300, 0))
+	# v3.2: unlike the old FIRE button, sliding the aim finger off
+	# the stick base does NOT stop firing — the knob clamps at the
+	# radius and the deflection persists (Mini Militia behaviour).
+	# Only releasing the stick stops the shooting.
+	_on_touch_drag(911, _ft_aim_center() + Vector2(300, 0))
 	# QA-029: refresh the touch state NOW, then capture the baseline,
-	# so no physics step after the drag can see the stale "firing"
-	# value and fire one extra shot.
+	# so no physics step after the drag can see a stale value.
 	_update_touch_state()
 	_fire_shots_before = _ft_lp()._shots_fired
 
 
 func _ft_c_slide_off_b() -> Array:
 	var lp = _ft_lp()
-	var ok: bool = not touch_firing and not fire_button.is_held() and lp._shots_fired == _fire_shots_before
-	_on_touch_release(912)
-	return [ok, "firing=%s fire_held=%s shots=%d (was %d)" % [touch_firing, fire_button.is_held(), lp._shots_fired, _fire_shots_before]]
+	var ok: bool = touch_firing and aim_stick.is_active() and lp._shots_fired > _fire_shots_before
+	_on_touch_release(911)
+	_ft_fire_owns_aim = false
+	return [ok, "firing=%s aim_active=%s shots=%d (was %d)" % [touch_firing, aim_stick.is_active(), lp._shots_fired, _fire_shots_before]]
 
 
 func _ft_layout_ok() -> Array:
 	# No two HUD controls may overlap, and all must be inside the viewport.
-	var ctrls: Array = [move_stick, aim_stick, fire_button, grenade_button, switch_button, reload_button, pause_button, score_button]
+	var ctrls: Array = [move_stick, aim_stick, grenade_button, switch_button, reload_button, pause_button, score_button]
 	var vp := get_viewport().get_visible_rect().size
 	for i in ctrls.size():
 		var r1: Rect2 = (ctrls[i] as Control).get_global_rect()
@@ -5241,7 +5805,7 @@ func _ft_layout_ok() -> Array:
 			var r2: Rect2 = (ctrls[j] as Control).get_global_rect()
 			if r1.intersects(r2):
 				return [false, "%s overlaps %s (%s vs %s)" % [(ctrls[i] as Control).name, (ctrls[j] as Control).name, r1, r2]]
-	return [true, "8 controls, no overlaps, all inside %s" % vp]
+	return [true, "7 controls, no overlaps, all inside %s" % vp]
 
 
 func _ft_c_layout_1280() -> Array:
@@ -5268,7 +5832,7 @@ func _ft_c_layout_1920() -> Array:
 	ev.position = phys
 	_unhandled_input(ev)
 	var shots_before: int = _ft_lp()._shots_fired
-	var ok: bool = not move_stick.is_active() and not aim_stick.is_active() and not fire_button.is_held() and not touch_firing and _ft_lp()._shots_fired == shots_before
+	var ok: bool = not move_stick.is_active() and not aim_stick.is_active() and not touch_firing and _ft_lp()._shots_fired == shots_before
 	ev = InputEventScreenTouch.new()
 	ev.index = 915
 	ev.pressed = false
@@ -6161,7 +6725,7 @@ func _phys_s_jump_tap() -> void:
 	_phys_data["jump_y0"] = gp.y + 6.0
 	_jt_press_move(Vector2(0, -60))
 	# Tap: release after a short hold via a timer.
-	# QA-036: 0.15 s was the load-flake — under a loaded machine
+	# QA-047: 0.15 s was the load-flake — under a loaded machine
 	# the timer fires late in physics time and the tap apex crept
 	# to 124 px (cap 120). 0.12 s leaves the same margin on a fast
 	# machine (apex still >50 px) with less exposure to late firing.
@@ -6688,7 +7252,6 @@ func _ft_s_settings() -> void:
 		"sfx": GameData.sfx_volume, "music": GameData.music_volume,
 		"enabled": GameData.music_enabled, "sens": GameData.sensitivity,
 		"fps": GameData.show_fps, "invert": GameData.invert_aim,
-		"fbsize": GameData.fire_button_size, "fbleft": GameData.fire_button_left,
 	}
 	GameData.sfx_volume = 0.44
 	GameData.music_volume = 0.33
@@ -6696,8 +7259,6 @@ func _ft_s_settings() -> void:
 	GameData.sensitivity = 1.5
 	GameData.show_fps = true
 	GameData.invert_aim = true
-	GameData.fire_button_size = 1.2
-	GameData.fire_button_left = true
 	GameData.save_settings()
 
 
@@ -6709,10 +7270,8 @@ func _ft_c_settings() -> Array:
 	GameData.sensitivity = 0.9
 	GameData.show_fps = false
 	GameData.invert_aim = false
-	GameData.fire_button_size = 0.9
-	GameData.fire_button_left = false
 	GameData.load_settings()
-	var ok: bool = absf(GameData.sfx_volume - 0.44) < 0.01 and absf(GameData.music_volume - 0.33) < 0.01 and GameData.music_enabled == false and absf(GameData.sensitivity - 1.5) < 0.01 and GameData.show_fps == true and GameData.invert_aim == true and absf(GameData.fire_button_size - 1.2) < 0.01 and GameData.fire_button_left == true
+	var ok: bool = absf(GameData.sfx_volume - 0.44) < 0.01 and absf(GameData.music_volume - 0.33) < 0.01 and GameData.music_enabled == false and absf(GameData.sensitivity - 1.5) < 0.01 and GameData.show_fps == true and GameData.invert_aim == true
 	var fps_ok: bool = fps_label.visible
 	# Restore the player's real settings.
 	GameData.sfx_volume = float(_feat_data["sfx"])
@@ -6721,8 +7280,6 @@ func _ft_c_settings() -> Array:
 	GameData.sensitivity = float(_feat_data["sens"])
 	GameData.show_fps = bool(_feat_data["fps"])
 	GameData.invert_aim = bool(_feat_data["invert"])
-	GameData.fire_button_size = float(_feat_data["fbsize"])
-	GameData.fire_button_left = bool(_feat_data["fbleft"])
 	GameData.save_settings()
 	ok = ok and fps_ok
 	return [ok, "persist_ok=%s fps_label_visible=%s (restored real settings)" % [ok, fps_ok]]
@@ -6859,8 +7416,8 @@ func _ft_c_scoreboard() -> Array:
 
 
 func _ft_s_firelayout() -> void:
-	# Mirror routing on: presses must still land on the nearer stick.
-	GameData.fire_button_left = true
+	# v3.2: the layout is fixed (move left, aim right, no mirror) —
+	# presses must still land on the stick whose half they fall in.
 	_on_touch_press(920, _ft_move_center())
 	_on_touch_press(921, _ft_aim_center())
 
@@ -6868,12 +7425,10 @@ func _ft_s_firelayout() -> void:
 func _ft_c_firelayout() -> Array:
 	var move_ok: bool = move_stick.is_active()
 	var aim_ok: bool = aim_stick.is_active()
-	var size_ok: bool = absf(fire_button.size.x - 90.0 * clampf(GameData.fire_button_size, 0.8, 1.3)) < 1.0
 	_on_touch_release(920)
 	_on_touch_release(921)
-	GameData.fire_button_left = false
-	var ok: bool = move_ok and aim_ok and size_ok
-	return [ok, "mirror_move=%s mirror_aim=%s fire_size=%.0f (want %.0f)" % [move_ok, aim_ok, fire_button.size.x, 90.0 * clampf(GameData.fire_button_size, 0.8, 1.3)]]
+	var ok: bool = move_ok and aim_ok
+	return [ok, "move_stick=%s aim_stick=%s (fixed layout, no FIRE button)" % [move_ok, aim_ok]]
 
 
 var _feat_data: Dictionary = {}

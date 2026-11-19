@@ -150,3 +150,85 @@ COMPLETE END TO END (user requirement, 2026-11-19 ~01:36 IST): every screen and 
 - Test after EVERY phase; at the end run the FULL suite (joystick, fire button, smoke, full flow, collision on every map, multiplayer, menu network) and fix every failure. Delivery gate per spec point 26: also check performance, memory and crash stability — NEVER release with critical crashes or game-breaking multiplayer defects.
 - Deliver ~/workspace/mini-militia-lan/mini-militia-lan.apk as v3.0 / versionCode 8: clean compile, no script errors, aapt2 check, signed with the same debug keystore. Update README.md and BUGS.md (new QA entries, test log, honest limits).
 - Then iterate until 7 AM per the top of this note — use the extra three hours (4 AM → 7 AM) for more iteration loops: after v3.0 is delivered on a green full test pass, keep iterating: re-run the full checklist, hunt for bugs/glitches, improve visuals and gameplay, re-test after each change, log every iteration in BUGS.md. Final report to parent: what changed, test results per item, APK size/md5, what could not be tested here, and what is left (if anything).
+
+## Status at ~10:15 IST — v3.2 join fix (QA-047) + multiplayer testing research
+
+- **QA-047 (join/replication) FIXED in code, sim-verified 9/9**
+  (`--repl-sim-test`): explicit `spawn_player_remote` broadcast +
+  authoritative `player_list_remote` self-heal + retry re-send +
+  peer_connected re-send + explicit despawn + diagnostic error text +
+  Retry re-attempts the whole join. Net test 15/15, smoke clean,
+  scroll 8/8 after the change. `BUILD_VERSION` now "3.2".
+- **Multiplayer testing research (user request ~10:08 IST):** the
+  standard methods (two loopback instances, headless server, GUT)
+  all need real UDP — blocked in this sandbox (bind works, sendto →
+  EPERM, verified twice with Python sockets). Godot ships no virtual
+  transport (`OfflineMultiplayerPeer` is single-peer only). Best
+  available method is the in-process two-instance simulation
+  (`--repl-sim-test`, extended with signal-path checks:
+  SIGNAL-PEER-CONNECTED, SIGNAL-ORDER, SIGNAL-GUARD,
+  CONTROLS-ATTACH). Full note in BUGS.md under QA-047. Live two-peer
+  ENet still needs two real phones — README.md has the 7-step
+  acceptance test.
+- **Permissions/signal/Play audits DONE (QA-047):** aapt2 on the v3.1
+  APK confirms targetSdk 36, arm64-only, exactly the 3 networking
+  permissions (all install-time, no runtime request needed or
+  possible); no signal blocked/missed; privacy policy
+  (`PRIVACY_POLICY.md` + Settings → Privacy) and
+  `PLAY_SUBMISSION_CHECKLIST.md` written; AAB + release keystore
+  handed off to the final export worker (keystore password must come
+  from the user via Secure Vault — never in files/chat/memory).
+- **Still to do in v3.2 (priority order):** scroll at 2400x1080
+  (harness units), controls change (FIRE button → right-stick fire),
+  theme in game.gd (GoBar HUD, dialogs), screenshots of every screen,
+  full regression + QA-001…QA-036 re-verification table. Final worker
+  exports v3.2/code 10 + AAB and re-verifies.
+
+## v3.2 COMPLETE — 2026-11-19 (Worker 2 final state, green)
+
+All five priority items done and green; the project is handed over
+for independent verification + export (no APK exported, no commit
+by this worker).
+
+1. **Join/replication fix (QA-047):** spawn broadcast RPC + player-list
+   heal + retry re-send + diagnostic error + full-join Retry.
+   Repl-sim 14/14, net 15/15. Live two-phone ENet still owed to the
+   user (sandbox blocks UDP sends — verified twice).
+2. **Scroll fix (QA-048):** drag-forwarding on all buttons in the
+   three scrolled panels; 8/8 at 1280x720 AND genuine 2400x1080.
+   Two harness bugs found and fixed along the way (canvas/viewport
+   coordinate bug; check firing before the async drag finished).
+3. **Controls change (QA-049):** FIRE button deleted; right stick
+   aims + fires; semi-auto pending-edge flag; fire test 26/26
+   (found and fixed a real stale-edge bug: 24/26 → 26/26).
+4. **Theme (NEON ARENA):** gohud 1.3.0 scifi_dark everywhere, Orbitron/
+   Rajdhani, arena background + scrim, GoBar HP/fuel. All 10 screens
+   screenshotted at 1280x720 + 2400x1080 and reviewed
+   (`~/workspace/mini-militia-lan-v32-proof/v32_*.png`); two visual
+   bugs found and fixed (thin Orbitron body text → Rajdhani;
+   HUD hint + host-IP invisible since v2.5, QA-050).
+5. **Play/Android compliance:** 3 networking permissions only (all
+   install-time, none runtime); `PRIVACY_POLICY.md` (in-app in
+   settings + standalone file); `PLAY_SUBMISSION_CHECKLIST.md`.
+   NOT published; release keystore NOT created (needs the user's
+   password via Secure Vault — see the checklist).
+
+**Full regression (2026-11-19, after the last change):** joystick
+21/21, scale 70/70, smoke DONE, flow DONE, net 15/15, menu-net 6/6,
+collision 8/8, physics 31/31, features 11/11, fire 26/26, repl-sim
+14/14, scroll 8/8 × 2 resolutions — 0 script errors in every log.
+Previous-bug table QA-001…QA-047 in BUGS.md (all still fixed /
+superseded / known limitation; QA-010/011/012/013/015 are documented
+knowns, QA-024 superseded by QA-049). T-01–T-75 re-verified via
+physics 31/31; two-phone T-items (T-31/32/63/74) still owed.
+
+**Final worker must:** set `export_presets.cfg` version/code=10,
+version/name="3.2" (currently 9 / "3.1"; `GameData.BUILD_VERSION`
+already "3.2"); export APK v3.2 on the SAME debug keystore as v3.1
+(cert SHA-256 f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11)
+so it installs over v3.1; build the AAB with a release keystore
+(password from the user via Secure Vault — NOT created yet);
+re-verify with aapt2 (exactly 3 permissions, targetSdk 36,
+arm64-v8a) and re-run the suite before export. Stale Nov 18 test
+logs (`log4_*.txt`) moved out of the project root to
+`/tmp/v32_old_logs/`.

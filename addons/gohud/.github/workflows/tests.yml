@@ -1,0 +1,99 @@
+# gohud checks — on every push and PR, CI looks at what `tools/check_all.sh` looks at.
+#
+# 🛑 Why this is needed
+#   The checks already all run headless. But **nobody ran them automatically** — a human had to
+#   remember and run them locally, so something committed broken was only found days later
+#   (2026-09-16: the `standalone` check had been left failing because of a local build artifact,
+#   and once red checks feel normal, a real failure is buried with them).
+#
+# 🔑 What it runs
+#   ① Unit tests (Godot headless) — widget behaviour, and the contrast of the colors a skin
+#     produces at runtime
+#   ②~⑤ Python checks — theme contrast · website · generated files in sync · packaging gate
+#   `tools/check_all.sh` alone calls all of that. We use the **same entry point** here —
+#   when CI looks at something different from local, "it works on my machine" is born.
+#
+# 🛑 When raising the Godot version, raise `GoUi.MIN_ENGINE` with it. The checks run on the floor
+#   version itself — gohud is tested on 4.7 and officially supports 4.7 and newer.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push on the same branch cancels the running one — only the last one matters.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # 🔑 The minimum version this add-on requires, and the version the checks run on.
+      GODOT_VERSION: 4.7-stable
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download Godot
+        # 🛑 **Unpack it outside the repository (`/tmp`).** Unpacked into the checked-out folder,
+        #    that folder is linked as `/tmp/host/addons/gohud`, so the packaging check (⑤) puts the
+        #    100MB engine executable into the add-on ZIP — and the secret scanner reads arbitrary
+        #    bytes of that binary as an API key and blocks it (2026-09-16 CI log: "a string that
+        #    looks like an API key or secret got in" at
+        #    `addons/gohud/Godot_v4.6-stable_linux.x86_64`).
+        #    Locally the engine lives outside the repository, so this check passes and the problem
+        #    shows up **only in CI**.
+        # 🔑 The gate itself did its job — it said precisely that something that must not be in the
+        #    add-on ZIP had got in.
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          FILE="Godot_v${GODOT_VERSION}_linux.x86_64"
+          curl -fsSL -o /tmp/godot.zip "${BASE}/${FILE}.zip"
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x "/tmp/${FILE}"
+          echo "GODOT_BIN=/tmp/${FILE}" >> "$GITHUB_ENV"
+
+      - name: Build an empty host project and install the add-on into it
+        # 🛑 The gohud repository has no `project.godot` — it is an add-on, not a game.
+        #    The checks must look at it **installed inside a host project**, so we make one here.
+        #    It is a symbolic link, not a copy — the files the checks look at must be the
+        #    repository's own files.
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/host/addons
+          ln -s "${GITHUB_WORKSPACE}" /tmp/host/addons/gohud
+          cat > /tmp/host/project.godot <<'CFG'
+          config_version=5
+          [application]
+          config/name="gohud CI"
+          config/features=PackedStringArray("4.7")
+          CFG
+          echo "GOHUD_PROJECT=/tmp/host" >> "$GITHUB_ENV"
+
+      - name: Import the resources
+        # 🛑 Leave this out and the SVGs and themes are never read, so the checks die or hang the
+        #    moment they start.
+        # 🛑 **Do not start the `run:` value with a quote** — YAML takes the scalar as ending there
+        #    and reads the arguments that follow as a syntax error. A workflow that does not parse
+        #    fails **in zero seconds** and leaves no log at all (2026-09-16: this one line meant
+        #    three red runs in a row).
+        run: |
+          "$GODOT_BIN" --headless --path /tmp/host --import
+
+      - name: Run every check
+        # The **same one line** you type locally.
+        run: bash tools/check_all.sh
+
+      - name: Keep the log when it fails
+        if: failure()
+        run: |
+          echo "— last unit test output —"
+          "$GODOT_BIN" --headless --path /tmp/host -s res://addons/gohud/tests/gohud_test.gd 2>&1 | tail -60 || true
