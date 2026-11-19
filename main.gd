@@ -20,7 +20,37 @@ const MAP_THUMBS := {
 	8: preload("res://assets/thumbs/thumb_volcanic.png"),
 	9: preload("res://assets/thumbs/thumb_pirate.png"),
 }
-const MENU_BG: Texture2D = preload("res://assets/backgrounds/arena_blue.png")
+# v3.5 QA-059: the lobby map cards show the map's REAL art — the
+# in-game Sky Brawl background for the 7 dark maps that have one
+# (same files game.gd uses as the far parallax layer), the existing
+# thumb for the 5 day maps that have none, bg_temple for Airship
+# Fleet (it shares the Temple deck tile, SKY_BRAWL_USE.md). The
+# 960×540 backgrounds are cropped to the card thumbnail (COVERED),
+# never stretched.
+const MAP_CARD_ART := {
+	0: preload("res://assets/skybrawl/maps/bg_catacombs.png"),
+	1: preload("res://assets/thumbs/thumb_military.png"),
+	2: preload("res://assets/thumbs/thumb_desert.png"),
+	3: preload("res://assets/skybrawl/maps/bg_industrial.png"),
+	4: preload("res://assets/thumbs/thumb_frozen.png"),
+	5: preload("res://assets/thumbs/thumb_jungle.png"),
+	6: preload("res://assets/skybrawl/maps/bg_space.png"),
+	7: preload("res://assets/skybrawl/maps/bg_city.png"),
+	8: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
+	9: preload("res://assets/thumbs/thumb_pirate.png"),
+	10: preload("res://assets/skybrawl/maps/bg_neon.png"),
+	11: preload("res://assets/skybrawl/maps/bg_temple.png"),
+	12: preload("res://assets/skybrawl/maps/bg_temple.png"),
+}
+# v3.5 QA-059: the menu background is arena_clean.png — a plain
+# starry navy sky with mountain silhouettes and NO panel shapes.
+# The old arena_blue.png (Sky Brawl arena_map_02) had a rounded-rect
+# sign top-left and floating platform pills baked in; those showed
+# through the semi-transparent panels on every page as empty
+# "ghost boxes" (the v3.4 lobby's floating outlines). The old file
+# stays in the repo unused; nothing references it any more.
+const MENU_BG: Texture2D = preload("res://assets/backgrounds/arena_clean.png")
+const FRAG_LOGO: Texture2D = preload("res://assets/logo/frag_arena_logo.png") # v3.5: Frag Arena logo (crosshair + Orbitron wordmark, drawn in code/PIL)
 # v3.2 NEON ARENA fonts (SIL OFL 1.1 — see THEME_SPEC.md §1b).
 const FONT_TITLE: Font = preload("res://assets/fonts/orbitron/Orbitron-Variable.ttf")
 const FONT_BODY: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Regular.ttf")
@@ -45,6 +75,7 @@ var _broadcast_timer: float = 0.0
 var _room_sig_cache: String = ""
 var _is_host: bool = false
 var _starting_match: bool = false
+var _match_started: bool = false # QA-060: start_match RPC idempotency guard (see start_match)
 var _joining: bool = false
 var _join_ip: String = ""
 var _join_password: String = ""
@@ -68,8 +99,13 @@ var _room_password_input: LineEdit
 var _private_check: CheckButton
 var _lobby_status: Label
 var _host_ip_label: Label
-var _room_info_label: Label
+var _host_ip_chip: PanelContainer # v3.5 QA-059: the IP sits in a cyan-bordered chip, not a bare text line
+var _room_info_label: Label # kept for compatibility; v3.5 uses _room_info_values (labelled fields) instead
+var _room_info_values: Dictionary = {} # v3.5 QA-059: field name -> value Label in the room info panel
 var _lobby_list: VBoxContainer
+var _lobby_left_scroll: ScrollContainer # v3.5 QA-059: left column (room + players + setup) scrolls on its own
+var _map_cards: Array = [] # v3.5 QA-059: map card panels (visuals), parallel to _map_buttons (input)
+var _map_card_badges: Array = [] # v3.5 QA-059: "✓ SELECTED" badge per card, parallel to _map_buttons
 var _lobby_start_btn: Button
 var _ready_btn: Button
 var _ff_check: CheckButton
@@ -113,6 +149,10 @@ var _flow_in_step: bool = false
 var _flow_timer: float = 0.0
 var _flow_passed: int = 0
 var _flow_failed: int = 0
+# v3.5 restart check (--restart-test, QA-060): start a match, leave
+# it, start a SECOND match from the menu, end it, rematch. The game
+# side runs the play checks; this side only drives the two starts.
+var _restart_test: bool = false
 # v3.2 scroll test (--scroll-test) + screenshot mode (--shot-all).
 var _scroll_test: bool = false
 var _scroll_done: bool = false
@@ -134,6 +174,8 @@ var _shot_idx: int = 0
 # and auto-start the match, so a second process can join for real.
 var _join_test_host: bool = false
 var _join_test_client_quick: bool = false
+var _rejoin_test_host: bool = false # v3.5 QA-060: --rejoin-test-host (stays in lobby, quits after 30 s)
+var _rejoin_test_client: bool = false # v3.5 QA-060: --rejoin-test-client (join → leave → re-join)
 
 
 func _ready() -> void:
@@ -187,10 +229,22 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	_handle_cli_args()
+	if _restart_test and GameData.restart_phase == 0:
+		call_deferred("_restarttest_begin")
+	elif GameData.restart_phase == 2:
+		# Second leg of --restart-test: back at the menu after
+		# leaving match 1 — create a fresh room and start match 2.
+		# (Phase 0 above is the first leg; phase 2 must NOT run the
+		# first leg again or the run would loop forever.)
+		call_deferred("_restarttest_second_start")
 	if _join_test_host:
 		call_deferred("_jointest_host_begin")
 	if _join_test_client_quick:
 		call_deferred("_jointest_client_quick_begin")
+	if _rejoin_test_host:
+		call_deferred("_rejointest_host_begin")
+	if _rejoin_test_client:
+		call_deferred("_rejointest_client_begin")
 	if _scroll_test:
 		call_deferred("_scrolltest_begin")
 	if _shot_all:
@@ -226,6 +280,12 @@ func _handle_cli_args() -> void:
 	if "--join-test-client-quick" in args:
 		_join_test_client_quick = true
 		return
+	if "--rejoin-test-host" in args:
+		_rejoin_test_host = true
+		return
+	if "--rejoin-test-client" in args:
+		_rejoin_test_client = true
+		return
 	if "--scroll-test" in args:
 		_scroll_test = true
 		return
@@ -237,6 +297,9 @@ func _handle_cli_args() -> void:
 		return
 	if "--flow-test" in args and GameData.flow_phase == 0:
 		_flow_test = true
+		return
+	if "--restart-test" in args:
+		_restart_test = true
 		return
 	if "--auto-host" in args:
 		call_deferred("_cli_auto_host")
@@ -251,7 +314,7 @@ func _handle_cli_args() -> void:
 func _cli_auto_host() -> void:
 	# Smoke-test path: host and go straight into the game scene.
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(PORT, 7)
+	var err := peer.create_server(_server_port(), 7)
 	if err != OK:
 		return
 	multiplayer.multiplayer_peer = peer
@@ -260,9 +323,14 @@ func _cli_auto_host() -> void:
 
 func _build_background() -> void:
 	# v3.2 NEON ARENA (THEME_SPEC.md §6): ONE imported image — the
-	# Sky Brawl blue arena (arena_map_02.png) — stretched full-rect,
+	# clean starry sky (arena_clean.png) — stretched full-rect,
 	# with a 0.55-alpha dark scrim over it so text stays readable.
-	# The old procedural gradient sky + sun + ground band is gone.
+	# v3.5 QA-059: the old arena_blue.png is gone — its baked-in
+	# rounded-rect sign and platform pills showed through every
+	# semi-transparent panel as empty ghost boxes. This image has
+	# no rectangles, pills or outlines at all, so nothing can show
+	# through any more. The old procedural gradient sky + sun +
+	# ground band is gone too.
 	var bg := TextureRect.new()
 	bg.texture = MENU_BG
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -422,8 +490,17 @@ func _on_scrolled_button_gui_input(event: InputEvent, scroll: ScrollContainer, b
 	# drag as mouse motion, so a motion branch would apply the same
 	# delta a second time (a 200 px drag scrolled 400 px). Desktop
 	# users scroll with the wheel, which the container handles natively.
+	if event is InputEventScreenTouch and event.pressed:
+		# A new press starts a new gesture: forget any earlier drag.
+		b.set_meta("sc_dragged", false)
 	if event is InputEventScreenDrag:
 		scroll.scroll_vertical -= event.relative.y
+		# v3.5 QA-059: a drag is a scroll, not a tap. The 216 px map
+		# cards are taller than the frame-lag offset, so the pointer
+		# never leaves the card during a scroll-drag and the release
+		# would fire pressed (QA-048 regression in the scroll test).
+		# The press handler checks this flag and ignores the tap.
+		b.set_meta("sc_dragged", true)
 
 
 # v3.2: gohud icons replace the hand-drawn _make_icon() shapes.
@@ -491,9 +568,17 @@ func _build_menu() -> void:
 	_menu_panel = _panel(Color(0.07, 0.11, 0.18, 0.96), true)
 	var box := _vbox(_menu_panel, 14)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	var title := _title_label("LAN ARENA SHOOTER", 48)
-	title.add_theme_color_override("font_color", UI_ACCENT)
-	box.add_child(title)
+	# v3.5 Frag Arena: the logo (crosshair emblem + Orbitron
+	# wordmark) is the menu heading now — the old "LAN ARENA
+	# SHOOTER" text title is gone. 1239x320 art, shown ~460 px
+	# wide (same width as the menu buttons), aspect kept.
+	var logo := TextureRect.new()
+	logo.texture = FRAG_LOGO
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(460, 119)
+	logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(logo)
 	var sub := _body_label("2D shooter - local Wi-Fi only, no accounts", 20)
 	sub.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(sub)
@@ -739,14 +824,14 @@ func _build_settings() -> void:
 	# policy is also in PRIVACY_POLICY.md in the project.
 	box.add_child(_section_label("Privacy"))
 	var privacy_lbl := Label.new()
-	privacy_lbl.text = "LAN Arena Shooter collects no personal data. No accounts, no sign-in, no ads, no analytics, no tracking. Phones talk directly to each other over your Wi-Fi (LAN) only — nothing is sent to the internet or any server. Settings (name, controls, volume) stay on your phone."
+	privacy_lbl.text = "Frag Arena collects no personal data. No accounts, no sign-in, no ads, no analytics, no tracking. Phones talk directly to each other over your Wi-Fi (LAN) only — nothing is sent to the internet or any server. Settings (name, controls, volume) stay on your phone."
 	privacy_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	privacy_lbl.add_theme_font_override("font", FONT_BODY)
 	privacy_lbl.add_theme_font_size_override("font_size", 18)
 	privacy_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(privacy_lbl)
 	var version_lbl := Label.new()
-	version_lbl.text = "LAN Arena Shooter v3.4  •  LAN only — no accounts, no servers"
+	version_lbl.text = "Frag Arena v3.5  •  LAN only — no accounts, no servers"
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
@@ -979,9 +1064,20 @@ func _build_multiplayer() -> void:
 
 
 func _build_lobby() -> void:
-	# Full-rect panel + ScrollContainer: the lobby fits ANY screen height.
-	# The title, status and START MATCH stay fixed; the player list, map
-	# grid, mode, kill limit and match time scroll inside.
+	# v3.5 QA-059 — ENTIRE LAYOUT REDESIGNED. The v3.4 lobby was the
+	# same top-to-bottom stack as v3.2 with new colours, and the user
+	# called it out ("You haven't improved the lobby right"). Now a
+	# two-column arena lobby, visibly different at a glance:
+	#   LEFT column (~40%): room info panel (labelled fields), host
+	#       IP chip, controls hints, player cards, match setup
+	#       (mode / kill limit / time / friendly fire), map vote.
+	#   RIGHT column (~60%): map selection — large map cards with
+	#       real map art, name + size info, cyan border + ✓ badge
+	#       when selected; scrollable, all 13 maps reachable.
+	#   BOTTOM bar (fixed): I'M READY / START MATCH / Leave.
+	# Both columns scroll independently; the title, status and the
+	# bottom bar never scroll away. Every control keeps its exact
+	# v3.4 behaviour (same pressed handlers, same refresh paths).
 	_lobby_panel = _panel()
 	var box := _vbox(_lobby_panel, 10)
 	box.add_child(_title_label("GAME LOBBY", 36))
@@ -990,28 +1086,99 @@ func _build_lobby() -> void:
 	_lobby_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_lobby_status.add_theme_font_size_override("font_size", 20)
 	box.add_child(_lobby_status)
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 14)
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(cols)
+	# ---- LEFT column: room + players + setup (scrolls) ----
+	var left_col := VBoxContainer.new()
+	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_col.size_flags_stretch_ratio = 0.8
+	cols.add_child(left_col)
+	var left_scroll := ScrollContainer.new()
+	_lobby_left_scroll = left_scroll
+	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left_col.add_child(left_scroll)
+	var left_inner := VBoxContainer.new()
+	left_inner.add_theme_constant_override("separation", 10)
+	left_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_scroll.add_child(left_inner)
+	# Room info as a designed panel with labelled fields — not the
+	# old single plain text line.
+	var room_panel := PanelContainer.new()
+	# v3.5 QA-059: the panel, its grid and its labels are
+	# mouse-transparent — a drag starting on the room info must
+	# reach the left ScrollContainer (probe: drags stopped at the
+	# PanelContainer and never scrolled the column).
+	room_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var room_sb := StyleBoxFlat.new()
+	room_sb.bg_color = Color(0.10, 0.16, 0.25, 0.92)
+	room_sb.set_corner_radius_all(10)
+	room_sb.border_color = UI_ACCENT
+	room_sb.set_border_width_all(1)
+	room_sb.content_margin_left = 14
+	room_sb.content_margin_right = 14
+	room_sb.content_margin_top = 10
+	room_sb.content_margin_bottom = 10
+	room_panel.add_theme_stylebox_override("panel", room_sb)
+	left_inner.add_child(room_panel)
+	var room_grid := GridContainer.new()
+	room_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	room_grid.columns = 2
+	room_grid.add_theme_constant_override("h_separation", 10)
+	room_grid.add_theme_constant_override("v_separation", 4)
+	room_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	room_panel.add_child(room_grid)
+	for field in ["Room", "Players", "Map", "Mode", "Kill limit", "Time", "Friendly fire"]:
+		var k := Label.new()
+		k.text = field
+		k.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		k.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+		k.add_theme_font_size_override("font_size", 19)
+		k.add_theme_color_override("font_color", UI_FONT_MUTED)
+		room_grid.add_child(k)
+		var v := Label.new()
+		v.text = "—"
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+		v.add_theme_font_size_override("font_size", 19)
+		v.add_theme_color_override("font_color", UI_FONT)
+		v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		room_grid.add_child(v)
+		_room_info_values[field] = v
 	# v2.4: the host's LAN IP, big and clear — this is the number a
 	# friend types to join when discovery does not find the room.
+	# v3.5: it sits in a prominent cyan-bordered chip, not a bare
+	# text line.
+	_host_ip_chip = PanelContainer.new()
+	_host_ip_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var chip_sb := StyleBoxFlat.new()
+	chip_sb.bg_color = Color(0.0, 0.25, 0.32, 0.92)
+	chip_sb.set_corner_radius_all(10)
+	chip_sb.border_color = UI_ACCENT
+	chip_sb.set_border_width_all(2)
+	chip_sb.content_margin_left = 14
+	chip_sb.content_margin_right = 14
+	chip_sb.content_margin_top = 8
+	chip_sb.content_margin_bottom = 8
+	_host_ip_chip.add_theme_stylebox_override("panel", chip_sb)
+	left_inner.add_child(_host_ip_chip)
 	_host_ip_label = Label.new()
+	_host_ip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_host_ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_host_ip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_host_ip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_host_ip_label.custom_minimum_size = Vector2(0, 30)
 	_host_ip_label.add_theme_font_override("font", FONT_BODY_BOLD)
-	_host_ip_label.add_theme_font_size_override("font_size", 24)
+	_host_ip_label.add_theme_font_size_override("font_size", 22)
 	_host_ip_label.add_theme_color_override("font_color", UI_ACCENT)
-	box.add_child(_host_ip_label)
-	_room_info_label = Label.new()
-	_room_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_room_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_room_info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_room_info_label.custom_minimum_size = Vector2(0, 24)
-	_room_info_label.add_theme_font_override("font", FONT_BODY)
-	_room_info_label.add_theme_font_size_override("font_size", 18)
-	_room_info_label.add_theme_color_override("font_color", UI_FONT_MUTED)
-	box.add_child(_room_info_label)
+	_host_ip_chip.add_child(_host_ip_label)
+	# Hints: small, muted, no panel behind them — nothing that can
+	# show through as a ghost box.
 	var controls_hint := Label.new()
 	controls_hint.text = "Left stick: move • Push up: jump / fly • Right stick: aim and shoot"
+	controls_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	controls_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	controls_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1020,9 +1187,10 @@ func _build_lobby() -> void:
 	controls_hint.add_theme_font_size_override("font_size", 18)
 	controls_hint.add_theme_color_override("font_color", UI_FONT)
 	_controls_hint_label = controls_hint
-	box.add_child(controls_hint)
+	left_inner.add_child(controls_hint)
 	var join_hint := Label.new()
 	join_hint.text = "Friends join from LOCAL MULTIPLAYER — they tap your room, or type the host IP above."
+	join_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	join_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	join_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	join_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1030,80 +1198,17 @@ func _build_lobby() -> void:
 	join_hint.add_theme_font_override("font", FONT_BODY)
 	join_hint.add_theme_font_size_override("font_size", 18)
 	join_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
-	box.add_child(join_hint)
-	var scroll := ScrollContainer.new()
-	_lobby_scroll = scroll
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	box.add_child(scroll)
-	var inner := VBoxContainer.new()
-	inner.add_theme_constant_override("separation", 10)
-	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(inner)
-	inner.add_child(_section_label("Players in the room:"))
+	left_inner.add_child(join_hint)
+	left_inner.add_child(_section_label("Players in the room:"))
 	_lobby_list = VBoxContainer.new()
-	_lobby_list.add_theme_constant_override("separation", 4)
-	inner.add_child(_lobby_list)
-	_map_section_label = _section_label("Map:")
-	inner.add_child(_map_section_label)
-	var map_grid := GridContainer.new()
-	map_grid.columns = 2
-	map_grid.add_theme_constant_override("h_separation", 8)
-	map_grid.add_theme_constant_override("v_separation", 8)
-	inner.add_child(map_grid)
-	for i in GameData.MAP_NAMES.size():
-		var b := Button.new()
-		b.text = GameData.MAP_NAMES[i]
-		if MAP_THUMBS.has(i):
-			b.icon = MAP_THUMBS[i]
-			b.expand_icon = true # QA-058: bigger thumbs — the map art reads, not just the name
-		b.custom_minimum_size = Vector2(0, 84)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_style_button(b, 22, 84)
-		b.pressed.connect(_on_map_pressed.bind(i))
-		map_grid.add_child(b)
-		_map_buttons.append(b)
-		_connect_scroll_button(b, _lobby_scroll)
-	# THEME_SPEC.md §8: visible scroll hint under the map grid — it
-	# is also a label, so a drag starting on it scrolls (SCROLL_BUG.md).
-	var scroll_hint := Label.new()
-	scroll_hint.text = "Scroll for more maps ↓"
-	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	scroll_hint.add_theme_font_override("font", FONT_BODY)
-	scroll_hint.add_theme_font_size_override("font_size", 18)
-	scroll_hint.add_theme_color_override("font_color", UI_ACCENT)
-	_scroll_hint_label = scroll_hint
-	inner.add_child(scroll_hint)
-	# Phase 4 — map vote: every player picks one of 3 maps on the
-	# ballot (the host's pick + the next two). The host tallies the
-	# votes when the match starts; ties and no-votes keep the host's
-	# pick. Votes travel in the lobby player dicts (see set_vote).
-	inner.add_child(_section_label("Map vote — pick the next map:"))
-	_vote_box = VBoxContainer.new()
-	_vote_box.add_theme_constant_override("separation", 8)
-	inner.add_child(_vote_box)
-	for k in 3:
-		var vb := Button.new()
-		vb.text = ""
-		vb.custom_minimum_size = Vector2(0, 56)
-		vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		vb.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_style_button(vb, 20, 56)
-		vb.pressed.connect(_on_vote_pressed.bind(k))
-		_vote_box.add_child(vb)
-		_vote_buttons.append(vb)
-		_connect_scroll_button(vb, _lobby_scroll)
-	var vote_hint := Label.new()
-	vote_hint.text = "Most votes wins. If nobody votes, or on a tie, the host's map is played."
-	vote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vote_hint.add_theme_font_size_override("font_size", 18)
-	vote_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
-	inner.add_child(vote_hint)
-	inner.add_child(_section_label("Game mode:"))
+	_lobby_list.add_theme_constant_override("separation", 6)
+	left_inner.add_child(_lobby_list)
+	# Match setup lives in the left column now (it used to sit under
+	# the map grid in the same scroll).
+	left_inner.add_child(_section_label("Match setup:"))
 	var mode_row := HBoxContainer.new()
 	mode_row.add_theme_constant_override("separation", 8)
-	inner.add_child(mode_row)
+	left_inner.add_child(mode_row)
 	for i in GameData.MODE_NAMES.size():
 		var b := Button.new()
 		b.text = GameData.MODE_NAMES[i]
@@ -1113,20 +1218,20 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_mode_pressed.bind(i))
 		mode_row.add_child(b)
 		_mode_buttons.append(b)
-		_connect_scroll_button(b, _lobby_scroll)
+		_connect_scroll_button(b, _lobby_left_scroll)
 	var ff_row := HBoxContainer.new()
 	ff_row.add_theme_constant_override("separation", 8)
-	inner.add_child(ff_row)
+	left_inner.add_child(ff_row)
 	_ff_check = CheckButton.new()
 	_ff_check.text = "Friendly fire (Team Deathmatch only)"
 	_ff_check.add_theme_font_size_override("font_size", 20)
 	_ff_check.button_pressed = GameData.friendly_fire
 	_ff_check.toggled.connect(_on_friendly_fire_toggled)
 	ff_row.add_child(_ff_check)
-	_ff_check.gui_input.connect(_on_scrolled_button_gui_input.bind(_lobby_scroll, _ff_check))
+	_ff_check.gui_input.connect(_on_scrolled_button_gui_input.bind(_lobby_left_scroll, _ff_check))
 	var limit_row := HBoxContainer.new()
 	limit_row.add_theme_constant_override("separation", 8)
-	inner.add_child(limit_row)
+	left_inner.add_child(limit_row)
 	var limit_lbl := Label.new()
 	limit_lbl.text = "Kill limit:"
 	limit_lbl.add_theme_font_size_override("font_size", 20)
@@ -1139,10 +1244,10 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_limit_pressed.bind(kl))
 		limit_row.add_child(b)
 		_limit_buttons.append(b)
-		_connect_scroll_button(b, _lobby_scroll)
+		_connect_scroll_button(b, _lobby_left_scroll)
 	var time_row := HBoxContainer.new()
 	time_row.add_theme_constant_override("separation", 8)
-	inner.add_child(time_row)
+	left_inner.add_child(time_row)
 	var time_lbl := Label.new()
 	time_lbl.text = "Match time:"
 	time_lbl.add_theme_font_size_override("font_size", 20)
@@ -1155,7 +1260,66 @@ func _build_lobby() -> void:
 		b.pressed.connect(_on_time_pressed.bind(mins))
 		time_row.add_child(b)
 		_time_buttons.append(b)
-		_connect_scroll_button(b, _lobby_scroll)
+		_connect_scroll_button(b, _lobby_left_scroll)
+	# Phase 4 — map vote: every player picks one of 3 maps on the
+	# ballot (the host's pick + the next two). The host tallies the
+	# votes when the match starts; ties and no-votes keep the host's
+	# pick. Votes travel in the lobby player dicts (see set_vote).
+	left_inner.add_child(_section_label("Map vote — pick the next map:"))
+	_vote_box = VBoxContainer.new()
+	_vote_box.add_theme_constant_override("separation", 8)
+	left_inner.add_child(_vote_box)
+	for k in 3:
+		var vb := Button.new()
+		vb.text = ""
+		vb.custom_minimum_size = Vector2(0, 56)
+		vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_style_button(vb, 20, 56)
+		vb.pressed.connect(_on_vote_pressed.bind(k))
+		_vote_box.add_child(vb)
+		_vote_buttons.append(vb)
+		_connect_scroll_button(vb, _lobby_left_scroll)
+	var vote_hint := Label.new()
+	vote_hint.text = "Most votes wins. If nobody votes, or on a tie, the host's map is played."
+	vote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vote_hint.add_theme_font_size_override("font_size", 18)
+	vote_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
+	left_inner.add_child(vote_hint)
+	# ---- RIGHT column: map cards (scrolls) ----
+	var right_col := VBoxContainer.new()
+	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_col.size_flags_stretch_ratio = 1.2
+	cols.add_child(right_col)
+	var scroll := ScrollContainer.new()
+	_lobby_scroll = scroll
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	right_col.add_child(scroll)
+	var map_inner := VBoxContainer.new()
+	map_inner.add_theme_constant_override("separation", 8)
+	map_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(map_inner)
+	_map_section_label = _section_label("Maps — tap a card to select:")
+	map_inner.add_child(_map_section_label)
+	var map_grid := GridContainer.new()
+	map_grid.columns = 2
+	map_grid.add_theme_constant_override("h_separation", 10)
+	map_grid.add_theme_constant_override("v_separation", 10)
+	map_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_inner.add_child(map_grid)
+	for i in GameData.MAP_NAMES.size():
+		map_grid.add_child(_build_map_card(i))
+	# THEME_SPEC.md §8: visible scroll hint under the map grid — it
+	# is also a label, so a drag starting on it scrolls (SCROLL_BUG.md).
+	var scroll_hint := Label.new()
+	scroll_hint.text = "Scroll for more maps ↓"
+	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	scroll_hint.add_theme_font_override("font", FONT_BODY)
+	scroll_hint.add_theme_font_size_override("font_size", 18)
+	scroll_hint.add_theme_color_override("font_color", UI_ACCENT)
+	_scroll_hint_label = scroll_hint
+	map_inner.add_child(scroll_hint)
 	# Fixed action row — always visible, never scrolled away.
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 10)
@@ -1182,7 +1346,117 @@ func _build_lobby() -> void:
 	_refresh_lobby_buttons()
 
 
+# v3.5 QA-059: one map card — real map art thumbnail + name + size
+# info + a "✓" badge when selected. The visible card is a
+# PanelContainer; a transparent full-rect Button on top is the
+# input, so _map_buttons stays an Array of Buttons: the QA-048
+# scroll test, taps and drag-forwarding all work exactly as before.
+func _map_card_stylebox(selected: bool) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	if selected:
+		sb.bg_color = Color(0.05, 0.35, 0.42, 0.98)
+		sb.border_color = UI_ACCENT
+		sb.set_border_width_all(3)
+	else:
+		sb.bg_color = Color(0.10, 0.16, 0.25, 0.92)
+		sb.border_color = Color(0.25, 0.38, 0.52)
+		sb.set_border_width_all(1)
+	return sb
+
+
+func _build_map_card(i: int) -> Control:
+	var root := Control.new()
+	root.custom_minimum_size = Vector2(0, 216)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_theme_stylebox_override("panel", _map_card_stylebox(false))
+	root.add_child(panel)
+	_map_cards.append(panel)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 2)
+	panel.add_child(vb)
+	var thumb := TextureRect.new()
+	thumb.texture = MAP_CARD_ART[i]
+	thumb.custom_minimum_size = Vector2(0, 132)
+	thumb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	vb.add_child(thumb)
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 6)
+	vb.add_child(name_row)
+	var badge := Label.new()
+	badge.text = "✓"
+	badge.add_theme_font_override("font", FONT_BODY_BOLD)
+	badge.add_theme_font_size_override("font_size", 22)
+	badge.add_theme_color_override("font_color", UI_SUCCESS)
+	badge.visible = false
+	name_row.add_child(badge)
+	_map_card_badges.append(badge)
+	var name_lbl := Label.new()
+	name_lbl.text = GameData.MAP_NAMES[i]
+	name_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_color_override("font_color", UI_FONT)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.clip_contents = true
+	name_row.add_child(name_lbl)
+	var info_lbl := Label.new()
+	info_lbl.text = GameData.MAP_CARD_INFO[i]
+	info_lbl.add_theme_font_override("font", FONT_BODY)
+	info_lbl.add_theme_font_size_override("font_size", 17)
+	info_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
+	vb.add_child(info_lbl)
+	var hit := Button.new()
+	hit.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hit.text = ""
+	hit.focus_mode = Control.FOCUS_NONE
+	for kind in ["normal", "hover", "pressed", "disabled"]:
+		hit.add_theme_stylebox_override(kind, StyleBoxEmpty.new())
+	hit.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	hit.pressed.connect(_on_map_pressed.bind(i))
+	root.add_child(hit)
+	_map_buttons.append(hit)
+	_connect_scroll_button(hit, _lobby_scroll)
+	return root
+
+
+# v3.5 QA-059: small coloured badge chip (HOST / YOU / READY).
+func _badge_chip(text: String, bg: Color, fg: Color, font_size: int = 16) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE # display-only; drags pass through to the scroll
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	p.add_theme_stylebox_override("panel", sb)
+	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var l := Label.new()
+	l.text = text
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_override("font", FONT_BODY_BOLD)
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", fg)
+	p.add_child(l)
+	return p
+
+
 func _on_map_pressed(i: int) -> void:
+	# v3.5 QA-059: a scroll-drag ending on a card must not select
+	# it — the drag flag is set by _on_scrolled_button_gui_input
+	# (see QA-048). A real tap has no drag, so it still selects.
+	if i < _map_buttons.size() and bool((_map_buttons[i] as Button).get_meta("sc_dragged", false)):
+		(_map_buttons[i] as Button).set_meta("sc_dragged", false)
+		return
 	if not _is_host:
 		return
 	_click()
@@ -1272,11 +1546,18 @@ func _on_time_pressed(mins: int) -> void:
 
 
 func _refresh_lobby_buttons() -> void:
+	# v3.5 QA-059: map buttons are invisible hit areas over the map
+	# cards — no text or button style on them. The selected state
+	# lives on the CARD: cyan border + teal fill + ✓ badge.
 	for i in _map_buttons.size():
 		var mb: Button = _map_buttons[i]
-		mb.text = ("✓ " if i == GameData.map_id else "") + GameData.MAP_NAMES[i]
+		var selected: bool = i == GameData.map_id
 		mb.disabled = not _is_host
-		_style_selected(mb, i == GameData.map_id, 20)
+		if i < _map_cards.size():
+			(_map_cards[i] as PanelContainer).add_theme_stylebox_override("panel", _map_card_stylebox(selected))
+			(_map_cards[i] as Control).modulate = Color(1, 1, 1, 1) if _is_host else Color(1, 1, 1, 0.6)
+		if i < _map_card_badges.size():
+			(_map_card_badges[i] as Label).visible = selected
 	for i in _mode_buttons.size():
 		var ob: Button = _mode_buttons[i]
 		ob.text = ("✓ " if i == GameData.game_mode else "") + GameData.MODE_NAMES[i]
@@ -1317,26 +1598,34 @@ func _refresh_lobby_buttons() -> void:
 	if _lobby_status != null:
 		_lobby_status.text = "You are the host - pick a map and mode, then start!" if _is_host else "Waiting for the host to start the match..."
 	if _host_ip_label != null:
-		# The joiner's lifeline: the host IP is always visible here.
+		# The joiner's lifeline: the host IP is always visible here,
+		# in its chip (v3.5 QA-059). Keep the label's own visibility
+		# in sync with the chip — the flow test reads the label.
+		var ip_visible := false
 		if _is_host:
 			var ip := LanDiscovery.lan_ip()
 			if ip != "":
 				_host_ip_label.text = "HOST IP: " + ip + "  —  friends type this IP to join"
 			else:
 				_host_ip_label.text = "No Wi-Fi IP found — connect to Wi-Fi or a hotspot, then re-host"
-			_host_ip_label.visible = true
+			ip_visible = true
 		elif GameData.host_ip != "":
 			_host_ip_label.text = "Connected to host: " + GameData.host_ip
-			_host_ip_label.visible = true
-		else:
-			_host_ip_label.visible = false
-	if _room_info_label != null:
-		var priv := " • Private" if GameData.room_private else ""
-		_room_info_label.text = "Room: %s%s • %d/%d players • %s • %s • Kill limit %d • %d min • Friendly fire: %s" % [
-			GameData.room_name, priv, _lobby_players.size(), GameData.max_players,
-			GameData.MAP_NAMES[GameData.map_id], GameData.MODE_NAMES[GameData.game_mode],
-			GameData.kill_limit, GameData.match_minutes, "on" if GameData.friendly_fire else "off",
-		]
+			ip_visible = true
+		_host_ip_label.visible = ip_visible
+		if _host_ip_chip != null:
+			_host_ip_chip.visible = ip_visible
+	# v3.5 QA-059: room info is labelled fields in the room panel,
+	# not one long plain text line.
+	if not _room_info_values.is_empty():
+		var priv := "Private" if GameData.room_private else "Public"
+		_room_info_values["Room"].text = "%s • %s" % [GameData.room_name, priv]
+		_room_info_values["Players"].text = "%d/%d" % [_lobby_players.size(), GameData.max_players]
+		_room_info_values["Map"].text = GameData.MAP_NAMES[GameData.map_id]
+		_room_info_values["Mode"].text = GameData.MODE_NAMES[GameData.game_mode]
+		_room_info_values["Kill limit"].text = str(GameData.kill_limit)
+		_room_info_values["Time"].text = "%d min" % GameData.match_minutes
+		_room_info_values["Friendly fire"].text = "On" if GameData.friendly_fire else "Off"
 	_refresh_vote_buttons()
 
 
@@ -1347,16 +1636,23 @@ func _refresh_lobby_list() -> void:
 	ids.sort()
 	for id in ids:
 		var info: Dictionary = _lobby_players[id]
-		# QA-058: each player is a card, not a bare line — a subtle
-		# navy row with the player's colour as a left bar, a bigger
-		# portrait, the name in SemiBold, and a READY / not-ready
-		# tag that reads at a glance.
+		# v3.5 QA-059: proper player cards — thicker colour bar,
+		# bigger portrait, name + HOST / YOU badge chips, and the
+		# READY status as a coloured chip (green = ready, grey =
+		# not ready) instead of a bare text tag.
 		var card := PanelContainer.new()
+		# v3.5 QA-059: the card itself is mouse-transparent so a
+		# drag on a player card scrolls the left column (same
+		# PanelContainer trap as the room panel); the KICK button
+		# inside keeps its own input.
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var card_sb := StyleBoxFlat.new()
-		card_sb.bg_color = Color(0.10, 0.16, 0.25, 0.85)
-		card_sb.set_corner_radius_all(8)
-		card_sb.content_margin_left = 12
-		card_sb.content_margin_right = 12
+		card_sb.bg_color = Color(0.10, 0.16, 0.25, 0.92)
+		card_sb.set_corner_radius_all(10)
+		card_sb.border_color = Color(0.25, 0.38, 0.52)
+		card_sb.set_border_width_all(1)
+		card_sb.content_margin_left = 10
+		card_sb.content_margin_right = 10
 		card_sb.content_margin_top = 8
 		card_sb.content_margin_bottom = 8
 		card.add_theme_stylebox_override("panel", card_sb)
@@ -1364,37 +1660,36 @@ func _refresh_lobby_list() -> void:
 		row.add_theme_constant_override("separation", 10)
 		card.add_child(row)
 		var bar := ColorRect.new()
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		bar.color = GameData.PLAYER_COLORS[int(info.get("color", 0)) % GameData.PLAYER_COLORS.size()]
-		bar.custom_minimum_size = Vector2(6, 0)
+		bar.custom_minimum_size = Vector2(8, 0)
 		bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.add_child(bar)
 		var portrait := TextureRect.new()
+		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		portrait.texture = _portrait_texture(int(info.get("portrait", 0)))
-		portrait.custom_minimum_size = Vector2(44, 56)
+		portrait.custom_minimum_size = Vector2(52, 64)
 		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(portrait)
 		var lbl := Label.new()
-		var tag := ""
-		if int(id) == 1:
-			tag = " (HOST)"
-		elif int(id) == multiplayer.get_unique_id():
-			tag = " (YOU)"
-		lbl.text = "%s%s" % [String(info.get("name", "Player")), tag]
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.text = String(info.get("name", "Player"))
 		lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
 		lbl.add_theme_font_size_override("font_size", 22)
 		lbl.add_theme_color_override("font_color", GameData.PLAYER_COLORS[int(info.get("color", 0)) % GameData.PLAYER_COLORS.size()])
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(lbl)
-		var ready_lbl := Label.new()
+		if int(id) == 1:
+			row.add_child(_badge_chip("HOST", Color(1.0, 0.773, 0.239, 0.25), UI_WARNING, 16))
+		elif int(id) == multiplayer.get_unique_id():
+			row.add_child(_badge_chip("YOU", Color(0.0, 0.898, 1.0, 0.25), UI_ACCENT, 16))
 		var is_ready: bool = bool(info.get("ready", false))
-		ready_lbl.text = "READY ✓" if is_ready else "not ready"
-		ready_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
-		ready_lbl.add_theme_font_size_override("font_size", 20)
-		ready_lbl.add_theme_color_override("font_color", UI_SUCCESS if is_ready else UI_FONT_MUTED)
-		ready_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		row.add_child(ready_lbl)
+		if is_ready:
+			row.add_child(_badge_chip("READY ✓", Color(0.231, 1.0, 0.647, 0.25), UI_SUCCESS, 18))
+		else:
+			row.add_child(_badge_chip("NOT READY", Color(0.522, 0.655, 0.741, 0.25), UI_FONT_MUTED, 18))
 		# The host can remove a player from the room.
 		if _is_host and int(id) != 1 and int(id) != multiplayer.get_unique_id():
 			var kick_btn := Button.new()
@@ -1403,7 +1698,7 @@ func _refresh_lobby_list() -> void:
 			_style_button(kick_btn, 20, 56)
 			kick_btn.pressed.connect(_on_kick_pressed.bind(int(id)))
 			row.add_child(kick_btn)
-			_connect_scroll_button(kick_btn, _lobby_scroll)
+			_connect_scroll_button(kick_btn, _lobby_left_scroll)
 		_lobby_list.add_child(card)
 
 
@@ -1452,7 +1747,7 @@ func _room_card() -> Dictionary:
 		"map_id": GameData.map_id,
 		"mode": GameData.game_mode,
 		"status": _room_status,
-		"port": PORT,
+		"port": _server_port(),
 		"private": GameData.room_private,
 	}
 
@@ -1471,12 +1766,22 @@ func _on_create_room_pressed() -> void:
 	_create_room()
 
 
+func _server_port() -> int:
+	# Test-only override (--port=N): lets the restart/join tests run
+	# on a different port when another suite is using 7777 on this
+	# machine. Production always uses PORT (7777).
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--port="):
+			return clampi(int(a.trim_prefix("--port=")), 1024, 65535)
+	return PORT
+
+
 func _create_room() -> bool:
 	if multiplayer.multiplayer_peer != null and multiplayer.multiplayer_peer is not OfflineMultiplayerPeer:
 		_set_status("You are already in a game — leave it first.")
 		return false
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(PORT, GameData.max_players - 1)
+	var err := peer.create_server(_server_port(), GameData.max_players - 1)
 	if err != OK:
 		_set_status("Could not host a game (error " + str(err) + "). Another game may already be hosting on this phone.")
 		return false
@@ -1560,8 +1865,19 @@ func _on_connected() -> void:
 	rpc_id(1, "register_lobby_player", _my_lobby_info())
 
 
+# QA-060: close the current ENet peer explicitly before dropping
+# it. A dropped-but-open peer can keep its UDP socket bound, so the
+# next create_server / create_client on the same port fails with
+# "Couldn't create an ENet host". Every teardown site uses this.
+func _close_peer() -> void:
+	var old_peer := multiplayer.multiplayer_peer
+	if old_peer is ENetMultiplayerPeer:
+		(old_peer as ENetMultiplayerPeer).close()
+
+
 func _on_connection_failed() -> void:
 	_joining = false
+	_close_peer()
 	_peer = null
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_set_status("Could not reach that host. Check the IP and Wi-Fi, then tap JOIN to retry.")
@@ -1614,6 +1930,10 @@ func join_rejected(reason: String) -> void:
 	# this message (see _on_server_disconnected).
 	_join_rejected = true
 	_joining = false
+	# QA-060: close the refused connection now; the server-side
+	# disconnect that follows would close it via _leave_lobby, but
+	# an explicit close here frees the socket immediately.
+	_close_peer()
 	_peer = null
 	_show_only(_mp_panel)
 	_set_status("Could not join: " + reason)
@@ -1733,6 +2053,14 @@ func _on_start_pressed() -> void:
 
 @rpc("any_peer", "call_local")
 func start_match(map_id: int, mode: int, kill_limit: int, minutes: int) -> void:
+	# QA-060: idempotency guard on the RPC itself — the host button
+	# is guarded by _starting_match, but a duplicated or late RPC
+	# would call change_scene_to_file again unguarded. The flag is
+	# per main-scene instance (a fresh instance is created when the
+	# game returns to the menu), and _leave_lobby clears it.
+	if _match_started:
+		return
+	_match_started = true
 	GameData.map_id = map_id
 	GameData.game_mode = mode
 	GameData.kill_limit = kill_limit
@@ -1753,11 +2081,16 @@ func _on_lobby_leave_pressed() -> void:
 func _leave_lobby() -> void:
 	if _discovery != null:
 		_discovery.stop_broadcasting()
+	# QA-060: close the old ENet peer explicitly before replacing
+	# it — a dropped-but-open peer can keep UDP 7777 bound, so the
+	# next host attempt in the same process fails to create a host.
+	_close_peer()
 	if multiplayer.multiplayer_peer != null and multiplayer.multiplayer_peer is not OfflineMultiplayerPeer:
 		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_peer = null
 	_is_host = false
 	_starting_match = false
+	_match_started = false
 	_joining = false
 	_join_rejected = false
 	_room_status = "lobby"
@@ -1843,6 +2176,7 @@ func _process(delta: float) -> void:
 		_join_timer += delta
 		if _join_timer >= JOIN_TIMEOUT:
 			_joining = false
+			_close_peer()
 			_peer = null
 			multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 			_set_status("Could not connect - check the Wi-Fi and IP, then try again. Tap JOIN to retry.")
@@ -2012,6 +2346,7 @@ func _scrolltest_build_steps() -> void:
 		{"name": "TAP-LAST-MAP", "wait": 0.6, "setup": _sct_s_tap_last, "check": _sct_c_tap_last},
 		{"name": "MP-ROOM-DRAG", "wait": 0.6, "setup": _sct_s_mp_drag, "check": _sct_c_mp_drag},
 		{"name": "SETTINGS-DRAG", "wait": 0.6, "setup": _sct_s_settings_drag, "check": _sct_c_settings_drag},
+		{"name": "LEFT-COLUMN-DRAG", "wait": 0.6, "setup": _sct_s_left_drag, "check": _sct_c_left_drag},
 	]
 
 
@@ -2144,6 +2479,27 @@ func _sct_c_settings_drag() -> Array:
 	return [v > 0.0, "settings scroll_vertical=%d (max=%d, want >0 after drag on Back button)" % [int(v), int(mx)]]
 
 
+# v3.5 QA-059: the lobby's LEFT column (room panel, players, setup,
+# vote) must scroll on its own — at 720p it holds ~900 px of content
+# in ~460 px. Drag on the room info value label and check the left
+# scroll moves (the map scroll must NOT move from this drag).
+func _sct_s_left_drag() -> void:
+	_show_only(_lobby_panel)
+	_lobby_left_scroll.scroll_vertical = 0
+	_lobby_scroll.scroll_vertical = 0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var lbl: Label = _room_info_values["Room"]
+	_sc_drag_up(807, _sc_vp_pos(lbl, Vector2(lbl.size.x * 0.5, lbl.size.y * 0.5)), 200.0, _sc_vp_scale(lbl))
+
+
+func _sct_c_left_drag() -> Array:
+	var v := _lobby_left_scroll.scroll_vertical
+	var mx := _lobby_left_scroll.get_v_scroll_bar().max_value
+	var map_v := _lobby_scroll.scroll_vertical
+	return [v >= 150.0 and map_v == 0.0, "left scroll_vertical=%d (max=%d, want >=150) map scroll=%d (want 0)" % [int(v), int(mx), int(map_v)]]
+
+
 # =====================================================================
 # v3.2 SCREENSHOT MODE (--shot-all): captures every menu-side screen
 # to user://shot_*.png for the visual review (THEME_SPEC.md §9).
@@ -2249,6 +2605,70 @@ func _jointest_client_quick_begin() -> void:
 
 
 # =====================================================================
+# v3.5 REJOIN CHECK (--rejoin-test-host / --rejoin-test-client, QA-060)
+# Two processes on loopback. The host creates a room and STAYS in the
+# lobby (no match start). The client joins, verifies it is in the
+# lobby, leaves (the teardown that must close() the ENet peer), waits,
+# verifies the peer is offline, then joins AGAIN and verifies it is
+# back in the lobby. A leaked socket or a stale peer breaks the second
+# join — that is the crash-path regression this test guards.
+# SANDBOX LIMIT: this test needs real UDP between the two processes.
+# In this sandbox UDP sends fail ("Sending failed" in the client log)
+# and the client can never connect — the test reports JOIN-1 FAIL
+# there, which is the sandbox, not the game. Run it on two real
+# phones (or an unsandboxed runner) for a verdict. The in-process
+# proof stands on the restart test (host re-creates its room on the
+# same port) plus the shared _leave_lobby teardown it exercises.
+# =====================================================================
+
+func _rejointest_host_begin() -> void:
+	GameData.room_name = "RejoinTest"
+	GameData.max_players = 4
+	GameData.room_private = false
+	GameData.room_password = ""
+	_room_name_input.text = "RejoinTest"
+	_create_room()
+	print("REJOINTEST HOST: room created, staying in lobby for 30 s")
+	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+		print("REJOINTEST HOST: done")
+		get_tree().quit()
+	)
+
+
+func _rejointest_client_begin() -> void:
+	# No discovery wait: two Godot instances on ONE machine cannot
+	# both bind the discovery listen port (UDP 7778) — the second
+	# bind fails, so the client would never hear the room. That is a
+	# single-machine artifact (real phones each have their own 7778);
+	# discovery itself is covered by the menu-net test. The client
+	# therefore joins the host by loopback IP directly — the ENet
+	# join / leave / re-join under test is identical either way.
+	join_game("127.0.0.1")
+	await get_tree().create_timer(3.0).timeout
+	var in_lobby_1: bool = _lobby_panel.visible and not _is_host and _lobby_players.has(multiplayer.get_unique_id())
+	print("REJOINTEST JOIN-1: %s — lobby=%s players=%d" % ["PASS" if in_lobby_1 else "FAIL", _lobby_panel.visible, _lobby_players.size()])
+	if not in_lobby_1:
+		get_tree().quit()
+		return
+	# Leave: the teardown under test — _leave_lobby must close() the
+	# client ENet peer and drop back to an offline peer.
+	_leave_lobby()
+	_show_only(_mp_panel)
+	await get_tree().create_timer(2.0).timeout
+	var offline: bool = multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	print("REJOINTEST TEARDOWN: %s — peer offline=%s" % ["PASS" if offline else "FAIL", offline])
+	if not offline:
+		get_tree().quit()
+		return
+	join_game("127.0.0.1")
+	await get_tree().create_timer(3.0).timeout
+	var in_lobby_2: bool = _lobby_panel.visible and not _is_host and _lobby_players.has(multiplayer.get_unique_id())
+	print("REJOINTEST JOIN-2: %s — lobby=%s players=%d" % ["PASS" if in_lobby_2 else "FAIL", _lobby_panel.visible, _lobby_players.size()])
+	print("REJOINTEST DONE: %s" % ("PASS" if in_lobby_1 and offline and in_lobby_2 else "FAIL"))
+	get_tree().quit()
+
+
+# =====================================================================
 # v2.4 MENU NET TEST (--menu-net-test)
 # Headless checks for the room/lobby flow. Real two-phone ENet traffic
 # cannot run in this sandbox (UDP blocked), so this covers what one
@@ -2334,6 +2754,7 @@ func _mnt_c_bad_ip() -> Array:
 	var status := _status.text
 	var ok: bool = status != "" and ("Could not connect" in status or "Could not reach" in status or "Connecting to" in status)
 	if _joining or multiplayer.multiplayer_peer is ENetMultiplayerPeer:
+		_close_peer()
 		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 		_peer = null
 		_joining = false
@@ -2464,3 +2885,40 @@ func _flm_c_started() -> Array:
 	# The scene change happens in start_match; this check is only
 	# reached if the match did not start.
 	return [false, "still in the menu after START MATCH"]
+
+
+# =====================================================================
+# v3.5 RESTART CHECK (menu side, --restart-test, QA-060)
+# First leg: create a room and start match 1 (game side plays, then
+# leaves with restart_phase == 2). Second leg: this scene loads
+# again with phase 2 — create a FRESH room and start match 2 (the
+# exact path a player takes after leaving a match). The game side
+# then ends match 2 and rematches (scene reload, phase 4).
+# =====================================================================
+
+func _restarttest_begin() -> void:
+	GameData.room_name = "RestartTest"
+	GameData.max_players = 4
+	GameData.room_private = false
+	GameData.room_password = ""
+	_room_name_input.text = "RestartTest"
+	_create_room()
+	GameData.restart_phase = 1
+	_on_start_pressed()
+
+
+func _restarttest_second_start() -> void:
+	GameData.room_name = "RestartTest2"
+	GameData.max_players = 4
+	GameData.room_private = false
+	GameData.room_password = ""
+	_room_name_input.text = "RestartTest2"
+	_create_room()
+	var ok: bool = _lobby_panel.visible and _is_host
+	if ok:
+		GameData.restart_passed += 1
+	else:
+		GameData.restart_failed += 1
+	print("RESTARTTEST %s: %s" % ["SECOND-LOBBY", "PASS" if ok else "FAIL"])
+	GameData.restart_phase = 3
+	_on_start_pressed()

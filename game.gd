@@ -154,7 +154,7 @@ const MAPS := [
 			Rect2(2150, 1220, 400, 48),
 			Rect2(700, 1050, 360, 48),
 			Rect2(1650, 1050, 360, 48),
-			Rect2(2500, 1050, 300, 48),
+			Rect2(2500, 1050, 356, 48),
 			Rect2(400, 880, 320, 48),
 			Rect2(1600, 880, 320, 48),
 			Rect2(2200, 880, 360, 48),
@@ -181,7 +181,7 @@ const MAPS := [
 			Rect2(100, 1110, 240, 48),
 			Rect2(700, 1110, 360, 48),
 			Rect2(1800, 1110, 360, 48),
-			Rect2(2700, 1110, 240, 48),
+			Rect2(2700, 1110, 276, 48),
 			Rect2(450, 940, 320, 48),
 			Rect2(1250, 940, 400, 48),
 			Rect2(2050, 940, 320, 48),
@@ -208,7 +208,7 @@ const MAPS := [
 			Rect2(100, 1210, 240, 48),
 			Rect2(750, 1210, 380, 48),
 			Rect2(1950, 1210, 380, 48),
-			Rect2(2900, 1210, 240, 48),
+			Rect2(2900, 1210, 276, 48),
 			Rect2(500, 1040, 340, 48),
 			Rect2(1300, 1040, 420, 48),
 			Rect2(2100, 1040, 340, 48),
@@ -221,7 +221,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1520), Vector2(900, 1520), Vector2(1500, 1348), Vector2(950, 1178), Vector2(650, 1008), Vector2(1050, 838), Vector2(2100, 1520), Vector2(2700, 1520), Vector2(2650, 1348), Vector2(2150, 1178), Vector2(2250, 1008), Vector2(2150, 838)],
 		"pickups": [Vector2(500, 1350), Vector2(2700, 1350), Vector2(1600, 1350), Vector2(1600, 1010), Vector2(1050, 840), Vector2(1650, 500)],
-		"decor": [["bridge", 1300, 1040], ["barrels", 720, 1552], ["crate", 1320, 1552], ["column", 1620, 1552], ["sandbags", 1920, 1552], ["barrels", 2520, 1552], ["crate", 2820, 1552], ["column", 3120, 1552], ["crate", 210, 1552], ["crate", 810, 1552], ["crate", 1040, 1210], ["crate", 740, 1040], ["crate", 1140, 870], ["crate", 2740, 1380], ["crate", 2240, 1210], ["crate", 2340, 1040], ["crate", 2240, 870]],
+		"decor": [["bridge", 1300, 1040], ["barrels", 720, 1552], ["crate", 1320, 1552], ["column", 1620, 1552], ["sandbags", 1920, 1552], ["barrels", 2520, 1552], ["crate", 2820, 1552], ["column", 3080, 1552], ["crate", 210, 1552], ["crate", 830, 1552], ["crate", 1040, 1210], ["crate", 740, 1040], ["crate", 1140, 870], ["crate", 2740, 1380], ["crate", 2240, 1210], ["crate", 2340, 1040], ["crate", 2240, 870]],
 	},
 	{
 		# QA-033 (MAP_AUDIT §Similarity-3): rebuilt as the game's small
@@ -241,7 +241,7 @@ const MAPS := [
 			Rect2(150, 1180, 340, 48),
 			Rect2(850, 1180, 500, 48),
 			Rect2(1710, 1180, 340, 48),
-			Rect2(80, 1010, 220, 48),
+			Rect2(24, 1010, 276, 48),
 			Rect2(550, 1010, 300, 48),
 			Rect2(1350, 1010, 300, 48),
 			Rect2(1850, 1010, 220, 48),
@@ -264,11 +264,11 @@ const MAPS := [
 		"platforms": [
 			Rect2(0, 1352, 3200, 48),
 			Rect2(150, 1180, 300, 48),
-			Rect2(700, 1180, 350, 48),
+			Rect2(700, 1180, 400, 48),
 			Rect2(1100, 1180, 600, 48),
 			Rect2(2000, 1180, 350, 48),
 			Rect2(2600, 1180, 300, 48),
-			Rect2(450, 1010, 550, 48),
+			Rect2(450, 1010, 600, 48),
 			Rect2(800, 840, 280, 48),
 			Rect2(1050, 1010, 700, 48),
 			Rect2(1150, 840, 260, 48),
@@ -279,13 +279,13 @@ const MAPS := [
 			Rect2(2150, 840, 300, 48),
 			Rect2(2750, 1010, 260, 48),
 			Rect2(2500, 670, 260, 48),
-			Rect2(2900, 840, 240, 48),
+			Rect2(2900, 840, 276, 48),
 			Rect2(300, 670, 260, 48),
 			Rect2(2100, 500, 300, 48),
 		],
 		"spawns": [Vector2(300, 1320), Vector2(900, 1320), Vector2(1300, 1148), Vector2(1200, 978), Vector2(950, 808), Vector2(450, 638), Vector2(2100, 1320), Vector2(2900, 1320), Vector2(2200, 1148), Vector2(2200, 978), Vector2(2300, 808), Vector2(2600, 638)],
 		"pickups": [Vector2(300, 1150), Vector2(2700, 1150), Vector2(1400, 1150), Vector2(1600, 810), Vector2(2300, 810), Vector2(2600, 640)],
-		"decor": [["jtree", 130, 1352], ["jpalm", 3000, 1352], ["jstatue", 1400, 1010], ["jpillar", 1100, 1010], ["jpillar", 1700, 1010], ["jtower", 2400, 840], ["jbridge", 1875, 1010], ["jarch", 2100, 1010], ["jtree", 2300, 840], ["jbush", 600, 1352], ["jcrate", 720, 1352], ["jpillar", 1320, 1352], ["jcrate", 1620, 1352], ["jcrate", 1920, 1352], ["jpillar", 2520, 1352], ["jcrate", 3120, 1352], ["jcrate", 210, 1352], ["jcrate", 810, 1352], ["jcrate", 1040, 840], ["jcrate", 360, 670], ["jcrate", 2010, 1352], ["jcrate", 2990, 1352], ["jcrate", 2290, 1180], ["jcrate", 2290, 1010], ["jcrate", 2690, 670], ["barrels", 1100, 1352]],
+		"decor": [["jtree", 130, 1352], ["jpalm", 3000, 1352], ["jstatue", 1400, 1010], ["jpillar", 1100, 1010], ["jpillar", 1700, 1010], ["jtower", 2400, 840], ["jbridge", 1875, 1010], ["jarch", 2100, 1010], ["jtree", 2300, 840], ["jbush", 600, 1352], ["jcrate", 720, 1352], ["jpillar", 1320, 1352], ["jcrate", 1620, 1352], ["jcrate", 1920, 1352], ["jpillar", 2520, 1352], ["jcrate", 3040, 1352], ["jcrate", 210, 1352], ["jcrate", 1200, 1352], ["jcrate", 1040, 840], ["jcrate", 360, 670], ["jcrate", 2030, 1352], ["jcrate", 2990, 1352], ["jcrate", 2290, 1180], ["jcrate", 2290, 1010], ["jcrate", 2690, 670], ["barrels", 1100, 1352]],
 	},
 	{
 		"name": "Space Station", "size": Vector2(3000, 1500), "tile": 6,
@@ -334,7 +334,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1520), Vector2(750, 1368), Vector2(500, 1208), Vector2(500, 1033), Vector2(860, 853), Vector2(1400, 688), Vector2(2900, 1520), Vector2(2450, 1368), Vector2(2700, 1208), Vector2(2700, 1033), Vector2(2340, 853), Vector2(1700, 1368)],
 		"pickups": [Vector2(600, 1522), Vector2(2600, 1522), Vector2(900, 1210), Vector2(1600, 1370), Vector2(2300, 1210), Vector2(1620, 690)],
-		"decor": [["column", 720, 1552], ["crate", 1320, 1552], ["barrels", 1620, 1552], ["sandbags", 1920, 1552], ["column", 2520, 1552], ["crate", 3120, 1552], ["crate", 210, 1552], ["crate", 590, 1240], ["crate", 590, 1065], ["crate", 950, 885], ["crate", 1490, 720], ["crate", 2990, 1552], ["crate", 2790, 1240], ["crate", 2790, 1065], ["crate", 2430, 885], ["crate", 1790, 1400]],
+		"decor": [["column", 720, 1552], ["crate", 1320, 1552], ["barrels", 1620, 1552], ["sandbags", 1920, 1552], ["column", 2520, 1552], ["crate", 3070, 1552], ["crate", 210, 1552], ["crate", 590, 1240], ["crate", 590, 1065], ["crate", 950, 885], ["crate", 1490, 720], ["crate", 2945, 1552], ["crate", 2790, 1240], ["crate", 2790, 1065], ["crate", 2430, 885], ["crate", 1790, 1400]],
 	},
 	{
 		"name": "Volcanic Cavern", "size": Vector2(3000, 1500), "tile": 8,
@@ -352,7 +352,7 @@ const MAPS := [
 			Rect2(100, 1110, 240, 48),
 			Rect2(700, 1110, 360, 48),
 			Rect2(1800, 1110, 360, 48),
-			Rect2(2700, 1110, 240, 48),
+			Rect2(2700, 1110, 276, 48),
 			Rect2(450, 940, 320, 48),
 			Rect2(1250, 940, 400, 48),
 			Rect2(2050, 940, 320, 48),
@@ -436,7 +436,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1520), Vector2(900, 1520), Vector2(450, 1348), Vector2(600, 1178), Vector2(1300, 1588), Vector2(1200, 1178), Vector2(2100, 1520), Vector2(2700, 1520), Vector2(2500, 1348), Vector2(2400, 1178), Vector2(1700, 1588), Vector2(1800, 1178)],
 		"pickups": [Vector2(600, 1522), Vector2(2400, 1522), Vector2(450, 1350), Vector2(1500, 840), Vector2(2500, 1350), Vector2(1500, 1672)],
-		"decor": [["sb_block", 1200, 1702], ["sb_block", 1800, 1702], ["sb_shrine", 720, 1552], ["sb_block", 1020, 1552], ["column", 1920, 1552], ["sb_shrine", 2220, 1552], ["sb_block", 2520, 1552], ["column", 2820, 1552], ["column", 210, 1552], ["column", 540, 1380], ["column", 1290, 1210], ["column", 2490, 1210], ["column", 1890, 1210], ["barrels", 1150, 1552]],
+		"decor": [["sb_block", 1200, 1702], ["sb_block", 1800, 1702], ["sb_shrine", 720, 1552], ["sb_block", 1020, 1552], ["column", 1920, 1552], ["sb_shrine", 2220, 1552], ["sb_block", 2520, 1552], ["column", 2820, 1552], ["column", 210, 1552], ["column", 540, 1380], ["column", 1290, 1210], ["column", 2490, 1210], ["column", 1890, 1210], ["barrels", 1170, 1552]],
 	},
 	{
 		"name": "Airship Fleet", "size": Vector2(3200, 1500), "tile": 11,
@@ -456,7 +456,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(200, 1348), Vector2(1400, 1178), Vector2(500, 1178), Vector2(530, 1008), Vector2(1150, 1420), Vector2(1450, 1420), Vector2(2500, 1348), Vector2(3000, 1348), Vector2(2750, 1178), Vector2(2780, 1008), Vector2(1750, 1420), Vector2(2050, 1420)],
 		"pickups": [Vector2(450, 1350), Vector2(2750, 1350), Vector2(1300, 1422), Vector2(1600, 840), Vector2(1700, 1010), Vector2(500, 1180)],
-		"decor": [["column", 1600, 1452], ["sb_block", 720, 1380], ["crate", 2620, 1380], ["crate", 110, 1380], ["crate", 1490, 1210], ["crate", 590, 1210], ["crate", 620, 1040], ["crate", 1240, 1452], ["crate", 3090, 1380], ["crate", 2840, 1210], ["crate", 2870, 1040], ["crate", 2140, 1452], ["barrels", 600, 1380]],
+		"decor": [["column", 1600, 1452], ["sb_block", 720, 1380], ["crate", 2620, 1380], ["crate", 110, 1380], ["crate", 1490, 1210], ["crate", 590, 1210], ["crate", 620, 1040], ["crate", 1240, 1452], ["crate", 3090, 1380], ["crate", 2840, 1210], ["crate", 2870, 1040], ["crate", 2140, 1452], ["barrels", 900, 1380]],
 	},
 ]
 const DECOR_TEX := {
@@ -508,7 +508,7 @@ var map_id: int = 0
 var game_mode: int = 0 # 0 FFA, 1 TDM
 var kill_limit: int = 10
 var match_over: bool = false
-var _leaving: bool = false # set when leaving for the menu: _process must stop (multiplayer is torn down before the scene change lands)
+var _leaving: bool = false # set when leaving for the menu or rematching: _process must stop (multiplayer is torn down / the instance is detached before the scene change lands)
 
 var hud: CanvasLayer
 var hp_bar: GoBar # v3.2: gohud bar (label + VALUE readout built in)
@@ -709,6 +709,9 @@ var _fire_grenades_before: int = 0
 var _ft_tap_left: int = 0 # T-33 rapid-tap driver: taps remaining
 var _ft_tap_timer: float = 0.0 # T-33: time until the next press/release
 var _ft_tap_phase: int = 0 # T-33: 0 = press next, 1 = release next
+var _ft_rifle_dev_start: int = 0 # QA-061: shot_devs size when the rifle-straight step starts
+var _ft_inside_shots0: int = 0 # QA-055: _shots_fired when the inside-geometry step starts
+var _ft_inside_old: Array = [] # QA-055: instance ids of bullets already flying at step start
 var _fire_weapon_before: int = 0
 # v3.2 two-peer join regression test (--join-test-host / --join-test-client).
 var _join_test_host: bool = false
@@ -776,6 +779,16 @@ var _flow_timer: float = 0.0
 var _flow_passed: int = 0
 var _flow_failed: int = 0
 var _flow_done: bool = false
+# v3.5 restart check (--restart-test, QA-060): start a match, leave
+# it, start a SECOND match from the menu, end it, rematch (scene
+# reload) and play again. Counts live in GameData so they survive
+# the scene changes; the phase does too (see game_data.gd).
+var _restart_test: bool = false
+var _restart_steps: Array = []
+var _restart_step: int = 0
+var _restart_in_step: bool = false
+var _restart_timer: float = 0.0
+var _restart_done: bool = false
 
 
 func _ready() -> void:
@@ -804,6 +817,7 @@ func _ready() -> void:
 	_join_test_host = "--join-test-host" in OS.get_cmdline_user_args()
 	_join_test_client = "--join-test-client" in OS.get_cmdline_user_args() or "--join-test-client-quick" in OS.get_cmdline_user_args()
 	_repl_sim_test = "--repl-sim-test" in OS.get_cmdline_user_args()
+	_restart_test = "--restart-test" in OS.get_cmdline_user_args()
 	# Test-only map override: --map=N loads that map (the collision
 	# test uses it to run its pass-through checks on Jungle Ruins).
 	for a in OS.get_cmdline_user_args():
@@ -830,7 +844,7 @@ func _ready() -> void:
 	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
 	# scripted harness (they move/shoot from frame one) and in the
 	# features test, which drives the countdown itself in step 1.
-	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test
+	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test or _restart_test
 	if not _is_test_mode:
 		_countdown_active = true
 		_countdown_t = 3.0
@@ -916,7 +930,7 @@ func is_spawn_valid(pos: Vector2, exclude_peer: int) -> bool:
 	return space.intersect_shape(q, 1).is_empty()
 
 
-func get_valid_spawn_point(player_index: int, exclude_peer: int) -> Vector2:
+func get_valid_spawn_point(player_index: int, exclude_peer: int, avoid_pos: Vector2 = Vector2.INF) -> Vector2:
 	# Try the player's own spawn first, then every other spawn in
 	# order; if none is valid, return INF and the caller retries
 	# (0.5 s) instead of teleporting into a wall or a camper.
@@ -924,6 +938,10 @@ func get_valid_spawn_point(player_index: int, exclude_peer: int) -> Vector2:
 	# spawns[6:12] the right half (team 1) — a team tries its own
 	# half first, then the other half, so teams never spawn
 	# interleaved. FFA keeps the old round-robin order.
+	# QA-063: avoid_pos (a stuck player's current spot) — a
+	# recovery must never drop the player back into the same trap.
+	# First pass skips spawns within 150 px of avoid_pos; if that
+	# leaves nothing, fall back to the old behaviour.
 	var spawns: Array = MAPS[map_id]["spawns"]
 	var n := spawns.size()
 	var start := (player_index - 1) % n
@@ -940,8 +958,15 @@ func get_valid_spawn_point(player_index: int, exclude_peer: int) -> Vector2:
 			order.append((start + k) % n)
 	for idx in order:
 		var cand: Vector2 = spawns[int(idx)]
+		if avoid_pos != Vector2.INF and cand.distance_to(avoid_pos) < 150.0:
+			continue
 		if is_spawn_valid(cand, exclude_peer):
 			return cand
+	if avoid_pos != Vector2.INF:
+		for idx in order:
+			var cand2: Vector2 = spawns[int(idx)]
+			if is_spawn_valid(cand2, exclude_peer):
+				return cand2
 	return Vector2.INF
 
 
@@ -1779,7 +1804,11 @@ func _build_hud() -> void:
 	if top_sb != null:
 		var top_dup := top_sb.duplicate()
 		if top_dup is GoStyleBoxCut:
-			(top_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.92)
+	# QA-057 (double-check): the panel fill was 0.92 alpha, so map
+	# platforms bled through as faint ghost boxes behind the
+	# Players/Grenades rows at 2400x1080. Fully opaque now — the
+	# panel must read over every map, and nothing shows through.
+			(top_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 1.0)
 			(top_dup as GoStyleBoxCut).content_margin_left = 16
 			(top_dup as GoStyleBoxCut).content_margin_right = 16
 			(top_dup as GoStyleBoxCut).content_margin_top = 12
@@ -2155,7 +2184,9 @@ func _build_end_screen() -> void:
 	end_rematch_btn.pressed.connect(_on_rematch_pressed)
 	box.add_child(end_rematch_btn)
 	var back_btn := Button.new()
-	back_btn.text = "Back to Lobby"
+	# QA-060: this used to say "Back to Lobby" but it goes to the
+	# main menu (_on_leave_pressed changes scene to main.tscn).
+	back_btn.text = "Back to Menu"
 	_style_hud_button(back_btn)
 	back_btn.custom_minimum_size = Vector2(0, 56)
 	back_btn.pressed.connect(_on_leave_pressed)
@@ -2296,6 +2327,14 @@ func _on_leave_pressed() -> void:
 	# after leaving a match.
 	if audio != null:
 		audio.stop_music()
+	# QA-060: close the network resources explicitly instead of
+	# relying on the old peer's refcount to drop. A dropped-but-open
+	# ENet peer can keep UDP 7777 bound, so the next host attempt in
+	# the same process fails with "Couldn't create an ENet host".
+	_stop_broadcast()
+	var old_peer := multiplayer.multiplayer_peer
+	if old_peer is ENetMultiplayerPeer:
+		(old_peer as ENetMultiplayerPeer).close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	get_tree().change_scene_to_file("res://main.tscn")
 
@@ -2308,6 +2347,12 @@ func _on_rematch_pressed() -> void:
 @rpc("any_peer", "call_local")
 func rematch_remote() -> void:
 	get_tree().paused = false
+	# QA-060: the reload is synchronous — the rest of THIS frame's
+	# _process would otherwise keep running on this (now tree-less)
+	# instance, where `multiplayer` is null and every is_server()
+	# call in the update tail throws a script error (5 of them, at
+	# the rematch boundary). Same guard as _on_leave_pressed.
+	_leaving = true
 	get_tree().reload_current_scene()
 
 
@@ -2372,31 +2417,50 @@ func _build_touch_controls() -> void:
 	# v2.2: no JUMP button. Pushing the left stick up jumps; holding it up
 	# while airborne is the jetpack (see player.gd). The hint label in the
 	# HUD and the lobby explain the new control.
+	# v3.5 QA-062: the grenade button is ROUND (user asked for round
+	# buttons, 2026-11-19 ~16:05) and PLAIN (user, 2026-11-19 ~16:37:
+	# "Just have plain buttons") — a 72 px circle with the grenade
+	# icon, no progress ring, no count badge, no loading visuals.
+	# The rings + badge were built, then removed at the user's
+	# request. The count stays as the plain "Grenades: N" text in
+	# the top-right HUD. Throw behaviour unchanged.
 	grenade_button = Button.new()
-	grenade_button.text = "GRENADE"
-	_style_hud_button(grenade_button)
-	grenade_button.custom_minimum_size = Vector2(110, 60)
+	grenade_button.icon = _make_grenade_icon()
+	grenade_button.text = ""
+	_style_round_button(grenade_button)
+	grenade_button.custom_minimum_size = Vector2(72, 72)
 	grenade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	grenade_button.position = Vector2(-470, -260)
+	grenade_button.position = Vector2(-451, -260)
 	grenade_button.pressed.connect(_on_grenade_pressed)
 	hud.add_child(grenade_button)
 
 	switch_button = Button.new()
-	switch_button.text = "WEAPON"
-	_style_hud_button(switch_button)
-	switch_button.custom_minimum_size = Vector2(110, 60)
+	# v3.5 QA-062: round like the grenade/reload buttons, so the
+	# column is a matching set. The icon is a swap-arrows mark drawn
+	# in code — the wide rifle texture would force the button wider
+	# than 72 px. The current weapon already shows (icon + name) in
+	# the top-right HUD panel. Behaviour unchanged.
+	switch_button.icon = _make_swap_icon()
+	switch_button.text = ""
+	_style_round_button(switch_button)
+	switch_button.custom_minimum_size = Vector2(72, 72)
 	switch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	switch_button.position = Vector2(-470, -180)
+	switch_button.position = Vector2(-451, -180)
 	switch_button.pressed.connect(_on_switch_pressed)
 	hud.add_child(switch_button)
 
 	# v2.4 RELOAD button: dedicated, above GRENADE in the same column.
+	# v3.5 QA-062: ROUND and PLAIN (user, 2026-11-19 ~16:37) — a
+	# 72 px circle with the reload icon, no progress ring, no
+	# loading visuals (the ring was built, then removed at the
+	# user's request). Ammo count stays in the weapon label.
 	reload_button = Button.new()
-	reload_button.text = "RELOAD"
-	_style_hud_button(reload_button)
-	reload_button.custom_minimum_size = Vector2(110, 60)
+	reload_button.icon = _make_reload_icon()
+	reload_button.text = ""
+	_style_round_button(reload_button)
+	reload_button.custom_minimum_size = Vector2(72, 72)
 	reload_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	reload_button.position = Vector2(-470, -340)
+	reload_button.position = Vector2(-451, -340)
 	reload_button.pressed.connect(_on_reload_pressed)
 	hud.add_child(reload_button)
 
@@ -2439,6 +2503,160 @@ func _on_grenade_pressed() -> void:
 	var lp = _get_local_player()
 	if lp != null:
 		lp.throw_grenade()
+
+
+func _round_stylebox(bg: Color, border: Color, w: int) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.set_corner_radius_all(36)
+	sb.border_color = border
+	sb.set_border_width_all(w)
+	return sb
+
+
+# v3.5 QA-062: round-button style — a 72 px circle (corner radius
+# 36), navy fill, 2 px cyan border; the accent variant is a solid
+# cyan fill with dark text. The button's clickable rect stays square;
+# only the drawn shape is round.
+func _style_round_button(b: Button, accent: bool = false) -> void:
+	for kind in ["normal", "hover", "pressed", "disabled"]:
+		b.remove_theme_stylebox_override(kind)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_color_override("font_color", UI_FONT)
+	b.add_theme_color_override("font_hover_color", UI_FONT)
+	b.add_theme_color_override("font_pressed_color", UI_ACCENT)
+	if accent:
+		var sb := _round_stylebox(UI_ACCENT, UI_ACCENT, 2)
+		b.add_theme_stylebox_override("normal", sb)
+		b.add_theme_stylebox_override("hover", sb)
+		b.add_theme_stylebox_override("pressed", _round_stylebox(Color(0.0, 0.7, 0.8), UI_ACCENT, 2))
+		b.add_theme_stylebox_override("disabled", _round_stylebox(Color(0.10, 0.16, 0.25, 0.92), Color(0.25, 0.38, 0.52), 2))
+		b.add_theme_color_override("font_color", UI_ACCENT_DARK)
+		b.add_theme_color_override("font_hover_color", UI_ACCENT_DARK)
+		b.add_theme_color_override("font_pressed_color", UI_ACCENT_DARK)
+	else:
+		b.add_theme_stylebox_override("normal", _round_stylebox(Color(0.07, 0.11, 0.18, 0.96), UI_ACCENT, 2))
+		b.add_theme_stylebox_override("hover", _round_stylebox(Color(0.10, 0.16, 0.25, 0.96), UI_ACCENT, 2))
+		b.add_theme_stylebox_override("pressed", _round_stylebox(Color(0.0, 0.25, 0.32, 0.96), UI_ACCENT, 2))
+		b.add_theme_stylebox_override("disabled", _round_stylebox(Color(0.07, 0.11, 0.18, 0.6), Color(0.25, 0.38, 0.52), 2))
+
+
+# v3.5 QA-062: grenade icon for the grenade button, drawn in code
+# (the in-game grenade is drawn procedurally in grenade.gd — there
+# is no grenade texture in the project). Dark navy body, cyan ring,
+# grey fuse neck, cyan pin ring; 40×40, drawn once at build time.
+func _make_grenade_icon() -> Texture2D:
+	var s := 40
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var body_c := Vector2(s * 0.5, s * 0.61)
+	var body_r := s * 0.32
+	var pin_c := Vector2(s * 0.75, s * 0.21)
+	for y in s:
+		for x in s:
+			var p := Vector2(x + 0.5, y + 0.5)
+			var d: float = p.distance_to(body_c)
+			if d <= body_r:
+				# Light olive-grey body (reads against the navy
+				# button) with a cyan outline ring.
+				img.set_pixel(x, y, Color(0.0, 0.898, 1.0) if d > body_r * 0.78 else Color(0.45, 0.52, 0.42))
+			if x >= s * 0.39 and x <= s * 0.61 and y >= s * 0.18 and y <= s * 0.32:
+				img.set_pixel(x, y, Color(0.55, 0.65, 0.75))
+			var dp: float = p.distance_to(pin_c)
+			if dp >= s * 0.09 and dp <= s * 0.125:
+				img.set_pixel(x, y, Color(0.0, 0.898, 1.0))
+	return ImageTexture.create_from_image(img)
+
+
+# v3.5 QA-062: swap icon for the round weapon button — two
+# horizontal arrows (top points right, bottom points left), cyan,
+# 40×40, drawn in code.
+func _make_swap_icon() -> Texture2D:
+	var s := 40
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var cyan := Color(0.0, 0.898, 1.0)
+	for y in s:
+		for x in s:
+			# Top arrow: shaft y 12..16, x 8..28; head triangle tip
+			# (36,14), base x=28, y 9..19.
+			if y >= 12 and y <= 16 and x >= 8 and x <= 28:
+				img.set_pixel(x, y, cyan)
+			if y >= 9 and y <= 19 and x >= 28 and x <= 36 - abs(y - 14):
+				img.set_pixel(x, y, cyan)
+			# Bottom arrow: shaft y 24..28, x 12..32; head triangle
+			# tip (4,26), base x=12, y 21..31.
+			if y >= 24 and y <= 28 and x >= 12 and x <= 32:
+				img.set_pixel(x, y, cyan)
+			if y >= 21 and y <= 31 and x <= 12 and x >= 4 + abs(y - 26):
+				img.set_pixel(x, y, cyan)
+	return ImageTexture.create_from_image(img)
+
+
+# v3.5 QA-062: reload icon for the round reload button — a cyan
+# circular arrow (arc + arrowhead), drawn in code, 40×40.
+func _make_reload_icon() -> Texture2D:
+	var s := 40
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var c := Vector2(s * 0.5, s * 0.5)
+	var r := s * 0.32
+	var a0 := deg_to_rad(40.0)
+	var a1 := deg_to_rad(330.0)
+	for y in s:
+		for x in s:
+			var p := Vector2(x + 0.5, y + 0.5)
+			var d: float = p.distance_to(c)
+			if d >= r - 2.5 and d <= r + 2.5:
+				var a: float = fposmod(atan2(p.y - c.y, p.x - c.x), TAU)
+				if a >= a0 and a <= a1:
+					img.set_pixel(x, y, Color(0.0, 0.898, 1.0))
+	# Arrowhead: a small triangle at the arc's end (a1), pointing
+	# along the arc direction.
+	var tip := c + Vector2(cos(a1), sin(a1)) * r
+	var dir := Vector2(-sin(a1), cos(a1))
+	var norm := Vector2(cos(a1), sin(a1))
+	var p1 := tip + dir * s * 0.22
+	var p2 := tip - dir * s * 0.02 + norm * s * 0.16
+	var p3 := tip - dir * s * 0.02 - norm * s * 0.16
+	for y in s:
+		for x in s:
+			var p := Vector2(x + 0.5, y + 0.5)
+			var d1: float = (p - p1).cross(p2 - p1)
+			var d2: float = (p - p2).cross(p3 - p2)
+			var d3: float = (p - p3).cross(p1 - p3)
+			if (d1 >= 0.0 and d2 >= 0.0 and d3 >= 0.0) or (d1 <= 0.0 and d2 <= 0.0 and d3 <= 0.0):
+				img.set_pixel(x, y, Color(0.0, 0.898, 1.0))
+	return ImageTexture.create_from_image(img)
+
+
+# v3.5 QA-062: round grenade button states, refreshed every HUD
+# frame from the local player. The button has no text — the state
+# is the icon + the ring + the badge: ready = full ring, count
+# badge "×N"; loading (0.5 s after a throw) = the ring fills from
+# empty to full as the cooldown runs out; empty = dimmed, disabled,
+# ring hidden, badge "×0". Throw behaviour is untouched —
+# player.gd still owns the 0.5 s cooldown and the count.
+# v3.5 QA-062 (plain buttons, user 2026-11-19 ~16:37): the grenade
+# button shows no loading state at all — disabled only when the
+# count is 0 (standard Button disabled look). The count is the
+# plain "Grenades: N" text in the top-right HUD.
+func _update_grenade_button(lp) -> void:
+	if grenade_button == null or lp == null:
+		return
+	grenade_button.disabled = int(lp.grenades) <= 0
+
+
+# v3.5 QA-062 (plain buttons, user 2026-11-19 ~16:37): no reload
+# ring, no loading visuals. Disabled while reloading or when the
+# mag is already full — same rule as the old rectangular button.
+func _update_reload_button(lp) -> void:
+	if reload_button == null or lp == null:
+		return
+	var mag_total: int = int(lp.WEAPONS[lp.weapon]["mag"])
+	reload_button.disabled = lp.reloading or lp.mag_ammo >= mag_total
 
 
 func _on_switch_pressed() -> void:
@@ -2519,6 +2737,11 @@ func _notification(what: int) -> void:
 	# forever and the gun would keep firing. Reset all touch state here.
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
 		_reset_all_touch_state()
+	# QA-060: leaving by any path (leave, rematch reload, error
+	# retry) must close the announcement sockets now, not when the
+	# RefCounted sockets happen to drop.
+	if what == NOTIFICATION_EXIT_TREE:
+		_stop_broadcast()
 
 
 func _reset_all_touch_state() -> void:
@@ -2644,6 +2867,9 @@ func _process(delta: float) -> void:
 	elif _flow_test:
 		_update_touch_state()
 		_update_flowtest(delta)
+	elif _restart_test:
+		_update_touch_state()
+		_update_restarttest(delta)
 	elif _scale_test:
 		_update_touch_state()
 		_update_scaletest(delta)
@@ -2664,7 +2890,10 @@ func _process(delta: float) -> void:
 		_update_gameshots(delta)
 	else:
 		_update_touch_state()
-	# The flow test (or a button) may have started leaving mid-frame.
+	# The flow test (or a button) may have started leaving mid-frame
+	# — or a rematch reload may have detached this instance from the
+	# tree (QA-060). Either way the update tail must not run: on a
+	# detached instance `multiplayer` is null.
 	if _leaving:
 		return
 	_update_countdown(delta)
@@ -2794,10 +3023,9 @@ func _update_hud(delta: float) -> void:
 		weapon_label.text = "%s - reloading %d%%" % [wname, int(lp.reload_progress() * 100.0)]
 	else:
 		weapon_label.text = "%s %d/%s" % [wname, lp.mag_ammo, res_txt]
-	if reload_button != null:
-		reload_button.disabled = lp.reloading or lp.mag_ammo >= mag_total
-		reload_button.text = "RELOADING..." if lp.reloading else "RELOAD"
+	_update_reload_button(lp) # v3.5 QA-062: round reload button + progress ring + weapon icon
 	grenade_label.text = "Grenades: %d" % lp.grenades
+	_update_grenade_button(lp) # v3.5 QA-062: round grenade button + loading ring + count badge
 	# Phase 4: FPS counter (settings toggle).
 	if fps_label != null:
 		fps_label.visible = GameData.show_fps
@@ -3197,6 +3425,18 @@ func _stop_spectating() -> void:
 	var lp = _get_local_player()
 	if lp != null and lp._camera != null:
 		lp._camera.make_current()
+
+
+func _stop_broadcast() -> void:
+	# QA-060: close the room-announcement sockets explicitly (leave
+	# / scene change). PacketPeerUDP is RefCounted so the sockets
+	# close when the last reference drops, but an explicit close
+	# means a re-host in the same process never finds the port busy.
+	for s in _udp_broadcast_sockets:
+		if s != null:
+			s.close()
+	_udp_broadcast_sockets.clear()
+	_udp_broadcast = null
 
 
 func _start_broadcast() -> void:
@@ -3834,6 +4074,81 @@ func _update_replsimtest(delta: float) -> void:
 				"tracked %d frames, max position error=%.1f px (want >=10 frames, <10 px — same path, realtime)" % [_repl_sim_bullet_frames, _repl_sim_bullet_max_err])
 			_repl_sim_check("BULLET-SMOOTH", _repl_sim_bullet_max_step < 2200.0,
 				"max step rate of the shadow bullet=%.0f px/s (want <2200 — rifle is 1100 px/s; a freeze-then-jump would be far faster)" % _repl_sim_bullet_max_step)
+			# (f) QA-061 rifle straightness, remote: the server's
+			# pid-1 player fires the rifle 5 times with aim dead
+			# right and _recoil_accum forced to 1.5 (far past a
+			# 2 s hold — pre-fix that is ±46° of spray). The shot
+			# directions are recorded in shot_devs (the LOCAL
+			# check). The last shot's direction is then fired
+			# again from open air (1700, 455) on BOTH instances
+			# with identical params — the spawn RPC hand-delivered
+			# — and step 13 tracks the pair for straightness.
+			var s_p1r = players_node.get_node_or_null("1")
+			var twin_dir := Vector2.RIGHT
+			if s_p1r != null:
+				s_p1r.weapon = 0
+				s_p1r.mag_ammo = 30
+				s_p1r.aim_angle = 0.0
+				s_p1r.velocity = Vector2.ZERO
+				s_p1r._recoil_accum = 1.5
+				s_p1r.shot_devs.clear()
+				for i in 5:
+					s_p1r._fire()
+				if not s_p1r.shot_devs.is_empty():
+					twin_dir = Vector2.RIGHT.rotated(float(s_p1r.shot_devs[s_p1r.shot_devs.size() - 1]))
+			var muzzle_r := Vector2(1700, 455)
+			var b_a = obtain_bullet()
+			b_a.setup(muzzle_r, twin_dir, 1100.0, 12, 0, 1, false, 0.0, 1.2, 997, twin_dir * 1100.0, 0.0)
+			if b_a.get_parent() == null:
+				bullets_node.add_child(b_a)
+			var b_b = _repl_sim_shadow.obtain_bullet()
+			b_b.setup(muzzle_r, twin_dir, 1100.0, 12, 0, 1, false, 0.0, 1.2, 997, twin_dir * 1100.0, 0.0)
+			if b_b.get_parent() == null:
+				_repl_sim_shadow.bullets_node.add_child(b_b)
+			_repl_sim_bullet_a = b_a
+			_repl_sim_bullet_b = b_b
+			_repl_sim_bullet_max_err = 0.0
+			_repl_sim_bullet_max_step = 0.0
+			_repl_sim_bullet_prev_b = Vector2.INF
+			_repl_sim_bullet_frames = 0
+			_repl_sim_step = 13
+			_repl_sim_timer = 0.0
+		13:
+			# Track the rifle twin flight for 0.5 s and score
+			# straightness on both sides: each bullet must hold
+			# its line (travel angle ~0°) and the pair must agree.
+			if is_instance_valid(_repl_sim_bullet_a) and is_instance_valid(_repl_sim_bullet_b) \
+					and _repl_sim_bullet_a.active and _repl_sim_bullet_b.active:
+				var err: float = _repl_sim_bullet_a.position.distance_to(_repl_sim_bullet_b.position)
+				if err > _repl_sim_bullet_max_err:
+					_repl_sim_bullet_max_err = err
+				if _repl_sim_bullet_prev_b != Vector2.INF:
+					var st: float = _repl_sim_bullet_b.position.distance_to(_repl_sim_bullet_prev_b) / maxf(delta, 0.001)
+					if st > _repl_sim_bullet_max_step:
+						_repl_sim_bullet_max_step = st
+				_repl_sim_bullet_prev_b = _repl_sim_bullet_b.position
+				_repl_sim_bullet_frames += 1
+			if _repl_sim_timer < 0.5:
+				return
+			var s_p1s = players_node.get_node_or_null("1")
+			var max_dev := 0.0
+			var n_dev := 0
+			if s_p1s != null:
+				for d in s_p1s.shot_devs:
+					max_dev = maxf(max_dev, absf(float(d)))
+					n_dev += 1
+			_repl_sim_check("RIFLE-STRAIGHT-LOCAL", n_dev >= 5 and rad_to_deg(max_dev) < 0.5,
+				"server rifle shots=%d max deviation=%.2f° at recoil 1.5 (want >=5 shots, <0.5° — pre-fix this was ±46°)" % [n_dev, rad_to_deg(max_dev)])
+			var a_ok: bool = is_instance_valid(_repl_sim_bullet_a) and _repl_sim_bullet_a.active
+			var b_ok: bool = is_instance_valid(_repl_sim_bullet_b) and _repl_sim_bullet_b.active
+			var a_travel := 0.0
+			var b_travel := 0.0
+			if a_ok:
+				a_travel = absf(rad_to_deg(_repl_sim_bullet_a.direction.angle()))
+			if b_ok:
+				b_travel = absf(rad_to_deg(_repl_sim_bullet_b.direction.angle()))
+			_repl_sim_check("RIFLE-STRAIGHT-REMOTE", a_ok and b_ok and _repl_sim_bullet_frames >= 4 and a_travel < 1.0 and b_travel < 1.0 and _repl_sim_bullet_max_err < 10.0,
+				"tracked %d frames, server travel angle=%.2f° shadow travel angle=%.2f° max pair error=%.1f px (want >=4 frames, both alive, <1.0° each, <10 px)" % [_repl_sim_bullet_frames, a_travel, b_travel, _repl_sim_bullet_max_err])
 			_repl_sim_done = true
 			print("REPLSIM DONE: %d passed, %d failed (simulated wire only — live two-phone ENet still needs real phones, see BUGS.md QA-047/QA-053)" % [_repl_sim_passed, _repl_sim_failed])
 			get_tree().quit()
@@ -4519,6 +4834,7 @@ func _joytest_build_steps() -> void:
 		{"name": "RESOLUTION-1920", "wait": 0.5, "setup": _jt_s_resize_1920, "check": _jt_c_resolution_1920},
 		{"name": "RESOLUTION-2400", "wait": 0.5, "setup": _jt_s_resize_2400, "check": _jt_c_resolution_2400},
 		{"name": "MOVE-RELEASE-NO-LEFT-2400", "wait": 0.5, "setup": _jt_s_noop, "check": _jt_c_move_release_no_left_2400},
+		{"name": "AIM-RELEASE-NO-LEFT-2400", "wait": 0.8, "setup": _jt_s_aim_right_mouse_2400, "check": _jt_c_aim_release_no_left_2400},
 	]
 
 
@@ -4787,6 +5103,32 @@ func _jt_c_move_release_no_left_2400() -> Array:
 		and cos(lp.aim_angle) > 0.5
 	get_window().size = Vector2(1280, 720)
 	return [ok, "mouse_seen=%s mouse_pos=%s (want left of centre %.0f) facing=%d vel.x=%d vec=%s knob=%.1f aim=%.2f at 2400x1080 (want facing 1, no leftward vel, vec 0, aim right)" % [_joy_mouse_seen, _joy_mouse_pos_seen, centre_x, lp.facing, round(lp.velocity.x), touch_move_vec, move_stick.get_knob_offset().length(), lp.aim_angle]]
+
+
+# QA-054 (double-check): the 1280 AIM no-left check exists, but there
+# was NO AIM no-left check at the tall resolution — only the MOVE one.
+# Same sequence as _jt_s_aim_right_mouse, re-run at 2400x1080.
+func _jt_s_aim_right_mouse_2400() -> void:
+	var lp = _jt_lp()
+	lp.position = Vector2(2100, 1350)
+	lp.velocity = Vector2.ZERO
+	get_window().size = Vector2(2400, 1080)
+	_joy_aim_before = lp.aim_angle
+	_joy_mouse_seen = false
+	_jt_press_aim(Vector2(60, 0))
+	_jt_inject_mouse_press(_jt_aim_center() + Vector2(60, 0))
+	get_tree().create_timer(0.3).timeout.connect(_jt_release_aim_mouse)
+
+
+func _jt_c_aim_release_no_left_2400() -> Array:
+	var lp = _jt_lp()
+	var centre_x := get_viewport().get_visible_rect().size.x * 0.5
+	var ok: bool = _joy_mouse_seen and _joy_mouse_pos_seen.x > centre_x \
+		and lp.facing == 1 and lp.velocity.x >= -5.0 \
+		and not touch_firing and touch_aim == Vector2.ZERO \
+		and cos(lp.aim_angle) > 0.5
+	get_window().size = Vector2(1280, 720)
+	return [ok, "mouse_seen=%s mouse_pos=%s (want right of centre %.0f) facing=%d vel.x=%d firing=%s aim_vec=%s aim=%.2f at 2400x1080 (want facing 1, not firing, aim right)" % [_joy_mouse_seen, _joy_mouse_pos_seen, centre_x, lp.facing, round(lp.velocity.x), touch_firing, touch_aim, lp.aim_angle]]
 
 
 func _jt_c_fuel_stable() -> Array:
@@ -5864,6 +6206,9 @@ func _firetest_build_steps() -> void:
 		{"name": "MP-SYNC-VALIDATION", "wait": 0.3, "setup": _ft_s_noop, "check": _ft_c_mp_sync},
 		{"name": "MP-SINGLE-SHOT-ONE-BULLET", "wait": 0.15, "setup": _ft_s_single_bullet, "check": _ft_c_single_bullet},
 		{"name": "MP-SHOTGUN-SEVEN-PELLETS", "wait": 0.15, "setup": _ft_s_pellets, "check": _ft_c_pellets},
+		{"name": "RIFLE-STRAIGHT-2S-HOLD", "wait": 2.5, "setup": _ft_s_rifle_straight, "check": _ft_c_rifle_straight},
+		{"name": "BULLET-INSIDE-GEOMETRY", "wait": 0.3, "setup": _ft_s_bullet_inside, "check": _ft_c_bullet_inside},
+		{"name": "BULLET-SIZE-80PCT", "wait": 0.15, "setup": _ft_s_bullet_size, "check": _ft_c_bullet_size},
 	]
 
 
@@ -6389,6 +6734,115 @@ func _ft_c_pellets() -> Array:
 	return [ok, "active shotgun pellets from one shot: %d (want 7, GAP-20 spec §9)" % n]
 
 
+# QA-061: the Assault Rifle must fire STRAIGHT — hold the trigger
+# for a full 2.5 s (20 shots at the 0.125 s rate) and every bullet's
+# recorded direction deviation from the aim must be ~0°. Before the
+# fix the accumulated recoil spread grew to ~±20-30° by the end of
+# the hold. The step runs last so _recoil_accum is already high
+# from the earlier firing steps — the worst case, not a fresh gun.
+func _ft_s_rifle_straight() -> void:
+	var lp = _ft_lp()
+	_ft_set_weapon(0)
+	_ft_rifle_dev_start = lp.shot_devs.size()
+	_ft_press_aim(Vector2(60, 0))
+	_ft_press_fire()
+
+
+func _ft_c_rifle_straight() -> Array:
+	var lp = _ft_lp()
+	_ft_release_aim()
+	_ft_release_fire()
+	var total: int = int(lp.shot_devs.size())
+	var start: int = mini(_ft_rifle_dev_start, total)
+	var n: int = total - start
+	var max_dev := 0.0
+	for i in range(start, total):
+		max_dev = maxf(max_dev, absf(float(lp.shot_devs[i])))
+	var max_deg := rad_to_deg(max_dev)
+	var ok: bool = n >= 10 and max_deg < 0.5
+	return [ok, "rifle shots in hold=%d max deviation=%.2f° (want >=10 shots, <0.5°)" % [n, max_deg]]
+
+
+func _ft_s_bullet_inside() -> void:
+	# QA-055: a bullet whose muzzle starts INSIDE solid geometry
+	# (player flush against a wall, aiming into it) must impact at
+	# once, not fly through the wall. The muzzle sits 60 px ahead
+	# of the player centre, so standing at x=72 aiming left puts
+	# it at x=12 — 12 px inside the 24 px left boundary wall.
+	# The left wall is used because the right wall has sandbags at
+	# x=3120 on the fire-test map (Catacombs).
+	var lp = _ft_lp()
+	if not lp.alive:
+		lp._respawn()
+	lp.health = 100
+	_ft_set_weapon(5) # pistol: semi-auto, exactly one bullet
+	var floor_top := float((MAPS[map_id]["platforms"] as Array)[0].position.y)
+	_ft_teleport(Vector2(72.0, floor_top - 43.0))
+	_ft_inside_shots0 = lp._shots_fired
+	# Bullets from earlier steps may still be flying: remember them
+	# so the check counts only the bullet fired in this step. (The
+	# pool never reuses a node that is active, so the new bullet's
+	# node cannot be in this set.)
+	_ft_inside_old = []
+	for b in bullets_node.get_children():
+		if b.active:
+			_ft_inside_old.append(b.get_instance_id())
+	_ft_press_aim(Vector2(-60, 0))
+
+
+func _ft_c_bullet_inside() -> Array:
+	var lp = _ft_lp()
+	_ft_release_aim()
+	_ft_release_fire()
+	var fired: int = int(lp._shots_fired) - _ft_inside_shots0
+	# Only bullets spawned in this step count: earlier steps leave
+	# strays flying. A bullet that flew through the wall would
+	# still be alive at 0.3 s (lifetime ~1.5 s) and past x=0.
+	var active := 0
+	var past_wall := false
+	for b in bullets_node.get_children():
+		if b.active and not _ft_inside_old.has(b.get_instance_id()):
+			active += 1
+			if b.global_position.x < 0.0:
+				past_wall = true
+	var ok: bool = fired == 1 and active == 0 and not past_wall
+	return [ok, "fired=%d (want 1), new active bullets=%d (want 0), past wall=%s" % [fired, active, str(past_wall)]]
+
+
+func _ft_s_bullet_size() -> void:
+	# QA-056: bullets are 20% smaller (visual 80% of v3.3) — assert
+	# the polygon extents in the test, not just in code. One pistol
+	# shot into open sky (1500, 300), aim right; the bullet is still
+	# flying at the 0.15 s check.
+	var lp = _ft_lp()
+	if not lp.alive:
+		lp._respawn()
+	lp.health = 100
+	_ft_set_weapon(5)
+	_ft_teleport(Vector2(1500, 300))
+	_ft_press_aim(Vector2(60, 0))
+
+
+func _ft_c_bullet_size() -> Array:
+	var lp = _ft_lp()
+	_ft_release_aim()
+	_ft_release_fire()
+	var half_len := -1.0
+	var half_w := -1.0
+	var trail_w := -1.0
+	for b in bullets_node.get_children():
+		if b.active and int(b.owner_id) == lp.peer_id and int(b.kind) == 5:
+			var poly: PackedVector2Array = b._visual.polygon
+			for p in poly:
+				half_len = maxf(half_len, absf(p.x))
+				half_w = maxf(half_w, absf(p.y))
+			trail_w = b._trail.width
+			break
+	# v3.3 was 14.0 x 3.0 (trail 3.0); v3.5 QA-056 is 80%: 11.2 x 2.4.
+	var ok: bool = half_len > 0.0 and absf(half_len - 11.2) < 0.15 and absf(half_w - 2.4) < 0.15 and absf(trail_w - 2.4) < 0.05
+	return [ok, "pistol bullet half-length=%.2f (want 11.2), half-width=%.2f (want 2.4), trail=%.2f (want 2.4)" % [half_len, half_w, trail_w]]
+
+
 # =====================================================================
 # v2.4 MULTIPLAYER TEST (--net-test)
 # Host-side checks that run in one process (auto-host). Real two-peer
@@ -6890,6 +7344,135 @@ func _fl_c_back() -> Array:
 
 
 # =====================================================================
+# v3.5 RESTART CHECK (game side, --restart-test, QA-060)
+# The user reported the game crashing "after starting the game
+# once". The flow test never started a SECOND match, so this check
+# covers exactly that gap: match 1 (spawn + move + fire) -> leave
+# to the menu -> match 2 from a fresh room (spawn + move + fire) ->
+# end match 2 -> rematch (reload_current_scene) -> match 2 reloaded
+# (spawn + move + fire again). A phase that never spawns fails its
+# steps instead of hanging, and the final DONE line prints the
+# accumulated counts (menu-side SECOND-LOBBY included). Any script
+# error along the way also shows in the runner's error count.
+# =====================================================================
+
+func _update_restarttest(delta: float) -> void:
+	if _restart_done:
+		return
+	var phase := GameData.restart_phase
+	if phase != 1 and phase != 3 and phase != 4:
+		_restart_done = true
+		GameData.restart_failed += 1
+		print("RESTARTTEST FAIL: unexpected restart_phase=%d in the game scene (want 1, 3 or 4)" % phase)
+		print("RESTARTTEST DONE: %d/%d passed" % [GameData.restart_passed, GameData.restart_passed + GameData.restart_failed])
+		get_tree().quit()
+		return
+	if _restart_steps.is_empty():
+		_restarttest_build_steps(phase)
+		_restart_step = 0
+		_restart_in_step = false
+		_restart_timer = 0.0
+	if _restart_step >= _restart_steps.size():
+		_restart_done = true
+		print("RESTARTTEST DONE: %d/%d passed" % [GameData.restart_passed, GameData.restart_passed + GameData.restart_failed])
+		get_tree().quit()
+		return
+	var step: Dictionary = _restart_steps[_restart_step]
+	if not _restart_in_step:
+		(step["setup"] as Callable).call()
+		_restart_in_step = true
+		_restart_timer = float(step["wait"])
+	_restart_timer -= delta
+	if _restart_timer <= 0.0:
+		var result: Array = (step["check"] as Callable).call()
+		var ok: bool = bool(result[0])
+		if ok:
+			GameData.restart_passed += 1
+		else:
+			GameData.restart_failed += 1
+		print("RESTARTTEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
+		_restart_step += 1
+		_restart_in_step = false
+		_restart_timer = 0.0
+
+
+func _restarttest_build_steps(phase: int) -> void:
+	if phase == 1:
+		_restart_steps = [
+			{"name": "SPAWN-1", "wait": 0.5, "setup": _rs_s_noop, "check": _rs_c_spawn},
+			{"name": "PLAY-1", "wait": 0.8, "setup": _rs_s_play, "check": _rs_c_play},
+			{"name": "LEAVE-1", "wait": 0.3, "setup": _rs_s_leave, "check": _rs_c_left},
+		]
+	elif phase == 3:
+		_restart_steps = [
+			{"name": "SPAWN-2", "wait": 0.5, "setup": _rs_s_noop, "check": _rs_c_spawn},
+			{"name": "PLAY-2", "wait": 0.8, "setup": _rs_s_play, "check": _rs_c_play},
+			{"name": "END-2", "wait": 0.5, "setup": _rs_s_end, "check": _rs_c_end},
+			{"name": "REMATCH-2", "wait": 0.3, "setup": _rs_s_rematch, "check": _rs_c_left},
+		]
+	else: # phase 4 — the scene reloaded by rematch
+		_restart_steps = [
+			{"name": "SPAWN-3", "wait": 0.5, "setup": _rs_s_noop, "check": _rs_c_spawn},
+			{"name": "PLAY-3", "wait": 0.8, "setup": _rs_s_play, "check": _rs_c_play},
+		]
+
+
+func _rs_s_noop() -> void:
+	pass
+
+
+func _rs_c_spawn() -> Array:
+	var lp = _get_local_player()
+	var ok: bool = lp != null and lp.alive and not match_over
+	return [ok, "local player spawned+alive=%s match_over=%s (phase %d)" % [lp != null and lp.alive, match_over, GameData.restart_phase]]
+
+
+func _rs_s_play() -> void:
+	# Move right and fire, like a real first few seconds of play.
+	_ft_press_move(Vector2(60, 0))
+	_ft_press_aim(Vector2(60, 0))
+	_ft_press_fire()
+
+
+func _rs_c_play() -> Array:
+	var lp = _get_local_player()
+	_ft_release_move()
+	_ft_release_aim()
+	_ft_release_fire()
+	if lp == null:
+		return [false, "no local player to play with (phase %d)" % GameData.restart_phase]
+	var ok: bool = lp._shots_fired > 0 and lp.alive
+	return [ok, "shots fired=%d alive=%s (phase %d)" % [lp._shots_fired, lp.alive, GameData.restart_phase]]
+
+
+func _rs_s_leave() -> void:
+	# Hand back to the menu: it starts match 2 from a fresh room.
+	GameData.restart_phase = 2
+	_on_leave_pressed()
+
+
+func _rs_c_left() -> Array:
+	# The scene change happens in _on_leave_pressed / rematch; this
+	# check is only reached if the change did not happen.
+	return [false, "still in the game scene after leave/rematch (phase %d)" % GameData.restart_phase]
+
+
+func _rs_s_end() -> void:
+	_end_match("RestartTest", "second match over")
+
+
+func _rs_c_end() -> Array:
+	var ok: bool = match_over and end_panel.visible
+	return [ok, "match_over=%s end panel visible=%s" % [match_over, end_panel.visible]]
+
+
+func _rs_s_rematch() -> void:
+	# Rematch reloads this scene; the reloaded scene runs phase 4.
+	GameData.restart_phase = 4
+	_on_rematch_pressed()
+
+
+# =====================================================================
 # Phase 3B PHYSICS TEST (--physics-test, GAP-73/T-01..T-75 support)
 # Headless harness driving the REAL player + touch path. Each step is
 # {name, wait, setup, check}; check returns [passed, detail]. Run:
@@ -7009,6 +7592,7 @@ func _physicstest_build_steps() -> void:
 		{"name": "P22-barrel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_barrel, "check": _phys_c_barrel},
 		{"name": "P23-bounce-pad", "wait": 0.12, "setup": _phys_s_pad, "check": _phys_c_pad},
 		{"name": "P24-stuck-recovery", "wait": 0.1, "setup": _phys_s_stuck, "check": _phys_c_stuck},
+		{"name": "P24b-wedge-recovery", "wait": 3.5, "setup": _phys_s_wedge, "check": _phys_c_wedge},
 	]
 
 
@@ -7167,8 +7751,13 @@ func _phys_ground_at(x: float) -> Vector2:
 
 
 func _phys_s_jump_hold() -> void:
-	# Open sky at x=2100 (the old x=300 spot has a platform at y=1180
-	# directly overhead — the player bonked it at 66 px, not 155).
+	# Open sky at x=800 (the old x=2100 spot sits exactly on Space
+	# Station's bounce pad at 0.7 * 3000 = 2100, so P07 measured the
+	# pad launch ~200 px instead of the jump ~155 px; x=300 has a
+	# platform at y=1180 directly overhead — the player bonked it
+	# at 66 px, not 155). x=800 has >=294 px of sky and no ground
+	# decor within 70 px on all five physics-test maps, and is clear
+	# of every map's pad (0.7 * W). Physics untouched.
 	# fuel=0: holding stick-up must NOT jetpack, or the "hold" apex
 	# measures jump+jetpack (~300 px) instead of the jump (~155 px).
 	# The 999 s regen delay stops air regen re-enabling the jetpack
@@ -7176,7 +7765,7 @@ func _phys_s_jump_hold() -> void:
 	# Phase 5: stand on the ground at x=2100 (the fixed (2100, 1320)
 	# is mid-air on taller maps, so the tap's 0.15 s release fired
 	# before the player had even landed).
-	var gp := _phys_ground_at(2100.0)
+	var gp := _phys_ground_at(800.0)
 	_phys_teleport(gp)
 	var lp = _phys_lp()
 	lp.fuel = 0.0
@@ -7200,7 +7789,7 @@ func _phys_c_jump_hold() -> Array:
 func _phys_s_jump_tap() -> void:
 	# Phase 5: same ground-at-x fix as _phys_s_jump_hold — the fixed
 	# (2100, 1320) is mid-air on taller maps.
-	var gp := _phys_ground_at(2100.0)
+	var gp := _phys_ground_at(800.0)
 	_phys_teleport(gp)
 	var lp = _phys_lp()
 	lp.fuel = 0.0
@@ -7492,6 +8081,55 @@ func _phys_c_stuck() -> Array:
 	var lp = _phys_lp()
 	var ok: bool = is_spawn_valid(lp.position, 1)
 	return [ok, "stuck player moved to %s (want a valid spawn)" % str(lp.position)]
+
+
+func _phys_s_wedge() -> void:
+	# QA-063 wedge recovery: pin the local player between two
+	# temporary solid walls (a synthetic slot, like the old Jungle
+	# jcrate trap) and hold move-right. The detector must teleport
+	# the player to a DIFFERENT valid spawn within the step's wait.
+	var lp = _phys_lp()
+	_phys_teleport((MAPS[map_id]["spawns"] as Array)[0])
+	_phys_data["wedge_spot"] = lp.position
+	var walls: Array = []
+	for dir in [-1.0, 1.0]:
+		var wall := StaticBody2D.new()
+		wall.collision_layer = 1
+		wall.collision_mask = 0
+		var shape := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(20, 200)
+		shape.shape = rect
+		wall.add_child(shape)
+		wall.position = lp.position + Vector2(37.0 * dir, 0.0)
+		add_child(wall)
+		walls.append(wall)
+	_phys_data["wedge_walls"] = walls
+	_jt_press_move(Vector2(60, 0))
+
+
+func _phys_c_wedge() -> Array:
+	var lp = _phys_lp()
+	_jt_release_move()
+	for wall in (_phys_data.get("wedge_walls", []) as Array):
+		if is_instance_valid(wall):
+			wall.queue_free()
+	_phys_data.erase("wedge_walls")
+	var spot: Vector2 = _phys_data.get("wedge_spot", Vector2.INF)
+	var moved: bool = lp.position.distance_to(spot) > 100.0
+	# The recovery only teleports to a spawn point, so the player
+	# must be near one. is_spawn_valid is NOT used here: after the
+	# teleport the test joystick is still held, so the player keeps
+	# walking and can be mid-push against a crate (the solver leaves
+	# the capsule transiently penetrating the floor), which fails
+	# the strict full-capsule shape query even though the recovery
+	# destination was valid.
+	var nearest := 1e9
+	for s in (MAPS[map_id]["spawns"] as Array):
+		nearest = minf(nearest, lp.position.distance_to(s))
+	var near_spawn: bool = nearest < 300.0
+	var free: bool = not lp._both_sides_blocked()
+	return [moved and near_spawn and free, "wedge player at %s (spot was %s, moved=%s, nearest spawn %.0f px, wedged=%s)" % [str(lp.position), str(spot), str(moved), nearest, str(not free)]]
 
 
 # =====================================================================

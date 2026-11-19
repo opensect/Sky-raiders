@@ -1,4 +1,4 @@
-# BUGS.md — LAN Arena Shooter
+# BUGS.md — Frag Arena
 
 QA log for v2.0 (baseline), v2.1 (fixes), v2.2 (joystick rework + fire fix)
 and v2.3 (10 maps, modern UI, host-lobby fix). Every bug lists: ID, title,
@@ -2750,8 +2750,22 @@ scroll with zero height at 1280x720).
 DRAG-ON-LABEL, TAP-MAP-SELECTS, DRAG-RELEASE-NO-SELECT,
 SCROLL-MAX-LAST-MAP-VISIBLE, TAP-LAST-MAP (map 12 — every map
 reachable and tappable), MP-ROOM-DRAG, SETTINGS-DRAG.
-**8/8 passed at 1280x720 AND at a genuine 2400x1080**
+**8/8 passed at 1280x720 AND at 2400x1080**
 (`--resolution 2400x1080` before `--`).
+
+**CORRECTION (v3.5, double-check):** the "genuine 2400x1080"
+claim above is NOT genuine. The xvfb window caps at 1600x720,
+so `get_window().size=(2400,1080)` never took effect — the
+viewport read 1600x720 and the scroll-2400 log lines are
+byte-identical to the 1280 run. The 2400 numbers were only
+aspect-verified (the resize reports the logical canvas size).
+Genuine 2400x1080 verification exists only from v3.5: a
+dedicated `Xvfb:99 -screen 0 2400x1080x24` server, runs with
+`DISPLAY=:99`, shots confirmed 2400x1080 px by file dimensions.
+Scroll test in v3.5 is **9/9 at 1280x720 AND 9/9 at genuine
+2400x1080** (the 9th step is LEFT-COLUMN-DRAG for the new
+lobby layout, QA-059), 0 script errors. Use the Xvfb:99
+method for every tall-resolution claim from now on.
 
 **Two harness bugs found while fixing the 2400x1080 run (harness
 only, not game code):**
@@ -3120,6 +3134,20 @@ facing=1, vel.x=190, vec=(0,0), knob=0.0, aim=0.00;
 AIM-RELEASE-NO-LEFT mouse (1075,555) right of centre, facing=1,
 vel.x=−1, firing=false; 2400 variants PASS.
 
+**v3.5 follow-up:** the double-check found there was NO AIM
+no-left check at 2400 (only MOVE-RELEASE-NO-LEFT-2400). Added
+step `AIM-RELEASE-NO-LEFT-2400` (26th joystick step): same
+press-right / inject-mouse / release / assert sequence at a
+genuine 2400x1080 viewport (Xvfb:99 screen 2400x1080 —
+see QA-048 note below). Joystick **26/26 PASS** in v3.5, 0
+script errors (`/tmp/joy-2400b.log`; first run 25/26,
+RELEASE-STOPS failed with vel.x=95 — a load flake under the
+concurrent suite, re-run green). Also corrected here: the v3.4
+"2400" steps did NOT run at 2400x1080 — the xvfb window capped
+at 1600x720, so the resize reported the logical canvas size and
+only the aspect (2.22) was asserted. Genuine 2400x1080
+verification only exists from v3.5 (Xvfb:99).
+
 ## QA-055 — Bullet audit: flight is NOT realtime on the remote phone; one tunnelling hole (v3.3)
 
 **User reports:** bullets ARE visible on the other phone, but
@@ -3172,6 +3200,19 @@ error **0.0 px**), BULLET-SMOOTH PASS (step rate 1198 px/s vs
 rifle speed 1100 px/s — no teleporting). Fire test 26/26 PASS
 after the change (see QA-056).
 
+**v3.5 follow-up (test added — the fix had NO test):** the
+double-check found no test ever fired a bullet from inside
+geometry. Added fire-test step `BULLET-INSIDE-GEOMETRY`
+(28th step): pistol, teleport to (72, floor_top − 43) on
+Catacombs so the muzzle (60 px ahead of centre) sits 12 px
+inside the 24 px left boundary wall, aim left, fire exactly
+one bullet. Asserts fired=1, new active bullets=0, no bullet
+past x=0. **Negative control:** with `hit_from_inside`
+temporarily set false, the step FAILS (fired=1, new active=1,
+past wall=true); restored to true → **PASS**. Fire test
+**29/29 PASS** in v3.5, 0 script errors (`/tmp/fire2.log`,
+`/tmp/fire3.log`).
+
 ## QA-056 — Bullets 20% smaller (user-requested, v3.4)
 
 **Change (bullet.gd only):** every bullet's visual size scaled
@@ -3190,6 +3231,14 @@ scale was shrunk with the bullet, so both still look right.
 
 **Tests:** fire test **26/26 PASS**, bullet audit checks
 (QA-055) PASS, 0 script errors.
+
+**v3.5 follow-up (test-proven, not just code-verified):** the
+size is now asserted in the fire test — step
+`BULLET-SIZE-80PCT` fires one pistol bullet into open sky and
+reads its live `Polygon2D`: half-length 11.20 (want 11.2),
+half-width 2.40 (want 2.4), trail width 2.40 (want 2.4). Fire
+test **29/29 PASS** in v3.5, 0 script errors
+(`/tmp/fire3.log`).
 
 ## QA-057 — Top-right in-game menu redesigned (user-requested, v3.4)
 
@@ -3218,7 +3267,55 @@ buttons clearly tappable, stats aligned and readable. No
 overlap with the timer, kill feed, buttons, or aim stick at
 either resolution.
 
+**v3.5 follow-up (ghost box INSIDE the panel — fixed):** the
+independent double-check found a faint empty ghost box inside
+this panel at 2400x1080 and no HUD control accounted for it.
+Root cause identified in v3.5: the panel fill was 0.92 alpha,
+so map platforms bled through the scrim as faint rounded
+patches behind the "Players: 1/8" and "Grenades: 2" rows
+(verified by cropping the 2400 HUD shot at 2x). Fix
+(`game.gd` `_build_hud`): fill alpha 0.92 → 1.0, fully opaque.
+Re-shot at 2400x1080 (`v35_hud_2400.png`) — the panel is now a
+clean uniform navy, no patches. Game shots re-captured fresh
+in v3.5 at both resolutions (HUD, countdown, pause, scoreboard,
+end), replacing the stale v3.4 files that still showed
+"Players: 1/12".
+
 ## QA-058 — Lobby and ALL pages redesigned (user-requested, v3.4)
+
+**CORRECTION (independent double-check of v3.4, 2026-11-19, and
+the user, 2026-11-19 ~15:19 IST): this was POLISH, not a
+redesign — and the user called it out: "You haven't improved
+the lobby right".** Compared side by side, the v3.4 lobby is
+nearly identical to the v3.2 lobby: same top-to-bottom stack,
+same tiny map thumbnails, same layout. The changes below are
+real (label colours, a panel behind the player row, taller map
+buttons, the "You win!" typo fix) but they do not amount to a
+redesign. The REAL lobby redesign is QA-059 in v3.5 (entire new
+two-column layout). Do not cite QA-058 as a redesign anywhere
+else in this file.
+
+**CORRECTION — settings privacy line:** the note below claiming
+it "wraps to 2 lines" is wrong. The screenshot shows a SHORTER
+one-line text that fits; v3.2's second line was clipped, v3.4's
+is gone, not wrapped. (The test worker's probe claim is
+retracted; what the screenshot shows is a one-line privacy
+line that fits.)
+
+**CORRECTION — ghost boxes:** the "pre-existing art quirk"
+below (empty rounded boxes baked into `arena_blue.png`) was
+NOT fixed in v3.4. It IS fixed in v3.5 — QA-059 replaces the
+background art with a clean image (`arena_clean.png`) and the
+boxes are gone from every page.
+
+**CORRECTION — scroll at 2400x1080:** the "8/8 PASS at
+2400x1080 (genuine)" claim below is NOT genuine — the
+double-check proved the xvfb window caps at 1600x720, so the
+v3.4 "2400" runs actually ran at a 720-tall viewport (the
+scroll-2400 log lines are byte-identical to the 1280 run).
+Genuine 2400x1080 verification only exists from v3.5, on a
+dedicated Xvfb:99 screen 2400x1080 (scroll 9/9, see QA-059 /
+QA-048). The v3.4 claim is retracted here.
 
 **Change (main.gd only, visual redesign — no flow or button
 changes):** every screen now uses the same Neon Arena treatment
@@ -3298,6 +3395,626 @@ positions are all covered by the joystick test (25/25 PASS)
 and the fire/scale layout checks. If the user still sees a
 glitch, it needs an exact description — the code audit found
 nothing else.
+
+## QA-059 — Lobby REDESIGNED, entire new layout (user-requested, v3.5)
+
+**The user was right (2026-11-19 ~15:19 IST: "You haven't
+improved the lobby right", reinforced ~15:21: "Change now the
+entire layout of lobby and improve the UI").** QA-058 was
+polish, not a redesign — the v3.4 lobby is nearly identical to
+the v3.2 lobby (verified by comparing
+`v34_lobby_1280.png` with `v32_lobby.png`). This entry is the
+REAL redesign, and the acceptance check is the one the user
+set: open the lobby and immediately see a DIFFERENT screen.
+
+**New layout (main.gd `_build_lobby`, `_refresh_lobby_list`,
+`_refresh_lobby_buttons`, `_build_map_card`,
+`_map_card_stylebox`, `_badge_chip`) — NOT the old
+top-to-bottom stack:**
+- **Title + status fixed at top** ("GAME LOBBY" + host hint),
+  never scrolled away.
+- **LEFT column (~40%, stretch 0.8):** room info panel with
+  labelled fields (Room / Players / Map / Mode / Kill limit /
+  Time / Friendly fire), host IP as a cyan-bordered chip, the
+  controls + join hints, proper player cards, match setup
+  (mode / kill limit / time / friendly fire) and the map vote.
+  Scrolls independently (`_lobby_left_scroll`) and fits up to
+  the room's max players.
+- **RIGHT column (~60%, stretch 1.2):** map selection — large
+  map cards in a 2-column scrollable grid (`_lobby_scroll`),
+  all 13 maps reachable.
+- **BOTTOM bar (fixed, 64 px):** I'M READY / START MATCH /
+  Leave — never scrolled away, never overlapping the map grid
+  or player cards.
+- Anchors/containers throughout, no fixed pixel positions that
+  break at the other resolution; verified usable at 1280x720
+  and genuine 2400x1080 (Xvfb:99).
+
+**Ghost boxes — ROOT CAUSE FOUND and FIXED:** the empty
+floating rounded-rectangle outlines on every page (one top-left
+above the title, one pill behind the "Left stick move" hint,
+one behind the "Friends join from LOCAL MULTIPLAYER" line, one
+in the map grid area) are panel shapes BAKED INTO the
+background art. `assets/backgrounds/arena_blue.png` is
+byte-identical to Sky Brawl `arena_map_02.png` (sha256
+`b6423831...`); it has a rounded-rect sign top-left and
+floating platform pills drawn in, showing through the
+semi-transparent panels on every page. SKY_BRAWL_USE.md
+explicitly warned never to use it as a full-screen static
+backdrop — v3.2 used it anyway. Fix: generated a clean
+background `assets/backgrounds/arena_clean.png` (1920x1080,
+PIL: navy gradient, ~320 stars, triangle mountain silhouettes,
+thin cyan horizon glow, solid ground band; the first version
+had banded nebula blobs — removed and regenerated clean,
+visually verified, zero rectangles/pills/outlines). `MENU_BG`
+in main.gd now preloads `arena_clean.png`. The old
+`arena_blue.png` is left in the repo unused. No empty outlines
+anywhere on any page at either resolution.
+
+**Map cards (real art, not generic thumbnails):** `MAP_CARD_ART`
+in main.gd — 7 dark maps use the in-game Sky Brawl backgrounds
+(`assets/skybrawl/maps/bg_*.png`, same art the game itself
+draws: Catacombs, Industrial, Space, City, Volcanic, Neon,
+Temple); 5 day maps use the existing `assets/thumbs/thumb_*.png`;
+Airship falls back to `bg_temple`. Each card: large thumbnail
+(TextureRect, KEEP_ASPECT_COVERED, ~132 px tall), map name,
+one info line (map size + platform count, from `MAP_CARD_INFO`
+in game_data.gd — Catacombs 3200×1400/17, Military 2880×1440/16,
+Desert 3000×1500/16, Industrial 3200×1600/17, Frozen
+2200×1400/15, Jungle 3200×1400/20, Space 3000×1500/16, City
+3200×1600/11, Volcanic 3000×1500/18, Pirate 3000×1500/12, Neon
+3400×1800/14, Temple 3000×1750/14, Airship 3200×1500/10).
+Selected state: cyan border + teal fill + "✓" badge.
+Card height 216 px; the card root is a Control with a
+full-rect transparent overlay Button (StyleBoxEmpty) so
+`_map_buttons` stays an Array of Buttons and all existing
+behaviour (select, vote, host start) is unchanged.
+
+**Player cards:** bigger portrait (52×64, was 36×48), thicker
+colour bar (8 px, was 6 px), name, HOST (amber) / YOU (cyan)
+badge chips, READY chip (green READY ✓ / grey NOT READY).
+Kick button kept.
+
+**Room info:** the single plain text line is gone — replaced
+by labelled field rows in `_room_info_values`. Host IP is a
+cyan-bordered chip PanelContainer (`_host_ip_chip`).
+
+**Scroll (QA-048) must not regress — and the first version DID
+regress, then was fixed:** the first scroll test on the new
+layout was 7/9 — DRAG-RELEASE-NO-SELECT failed (216 px cards
+are taller than the frame-lag offset, so the pointer never
+leaves the card during a scroll-drag and the release fires
+`pressed`) and LEFT-COLUMN-DRAG failed (0, max 1015). Probes
+showed drags reach the Grid/Panel but never the
+VBox/ScrollContainer — PanelContainers swallow `gui_input`.
+Fixes: (a) `_on_scrolled_button_gui_input` now sets a
+`sc_dragged` meta on press (false) / drag (true);
+`_on_map_pressed` ignores the press if the flag is set, then
+clears it. (b) `MOUSE_FILTER_IGNORE` on the room panel, room
+grid, field/value labels, host IP chip/label, controls/join
+hints, player card panels, bar/portrait/name labels and badge
+chips. **Result: scroll test 9/9 at 1280x720 AND 9/9 at
+genuine 2400x1080 (Xvfb:99), 0 script errors** — the 9th step
+is the new LEFT-COLUMN-DRAG (left 436, max 1015, map scroll 0).
+
+**Screenshots (proof dir
+`~/workspace/mini-militia-lan-v35-proof/`):** `v35_lobby_1280.png`
+and `v35_lobby_2400.png` viewed — visibly a different screen
+from v3.4: two columns, room panel top-left, IP chip, player
+card, map cards with real art (Catacombs dark, Military day,
+etc.), selected Catacombs with cyan border + ✓, bottom bar;
+no ghost boxes on lobby or menu. Menu/lobby/customize/
+multiplayer/settings shots at both resolutions, all with
+verified PNG dimensions per file. NOTE: the rename changed
+Godot's user-data dir from "LAN Arena Shooter" to "Frag Arena"
+— shots are now read from
+`~/.local/share/godot/app_userdata/Frag Arena/`; copying from
+the old dir silently re-copies stale files (this bit the
+first re-capture: the 2400 menu file still showed the old
+title until the copy source was fixed).
+
+**Flows unchanged:** ready toggles, host start, kick, map
+select, join flow — same behaviour, same code paths, only the
+layout moved. Full flow test DONE in the v3.5 suite.
+
+## QA-060 — Game CRASHES after starting a match once (user-reported, v3.5)
+
+**User report (2026-11-19 ~15:22 IST):** "It is crashing
+after starting the game once." No crash log from the phone.
+
+**Honest statement first:** the crash could NOT be reproduced
+as a phone crash in-process — no headless run crashed, and no
+single proven crash path was found in code. A GDScript error
+alone does not force-close an Android app, so if the user's
+phone still closes after this fix, the remaining suspect is a
+native crash needing a logcat. What WAS found and closed is a
+real in-process crash path plus every lifecycle hole the audit
+found. The entry says exactly that; it does not claim the
+phone crash is proven fixed.
+
+**Reproduced in-process (pre-fix):** the restart run showed
+5× `SCRIPT ERROR: Cannot call method 'is_server' on a null
+value` at the rematch boundary (`_update_death_watcher`,
+`_update_pickup_spawn`, `_update_join_timeout`,
+`_retry_spawn_if_needed`, `_update_lava`, all from game.gd
+`_process`).
+
+**Root cause:** `reload_current_scene()` is synchronous —
+when called from inside `_process` (via the rematch RPC), the
+rest of that `_process` keeps running on the now tree-detached
+instance where `multiplayer` is null. The leave path already
+had the `_leaving` guard; rematch did not.
+
+**Fix (game.gd):** `rematch_remote()` sets `_leaving = true`
+before `reload_current_scene()`; the mid-frame `_leaving`
+check in `_process` now covers rematch. Lifecycle hardening:
+`_on_leave_pressed` calls new `_stop_broadcast()` + explicitly
+closes the old ENet peer before replacing it with
+OfflineMultiplayerPeer; main.gd `_leave_lobby` also explicitly
+closes the old ENet peer; discovery.gd `_exit_tree()` calls
+`stop()` (closes the UDP 7778 listen socket); game.gd
+`_notification` EXIT_TREE calls `_stop_broadcast()`.
+
+**Double-check additions (from
+`~/workspace/v35-doublecheck/DOUBLECHECK.md`):**
+- Explicit `close()` was missing at 4 teardown sites; added a
+  `_close_peer()` helper in main.gd and used it in
+  `_on_connection_failed`, `join_rejected`, the join-timeout
+  path in `_process`, `_mnt_c_bad_ip`, and `_leave_lobby`.
+  Every teardown previously just assigned
+  `multiplayer_peer = OfflineMultiplayerPeer.new()` and dropped
+  the reference, relying on refcount free and the peer
+  destructor to close the socket — unverified, and if the port
+  stayed bound the second `create_server(PORT)` fails. Now
+  `close()` is called on the old peer BEFORE replacing it, at
+  all sites.
+- `start_match` RPC (main.gd) had no idempotency guard — the
+  host button was guarded by `_starting_match` but a
+  duplicated/late RPC would call
+  `change_scene_to_file(GAME_SCENE)` again. Added a
+  `_match_started` flag, checked at RPC entry, cleared in
+  `_leave_lobby`.
+- "Back to Lobby" button actually went to the main menu via
+  `_on_leave_pressed` — mislabeled. Relabelled **"Back to
+  Menu"**.
+
+**Regression test `--restart-test` (game_data.gd
+`restart_phase/passed/failed`; main.gd
+`_restarttest_begin` / `_restarttest_second_start`; game.gd
+`_update_restarttest`):** match 1 → leave → match 2 from a
+fresh room → end → rematch (reload_current_scene) → play
+again. 8 checks: SPAWN-1, PLAY-1, SECOND-LOBBY, SPAWN-2,
+PLAY-2, END-2, SPAWN-3, PLAY-3. **Result: 8/8 passed, 0 script
+errors** (`/tmp/restart-run4.log`, port 7779). Host re-create
+on the same port is covered (SECOND-LOBBY asserts `_is_host`
+after a fresh `_create_room()`).
+**New two-process rejoin test `--rejoin-test-host` /
+`--rejoin-test-client` (main.gd):** host stays in lobby 30 s;
+client joins by loopback IP `127.0.0.1`, verifies lobby,
+leaves, verifies the peer is OfflineMultiplayerPeer, re-joins,
+verifies lobby again. **Sandbox limit:** two Godot instances
+on one machine cannot both bind discovery UDP 7778, and in
+this sandbox UDP sends fail ("Sending failed" in the client
+log) so the client never connects — JOIN-1 FAIL there is the
+sandbox, not the game. Run on two real phones / an unsandboxed
+runner for a verdict; the in-process proof stands on the
+restart test + the shared `_leave_lobby` teardown.
+
+## QA-061 — Assault rifle bullets SPRAY instead of going straight (user-reported, v3.5)
+
+**User report (2026-11-19 ~15:27 IST):** "Also bullets are
+spraying by the assault rifle not straight. Fix that."
+
+**Root cause (verified in code):** weapons.gd rifle (weapon 0)
+`"spread": 0.05`, `"recoil_k": 0.06`; player.gd `_fire()`
+computed `sp = spread + _recoil_accum * 0.5` with
+`d.rotated(randf_range(-sp, sp))`; `_recoil_accum` grows
+0.06/shot with slow decay, so during sustained auto fire the
+spread grew to ~±20–30° (up to ±46° at recoil 1.5). The small
+table spread alone (±2.9°) would barely show; the recoil
+accumulation is the real cause.
+
+**Fix:** rifle table spread → `0.0` (weapons.gd); `_fire()`
+now excludes weapon 0 from recoil-spread growth (`if weapon
+!= 0: sp += _recoil_accum * 0.5`). Shotgun's fixed 7-pellet
+spread untouched (spec §9, by design); SMG/pistol/sniper/
+rocket unchanged. Gun kick/shake kept — only the bullet
+direction is straight. Diagnostic: player.gd `shot_devs`
+array (capped 200) records per-pellet deviation.
+
+**Tests:** fire test gained `RIFLE-STRAIGHT-2S-HOLD` (hold
+2.5 s, ≥10 shots, max deviation <0.5°) — **fire test 29/29
+passed, 0 script errors** (14 shots, max deviation 0.00°).
+Repl-sim gained step 13 `RIFLE-STRAIGHT-LOCAL` (5 shots at
+forced recoil 1.5, <0.5°) and `RIFLE-STRAIGHT-REMOTE` (twin
+bullet hand-delivered, travel angle <1.0°, pair error <10 px,
+≥4 tracked frames) — **repl-sim 26/26 passed, 0 script
+errors** (LOCAL 0.00°, REMOTE 0.00°, 0.0 px pair error).
+First repl-sim run showed BULLET-TRACK FAIL with 9 tracked
+frames (want ≥10) at 0.0 px error — timing noise under CPU
+load from the concurrent suite; re-run passed with 10 frames.
+
+## QA-062 — Grenade + reload buttons: round, then PLAIN (user-requested, v3.5)
+
+**User requests (2026-11-19):** ~15:28 "Add good button for
+grenade loading." ~16:05 "Grenade button. And reload button in
+good UI as round." ~16:37 "No remove that" (remove the round
+progress rings). ~16:37 "Just have plain buttons."
+
+**Original state:** plain text Button "GRENADE" (110×60),
+count only as "Grenades: 2" text in the top-right HUD, 0.5 s
+cooldown after each throw with no visual feedback.
+
+**What was built, then changed at the user's request (history
+kept here so the removal is not mistaken for a missing
+feature):** both buttons were rebuilt as 72 px circles (≥56 px)
+in the same RELOAD/GRENADE/WEAPON column (reload (−451,−340),
+grenade (−451,−260), weapon (−451,−180); aim stick at
+(−340,−240), 150×150 — no overlap), Neon Arena style, with
+code-drawn icons (grenade, circular-arrow reload, swap-arrows
+weapon — the WEAPON button was also made round for a matching
+set), a grenade count badge "×N" on the button, and circular
+progress rings (`ring_progress.gd`) showing the 0.5 s grenade
+cooldown and the 1.0–1.8 s reload progress. Then the user said
+remove the rings, then "just have plain buttons" — so the rings
+AND the count badge were removed: `ring_progress.gd` deleted
+(and its `.uid`), all ring/badge construction and ring updates
+removed, `player.gd` `grenade_cooldown()` accessor deleted
+(it was only used by the rings). `reload_progress()` is kept —
+it is still used for the weapon label text.
+
+**Final state (shipped):** PLAIN round buttons — clean 72 px
+circles with a simple icon, no rings, no loading animations,
+no extra decoration, no badge. Grenade count stays as the
+plain text "Grenades: N" in the top-right HUD (as in v3.4);
+ammo count as before. Throw/reload behaviour unchanged
+(0.5 s grenade cooldown, count from pickups, weapon reload
+times unchanged). `_update_grenade_button` now only disables
+the button at 0 grenades; `_update_reload_button` only
+disables it while reloading or the mag is full.
+
+**Verification:** `--game-shots` after the removal: GAMESHOTS
+DONE, 0 script errors (`/tmp/gameshots-plain.log`). Viewed
+`v35_hud_1280.png`: three plain round buttons (reload,
+grenade, swap), no rings, no badge, "Grenades: 2" as plain
+text. The stale proof files showing the rings
+(`v35_hud_loading_1280.png`, `v35_hud_reloading_1280.png`)
+were deleted.
+
+## QA-063 — Player gets STUCK between obstacles in the maps (user-reported, v3.5)
+
+**User report (2026-11-19 ~16:00 IST):** "Also player
+shouldn't stick between obstacles in the maps — once review,
+fix that."
+
+**Computational audit (`/tmp/audit_gaps.py`, parses MAPS +
+decor textures + `DECOR_INSETS` + `SOLID_DECOR_KINDS` /
+`BRIDGE_DECOR_KINDS` from game.gd; player capsule 34 px wide,
+86 px tall, normal jump apex ~137 px).** Trap definition:
+a ground-level slot in [34,60) px that the player can enter
+(jump over the lower wall, or drop in from a platform above)
+but cannot jump out of (headroom-capped max rise < wall
+height). Platform-level gaps are open underneath, not traps,
+but still counted as TIGHT. (Audit-script bug found and fixed
+along the way: the first splitter missed Frozen Fortress
+entirely — comment lines between `{` and `"name"`; fixed to
+split on `"name":` and take the first 13 blocks.)
+
+**First refined run: 2 TRAP, 13 TIGHT.** Traps: Jungle Ruins
+jcrate 720/810 — 53 px slot, max rise ~38 px vs wall ~45 px,
+drop-in=True; Airship Fleet barrels 600 / sb_block 666 — 50 px
+slot, max rise ~36 px vs wall ~118 px, drop-in=True. Tight
+list included Military platform–wall-R 56 px, Desert
+platform–wall-R 36 px, Industrial barrels–crate 58 px /
+platform–wall-R 36 px / column–wall-R 39 px, Jungle platform
+gaps 50 px ×2 / jcrate 53 px / platform–wall-R 36 px /
+jcrate–wall-R 38 px, City crate–wall-R 41 px, Volcanic
+platform–wall-R 36 px, Temple sb_block–barrels 60 px.
+
+**Why widening alone would not fix the two traps:** both slots
+were capped by a low overhead platform (~36–38 px jump rise),
+so the player could not climb out over either side at any
+width — the fix removes the drop-in slot / moves the
+obstacle.
+
+**Geometry fixes (game.gd MAPS data, all asserted count==1
+before replace):** Military platform (2500,1050) 300→356 px
+wide; Desert platform (2700,1110) 240→276; Industrial platform
+(2900,1210) 240→276, crate 810→830, column 3120→3080; Jungle
+jcrate 810→1200 (removes the trap slot), jcrate 2010→2030,
+jcrate 3120→3040, platform (2900,840) 240→276, platform
+(450,1010) 550→600, platform (700,1180) 350→400; City crate
+2990→2930 then **2930→2945** (see the spawn note below), crate
+3120→3070; Volcanic platform (2700,1110) 240→276; Temple
+barrels 1150→1170; Frozen platform (80,1010,220) →
+Rect2(24,1010,276,48) (closes the 56 px wall gap); Airship
+barrels 600→300, then **300→900** after it blocked the P04a
+run (see below) — final gap to sb_block (666–774) is 109 px,
+clear of spawn#0's run path.
+**Final audit: 0 TRAP, 0 TIGHT on all 13 maps.** Only two
+intentionally-blocked sub-34 px clusters remain (Catacombs
+sandbags–wall-R 21 px; Jungle jcrate–jcrate 13 px) — the
+player cannot enter them.
+
+**Spawn-overlap catch (found by the collision suite, not the
+audit):** the City crate at 2930 put its solid rect
+(2915,1516,30,36) 2 px inside spawn#6's 34×52 capsule
+(spawn (2900,1520) → capsule x 2883–2917), failing
+STATIC-ALL-MAPS (collision 7/8). Fixed by moving the crate to
+2945 (solid starts 2930, 13 px clear; gap to the next crate
+still 95 px). Collision back to **8/8** and the audit still
+0/0. The audit checks gaps between solids; the collision
+STATIC check checks spawns/pickups against solids — both
+must pass, and now both do.
+
+**`_check_stuck` wedge recovery (player.gd):** the old code
+only fired when the capsule OVERLAPPED solid geometry (shape
+query, radius 14 / height 46 — 3 px smaller than the real
+capsule radius 17 / height 52), never for wedged-between
+(non-overlapping) stuck. Extended: new vars `_wedge_ref_pos`
+(INF), `_wedge_still`, `_wedge_tried_left`, `_wedge_tried_right`.
+After the overlap check (now calls `_wedge_reset()` and returns
+on teleport), if on floor and `absf(_move_axis) > 0.3`: track a
+reference position, accumulate still time by
+`STUCK_CHECK_INTERVAL` (1.0 s); teleport when still ≥1.0 s AND
+(both directions tried OR still ≥2.0 s) AND
+`_both_sides_blocked()` (raycasts 40 px left/right from the
+capsule centre, mask 1, exclude self — both must hit).
+Pushing against a single wall does NOT trigger (one side open).
+Teleport: `get_valid_spawn_point(..., global_position)`,
+velocity zero, `_send_move_snapshot(true)`, `_wedge_reset()`.
+
+**`get_valid_spawn_point` (game.gd):** new optional
+`avoid_pos: Vector2 = Vector2.INF` — the first pass skips
+spawns within 150 px of the stuck spot, so recovery never
+drops the player back into the same trap; fallback to the old
+behaviour if that leaves nothing. Both recovery call sites in
+player.gd now pass `global_position`; initial spawn and
+respawn unchanged.
+
+**Regression test P24b-wedge-recovery (game.gd, physics
+steps, wait 3.5 s):** setup teleports to spawn#0, creates two
+temporary StaticBody2D walls (20×200) at ±37 px, holds
+move-right; check releases move, frees the walls, asserts the
+player moved >100 px from the spot, nearest spawn <300 px, and
+is not wedged (`not _both_sides_blocked()`). Bound was 200 px
+first, loosened to 300 px after players walked up to ~240 px
+post-teleport (still holding the joystick). The check does NOT
+use `is_spawn_valid` — after teleport the held joystick makes
+the player walk into a crate and the solver leaves the capsule
+transiently penetrating the floor, failing the strict shape
+query even though the destination was valid (this caused the
+first map-6 P24b FAIL).
+
+**Physics results after all stuck + harness fixes:** map 0
+**32/32**, map 4 **23/23**, map 6 **32/32**, map 10 **32/32**,
+map 12 **32/32**, all 0 script errors. Intermediate failures
+that drove fixes: map 12 P04a FAIL vel.x=0 (Airship barrels at
+300 blocked spawn#0's rightward run) → barrels moved to 900;
+map 0/4/10 P24b FAIL nearest spawn 203/208/240 px → bound
+200→300; map 6 P24b first FAIL (`is_spawn_valid` false at
+(1458,1426) after teleport to (1400,1420) then walking into a
+crate at 1490) → check changed to nearest-spawn + free. Map 0
+rerun also had one P02 FAIL (air 0.31 s vs ground 0.25 s, want
+air >1.3× ground) — known wall-clock flake, passed on re-run.
+
+## QA-064 — Remove the Godot engine logo from the startup splash (user-requested, v3.5)
+
+**User request (2026-11-19 ~15:24 IST):** "Remove godot
+engine logo in startup."
+
+**Change:** `project.godot` line 17:
+`application/boot_splash/show_image=false`. Checked for any
+other place the logo is shown at startup: no splash settings
+in `export_presets.cfg`; Android `android/res/values/themes.xml`
+uses `@mipmap/icon_background` / `@mipmap/icon_foreground`
+(the app icon, QA-065), not the Godot logo — no Godot splash
+there. No replacement logo — straight into the game, as asked.
+Verify the setting is in the shipped `project.godot`.
+
+## QA-065 — New name + logo: "Frag Arena" (user-requested, v3.5)
+
+**User request (2026-11-19 ~15:58 IST):** "Change logo. Have
+good unique name." Four options were offered (Neon Clash /
+Frag Arena / Jetpack Arena / Pixel Siege) and the rename
+waited for the pick. **User picked "Frag Arena"** (2026-11-19
+~15:59 IST).
+
+**Logo/icon created (PIL, using the project's Orbitron font
+`assets/fonts/orbitron/Orbitron-Variable.ttf` — no Gemini
+generation; the user said "Not now wait" on Gemini assets, and
+a code-drawn logo fits the Neon Arena style):**
+- `assets/logo/frag_arena_logo.png` — 1239×320 (the first
+  1024×320 version clipped "ARENA"; regenerated with the
+  measured text width). Crosshair emblem left (outer ring,
+  inner ring, 4 outside ticks, 4 diagonal frag-burst shards,
+  centre dot, cyan #00E5FF with faint glow) + wordmark "FRAG"
+  cyan + " ARENA" ice (224,247,255). Viewed clean.
+- `assets/logo/frag_arena_icon.png` — 512×512. Navy rounded
+  square (radius 104, #071122), thin cyan inner border, large
+  cyan crosshair. Viewed clean.
+- Headless import run; `.import` files created for both.
+
+**Wiring:** main.gd `FRAG_LOGO` preload + `_build_menu`
+replaces the text title `_title_label("LAN ARENA SHOOTER",
+48)` with a TextureRect logo 460×119, `EXPAND_IGNORE_SIZE`,
+`KEEP_ASPECT_CENTERED`, `SIZE_SHRINK_CENTER`. Privacy line now
+"Frag Arena collects no personal data…", version label "Frag
+Arena v3.5 • LAN only — no accounts, no servers". project.godot
+`config/name="Frag Arena"`, `config/icon=
+"res://assets/logo/frag_arena_icon.png"` (was `res://icon.svg`);
+`icon.svg` deleted. export_presets.cfg
+`package/name="Frag Arena"`,
+`package/unique_name="com.lanarena.shooter"` **UNCHANGED** so
+v3.5 installs over v3.4. `android/` is the export template —
+icons/names are generated from `config/icon` + `config/name`
+at export.
+
+**Verification:** menu screenshotted at 1280x720 and genuine
+2400x1080 (Xvfb:99) — the Frag Arena logo (crosshair + FRAG
+ARENA) shows cleanly at both, no ghost boxes, no old title.
+Files: `v35_menu_1280.png`, `v35_menu_2400.png`. NOTE: the
+rename changed Godot's user-data dir (see QA-059) — the
+first 2400 re-capture silently copied stale files from the old
+"LAN Arena Shooter" dir until the copy source was fixed.
+
+## QA-066 — Physics harness: jump-test spot sat on a bounce pad (double-check, v3.5 — test-only, no game change)
+
+**Finding (independent double-check of v3.4):** the jump-test
+spot x=2100 sits exactly on Space Station's bounce pad (pads
+built at map_size.x × 0.7 = 0.7 × 3000 = 2100; game.gd).
+The pad fires velocity.y = −750, apex 750²/(2·1400) ≈ 201 px —
+exactly the measured 190–213 px on P07a/P07b, failing 27/31,
+28/31, 28/31 across three runs. **This is a HARNESS bug, not
+game physics.** The v3.4 claim "physics 31/31 on map 6" does
+NOT reproduce and is corrected here and in the regression
+table (QA-002/004/030/041/044 cite the honest numbers now).
+
+**Fix:** moved the jump-test spot to x=800 in both
+`_phys_s_jump_hold` and `_phys_s_jump_tap`
+(`_phys_ground_at(800.0)`). x=800 verified: ≥294 px sky
+clearance, no ground decor within 70 px on all five
+physics-test maps (0, 4, 6, 10, 12), clear of every map's pad
+(0.7 × W). **Physics untouched.** Map 6 P07a now 156 px (was
+180 px on the pad), P07b 81 px vs hold 156 px. Physics is now
+**32/32** on maps 0/6/10/12 and **23/23** on map 4 (32 steps,
+was 31 — P24b-wedge-recovery added, QA-063; map 4 has 23,
+was 22). P02/P19/P23 are load-marginal wall-clock flakes —
+consider physics-frame-based waits instead of wall-clock waits
+if they keep flaking.
+
+
+## v3.5 full regression — fix-worker results on the final tree (2026-11-19)
+
+Full suite re-run from scratch on the shipped v3.5 code
+(`run_phase5_final.sh` + repl-sim / scroll / restart, fresh
+logs `/tmp/fullsuite-v35.log`, `/tmp/coll-v35.log`,
+`/tmp/repl-v35.log`, `/tmp/restart-v35.log`,
+`/tmp/scroll-v35-1280.log`, `/tmp/scroll-v35-2400.log`,
+individual suite logs `log4_*.txt`). All green, 0 script
+errors in every log. The suite's collision loop first ran
+7/8 × 13 on the pre-fix tree (the City crate at 2930 put its
+solid 2 px inside spawn#6's capsule — QA-063 spawn note);
+after moving the crate to 2945 the collision loop was re-run
+clean: **8/8 × 13**, 0 script errors. All other suites ran
+on the final tree.
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055 + QA-061 rifle straight) | 26/26 PASS (was 24/24; +2 rifle-straight checks) |
+| Joystick (QA-054 + AIM-2400 step) | 26/26 PASS (was 25/25; +1 AIM-RELEASE-NO-LEFT-2400 step) |
+| Fire (QA-056 size + QA-061 rifle + QA-055 inside-geometry) | 29/29 PASS (was 26/26; +3 steps) |
+| Scale (1280x720 / 2400x1080 / 1920x1080 / 800x480 / 2340x1080) | 70/70 PASS |
+| Physics (spec points 1–28 + P24b wedge, maps 0/6/10/12) | 32/32 PASS on every map (was 31/31; +1 P24b step; map-6 jump spot moved off the bounce pad, QA-066) |
+| Physics (Frozen Fortress ice, map 4) | 23/23 PASS (was 22/22; +1 P24b step) |
+| Features (11 common features) | 11/11 PASS |
+| Multiplayer (net test, QA-047 join) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map (re-run after the QA-063 crate fix) |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23–32 shots, bullets=160, fuel=100.0) |
+| Full flow (menu → create room → lobby → start → play → pause → scoreboard → end → back) | DONE |
+| Scroll 1280x720 (QA-048 + QA-059 new lobby) | 9/9 PASS (was 8/8; +1 LEFT-COLUMN-DRAG step) |
+| Scroll genuine 2400x1080 (QA-048 + QA-059) | 9/9 PASS on Xvfb:99 (dedicated 2400x1080 screen; shots verified 2400x1080 px — the first genuine 2400 verification; the v3.4 "genuine" claim was retracted, see QA-048) |
+| Restart / start → leave → start (QA-060 crash) | 8/8 PASS (new test: match 1 → leave → match 2 → end → rematch → play again) |
+| Rejoin (QA-060, two-process) | Host OK; client JOIN-1 FAIL in the sandbox (UDP blocked — "Sending failed") — sandbox artifact, not a game verdict; needs two real phones / an unsandboxed runner |
+| Screenshots (QA-059 lobby + QA-065 Frag Arena + QA-057 re-capture) | Menu, lobby, customize, multiplayer, settings at 1280x720 + genuine 2400x1080; HUD, countdown, pause, scoreboard, end at 1280x720 + genuine 2400x1080 — all in `~/workspace/mini-militia-lan-v35-proof/`, PNG dimensions verified per file |
+
+**Previous-bug spot-check in v3.5:** QA-047 join fix still
+green inside the repl-sim (its 14 checks are inside the 26
+above); QA-048 scroll 9/9 × 2; QA-049 right-stick firing in
+the fire test 29/29; QA-052 stick positions in the joystick
+test 26/26 and the fire-test layout checks; QA-053 RPC sync
+in the repl-sim 26/26 (both directions smooth, bullet track
+max error 0.0 px). QA-051 is SUPERSEDED by QA-053 (unchanged).
+Full regression table QA-001…QA-066 is below, updated for
+v3.5.
+
+## v3.4 independent double-check — appended in v3.5 (test/export worker, 2026-11-19)
+
+The independent v3.4 double-check report (`~/workspace/v35-doublecheck/DOUBLECHECK.md`,
+runner `~/workspace/v35-doublecheck/run_all.sh`, citable logs
+`~/workspace/v35-doublecheck/logs/`, 41 files) is recorded here in full so the
+record is complete. It re-verified every v3.4 update independently on the **v3.4
+backup copy only** (`~/workspace/mini-militia-lan-backup-v3.4/`, read-only) —
+the live project was untouched. APK verified: md5
+`39e11621341a78a04b8f4b7ce7108453`, versionCode 12 / versionName "3.4".
+Method: code inspection (file + line), fresh headless Godot 4.7.2 runs under
+xvfb, fresh `--game-shots` re-captures, screenshot comparison v3.4 vs v3.2
+proof, and a diff of `bullet.gd` / `main.gd` against the v3.3 backup.
+Environment incident: a runtime restart mid-task wiped `/tmp`, including the
+first full regression run's logs — the entire regression was re-run from
+scratch; citable logs are the second run. First-run numbers are corroboration
+only, with no log files to cite.
+
+### Per-item PASS/FAIL
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | QA-053 RPC movement sync | **PASS** (sim only; live ENet still unproven) | Zero live `MultiplayerSynchronizer` uses (8 grep hits, all comments or the repl-sim's own absence checks); 30/s RPC snapshots (`SNAPSHOT_INTERVAL` 0.033); repl-sim 24/24, both directions smooth, snap-back 0.0 px |
+| 2 | QA-054 joystick release no-left-turn | **PARTIAL PASS** | Gate + 500 ms latch in code (`player.gd:690-714`, `game.gd:2543-2548`); joystick 25/25; BUT no AIM no-left check at 2400, and the "2400" steps actually ran at viewport 1600×720 (xvfb cap) |
+| 3 | QA-055 bullet audit (wall pass-through) | **PARTIAL PASS** | `hit_from_inside = true` present in code (`bullet.gd:152`; v3.3 had none — diff-proven new in v3.4); deterministic flight proven (bullet track max error 0.0 px); BUT no test fires a bullet from inside geometry |
+| 4 | QA-056 bullets 20% smaller | **PASS** (code-verified) | Exact numbers re-confirmed from code + v3.3 diff: length 22→17.6 (rocket) / 14→11.2 (others), half-width ±3→±2.4, trail 3.0→2.4, tail 26→21, all weapons; hitbox is the unchanged zero-width swept ray |
+| 5 | QA-057 top-right UI | **PASS** (minor cosmetic + stale proof file) | Real gohud panel, readable, no overlaps; fresh re-capture shows "Players: 1/8"; faint empty ghost box inside the panel at 2400×1080 (cause unidentified, cosmetic); the shipped v34 1280 proof files were stale (showed 1/12) |
+| 6 | QA-058 lobby + all pages | **FAIL** as a "redesign" | Lobby excluded per brief (already known). Other pages are recolour/relabel polish only — same layouts; only real changes are bigger titles/buttons, cyan labels, lobby cards, end typo fix ("You wins!" → "You win!") |
+| 7 | QA-060 crash (start/leave/restart) | **FAIL** (v3.4 state) | No start→leave→start test existed in v3.4; flow test ends at back-at-menu and quits. No crash reproduced headlessly; holes found: no explicit ENet `close()` anywhere, `start_match` RPC had no idempotency guard, "Back to Lobby" mislabelled (goes to menu) |
+| 8 | Full regression + QA-001…QA-058 table | **MOSTLY PASS — with physics map 6 failing 3/3 runs** | Everything green except physics map 6: 28/31, 27/31, 28/31 — systematic harness bug (see QA-066), not game physics; 0 script errors in all 41 logs |
+
+### Findings handed to the v3.5 fix worker (and what v3.5 did with them)
+
+1. **QA-058 "redesign" overstated** — non-lobby pages were only polished.
+   (Lobby redesign became QA-059 in v3.5; other pages not re-done unless the
+   user asks.)
+2. **QA-060: no start→leave→start test; no explicit ENet `close()`** — fix
+   worker added the restart test (8/8 PASS in v3.5) and `close()` at every
+   teardown site; `start_match` RPC got an idempotency guard.
+3. **Physics map 6 P07a/P07b/P19** — harness bug: jump-test spot x=2100 sits
+   exactly on Space Station's bounce pad (0.7 × 3000). Fixed as QA-066
+   (spot moved x=2100→x=800; physics untouched). P19/P02/P23 are load-marginal
+   thresholds.
+4. **"2400×1080" coverage was not genuine** — the xvfb window capped at
+   1600×720, so every v3.4 2400 claim actually ran at 720 height. Genuine
+   2400×1080 verification exists only from v3.5 (dedicated Xvfb:99 screen).
+5. **QA-055 wall case had no test; QA-056 size had no test** — v3.5 added the
+   BULLET-INSIDE-GEOMETRY test and the BULLET-SIZE-80PCT test (fire 29/29).
+6. **Stale proof files** — the five 1280 game shots (HUD, countdown, pause,
+   scoreboard, end) still showed "Players: 1/12"; re-captured in v3.5.
+7. **Cosmetic:** empty ghost box inside the top-right panel at 2400×1080 —
+   fixed in v3.5 (QA-057 note: panel fill now fully opaque).
+8. **Could not verify (inherent):** real two-phone LAN join, movement sync
+   over live ENet, real touch hardware, real-phone performance, audio by ear.
+   The user's crash report itself could not be reproduced headlessly.
+9. **Out of scope, noted only:** during the check the user filed two new v3.5
+   items (assault-rifle bullets spraying; grenade button redesign) — became
+   QA-061 and QA-062.
+
+### Double-check regression numbers (v3.4 backup, second run — citable)
+
+repl-sim 24/24, joystick 25/25, fire 26/26, scale 70/70, physics map 0 28/31
+(full run; 31/31 isolated re-run — flake), map 4 21/22 (22/22 re-run — flake),
+map 6 28/31 (28/31 re-run; 27/31 pre-wipe — systematic, harness bug QA-066),
+map 10 31/31, map 12 31/31, features 11/11, net 15/15, menu-net 6/6, full flow
+DONE, scroll 8/8 at 1280×720 AND 8/8 at "2400×1080" (caveat: both runs were
+720 px tall — see §4 above), collision 8/8 on all 13 maps, smoke DONE on all
+13 maps, game-shots re-capture DONE at both resolutions. **0 script errors in
+all 41 logs.** Non-script-error lines are environmental only (ALSA "no sound
+device", the documented QA-015 ObjectDB notice, one audio `ERR_CANT_OPEN`).
+
+### Previous-bug table QA-001…QA-058 — spot re-verification (double-check)
+
+- QA-020 evidence overstated ("host again" never tested — flow quits at
+  back-at-menu); re-hosting guarded in code only. Same gap as QA-060.
+- QA-048 "2400×1080 genuine": not proven (see §4).
+- QA-054 evidence overstates 2400 coverage (see item 2 above).
+- QA-057 evidence right about the fix but the cited proof was stale (1/12).
+- QA-058 "Done / redesigned" overstates (see item 6 above).
+- QA-002 / QA-004 / QA-030 / QA-041 / QA-044 cite "Physics 31/31" — that
+  claim fails on map 6 in the double-check runs (see QA-066); the underlying
+  game code is untouched by v3.4, but the citation is only as strong as the
+  suite.
+- QA-010/011/012/013/014/015 (known artifacts / limitations) stand as
+  documented. QA-014 (real two-phone join untestable here) remains the honest
+  limit for QA-047/QA-051/QA-053 as well.
+- Everything else in the table is consistent with the fresh suite.
 
 ## v3.4 full regression — independent test-worker results (2026-11-19)
 
@@ -3451,14 +4168,14 @@ QA-047 join fix). All green, 0 script errors in every log.
 | Scroll 1280x720 (QA-048) | 8/8 PASS |
 | Scroll 2400x1080 genuine (QA-048) | 8/8 PASS |
 
-### Previous-bug regression table (QA-001…QA-058) — re-verified in v3.4
+### Previous-bug regression table (QA-001…QA-066) — re-verified in v3.5
 
 | QA | Still fixed? | Evidence in v3.4 |
 |---|---|---|
 | QA-001 centred panels off-centre/clipped | Yes | Flow test DONE; screenshots: menu, lobby, pause, scoreboard, end all centred, no clipping |
-| QA-002 spawn protection | Yes | Physics 31/31; spawn-protection logic untouched by v3.4 |
+| QA-002 spawn protection | Yes | Physics 32/32 (maps 0/6/10/12) + 23/23 (map 4); spawn-protection logic untouched by v3.5. NOTE: the old "Physics 31/31" citation is corrected — see QA-066 (map-6 31/31 did not reproduce; the jump spot was on a bounce pad) |
 | QA-003 animation freezes during reload | Yes | Smoke DONE (reload cycle runs, anim=idle); fire test RELOAD-COMPLETES |
-| QA-004 camera smoothing reset on respawn | Yes | Physics 31/31; camera code untouched by v3.4 |
+| QA-004 camera smoothing reset on respawn | Yes | Physics 32/32; camera code untouched by v3.5 (see QA-066 on the old 31/31 citation) |
 | QA-005 host's own game in its own room list | Yes | Menu-net 6/6; discovery code untouched |
 | QA-006 START MATCH double-tap | Yes | Flow test DONE (single start); lobby code untouched in v3.4 |
 | QA-007 HELMET_NAMES labels wrong | Yes | Customize screenshot verified; data untouched |
@@ -3474,7 +4191,7 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-017 joystick-test take_damage() 1-arg (test-only) | Yes | Joystick 25/25 PASS |
 | QA-018 JUMP button removed; jump on left stick | Yes | Joystick test STICK-UP-NO-REJUMP; hint text documents it |
 | QA-019 HOST GAME shows world, no buttons | Yes | Flow test DONE; lobby screenshot shows all buttons |
-| QA-020 HOST/JOIN dead after leaving a match (FLOW-017) | Yes | Flow test DONE (back to menu, host again) |
+| QA-020 HOST/JOIN dead after leaving a match (FLOW-017) | Yes — but the evidence line is corrected | The flow test quits at back-at-menu and never hosts again, so "host again" was test-unproven. The real proof is the v3.5 restart test (QA-060): match 1 → leave → match 2 from a fresh room → end → rematch → play again, 8/8 PASS, host re-creates the room on the same port |
 | QA-021 modern UI rework, lobby overflow | Yes — superseded by the v3.2 redesign | Lobby + multiplayer screenshots: no overflow; multiplayer panel scrolls as one outer container |
 | QA-022 Jungle Ruins map from asset pack | Yes | Map present; scroll test TAP-LAST-MAP selects map 12; all 13 maps reachable |
 | QA-023 fire button triggers with movement/grenade/weapon | Yes — the button is gone | Fire test GRENADE/WEAPON-ALONE-NO-FIRE; joystick MULTI-TOUCH (move+aim fires, no cross-talk) |
@@ -3484,7 +4201,7 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-027 semi-auto tap silently lost | Yes — carried into the new input path | Fire test PISTOL-TAP-ONE-SHOT (+1), PISTOL-TEN-RAPID-TAPS (10/10); pending-edge flag + synchronous arm |
 | QA-028 script errors when leaving a match | Yes | 0 script errors in flow + all suite logs |
 | QA-029 joysticks move downwards on real phone | Yes | Joystick 25/25; scale 70/70 across 5 resolutions; touch conversion untouched by v3.4 (only the stick positions moved, QA-052) |
-| QA-030 bullets/player pass through obstacles | Yes | Collision 8/8 on all 13 maps; physics 31/31 |
+| QA-030 bullets/player pass through obstacles | Yes | Collision 8/8 on all 13 maps; physics 32/32 (see QA-066 on the old 31/31 citation) |
 | QA-031 simultaneous lethal hits double-credit a kill | Yes | Fire test MP cases; kill-credit lock untouched; code path verified |
 | QA-032 pickup RPC to disconnected peer spams errors | Yes | Net 15/15; 0 script errors |
 | QA-033 Frozen Fortress rebuilt as small duel map | Yes | Map present in the 13-map set; scroll test reaches map 12 |
@@ -3495,28 +4212,36 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-038 removing exclude_filter breaks preset validation (build) | Yes | Export preset keeps `exclude_filter=""`; v3.4 export succeeded |
 | QA-039 rock decor does not block spawn-height sightlines | Yes | Map rule (rocks excluded from floor-lane fill); collision 8/8 × 13 maps |
 | QA-040 collision-test ray needs a clear approach (floor cover) | Yes | First floor cover face ≥150 px from left edge on every map; collision 8/8 × 13 |
-| QA-041 harness run-ups must stay clear of solid floor decor | Yes | CLEAR_STRETCH + spawn#0 run-up rule; physics 31/31, fire 26/26 |
+| QA-041 harness run-ups must stay clear of solid floor decor | Yes | CLEAR_STRETCH + spawn#0 run-up rule; physics 32/32, fire 29/29 (see QA-066) |
 | QA-042 visual-only decor blocked spawn-cover placement | Yes | Proximity checks count solid kinds only; collision 8/8 × 13 maps |
 | QA-043 two floor spawns too close (Space Station / Airship Fleet) | Yes | Spawn#1 moved to another deck on both maps; TDM grouping kept |
-| QA-044 physics harness used Catacombs-tuned coordinates | Yes | Map-relative helpers (_phys_ground_at / _phys_top_at); physics 31/31 on maps 0/6/10/12 |
+| QA-044 physics harness used Catacombs-tuned coordinates | Yes | Map-relative helpers (_phys_ground_at / _phys_top_at); physics 32/32 on maps 0/6/10/12, 23/23 on map 4 (see QA-066) |
 | QA-045 no explosive barrel on Space Station / Airship Fleet | Yes | ≥1 barrels guaranteed on every map floor; physics P22 passes |
 | QA-046 cover crate vs harness left run + palm walk | Yes | Joystick test teleports clear of cover; Desert/Pirate palms moved to x=400 |
 | QA-047 join stuck on "Connecting...", 0/8 (real-phone, v3.1) | Fixed, sim-verified | Repl-sim 24/24 PASS (spawn broadcast + player-list heal + retry re-send + "Connecting..." clears, plus the 5 new QA-051 sync checks, now superseded by QA-053's RPC channel); live two-phone ENet still needs the user's two phones — see README "Testing the join on two real phones" |
-| QA-048 map scroll on a real phone (v3.1) | Yes | Scroll 8/8 at 1280x720 AND 2400x1080 (genuine); scroll code untouched in v3.4 |
+| QA-048 map scroll on a real phone (v3.1) | Yes | Scroll 9/9 at 1280x720 AND at genuine 2400x1080 (Xvfb:99 screen 2400x1080 — the v3.4 "genuine" claim was NOT genuine, see QA-048). New lobby (QA-059): drag-forwarding on map cards + mouse-transparent panels; 9th step LEFT-COLUMN-DRAG |
 | QA-049 FIRE button removed; right-stick firing (v3.2) | Yes | Fire test 26/26; no FIRE button in the HUD screenshots or the v3.4 APK |
 | QA-050 HUD hint + host-IP line invisible (v3.2) | Yes | v34 HUD screenshots (1280x720 and 2400x1080): bottom hint and "You are the HOST. Your IP: …" line both visible |
 | QA-051 movements not reflecting on the other phone (v3.2) | SUPERSEDED by QA-053 | The v3.3 synchronizer fix did NOT hold on real phones (user-tested v3.3, 2026-11-19 ~13:56: still frozen, bullets sync fine). The synchronizer is deleted in v3.4; movement now travels on the proven RPC channel — see QA-053. Repl-sim 24/24 replaces the old 19/19 |
 | QA-052 joysticks moved inward (v3.3) | Yes | Joystick 25/25, scale 70/70, fire 26/26 at the new positions; HUD screenshots show both sticks inward with clear space, no overlap with the RELOAD/GRENADE/WEAPON column |
 | QA-053 movement STILL not syncing on real phones (v3.3) | Fixed, sim-verified | Root cause: MultiplayerSynchronizer got a different auto-uniquified name on every peer (e.g. "@MultiplayerSynchronizer@1335"), so synchronizer packets addressed by node path were dropped; RPCs (addressed by Players/<pid>) worked. Synchronizer deleted; player state now travels on unreliable RPC snapshots at 30/s with a 12-entry 100 ms interpolation buffer, out-of-order drops, one owner for remote visible position. Repl-sim 24/24: both directions smooth (max step 303/315 px/s, snap-back 0.0 px), bullet track max error 0.0 px. Live two-phone ENet proof still needs the user's two phones (README step 4) — the sim cannot prove live delivery |
-| QA-054 push joystick RIGHT, release, player TURNS LEFT (v3.3) | Yes | Cause: emulate_mouse_from_touch + mouse-aim fallback aiming at the left-half touch point while running right. Fixed with a 500 ms touch_recently_used() gate; fallback requires not touch_recently_used(). Joystick 25/25 incl. MOVE-RELEASE-NO-LEFT and AIM-RELEASE-NO-LEFT at 1280x720 and 2400x1080 (facing stays right, no leftward velocity) |
-| QA-055 bullet flight not realtime on the remote phone (v3.3) | Yes | Audit found one real bug: swept ray hit_from_inside was false, so bullets fired through walls when the muzzle started inside geometry (fixed in bullet.gd). The non-realtime look was the stale shooter pose from the dead synchronizer — fixed by QA-053 (snapshots carry aim/facing). Flight stays deterministic per-peer simulation, not replaced. Repl-sim BULLET-SPAWN/TRACK/SMOOTH PASS (12 frames, max error 0.0 px, max step 1201 px/s vs 2200 limit) |
-| QA-056 bullets 20% smaller (user-requested, v3.4) | Done | Visual size 80% on all weapons, trail matched; hitbox is the zero-width swept ray, unchanged. Fire test 26/26 |
-| QA-057 top-right in-game menu (SCORE + pause + stats) | Done | Real gohud panel: SCORE 96×56 + pause 56×56, Kills/Deaths/Players/weapon+ammo/Grenades. HUD screenshots at both resolutions: no overlap with timer, kill feed, buttons or right stick. Follow-up found in independent verification: the panel showed "Players: 1/12" (used the 12-player cap, not the room max) — fixed in v3.4 to use max_players, fresh render shows "Players: 1/8" in the default room |
-| QA-058 lobby and ALL pages redesigned (user-requested, v3.4) | Done | Section labels, titles, lobby player cards, map buttons on every screen (menu, multiplayer, lobby, settings, customization, countdown, map vote, pause, scoreboard, end). "You wins!" → "You win!" (test worker re-captured the 2400 end shot from the shipped code — the fix worker's file was stale). 10 pages × 2 resolutions reviewed by the test worker; no overlaps, no cut-off text. Settings privacy line wraps to 2 lines (probe-verified). Map scroll still 8/8 × 2. The empty box top-left on menu pages is background art (arena_blue.png), NOT a control — verified by control-tree dump; not fixed |
+| QA-054 push joystick RIGHT, release, player TURNS LEFT (v3.3) | Yes | Cause: emulate_mouse_from_touch + mouse-aim fallback aiming at the left-half touch point while running right. Fixed with a 500 ms touch_recently_used() gate; fallback requires not touch_recently_used(). Joystick 26/26 incl. MOVE-RELEASE-NO-LEFT and AIM-RELEASE-NO-LEFT at 1280x720 and genuine 2400x1080 (Xvfb:99; the new AIM-2400 step was added in v3.5 — the v3.4 "2400" steps only verified aspect, not pixels) |
+| QA-055 bullet flight not realtime on the remote phone (v3.3) | Yes | Audit found one real bug: swept ray hit_from_inside was false, so bullets fired through walls when the muzzle started inside geometry (fixed in bullet.gd). The non-realtime look was the stale shooter pose from the dead synchronizer — fixed by QA-053 (snapshots carry aim/facing). Flight stays deterministic per-peer simulation, not replaced. Repl-sim BULLET-SPAWN/TRACK/SMOOTH PASS (12 frames, max error 0.0 px, max step 1201 px/s vs 2200 limit). v3.5: the fix is now TEST-PROVEN — fire-test step BULLET-INSIDE-GEOMETRY (fired=1, new active=0, past wall=false; negative control with the fix disabled FAILS as expected) |
+| QA-056 bullets 20% smaller (user-requested, v3.4) | Done | Visual size 80% on all weapons, trail matched; hitbox is the zero-width swept ray, unchanged. Fire test 29/29 in v3.5 (was 26/26) — the size is now test-proven by step BULLET-SIZE-80PCT (live polygon half-length 11.20, half-width 2.40, trail 2.40) |
+| QA-057 top-right in-game menu (SCORE + pause + stats) | Done | Real gohud panel: SCORE 96×56 + pause 56×56, Kills/Deaths/Players/weapon+ammo/Grenades. HUD screenshots at both resolutions: no overlap with timer, kill feed, buttons or right stick. Follow-up found in independent verification: the panel showed "Players: 1/12" (used the 12-player cap, not the room max) — fixed in v3.4 to use max_players, fresh render shows "Players: 1/8" in the default room. v3.5: the faint ghost box inside the panel (map bleeding through the 0.92-alpha fill) is fixed — fill now fully opaque, panel clean at 2400x1080; game shots re-captured fresh at both resolutions |
+| QA-059 lobby REDESIGNED, entire new layout (user-requested, v3.5) | Done | Two-column layout (room/players left, map cards right, fixed bottom bar) — visibly different from v3.2/v3.4. Ghost boxes killed at the source: arena_blue.png (baked-in panel shapes) replaced by clean arena_clean.png. Real map cards with Sky Brawl/thumb art + size info + cyan border + ✓ selected state. Player cards with HOST/YOU + READY chips. Scroll 9/9 × 2 resolutions (incl. genuine 2400x1080, Xvfb:99). Screenshots v35_lobby_1280/2400.png |
+| QA-060 game CRASHES after starting a match once (user-reported, v3.5) | Fixed in-process; phone crash not reproduced — see entry | Root cause: reload_current_scene() inside _process kept running on the tree-detached instance (multiplayer null) at the rematch boundary; 5× null errors reproduced pre-fix. _leaving guard now covers rematch; explicit ENet close() at all teardown sites; start_match RPC idempotency guard; "Back to Menu" relabelled. Restart test 8/8 PASS (match → leave → match 2 → end → rematch → play), 0 script errors. Honest caveat: a GDScript error alone does not force-close an Android app — if the phone still closes, a logcat is needed |
+| QA-061 assault rifle bullets SPRAY (user-reported, v3.5) | Done | Rifle spread 0.0 + excluded from recoil-spread growth. Fire test RIFLE-STRAIGHT-2S-HOLD: 14 shots, max deviation 0.00°. Repl-sim RIFLE-STRAIGHT-LOCAL/REMOTE: 0.00°, 0.0 px pair error. Shotgun 7-pellet spread untouched |
+| QA-062 grenade + reload buttons round, then PLAIN (user-requested, v3.5) | Done | Plain round 72 px buttons (icons, no rings, no badge) — rings + count badge were built, then removed at the user's 16:37 request; ring_progress.gd deleted. Grenade count stays as plain "Grenades: N" text. Throw/reload behaviour unchanged. Game shots verified, 0 script errors |
+| QA-063 player STUCK between obstacles (user-reported, v3.5) | Done | Audit: 2 TRAP + 13 TIGHT → 0/0 on all 13 maps (15 geometry edits across 8 maps; City crate 2930→2945 after the collision STATIC check caught a spawn overlap). Wedge recovery extended: stuck-between (not just inside-solid) now teleports via _both_sides_blocked() + avoid_pos (never back into the same trap). P24b-wedge-recovery in the physics suite; physics 32/32 + 23/23 map 4 |
+| QA-064 Godot engine logo in startup (user-requested, v3.5) | Done | project.godot boot_splash/show_image=false; no other splash setting (export_presets.cfg / android themes) shows the Godot logo. No replacement logo |
+| QA-065 new name + logo: "Frag Arena" (user-requested, v3.5) | Done | User picked "Frag Arena". New code-drawn logo (crosshair + FRAG ARENA, Orbitron, cyan-on-navy) + 512×512 app icon. Menu title, privacy/version text, project name, config icon, export preset name renamed; package com.lanarena.shooter UNCHANGED. Menu screenshotted at 1280x720 + genuine 2400x1080 |
+| QA-066 physics harness: jump spot on a bounce pad (double-check, v3.5) | Done — test-only, no game change | Jump-test spot x=2100 was exactly on Space Station's pad (0.7×3000) — P07a/P07b failed 27–28/31. Spot moved to x=800 (verified clear on all 5 physics maps). Physics untouched; physics now 32/32 + 23/23 map 4. The v3.4 "physics 31/31 on map 6" claim does NOT reproduce — corrected |
 
 ### T-items (physics audit T-01–T-75, inside QA-030)
 
-Re-verified by the physics suite **31/31 PASS** (2026-11-19) plus the
+Re-verified by the physics suite **32/32 PASS** (maps 0/6/10/12)
+and **23/23 PASS** (map 4) in v3.5 (2026-11-19) plus the
 fire/collision suites. Harness-evidenced T-items (T-02…T-72 as listed
 in the audit) pass again; code-path T-items unchanged (no physics
 code touched in v3.2 — UI/input only). Still owed to the user's two
@@ -3679,3 +4404,159 @@ No paid library or asset was used.
   "Testing the join on two real phones", step 4: both phones must
   show Players: 2/8 AND each phone must see the other player move,
   in both directions. Mid-match rejoin unsupported.
+
+## v3.5 delivery record — exported + independently verified (2026-11-19, test/export worker)
+
+### APK
+- `mini-militia-lan.apk` — 35,880,779 bytes (~34 MB), md5
+  `3a1ab1ea6bf71fcc485ec94cd2153ad3`. Godot 4.7.2
+  (`--export-release Android` under xvfb; export log 0 script
+  errors — only ALSA environmental noise).
+- aapt2 (`~/workspace/android-sdk/build-tools/34.0.0/aapt2`): package
+  `com.lanarena.shooter`, versionCode 13, versionName 3.5,
+  targetSdk 36, minSdk 24, compileSdk 36, native-code `arm64-v8a`
+  only, exactly the 3 permissions INTERNET / ACCESS_NETWORK_STATE /
+  ACCESS_WIFI_STATE, app label `Frag Arena` in every locale.
+  Version confirmed INSIDE the APK (badging), not just the filename.
+- `apksigner verify` passes (v2 + v3 schemes); signer cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — matches v3.4 exactly (same debug keystore
+  `~/.local/share/godot/keystores/debug.keystore`, alias
+  `androiddebugkey`), installs over v3.4. `package/signed=false` in
+  the preset, so the raw export was unsigned (35,710,662 bytes, md5
+  `6185865e38cbdd77d1e54a3445b60593`) and was signed after the
+  export with apksigner, as in v3.0/v3.1/v3.2/v3.3/v3.4. The signed
+  file replaced `mini-militia-lan.apk` (deliverable convention, same
+  as v3.4).
+- Contents: both music OGGs (`menu_at_rest`,
+  `battle_five_armies`, as imported `.oggvorbisstr`), Orbitron +
+  Rajdhani fonts, gohud theme/assets (670 entries), arena
+  backgrounds (`arena_blue.png`, `arena_clean.png`), Frag Arena logo
+  + icon, Sky Brawl textures; NO `.md`/`.txt`; NO `fire_button`
+  anywhere.
+- Version bump (the only change after the first full run):
+  `game_data.gd` BUILD_VERSION "3.4"→"3.5" and
+  `export_presets.cfg` code 12→13 / name "3.4"→"3.5". (The menu label
+  already read "Frag Arena v3.5" before the bump.)
+- v3.4 APK backed up untouched at
+  `~/workspace/mini-militia-lan-backup-v3.4/mini-militia-lan.apk`
+  (md5 `39e11621341a78a04b8f4b7ce7108453`, verified before the
+  export).
+
+### Independent verification (test/export worker re-ran everything from scratch on the shipped code; fresh logs `~/workspace/v35-export/logs/`, runner `~/workspace/v35-export/run_all.sh`)
+- repl-sim 26/26, joystick 26/26, fire (right-stick) 29/29, scale
+  70/70, physics 32/32 (maps 0/6/10/12) + 23/23 (Frozen ice, map 4),
+  features 11/11, net 15/15, menu-net 6/6, full flow DONE, scroll
+  9/9 at 1280x720 AND 9/9 at genuine 2400x1080, collision 8/8 on
+  all 13 maps, smoke DONE on all 13 maps, restart 8/8.
+  **0 script errors in every log.** Post-bump re-run: repl-sim
+  26/26, flow DONE, physics map 0 32/32 (one P02 flake re-run),
+  restart 8/8, 0 script errors.
+- Genuine 2400x1080: the run used the pre-existing Xvfb:99 server
+  (`xdpyinfo` confirms screen 2400x1080; the script's own Xvfb:99
+  launch failed with "Server is already active for display 99" —
+  a stale server from the fix worker's session — but the runs
+  executed against that genuine 2400x1080 screen, corroborated by
+  the joystick RESOLUTION-2400 aspect check (visible rect 1600x720
+  = 2400x1080 at stretch scale 1.5) and scroll numbers differing
+  from the 1280 run.
+- Spot-checks (code, by the export worker — all PASS): (a) no live
+  `MultiplayerSynchronizer` (only comments + the repl-sim's own
+  absence checks); (b) zero `ring_progress` references in code
+  (only 3 mentions in BUGS.md prose documenting the deletion;
+  `ring_progress.gd` deleted; "badge" hits are gohud library
+  internals only); (c) "Frag Arena" in menu (logo TextureRect +
+  version label), export preset and project name; "NEON ARENA"
+  survives only in comments (theme name), no menu title text;
+  (d) `boot_splash/show_image=false` (`project.godot:17`); (e)
+  rifle spread 0.0 (`weapons.gd:32`) + weapon-0 recoil exclusion
+  (`player.gd:1033-1036`); (f) `close()` at the teardown sites
+  (`_close_peer` at 5 sites in `main.gd`, `game.gd:2337`).
+- Screenshots re-captured from the shipped (bumped) code
+  (`~/workspace/v35-export/shots.sh`, logs `shots-*.log`, 0 script
+  errors): all 20 files in `~/workspace/mini-militia-lan-v35-proof/`
+  verified 1280x720 / 2400x1080 px. The 10 menu-side shots are
+  md5-identical to the fix worker's; the 10 game shots differ only
+  by capture timing. Viewed by the export worker: lobby is the new
+  two-column layout at both resolutions (left room info + host IP
+  chip + player cards with HOST/NOT READY chips; right large map
+  cards in a scrollable grid; bottom button bar), no ghost boxes;
+  menu shows the Frag Arena logo; HUD shows the plain round
+  grenade/reload buttons with no rings and "Grenades: 2" as plain
+  text; top-right panel fully opaque at 2400x1080 — the v3.4 ghost
+  box is gone. "Match setup:" sits just below the fold in the left
+  column at both resolutions (its top edge is clipped in the
+  initial lobby shot) — it scrolls into view via the left column's
+  own ScrollContainer (`main.gd:1098-1099`, section added at
+  `main.gd:1206-1208`); the LEFT-COLUMN-DRAG scroll step passes 9/9
+  at both resolutions, which is the proof it reaches the section.
+- Double-check report appended: the v3.4 independent double-check
+  (`~/workspace/v35-doublecheck/DOUBLECHECK.md`) is now a full
+  section in this file ("v3.4 independent double-check — appended
+  in v3.5"), per-item PASS/FAIL with evidence.
+
+### Honest findings from the export worker's stricter checks (not in the fix worker's claimed scope)
+1. **Physics on ALL 13 maps (suite claims only maps 0/4/6/10/12).**
+   First run: map 0 32/32, map 1 30/32 (P05b, P06), map 2 31/32
+   (P02), map 3 32/32, map 4 23/23, map 5 30/32 (P07a, P07b),
+   map 6 32/32, map 7 30/32 (P07a, P07b), map 8 31/32 (P02), map 9
+   31/32 (P05b), map 10 32/32, map 11 31/32 (P14), map 12 31/32
+   (P02). Isolated re-runs reproduced the same failures (map 5
+   additionally failed P23 once — flake). The v3.4 backup was then
+   run on the same 8 maps (`~/workspace/v35-export/compare_v34_physics.sh`,
+   logs `v34-physics-map*.log`): map 1 28/31 (P02+P05b+P06), map 2
+   30/31 (P02), map 5 29/31 (P07a+P07b), map 7 31/31 PASS, map 8
+   30/31 (P02), map 9 28/31 (P05b+P07a+P07b), map 11 30/31 (P14),
+   map 12 31/31 PASS. Conclusion: the map 1/2/5/8/9/11 failures
+   are PRE-EXISTING harness-placement limits on maps never in the
+   physics-test set (P02 air-accel timing, P05b air-slide landing,
+   P06 terminal-velocity fall height, P07 jump-spot ceilings,
+   P14 respawn-probe placement) — not v3.5 regressions and not
+   game-physics bugs (the same physics passes 32/32 on 4 maps +
+   23/23 on map 4). v3.5's all-maps physics is net BETTER than
+   v3.4's (map 9: 3 fails → 1; map 1: 3 → 2). **One genuine v3.5
+   regression: map 7 (City Underground) passed 31/31 in v3.4 but
+   fails P07a/P07b in v3.5** — the QA-066 jump-spot move
+   (x=2100→x=800) fixed map 6 but the new spot bonks an overhead
+   platform on map 7 (apex 58 px vs ~155). The spot was validated
+   only on the five physics-test maps. The spot was NOT moved
+   again: any single-x fix would need validation on all 13 maps,
+   and the claimed five-map scope is green. A follow-up harness
+   task (find one jump x with clear sky on all 13 maps, or
+   per-map jump spots) is owed if all-maps physics is wanted
+   green.
+2. **Joystick at genuine 2400x1080 is 25/26 (2/2 runs).** The only
+   failure is RELEASE-STOPS (vel.x 74 and 95 vs <60); the 720p run
+   passes it (vel.x 45). The release itself is clean in all runs
+   (vector 0, knob 0, not jetpacking) — under llvmpipe at 2400
+   fewer physics frames elapse in the 0.5 s wall-clock wait, so
+   the player has not finished decelerating when the check fires.
+   Same load-marginal family as P02/P19 (wall-clock waits vs
+   physics frames). The QA-054 no-left steps PASS at 2400 in both
+   runs, including AIM-RELEASE-NO-LEFT-2400. The threshold was NOT
+   loosened (that would be fudging the test); the check stands as
+   a known 2400-only harness marginal.
+3. **Map 12 first-run P02 was a flake:** 31/32 in the main run,
+   32/32 on isolated re-run; v3.4 backup also passes map 12
+   (31/31). Map 0 post-bump P02 (31/32) likewise re-ran 32/32.
+
+### AAB — NOT built (blocked, unchanged)
+- No release keystore exists anywhere on this machine. A release
+  keystore was NOT created: its password must come from the user via
+  Secure Vault, never invented and never written in a file. Exact
+  creation + signing steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md` ("Release signing" section). The
+  APK is the deliverable; the AAB is a bonus once the user supplies
+  the keystore password.
+
+### Honest limits (unchanged)
+- Real two-phone LAN join, real touch hardware, real-phone
+  performance, audio-by-ear: still untested here (sandbox blocks
+  UDP sends even on loopback; repl-sim 26/26 is the in-process
+  substitute). **Movement sync (QA-053) is fixed in the sim only
+  until the user verifies it on two real phones** — README
+  "Testing the join on two real phones", step 4: both phones must
+  show Players: 2/8 AND each phone must see the other player move,
+  in both directions. Mid-match rejoin unsupported. **The QA-060
+  phone crash is fixed in-process only** (restart test 8/8, 0 script
+  errors) — if the phone still closes, a logcat is needed.

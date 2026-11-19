@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "3.4" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "3.5" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
@@ -39,6 +39,15 @@ static var last_room_name: String = ""
 # flow_phase: 0 = off, 1 = in the match, 2 = back at the menu.
 static var flow_test: bool = false
 static var flow_phase: int = 0
+# Restart check (--restart-test, v3.5 QA-060): survives the scene
+# changes so the menu side can hand the check to the game side and
+# back again. restart_phase: 0 = off, 1 = first match, 2 = back at
+# the menu after leaving match 1, 3 = second match, 4 = rematched
+# (scene reloaded) match. Counts accumulate across the whole run so
+# the final DONE line covers every phase.
+static var restart_phase: int = 0
+static var restart_passed: int = 0
+static var restart_failed: int = 0
 
 const PLAYER_COLORS: Array[Color] = [
 	Color(0.95, 0.3, 0.25),
@@ -52,6 +61,19 @@ const PLAYER_COLORS: Array[Color] = [
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
 const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet"]
 const MAP_NAMES: Array[String] = ["Catacombs", "Military Base", "Desert Outpost", "Industrial Factory", "Frozen Fortress", "Jungle Ruins", "Space Station", "City Underground", "Volcanic Cavern", "Pirate Island", "Neon City", "Ancient Temple", "Airship Fleet"] # Phase 5: 13 maps; the vote ballot in main.gd already uses MAP_NAMES.size() for its mod arithmetic
+# v3.5 QA-059: one info line per map for the lobby map cards —
+# real size (from game.gd MAPS) + platform count. Kept here (not
+# in game.gd) because the menu scene builds the cards and game.gd
+# has no class_name to read its MAPS from.
+const MAP_CARD_INFO: Array[String] = [
+	"3200 × 1400 • 17 platforms", "2880 × 1440 • 16 platforms",
+	"3000 × 1500 • 16 platforms", "3200 × 1600 • 17 platforms",
+	"2200 × 1400 • 15 platforms", "3200 × 1400 • 20 platforms",
+	"3000 × 1500 • 16 platforms", "3200 × 1600 • 11 platforms",
+	"3000 × 1500 • 18 platforms", "3000 × 1500 • 12 platforms",
+	"3400 × 1800 • 14 platforms", "3000 × 1750 • 14 platforms",
+	"3200 × 1500 • 10 platforms",
+]
 const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing"]
 # Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).
 # Exact text from gen_assets_v3/music/LICENCE.md.

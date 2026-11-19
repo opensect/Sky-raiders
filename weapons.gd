@@ -29,7 +29,7 @@ extends RefCounted
 # read broken; life rises so rockets still cross a map).
 
 const TABLE := {
-	0: {"name": "Assault Rifle", "damage": 12, "rate": 0.125, "mag": 30, "reload": 1.2, "speed": 1100.0, "spread": 0.05, "pellets": 1, "explosive": false, "sound": "shoot", "recoil": 30.0, "shake": 0.08, "auto": true, "life": 1.2, "gravity": 0.0, "knockback": 60.0, "recoil_k": 0.06},
+	0: {"name": "Assault Rifle", "damage": 12, "rate": 0.125, "mag": 30, "reload": 1.2, "speed": 1100.0, "spread": 0.0, "pellets": 1, "explosive": false, "sound": "shoot", "recoil": 30.0, "shake": 0.08, "auto": true, "life": 1.2, "gravity": 0.0, "knockback": 60.0, "recoil_k": 0.06},
 	1: {"name": "SMG", "damage": 8, "rate": 0.07, "mag": 32, "reload": 1.0, "speed": 1000.0, "spread": 0.09, "pellets": 1, "explosive": false, "sound": "smg", "recoil": 15.0, "shake": 0.05, "auto": true, "life": 1.0, "gravity": 0.0, "knockback": 40.0, "recoil_k": 0.04},
 	2: {"name": "Shotgun", "damage": 9, "rate": 0.8, "mag": 6, "reload": 1.8, "speed": 900.0, "spread": 0.16, "pellets": 7, "explosive": false, "sound": "shotgun", "recoil": 220.0, "shake": 0.35, "auto": false, "life": 0.55, "gravity": 0.0, "knockback": 180.0, "recoil_k": 0.20},
 	3: {"name": "Sniper", "damage": 60, "rate": 0.9, "mag": 5, "reload": 1.6, "speed": 1600.0, "spread": 0.0, "pellets": 1, "explosive": false, "sound": "sniper", "recoil": 180.0, "shake": 0.40, "auto": false, "life": 1.6, "gravity": 0.0, "knockback": 220.0, "recoil_k": 0.15},

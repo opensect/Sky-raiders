@@ -35,6 +35,14 @@ func _ready() -> void:
 	set_process(true)
 
 
+func _exit_tree() -> void:
+	# QA-060: the menu scene is freed on every match start — the
+	# discovery listen socket (UDP 7778) must be closed now, not
+	# when the RefCounted socket happens to drop, or the next menu
+	# cannot bind it.
+	stop()
+
+
 func start_listening() -> bool:
 	if _udp_listen != null:
 		return true

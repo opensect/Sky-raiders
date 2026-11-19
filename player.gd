@@ -108,6 +108,7 @@ var _last_snap_seq: int = -1 # newest snapshot sequence applied
 
 var _shots_fired: int = 0
 var _shots_hit: int = 0 # Phase 4: distinct trigger pulls that hit a player (accuracy)
+var shot_devs: Array = [] # QA-061 diagnostic: per-pellet bullet direction deviation from aim (radians), capped at 200; the fire test reads it for rifle straightness. Gameplay never reads it.
 var _hit_shot_keys: Array = [] # shot indices already counted as hits (shot_no / 10)
 # Phase 4 hitmarker state: the host tells the shooter about each hit
 # (hit_confirm RPC); the game polls _hitmark_seq and shows the marker
@@ -172,6 +173,10 @@ var _cam_anchor: Vector2 = Vector2.ZERO # camera dead-zone anchor (GAP-52)
 var _cam_anchor_init: bool = false
 var _cam_look: float = 0.0 # smoothed look-ahead (GAP-53)
 var _stuck_check_timer: float = 0.0 # stuck-in-geometry recovery (GAP-72)
+var _wedge_ref_pos: Vector2 = Vector2.INF # QA-063: wedged-between-obstacles recovery
+var _wedge_still: float = 0.0 # seconds of move input with no movement
+var _wedge_tried_left: bool = false
+var _wedge_tried_right: bool = false
 var _flame: Polygon2D # jetpack flame, driven by real thrust state (GAP-06)
 
 var _collision_shape: CollisionShape2D
@@ -578,13 +583,72 @@ func _check_stuck(delta: float) -> void:
 	q.collide_with_areas = false
 	var space := get_world_2d().direct_space_state
 	if not space.intersect_shape(q, 1).is_empty():
-		var spot: Vector2 = game.get_valid_spawn_point(player_index, peer_id)
+		var spot: Vector2 = game.get_valid_spawn_point(player_index, peer_id, global_position)
 		print("STUCK-RECOVERY: player %d was inside solid geometry, moved to %s" % [peer_id, str(spot)])
 		position = spot
 		velocity = Vector2.ZERO
 		# QA-053: teleport — tell the other phones at once instead
 		# of waiting for the next 33 ms snapshot tick.
 		_send_move_snapshot(true)
+		_wedge_reset()
+		return
+	# Wedged-between-obstacles recovery (QA-063): the overlap check
+	# above only fires when the capsule is INSIDE solid geometry. A
+	# player wedged in a slot between two solids is NOT overlapping
+	# either one, so it never fired. Detect it by behaviour instead:
+	# the player keeps giving move input on the floor but does not
+	# move, and solid geometry is within reach on BOTH sides. Pushing
+	# against a single wall is normal play and must NOT trigger: one
+	# side is open there, so the both-sides probe fails and nothing
+	# happens. The probe only runs after 1 s of no movement, and the
+	# teleport needs either a wiggle (both directions tried) or 2 s
+	# of holding one direction, so a brief shove against a wall in a
+	# tight pocket cannot false-fire.
+	if not is_on_floor() or absf(_move_axis) <= 0.3:
+		_wedge_reset()
+		return
+	if _move_axis < 0.0:
+		_wedge_tried_left = true
+	else:
+		_wedge_tried_right = true
+	if _wedge_ref_pos == Vector2.INF or global_position.distance_to(_wedge_ref_pos) > 4.0:
+		_wedge_ref_pos = global_position
+		_wedge_still = 0.0
+		_wedge_tried_left = _move_axis < 0.0
+		_wedge_tried_right = _move_axis > 0.0
+		return
+	_wedge_still += PhysicsConfig.STUCK_CHECK_INTERVAL
+	var both_tried: bool = _wedge_tried_left and _wedge_tried_right
+	if _wedge_still >= 1.0 and (both_tried or _wedge_still >= 2.0) and _both_sides_blocked():
+		var spot2: Vector2 = game.get_valid_spawn_point(player_index, peer_id, global_position)
+		print("WEDGE-RECOVERY: player %d wedged between obstacles (no move for %.0f s), moved to %s" % [peer_id, _wedge_still, str(spot2)])
+		position = spot2
+		velocity = Vector2.ZERO
+		_send_move_snapshot(true)
+		_wedge_reset()
+
+
+func _wedge_reset() -> void:
+	_wedge_ref_pos = Vector2.INF
+	_wedge_still = 0.0
+	_wedge_tried_left = false
+	_wedge_tried_right = false
+
+
+func _both_sides_blocked() -> bool:
+	# Raycast 40 px left and right from the capsule centre (the
+	# capsule is 34 px wide, so the rays probe 23 px past each edge).
+	# Both must hit solid world geometry (layer 1) for a wedge.
+	var space := get_world_2d().direct_space_state
+	for dir in [-1.0, 1.0]:
+		var rq := PhysicsRayQueryParameters2D.create(global_position, global_position + Vector2(40.0 * dir, 0.0))
+		rq.collision_mask = 1
+		rq.collide_with_bodies = true
+		rq.collide_with_areas = false
+		rq.exclude = [get_rid()]
+		if space.intersect_ray(rq).is_empty():
+			return false
+	return true
 
 
 func _update_camera(delta: float) -> void:
@@ -960,8 +1024,21 @@ func _fire() -> void:
 			d = d.rotated(deg_to_rad(WeaponData.SHOTGUN_SPREAD_DEG[i % 7]))
 		elif float(w["spread"]) > 0.0:
 			# Other weapons: table spread + accumulated recoil spread.
-			var sp := float(w["spread"]) + _recoil_accum * 0.5
+			# QA-061: the Assault Rifle (weapon 0) is EXCLUDED from
+			# the recoil growth — it fires straight no matter how
+			# long the trigger is held (its table spread is 0.0
+			# too, so this branch is skipped for it entirely; the
+			# guard keeps it straight even if the table changes).
+			var sp := float(w["spread"])
+			if weapon != 0:
+				sp += _recoil_accum * 0.5
 			d = d.rotated(randf_range(-sp, sp))
+		# QA-061: record this pellet's direction deviation from the
+		# aim (radians) for the rifle-straightness test. Capped so
+		# a long match cannot grow the array without bound.
+		shot_devs.append(wrapf(d.angle() - aim_angle, -PI, PI))
+		if shot_devs.size() > 200:
+			shot_devs.pop_front()
 		# Velocity inheritance (GAP-55, spec §20.C): the bullet keeps
 		# 0.15 of the shooter's velocity. spawn_bullet carries the
 		# full velocity vector; bullet.gd integrates it.
@@ -998,6 +1075,7 @@ func reload_progress() -> float:
 	return clampf(1.0 - _reload_timer / total, 0.0, 1.0)
 
 
+# v3.5 QA-062: the grenade button's loading fill reads this.
 func _show_muzzle() -> void:
 	_muzzle.visible = true
 	_muzzle.scale = Vector2(1.2, 1.2)

@@ -184,7 +184,7 @@ cyan, not green.
 
 | Use | Font | Size (px) | Notes |
 |---|---|---|---|
-| App title ("LAN ARENA SHOOTER") | Orbitron | 40 | Cyan `#00E5FF`, centred. (Demo used 40; 44 overflowed a 560 px box.) |
+| App title (Frag Arena logo image, `assets/logo/frag_arena_logo.png`) | — | 460×119 | Crosshair emblem + "FRAG ARENA" wordmark (Orbitron, cyan `#00E5FF` + ice `#E0F7FF`), centred. v3.5 replaced the old text title "LAN ARENA SHOOTER" (Orbitron 40) with the logo TextureRect — the text title is gone. |
 | Screen titles ("GAME LOBBY", "SETTINGS") | Orbitron | 30 | Text `#D8F4FF` |
 | Section labels ("Map:", "Game mode:") | Rajdhani SemiBold | 20 | Muted `#85A7BD`, caps optional |
 | Buttons | Rajdhani SemiBold | 22–26 | ALL CAPS text, text `#D8F4FF` (pressed: `#03121A` on cyan) |
@@ -193,11 +193,10 @@ cyan, not green.
 | Kill feed / toasts | Rajdhani Medium | 18 | On dark translucent chips |
 
 The gohud theme's base font size is 16 — **always set explicit sizes**
-(above) on every control; do not rely on the theme default. Titles must
-fit: "LAN ARENA SHOOTER" at Orbitron 40 ≈ 510 px wide — fits 1280 and
-phone-landscape widths; verify on a narrow (portrait-ish) width before
-shipping. If Orbitron's variable weight renders too light, pin a heavier
-weight with `FontVariation` and screenshot it.
+(above) on every control; do not rely on the theme default. The menu
+title is now the Frag Arena logo image (460×119), not text — it fits
+1280 and phone-landscape widths; verify on a narrow (portrait-ish)
+width before shipping.
 
 ## 4. Buttons (gohud `scifi_dark` theme)
 

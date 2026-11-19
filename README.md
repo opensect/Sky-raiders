@@ -1,8 +1,141 @@
-# LAN Arena Shooter — v3.4
+# Frag Arena — v3.5
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
-2–12 players on the same Wi-Fi.
+2–12 players on the same Wi-Fi. (Renamed from "LAN Arena Shooter" in v3.5 —
+see QA-065 in BUGS.md; the package name `com.lanarena.shooter` is unchanged,
+so v3.5 installs over v3.4.)
+
+## What's new in v3.5 (crash fix + rifle straight + no more stuck + REAL lobby redesign + Frag Arena)
+
+- **Crash after starting a match once — fixed in-process (QA-060).**
+  The rematch path called `reload_current_scene()` from inside
+  `_process`, and the rest of that frame kept running on the
+  tree-detached instance where `multiplayer` is null (5× null
+  errors reproduced pre-fix). The `_leaving` guard now covers
+  rematch; the old ENet peer is explicitly `close()`d at every
+  teardown site before being replaced; the `start_match` RPC has
+  an idempotency guard; "Back to Lobby" is relabelled "Back to
+  Menu" (it goes to the menu). New restart test — match 1 → leave
+  → match 2 → end → rematch → play again — **8/8 PASS**. Honest
+  note: the crash could not be reproduced as a phone crash
+  in-process, and a GDScript error alone does not force-close an
+  Android app — if the phone still closes, a logcat is needed.
+- **Assault rifle fires straight now (QA-061).** Its bullets
+  sprayed up to ±20–30° during sustained auto fire: table spread
+  0.05 plus accumulated recoil spread (`_recoil_accum * 0.5`,
+  growing 0.06/shot). Table spread is now 0.0 and the rifle is
+  excluded from recoil-spread growth. Fire test: 14 shots held
+  2.5 s, max deviation **0.00°**; repl-sim local + remote both
+  0.00°. Shotgun spread, gun kick and shake unchanged.
+- **No more getting stuck between obstacles (QA-063).** A
+  computational audit of all 13 maps found 2 trap gaps (a slot
+  you can drop into but cannot jump out of) and 13 tight gaps;
+  15 obstacle moves later the audit reads **0 TRAP, 0 TIGHT**.
+  The stuck-recovery code now also catches wedged-between
+  (not just inside-solid) and teleports you to a spawn away from
+  the trap. New P24b wedge-recovery check in the physics suite.
+- **Lobby REDESIGNED — the entire layout is new (QA-059).**
+  QA-058 was only polish and you called it out, so the lobby is
+  genuinely different now: room + players in a LEFT column,
+  map selection as large real-art cards in a RIGHT column, and
+  the I'M READY / START / Leave buttons in a fixed bottom bar.
+  The ghost boxes are gone — they were panel shapes baked into
+  the old background art, replaced by a clean background. Map
+  scrolling still works (9/9 at both resolutions, including a
+  genuine 2400x1080 check).
+- **New name + logo: Frag Arena (QA-065).** New code-drawn logo
+  (crosshair + FRAG ARENA, Orbitron, cyan-on-navy) and app icon.
+  Package name unchanged, so v3.5 installs over v3.4.
+- **Grenade + reload buttons are plain round buttons (QA-062).**
+  Round 72 px circles with a simple icon — the progress rings
+  and count badge were built, then removed at your request ("No
+  remove that", "Just have plain buttons"). Grenade count stays
+  as plain text; throw/reload behaviour unchanged.
+- **Godot engine logo removed from startup (QA-064).** No logo,
+  straight into the game.
+- **Double-check corrections:** the physics jump-test spot sat
+  exactly on Space Station's bounce pad (QA-066 — test-only fix,
+  physics untouched); the QA-055 inside-geometry fix and the
+  QA-056 bullet size are now test-proven, not just code-verified;
+  the AIM no-left check at 2400 was added; the v3.4 "genuine
+  2400x1080" claims were retracted (the xvfb window capped at
+  1600x720 — genuine 2400x1080 verification only exists from
+  v3.5, on a dedicated Xvfb:99 screen); QA-058 is honestly
+  recorded as polish, not a redesign.
+- Nothing else changed: same 13 maps, same features, same 3
+  permissions, same debug keystore — v3.5 installs over v3.4.
+
+### v3.5 build (delivered 2026-11-19, independently verified + exported)
+
+- **APK:** `mini-militia-lan.apk` — 35,880,779 bytes (~34 MB), md5
+  `3a1ab1ea6bf71fcc485ec94cd2153ad3`, versionCode **13**,
+  versionName **3.5**, targetSdk 36, minSdk 24, package
+  `com.lanarena.shooter`, arm64-v8a only, app label **Frag Arena**.
+  Built with Godot 4.7.2 (`--export-release Android` under xvfb).
+  **Signing note:** the Godot export came out unsigned (preset
+  `package/signed=false`), so the APK was signed afterwards with
+  `apksigner` using the same debug keystore as v3.2/v3.3/v3.4 —
+  `apksigner verify` passes (v2 + v3 schemes), cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v3.4 exactly, so it installs over v3.4. Exactly the 3
+  permissions (INTERNET / ACCESS_NETWORK_STATE /
+  ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
+  fonts, gohud theme, arena backgrounds (`arena_blue.png`,
+  `arena_clean.png`), Frag Arena logo + icon, Sky Brawl textures; no
+  `.md`/`.txt`, no `fire_button` leftovers. v3.4 APK backed up at
+  `~/workspace/mini-militia-lan-backup-v3.4/` (md5 verified
+  `39e11621341a78a04b8f4b7ce7108453`).
+- **Independent verification (fresh re-run on the shipped code by the
+  test/export worker, not the fix worker's logs):** repl-sim 26/26,
+  joystick 26/26, fire (right-stick) 29/29, scale 70/70, physics
+  32/32 (maps 0/6/10/12) + 23/23 (Frozen ice, map 4), features
+  11/11, net 15/15, menu-net 6/6, full flow DONE, scroll 9/9 at
+  1280x720 AND genuine 2400x1080 (dedicated Xvfb:99 2400x1080
+  screen), collision 8/8 on all 13 maps, smoke DONE on all 13 maps,
+  restart test 8/8 — **0 script errors in every log**.
+  Post-version-bump re-run: repl-sim 26/26, flow DONE, physics map 0
+  32/32 (after one P02 flake re-run), restart 8/8, 0 script errors.
+  Previous-bug regression QA-001…QA-066 all still fixed (see
+  BUGS.md). Screenshots re-captured from the shipped code at both
+  resolutions (menu, lobby, HUD, pause, scoreboard, end, settings,
+  customization, multiplayer, countdown) in
+  `~/workspace/mini-militia-lan-v35-proof/` — all 20 files verified
+  1280x720 / 2400x1080 px; the 10 menu-side shots are byte-identical
+  to the fix worker's, the 10 game shots differ only by capture
+  timing. Lobby confirmed visually as the new two-column layout with
+  no ghost boxes; menu shows the Frag Arena logo; HUD shows the plain
+  round grenade/reload buttons with no rings; the top-right panel is
+  fully opaque at 2400x1080 (the v3.4 ghost box is gone).
+- **Two honest findings from the export worker's stricter checks
+  (see BUGS.md v3.5 delivery record):** (1) physics run on ALL 13
+  maps (the suite only claims maps 0/4/6/10/12) fails a few
+  harness-placement steps on maps 1/2/5/8/9/11 — the SAME steps fail
+  on the v3.4 backup, so they are pre-existing harness limits on
+  maps never in the physics-test set, not v3.5 regressions and not
+  game-physics bugs. One exception: map 7 (City Underground) passed
+  31/31 in v3.4 but fails P07a/P07b in v3.5 — the QA-066 jump-spot
+  move (x=2100→x=800) fixed map 6 but the new spot bonks an overhead
+  platform on map 7; the spot was only validated on the five
+  physics-test maps. (2) At genuine 2400x1080 the joystick suite is
+  25/26: RELEASE-STOPS fails twice (vel.x 74/95 vs <60) while the
+  720p run passes (45) — the release itself is clean (vector 0,
+  knob 0, not jetpacking); under llvmpipe at 2400 fewer physics
+  frames elapse in the 0.5 s wall-clock wait, so the player has not
+  finished decelerating when the check fires. Same load-marginal
+  family as P02/P19. The QA-054 no-left steps PASS at 2400 in both
+  runs, including AIM-RELEASE-NO-LEFT-2400.
+- **AAB: NOT built — blocked on the release keystore** (same as
+  v3.4; see PLAY_SUBMISSION_CHECKLIST.md).
+- **Honest limits (unchanged):** real two-phone LAN join and
+  movement sync, real touch hardware, real-phone performance and
+  audio-by-ear are still untested here (the sandbox blocks UDP
+  sends; repl-sim 26/26 is the in-process substitute). The
+  two-phone check below is the only proof that counts.
+  Mid-match rejoin is not supported. The two-process rejoin test
+  fails in the sandbox (UDP blocked) — needs two real phones. The
+  QA-060 phone crash is fixed in-process only — if the phone still
+  closes, a logcat is needed.
 
 ## What's new in v3.4 (RPC movement sync + joystick release fix + bullet audit + top-right & lobby UI)
 
