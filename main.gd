@@ -107,6 +107,19 @@ var _lobby_left_scroll: ScrollContainer # v3.5 QA-059: left column (room + playe
 var _map_cards: Array = [] # v3.5 QA-059: map card panels (visuals), parallel to _map_buttons (input)
 var _map_card_badges: Array = [] # v3.5 QA-059: "✓ SELECTED" badge per card, parallel to _map_buttons
 var _lobby_start_btn: Button
+var _lobby_players_badge: GoBadge # v3.6 QA-069: header players pill ("1/4 PLAYERS"), updated in _refresh_lobby_buttons
+var _profile_portrait: TextureRect # QA-078: main-menu profile card
+var _profile_name_lbl: Label
+var _profile_level_lbl: Label
+var _profile_stats_lbl: Label
+var _team_buttons: Array = [] # QA-078: RED / BLUE / AUTO team pick (team modes only)
+var _team_section_label: Label # QA-078: hidden with the team row in FFA modes
+var _lobby_color_buttons: Array = [] # QA-078: in-lobby appearance
+var _lobby_helmet_buttons: Array = []
+var _limit_label: Label # QA-080: "Kill limit:" / "Capture limit:" by mode
+var _strip_limit_cap: Label # QA-080: stat-strip caption, same switch
+var _room_code_input: LineEdit # QA-078: join by room code
+var _my_team: int = -1 # QA-078: my team pick in this room (-1 auto)
 var _ready_btn: Button
 var _ff_check: CheckButton
 var _map_buttons: Array = []
@@ -167,6 +180,7 @@ var _mp_scroll: ScrollContainer
 var _settings_scroll: ScrollContainer
 var _controls_hint_label: Label
 var _map_section_label: Label
+var _players_section_label: Label # v3.6 QA-078: "Players in the room:" header inside the left scroll (the scroll test drags on it)
 var _scroll_hint_label: Label
 var _shot_all: bool = false
 var _shot_idx: int = 0
@@ -186,6 +200,13 @@ func _ready() -> void:
 	GoUi.use_preset(GoThemePresets.SCIFI_DARK)
 	theme = GoUi.theme()
 	GameData.load_settings()
+	# Test-only mode override (--mode=N, QA-080 screenshots): must
+	# run before the lobby is built so the mode buttons style the
+	# right selection. Parsed here, not in _handle_cli_args, because
+	# the lobby is built earlier in _ready.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--mode="):
+			GameData.game_mode = clampi(int(a.trim_prefix("--mode=")), 0, GameData.MODE_NAMES.size() - 1)
 	_audio = AUDIO_SCRIPT.new()
 	add_child(_audio)
 	_audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
@@ -556,6 +577,8 @@ func _show_only(panel: PanelContainer) -> void:
 	for p in [_menu_panel, _custom_panel, _settings_panel, _mp_panel, _lobby_panel]:
 		if p != null:
 			p.visible = (p == panel)
+	if panel == _menu_panel:
+		_refresh_profile_card() # QA-078: stats may have changed after a match
 
 
 
@@ -586,6 +609,57 @@ func _build_menu() -> void:
 	title_sep.custom_minimum_size = Vector2(420, 0)
 	title_sep.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(title_sep)
+	# QA-078: profile card — avatar, name, level and lifetime
+	# stats, all local (no account, no server). The numbers come
+	# from GameData.record_match, called once per finished match.
+	var profile_card := PanelContainer.new()
+	profile_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pc_sb := StyleBoxFlat.new()
+	pc_sb.bg_color = Color(0.10, 0.16, 0.25, 0.95)
+	pc_sb.set_corner_radius_all(10)
+	pc_sb.border_color = Color(0.25, 0.38, 0.52)
+	pc_sb.set_border_width_all(1)
+	pc_sb.content_margin_left = 14
+	pc_sb.content_margin_right = 14
+	pc_sb.content_margin_top = 10
+	pc_sb.content_margin_bottom = 10
+	profile_card.add_theme_stylebox_override("panel", pc_sb)
+	profile_card.custom_minimum_size = Vector2(460, 0)
+	profile_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(profile_card)
+	var pc_row := HBoxContainer.new()
+	pc_row.add_theme_constant_override("separation", 12)
+	profile_card.add_child(pc_row)
+	_profile_portrait = TextureRect.new()
+	_profile_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_profile_portrait.custom_minimum_size = Vector2(56, 72)
+	_profile_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_profile_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pc_row.add_child(_profile_portrait)
+	var pc_vb := VBoxContainer.new()
+	pc_vb.add_theme_constant_override("separation", 2)
+	pc_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pc_row.add_child(pc_vb)
+	_profile_name_lbl = Label.new()
+	_profile_name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_profile_name_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	_profile_name_lbl.add_theme_font_size_override("font_size", 24)
+	_profile_name_lbl.add_theme_color_override("font_color", UI_FONT)
+	pc_vb.add_child(_profile_name_lbl)
+	_profile_level_lbl = Label.new()
+	_profile_level_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_profile_level_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	_profile_level_lbl.add_theme_font_size_override("font_size", 20)
+	_profile_level_lbl.add_theme_color_override("font_color", UI_ACCENT)
+	pc_vb.add_child(_profile_level_lbl)
+	_profile_stats_lbl = Label.new()
+	_profile_stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_profile_stats_lbl.add_theme_font_override("font", FONT_BODY)
+	_profile_stats_lbl.add_theme_font_size_override("font_size", 18)
+	_profile_stats_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
+	_profile_stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pc_vb.add_child(_profile_stats_lbl)
+	_refresh_profile_card()
 	var mp_btn := Button.new()
 	mp_btn.text = "LOCAL MULTIPLAYER"
 	mp_btn.icon = _gohud_icon("play")
@@ -620,6 +694,26 @@ func _build_menu() -> void:
 	var credit := _body_label(GameData.MUSIC_CREDITS_SHORT, 16)
 	credit.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(credit)
+
+
+# QA-078: fill the main-menu profile card from the saved lifetime
+# stats. Called at build time and every time the menu is shown
+# (a match just played may have changed the numbers). Safe to call
+# before the card exists (the menu builds it first).
+func _refresh_profile_card() -> void:
+	if _profile_name_lbl == null:
+		return
+	_profile_portrait.texture = _portrait_texture(GameData.portrait)
+	_profile_name_lbl.text = GameData.player_name
+	var lvl := GameData.level_for_kills(GameData.stat_kills)
+	var into := GameData.kills_into_level(GameData.stat_kills)
+	_profile_level_lbl.text = "Level %d  •  %d/50 kills to level %d" % [lvl, into, lvl + 1]
+	var kd := float(GameData.stat_kills) / float(maxi(GameData.stat_deaths, 1))
+	# Two lines on purpose: one line wraps with the K/D value alone
+	# on the second line at 460 px card width.
+	_profile_stats_lbl.text = "Matches %d  •  Wins %d  •  K/D %.2f\nKills %d  •  Deaths %d" % [
+		GameData.stat_matches, GameData.stat_wins, kd, GameData.stat_kills, GameData.stat_deaths,
+	]
 
 
 func _build_customize() -> void:
@@ -831,7 +925,7 @@ func _build_settings() -> void:
 	privacy_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(privacy_lbl)
 	var version_lbl := Label.new()
-	version_lbl.text = "Frag Arena v3.5  •  LAN only — no accounts, no servers"
+	version_lbl.text = "Frag Arena v3.6  •  LAN only — no accounts, no servers"
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
@@ -939,52 +1033,125 @@ func _build_multiplayer() -> void:
 	box = inner
 
 	# --- Create a room ---
-	box.add_child(_section_label("Create a room:"))
+	# v3.6 QA-068 — FULL REDESIGN. v3.5 was a flat stack of bare
+	# inputs (placeholder-only room name, a tiny CheckButton for
+	# private, the password beside it with no label). Now the
+	# whole create form lives on one designed gohud card with
+	# real labels above every field (GoField: label + input +
+	# hint), a big segmented max-players row, a proper GoSwitch
+	# for Private, and a 72 px hero CREATE ROOM button. Every
+	# control keeps its exact v3.5 behaviour (same nodes, same
+	# handlers, same create flow); only the presentation
+	# changed. The card itself is mouse-transparent (see the
+	# v3.5 room-panel note): a drag starting on the card must
+	# reach _mp_scroll.
+	var create_card := PanelContainer.new()
+	create_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var create_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
+	if create_sb != null:
+		var create_dup := create_sb.duplicate()
+		if create_dup is GoStyleBoxCut:
+			(create_dup as GoStyleBoxCut).bg_color = Color(0.09, 0.14, 0.22, 0.96)
+			(create_dup as GoStyleBoxCut).content_margin_left = 20
+			(create_dup as GoStyleBoxCut).content_margin_right = 20
+			(create_dup as GoStyleBoxCut).content_margin_top = 16
+			(create_dup as GoStyleBoxCut).content_margin_bottom = 16
+		create_card.add_theme_stylebox_override("panel", create_dup)
+	box.add_child(create_card)
+	var create_box := VBoxContainer.new()
+	create_box.add_theme_constant_override("separation", 14)
+	create_card.add_child(create_box)
+	var create_head := HBoxContainer.new()
+	create_head.add_theme_constant_override("separation", 10)
+	create_box.add_child(create_head)
+	var create_title := Label.new()
+	create_title.text = "CREATE A ROOM"
+	create_title.add_theme_font_override("font", FONT_TITLE)
+	create_title.add_theme_font_size_override("font_size", 26)
+	create_title.add_theme_color_override("font_color", UI_FONT)
+	create_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	create_head.add_child(create_title)
+	var host_badge := GoBadge.make(0, "YOU HOST", false, UI_ACCENT)
+	host_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	create_head.add_child(host_badge)
+	var create_sub := Label.new()
+	create_sub.text = "Start a room on this Wi-Fi — friends on the same network see it in their room list."
+	create_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	create_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	create_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	create_sub.add_theme_font_override("font", FONT_BODY)
+	create_sub.add_theme_font_size_override("font_size", 18)
+	create_sub.add_theme_color_override("font_color", UI_FONT_MUTED)
+	create_box.add_child(create_sub)
 	_room_name_input = LineEdit.new()
 	_room_name_input.placeholder_text = "Room name, e.g. Tharun's Room"
 	_room_name_input.text = GameData.room_name
 	_room_name_input.custom_minimum_size = Vector2(0, 56)
 	_room_name_input.add_theme_font_size_override("font_size", 22)
-	box.add_child(_room_name_input)
+	var name_field := GoField.make("Room name", _room_name_input, "Shown to friends on this Wi-Fi")
+	name_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	create_box.add_child(name_field)
+	var max_cap := Label.new()
+	max_cap.text = "Max players — how many phones can join"
+	max_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	max_cap.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	max_cap.add_theme_font_size_override("font_size", 20)
+	max_cap.add_theme_color_override("font_color", UI_FONT)
+	create_box.add_child(max_cap)
 	var max_row := HBoxContainer.new()
 	max_row.add_theme_constant_override("separation", 8)
-	box.add_child(max_row)
-	var max_lbl := Label.new()
-	max_lbl.text = "Max players:"
-	max_lbl.add_theme_font_size_override("font_size", 20)
-	max_row.add_child(max_lbl)
+	create_box.add_child(max_row)
 	for n in [2, 4, 6, 8, 10, 12]:
 		var b := Button.new()
 		b.text = str(n)
-		b.custom_minimum_size = Vector2(56, 56)
-		_style_button(b, 20, 56)
+		b.custom_minimum_size = Vector2(64, 64)
+		_style_button(b, 22, 64)
 		b.pressed.connect(_on_max_pressed.bind(n))
 		max_row.add_child(b)
 		_max_buttons.append(b)
 		_connect_scroll_button(b, _mp_scroll)
-	var priv_row := HBoxContainer.new()
-	priv_row.add_theme_constant_override("separation", 10)
-	box.add_child(priv_row)
-	_private_check = CheckButton.new()
-	_private_check.text = "Private room"
-	_private_check.add_theme_font_size_override("font_size", 20)
-	_private_check.button_pressed = GameData.room_private
-	_private_check.toggled.connect(_on_private_toggled)
-	priv_row.add_child(_private_check)
+	# The password input is created BEFORE the Private switch:
+	# flipping the switch calls _on_private_toggled, which greys
+	# the password field out when Private is off — and the field
+	# must already exist when that runs at build time.
 	_room_password_input = LineEdit.new()
 	_room_password_input.placeholder_text = "Room password (if private)"
 	_room_password_input.text = GameData.room_password
+	_room_password_input.secret = true # v3.6: a password field masks what you type (was plain text)
 	_room_password_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_room_password_input.custom_minimum_size = Vector2(0, 56)
 	_room_password_input.add_theme_font_size_override("font_size", 20)
-	priv_row.add_child(_room_password_input)
+	var priv_row := HBoxContainer.new()
+	priv_row.add_theme_constant_override("separation", 10)
+	create_box.add_child(priv_row)
+	var priv_lbl := Label.new()
+	priv_lbl.text = "Private room"
+	priv_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	priv_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	priv_lbl.add_theme_font_size_override("font_size", 22)
+	priv_lbl.add_theme_color_override("font_color", UI_FONT)
+	priv_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	priv_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	priv_row.add_child(priv_lbl)
+	_private_check = GoSwitch.new()
+	_private_check.custom_minimum_size = Vector2(72, 56)
+	_private_check.button_pressed = GameData.room_private
+	_private_check.toggled.connect(_on_private_toggled)
+	priv_row.add_child(_private_check)
+	var pw_field := GoField.make("Room password", _room_password_input, "Only friends with this password can join")
+	pw_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pw_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	create_box.add_child(pw_field)
 	var create_btn := Button.new()
 	create_btn.text = "CREATE ROOM"
-	create_btn.custom_minimum_size = Vector2(0, 64)
-	_style_button(create_btn, 26, 64, true)
+	create_btn.custom_minimum_size = Vector2(0, 72)
+	_style_button(create_btn, 26, 72, true)
 	create_btn.pressed.connect(_on_create_room_pressed)
-	box.add_child(create_btn)
+	create_box.add_child(create_btn)
 	_connect_scroll_button(create_btn, _mp_scroll)
+	_on_private_toggled(GameData.room_private) # grey the password field out when Private starts off
 
 	# --- Join a room ---
 	box.add_child(_section_label("Join a room:"))
@@ -996,27 +1163,31 @@ func _build_multiplayer() -> void:
 	_ip_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_ip_input.custom_minimum_size = Vector2(0, 60)
 	_ip_input.add_theme_font_size_override("font_size", 22)
-	join_row.add_child(_ip_input)
+	# v3.6 QA-068: the join IP gets a real label too (GoField),
+	# like the create form above — same node, same JOIN flow.
+	var ip_field := GoField.make("Host IP", _ip_input, "Or tap a room below — same Wi-Fi only")
+	ip_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ip_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ip_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	join_row.add_child(ip_field)
 	var join_btn := Button.new()
 	join_btn.text = "JOIN"
 	join_btn.custom_minimum_size = Vector2(120, 60)
+	join_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_style_button(join_btn, 26, 60, true)
 	join_btn.pressed.connect(_on_join_pressed)
 	join_row.add_child(join_btn)
 	_connect_scroll_button(join_btn, _mp_scroll)
-	var pw_row := HBoxContainer.new()
-	pw_row.add_theme_constant_override("separation", 10)
-	box.add_child(pw_row)
-	var pw_lbl := Label.new()
-	pw_lbl.text = "Password:"
-	pw_lbl.add_theme_font_size_override("font_size", 20)
-	pw_row.add_child(pw_lbl)
 	_join_password_input = LineEdit.new()
 	_join_password_input.placeholder_text = "Only for private rooms"
+	_join_password_input.secret = true # v3.6 QA-068: mask the password (was plain text)
 	_join_password_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_join_password_input.custom_minimum_size = Vector2(0, 56)
 	_join_password_input.add_theme_font_size_override("font_size", 20)
-	pw_row.add_child(_join_password_input)
+	var join_pw_field := GoField.make("Password", _join_password_input, "Only for private rooms")
+	join_pw_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	join_pw_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(join_pw_field)
 	var quick_row := HBoxContainer.new()
 	quick_row.add_theme_constant_override("separation", 10)
 	box.add_child(quick_row)
@@ -1035,6 +1206,31 @@ func _build_multiplayer() -> void:
 	refresh_btn.pressed.connect(_on_refresh_pressed)
 	quick_row.add_child(refresh_btn)
 	_connect_scroll_button(refresh_btn, _mp_scroll)
+	# QA-078: join by room code — the host reads the code out
+	# (it is on the lobby's host-IP chip) and a friend types it
+	# here instead of the IP. LAN-local only: the code is looked
+	# up in the discovered-room list on this Wi-Fi, no server.
+	var code_row := HBoxContainer.new()
+	code_row.add_theme_constant_override("separation", 10)
+	box.add_child(code_row)
+	_room_code_input = LineEdit.new()
+	_room_code_input.placeholder_text = "Room code, e.g. FRAG-1234"
+	_room_code_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_room_code_input.custom_minimum_size = Vector2(0, 60)
+	_room_code_input.add_theme_font_size_override("font_size", 22)
+	var code_field := GoField.make("Room code", _room_code_input, "Ask the host for the code — same Wi-Fi only")
+	code_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	code_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	code_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	code_row.add_child(code_field)
+	var code_btn := Button.new()
+	code_btn.text = "JOIN CODE"
+	code_btn.custom_minimum_size = Vector2(160, 60)
+	code_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_button(code_btn, 22, 60, true)
+	code_btn.pressed.connect(_on_join_code_pressed)
+	code_row.add_child(code_btn)
+	_connect_scroll_button(code_btn, _mp_scroll)
 
 	box.add_child(_section_label("Games found on this Wi-Fi:"))
 	var rooms_hint := _body_label("Tap a room to join it. If nothing appears, type the host IP above.", 18)
@@ -1064,94 +1260,121 @@ func _build_multiplayer() -> void:
 
 
 func _build_lobby() -> void:
-	# v3.5 QA-059 — ENTIRE LAYOUT REDESIGNED. The v3.4 lobby was the
-	# same top-to-bottom stack as v3.2 with new colours, and the user
-	# called it out ("You haven't improved the lobby right"). Now a
-	# two-column arena lobby, visibly different at a glance:
-	#   LEFT column (~40%): room info panel (labelled fields), host
-	#       IP chip, controls hints, player cards, match setup
-	#       (mode / kill limit / time / friendly fire), map vote.
-	#   RIGHT column (~60%): map selection — large map cards with
-	#       real map art, name + size info, cyan border + ✓ badge
-	#       when selected; scrollable, all 13 maps reachable.
+	# v3.6 QA-069 — REDESIGNED AGAIN. The user said the v3.5
+	# two-column lobby is still not good, and he is right about
+	# what the screenshot shows: the left column opens with a
+	# big half-empty room-info grid, the host IP chip and two
+	# hint lines push the players and the match setup below the
+	# fold ("Match setup:" is clipped at the bottom edge), and
+	# the whole page is flat navy-on-navy with one hierarchy.
+	# The new layout keeps two columns for the scrollable
+	# content, but the room is no longer a column — it is a
+	# header + stat strip across the top:
+	#   HEADER: "GAME LOBBY" left, live players pill right
+	#       (gohud GoBadge, "1/4 PLAYERS"), status line under.
+	#   STAT STRIP: 7 tiles (Room / Players / Map / Mode /
+	#       Kill limit / Time / Friendly fire) — the same
+	#       labelled fields as v3.5, now as tiles with a caption
+	#       above each value, so the room reads at a glance.
+	#   HOST IP chip: full-width, under the strip (unchanged).
+	#   LEFT column (~45%): PLAYERS first (cards with bigger
+	#       portraits + gohud GoBadge HOST / YOU / READY chips),
+	#       then MATCH SETUP (mode / friendly fire / kill
+	#       limit / time), then the map vote — all reachable
+	#       without scrolling past room info first.
+	#   RIGHT column (~55%): the map cards, bigger art.
 	#   BOTTOM bar (fixed): I'M READY / START MATCH / Leave.
-	# Both columns scroll independently; the title, status and the
-	# bottom bar never scroll away. Every control keeps its exact
-	# v3.4 behaviour (same pressed handlers, same refresh paths).
+	# Every control keeps its exact v3.5 behaviour (same
+	# pressed handlers, same refresh paths, same scroll
+	# containers and drag-forwarding); only the arrangement
+	# and the presentation changed.
 	_lobby_panel = _panel()
 	var box := _vbox(_lobby_panel, 10)
-	box.add_child(_title_label("GAME LOBBY", 36))
+	# ---- Header: title left, players pill right ----
+	var head_row := HBoxContainer.new()
+	head_row.add_theme_constant_override("separation", 12)
+	box.add_child(head_row)
+	var lobby_title := Label.new()
+	lobby_title.text = "GAME LOBBY"
+	lobby_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lobby_title.add_theme_font_override("font", FONT_TITLE)
+	lobby_title.add_theme_font_size_override("font_size", 40)
+	lobby_title.add_theme_color_override("font_color", UI_FONT)
+	lobby_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head_row.add_child(lobby_title)
+	_lobby_players_badge = GoBadge.make(0, "1/4 PLAYERS", false, UI_ACCENT)
+	_lobby_players_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lobby_players_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head_row.add_child(_lobby_players_badge)
 	_lobby_status = Label.new()
 	_lobby_status.text = ""
-	_lobby_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lobby_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_lobby_status.add_theme_font_size_override("font_size", 20)
+	_lobby_status.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(_lobby_status)
-	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 14)
-	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(cols)
-	# ---- LEFT column: room + players + setup (scrolls) ----
-	var left_col := VBoxContainer.new()
-	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_col.size_flags_stretch_ratio = 0.8
-	cols.add_child(left_col)
-	var left_scroll := ScrollContainer.new()
-	_lobby_left_scroll = left_scroll
-	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	left_col.add_child(left_scroll)
-	var left_inner := VBoxContainer.new()
-	left_inner.add_theme_constant_override("separation", 10)
-	left_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_scroll.add_child(left_inner)
-	# Room info as a designed panel with labelled fields — not the
-	# old single plain text line.
-	var room_panel := PanelContainer.new()
-	# v3.5 QA-059: the panel, its grid and its labels are
-	# mouse-transparent — a drag starting on the room info must
-	# reach the left ScrollContainer (probe: drags stopped at the
-	# PanelContainer and never scrolled the column).
-	room_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var room_sb := StyleBoxFlat.new()
-	room_sb.bg_color = Color(0.10, 0.16, 0.25, 0.92)
-	room_sb.set_corner_radius_all(10)
-	room_sb.border_color = UI_ACCENT
-	room_sb.set_border_width_all(1)
-	room_sb.content_margin_left = 14
-	room_sb.content_margin_right = 14
-	room_sb.content_margin_top = 10
-	room_sb.content_margin_bottom = 10
-	room_panel.add_theme_stylebox_override("panel", room_sb)
-	left_inner.add_child(room_panel)
-	var room_grid := GridContainer.new()
-	room_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	room_grid.columns = 2
-	room_grid.add_theme_constant_override("h_separation", 10)
-	room_grid.add_theme_constant_override("v_separation", 4)
-	room_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	room_panel.add_child(room_grid)
+	# ---- Stat strip: the room as 7 tiles in two rows ----
+	# v3.6 fix (same day, after the first screenshot review):
+	# the first version used a 4-column GridContainer and the
+	# equal tiles were too narrow — "ShotTest • Public" wrapped
+	# to 3 lines and "Free-for-All" to 3 lines, inflating the
+	# strip so far that the first map row was cut in half. Two
+	# HBox rows with stretch ratios give the long values room:
+	# Room gets double width, so nothing wraps any more.
+	var strip := VBoxContainer.new()
+	strip.add_theme_constant_override("separation", 10)
+	strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(strip)
+	var strip_row1 := HBoxContainer.new()
+	strip_row1.add_theme_constant_override("separation", 10)
+	strip.add_child(strip_row1)
+	var strip_row2 := HBoxContainer.new()
+	strip_row2.add_theme_constant_override("separation", 10)
+	strip.add_child(strip_row2)
+	var strip_rows := {"Room": strip_row1, "Players": strip_row1, "Map": strip_row1, "Mode": strip_row2, "Kill limit": strip_row2, "Time": strip_row2, "Friendly fire": strip_row2}
+	var strip_ratios := {"Room": 2.0, "Players": 1.0, "Map": 1.2, "Mode": 1.2, "Kill limit": 0.8, "Time": 0.8, "Friendly fire": 1.0}
 	for field in ["Room", "Players", "Map", "Mode", "Kill limit", "Time", "Friendly fire"]:
-		var k := Label.new()
-		k.text = field
-		k.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		k.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
-		k.add_theme_font_size_override("font_size", 19)
-		k.add_theme_color_override("font_color", UI_FONT_MUTED)
-		room_grid.add_child(k)
+		var tile := PanelContainer.new()
+		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tile.size_flags_stretch_ratio = float(strip_ratios[field])
+		var tile_sb := StyleBoxFlat.new()
+		tile_sb.bg_color = Color(0.10, 0.16, 0.25, 0.95)
+		tile_sb.set_corner_radius_all(10)
+		tile_sb.border_color = Color(0.25, 0.38, 0.52)
+		tile_sb.set_border_width_all(1)
+		tile_sb.content_margin_left = 12
+		tile_sb.content_margin_right = 12
+		tile_sb.content_margin_top = 8
+		tile_sb.content_margin_bottom = 8
+		tile.add_theme_stylebox_override("panel", tile_sb)
+		(strip_rows[field] as HBoxContainer).add_child(tile)
+		var tile_vb := VBoxContainer.new()
+		tile_vb.add_theme_constant_override("separation", 2)
+		tile.add_child(tile_vb)
+		var cap := Label.new()
+		cap.text = field.to_upper()
+		if field == "Kill limit":
+			_strip_limit_cap = cap # QA-080: caption switches in CTF
+		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cap.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+		cap.add_theme_font_size_override("font_size", 15)
+		cap.add_theme_color_override("font_color", UI_FONT_MUTED)
+		tile_vb.add_child(cap)
 		var v := Label.new()
 		v.text = "—"
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
-		v.add_theme_font_size_override("font_size", 19)
+		v.add_theme_font_size_override("font_size", 18)
 		v.add_theme_color_override("font_color", UI_FONT)
 		v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		room_grid.add_child(v)
+		tile_vb.add_child(v)
 		_room_info_values[field] = v
 	# v2.4: the host's LAN IP, big and clear — this is the number a
 	# friend types to join when discovery does not find the room.
 	# v3.5: it sits in a prominent cyan-bordered chip, not a bare
-	# text line.
+	# text line. v3.6: the chip moves up under the stat strip so
+	# it is visible without scrolling either column.
 	_host_ip_chip = PanelContainer.new()
 	_host_ip_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var chip_sb := StyleBoxFlat.new()
@@ -1164,7 +1387,7 @@ func _build_lobby() -> void:
 	chip_sb.content_margin_top = 8
 	chip_sb.content_margin_bottom = 8
 	_host_ip_chip.add_theme_stylebox_override("panel", chip_sb)
-	left_inner.add_child(_host_ip_chip)
+	box.add_child(_host_ip_chip)
 	_host_ip_label = Label.new()
 	_host_ip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_host_ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1174,41 +1397,45 @@ func _build_lobby() -> void:
 	_host_ip_label.add_theme_font_size_override("font_size", 22)
 	_host_ip_label.add_theme_color_override("font_color", UI_ACCENT)
 	_host_ip_chip.add_child(_host_ip_label)
-	# Hints: small, muted, no panel behind them — nothing that can
-	# show through as a ghost box.
-	var controls_hint := Label.new()
-	controls_hint.text = "Left stick: move • Push up: jump / fly • Right stick: aim and shoot"
-	controls_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	controls_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	controls_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	controls_hint.custom_minimum_size = Vector2(0, 24)
-	controls_hint.add_theme_font_override("font", FONT_BODY)
-	controls_hint.add_theme_font_size_override("font_size", 18)
-	controls_hint.add_theme_color_override("font_color", UI_FONT)
-	_controls_hint_label = controls_hint
-	left_inner.add_child(controls_hint)
-	var join_hint := Label.new()
-	join_hint.text = "Friends join from LOCAL MULTIPLAYER — they tap your room, or type the host IP above."
-	join_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	join_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	join_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	join_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	join_hint.custom_minimum_size = Vector2(0, 24)
-	join_hint.add_theme_font_override("font", FONT_BODY)
-	join_hint.add_theme_font_size_override("font_size", 18)
-	join_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
-	left_inner.add_child(join_hint)
-	left_inner.add_child(_section_label("Players in the room:"))
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 14)
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(cols)
+	# ---- LEFT column: players + setup + vote (scrolls) ----
+	var left_col := VBoxContainer.new()
+	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_col.size_flags_stretch_ratio = 0.9
+	cols.add_child(left_col)
+	var left_scroll := ScrollContainer.new()
+	_lobby_left_scroll = left_scroll
+	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left_col.add_child(left_scroll)
+	var left_inner := VBoxContainer.new()
+	left_inner.add_theme_constant_override("separation", 10)
+	left_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_scroll.add_child(left_inner)
+	_players_section_label = _section_label("Players in the room:")
+	left_inner.add_child(_players_section_label)
 	_lobby_list = VBoxContainer.new()
 	_lobby_list.add_theme_constant_override("separation", 6)
 	left_inner.add_child(_lobby_list)
-	# Match setup lives in the left column now (it used to sit under
-	# the map grid in the same scroll).
+	# Match setup sits directly under the players now (it used
+	# to sit below the room panel + IP chip + hints, under the
+	# fold). The host IP chip already says how friends join,
+	# so the old join-hint line is gone.
 	left_inner.add_child(_section_label("Match setup:"))
+	# QA-080: five modes now — one row of five buttons needs ~740 px
+	# of text width, which forces the left column wider than its
+	# 0.9 stretch share and squeezes the map cards (a Button's
+	# content minimum still applies under custom_minimum_size).
+	# Two rows (3 + 2) keep the full mode names and fit the column.
 	var mode_row := HBoxContainer.new()
 	mode_row.add_theme_constant_override("separation", 8)
 	left_inner.add_child(mode_row)
+	var mode_row2 := HBoxContainer.new()
+	mode_row2.add_theme_constant_override("separation", 8)
+	left_inner.add_child(mode_row2)
 	for i in GameData.MODE_NAMES.size():
 		var b := Button.new()
 		b.text = GameData.MODE_NAMES[i]
@@ -1216,15 +1443,26 @@ func _build_lobby() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_style_button(b, 20, 56)
 		b.pressed.connect(_on_mode_pressed.bind(i))
-		mode_row.add_child(b)
+		(mode_row if i < 3 else mode_row2).add_child(b)
 		_mode_buttons.append(b)
 		_connect_scroll_button(b, _lobby_left_scroll)
+	# v3.6 QA-069: friendly fire is a Label + GoSwitch (pill),
+	# like the Private switch on the create page — the old
+	# CheckButton's tiny box read as a checkbox, not a setting.
 	var ff_row := HBoxContainer.new()
-	ff_row.add_theme_constant_override("separation", 8)
+	ff_row.add_theme_constant_override("separation", 10)
 	left_inner.add_child(ff_row)
-	_ff_check = CheckButton.new()
-	_ff_check.text = "Friendly fire (Team Deathmatch only)"
-	_ff_check.add_theme_font_size_override("font_size", 20)
+	var ff_lbl := Label.new()
+	ff_lbl.text = "Friendly fire (Team Deathmatch only)"
+	ff_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ff_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	ff_lbl.add_theme_font_size_override("font_size", 20)
+	ff_lbl.add_theme_color_override("font_color", UI_FONT)
+	ff_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ff_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ff_row.add_child(ff_lbl)
+	_ff_check = GoSwitch.new()
+	_ff_check.custom_minimum_size = Vector2(72, 56)
 	_ff_check.button_pressed = GameData.friendly_fire
 	_ff_check.toggled.connect(_on_friendly_fire_toggled)
 	ff_row.add_child(_ff_check)
@@ -1233,7 +1471,9 @@ func _build_lobby() -> void:
 	limit_row.add_theme_constant_override("separation", 8)
 	left_inner.add_child(limit_row)
 	var limit_lbl := Label.new()
+	_limit_label = limit_lbl
 	limit_lbl.text = "Kill limit:"
+	limit_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	limit_lbl.add_theme_font_size_override("font_size", 20)
 	limit_row.add_child(limit_lbl)
 	for kl in [5, 10, 15]:
@@ -1250,6 +1490,7 @@ func _build_lobby() -> void:
 	left_inner.add_child(time_row)
 	var time_lbl := Label.new()
 	time_lbl.text = "Match time:"
+	time_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_lbl.add_theme_font_size_override("font_size", 20)
 	time_row.add_child(time_lbl)
 	for mins in [3, 5, 10]:
@@ -1261,6 +1502,56 @@ func _build_lobby() -> void:
 		time_row.add_child(b)
 		_time_buttons.append(b)
 		_connect_scroll_button(b, _lobby_left_scroll)
+	# QA-078: team pick — only for team modes (TDM, Capture the
+	# Flag). RED / BLUE / AUTO; the host honours the pick when the
+	# match starts unless that team is already full (6), then it
+	# falls back to auto. The row hides for free-for-all modes.
+	left_inner.add_child(_section_label("Your team (team modes):"))
+	_team_section_label = left_inner.get_child(left_inner.get_child_count() - 1) as Label
+	var team_row := HBoxContainer.new()
+	team_row.add_theme_constant_override("separation", 8)
+	left_inner.add_child(team_row)
+	for t in [-1, 0, 1]:
+		var tb := Button.new()
+		tb.text = "AUTO" if t == -1 else ("RED" if t == 0 else "BLUE")
+		tb.custom_minimum_size = Vector2(0, 56)
+		tb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(tb, 20, 56)
+		tb.pressed.connect(_on_team_pressed.bind(t))
+		team_row.add_child(tb)
+		_team_buttons.append(tb)
+		_connect_scroll_button(tb, _lobby_left_scroll)
+	# QA-078: change appearance without leaving the room — colour
+	# and helmet, same choices as Customization. The change syncs
+	# to every phone in the room at once (host broadcast, see
+	# update_appearance / _broadcast_lobby).
+	left_inner.add_child(_section_label("Appearance in this room:"))
+	var lobby_color_row := HBoxContainer.new()
+	lobby_color_row.add_theme_constant_override("separation", 8)
+	left_inner.add_child(lobby_color_row)
+	for i in GameData.COLOR_NAMES.size():
+		var cb := Button.new()
+		cb.text = GameData.COLOR_NAMES[i]
+		cb.custom_minimum_size = Vector2(0, 56)
+		cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(cb, 18, 56)
+		cb.pressed.connect(_on_lobby_color_pressed.bind(i))
+		lobby_color_row.add_child(cb)
+		_lobby_color_buttons.append(cb)
+		_connect_scroll_button(cb, _lobby_left_scroll)
+	var lobby_helmet_row := HBoxContainer.new()
+	lobby_helmet_row.add_theme_constant_override("separation", 8)
+	left_inner.add_child(lobby_helmet_row)
+	for i in HELMET_NAMES.size():
+		var hb := Button.new()
+		hb.text = HELMET_NAMES[i]
+		hb.custom_minimum_size = Vector2(0, 56)
+		hb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(hb, 18, 56)
+		hb.pressed.connect(_on_lobby_helmet_pressed.bind(i))
+		lobby_helmet_row.add_child(hb)
+		_lobby_helmet_buttons.append(hb)
+		_connect_scroll_button(hb, _lobby_left_scroll)
 	# Phase 4 — map vote: every player picks one of 3 maps on the
 	# ballot (the host's pick + the next two). The host tallies the
 	# votes when the match starts; ties and no-votes keep the host's
@@ -1282,14 +1573,30 @@ func _build_lobby() -> void:
 		_connect_scroll_button(vb, _lobby_left_scroll)
 	var vote_hint := Label.new()
 	vote_hint.text = "Most votes wins. If nobody votes, or on a tie, the host's map is played."
+	vote_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vote_hint.add_theme_font_size_override("font_size", 18)
 	vote_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	left_inner.add_child(vote_hint)
+	# Controls hint, small and muted, at the bottom of the left
+	# column — no panel behind it, nothing that can show
+	# through as a ghost box.
+	var controls_hint := Label.new()
+	controls_hint.text = "Left stick: move • Push up: jump / fly • Right stick: aim and shoot"
+	controls_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	controls_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	controls_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls_hint.custom_minimum_size = Vector2(0, 24)
+	controls_hint.add_theme_font_override("font", FONT_BODY)
+	controls_hint.add_theme_font_size_override("font_size", 18)
+	controls_hint.add_theme_color_override("font_color", UI_FONT)
+	_controls_hint_label = controls_hint
+	left_inner.add_child(controls_hint)
 	# ---- RIGHT column: map cards (scrolls) ----
 	var right_col := VBoxContainer.new()
 	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_col.size_flags_stretch_ratio = 1.2
+	right_col.size_flags_stretch_ratio = 1.1
 	cols.add_child(right_col)
 	var scroll := ScrollContainer.new()
 	_lobby_scroll = scroll
@@ -1321,6 +1628,8 @@ func _build_lobby() -> void:
 	_scroll_hint_label = scroll_hint
 	map_inner.add_child(scroll_hint)
 	# Fixed action row — always visible, never scrolled away.
+	var top_sep := HSeparator.new()
+	box.add_child(top_sep)
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 10)
 	box.add_child(btn_row)
@@ -1346,11 +1655,12 @@ func _build_lobby() -> void:
 	_refresh_lobby_buttons()
 
 
-# v3.5 QA-059: one map card — real map art thumbnail + name + size
-# info + a "✓" badge when selected. The visible card is a
-# PanelContainer; a transparent full-rect Button on top is the
-# input, so _map_buttons stays an Array of Buttons: the QA-048
-# scroll test, taps and drag-forwarding all work exactly as before.
+# v3.5 QA-059 (v3.6 QA-069): one map card — real map art
+# thumbnail + name + size info + a gohud GoBadge ("✓ SELECTED")
+# when selected. The visible card is a PanelContainer; a
+# transparent full-rect Button on top is the input, so
+# _map_buttons stays an Array of Buttons: the QA-048 scroll
+# test, taps and drag-forwarding all work exactly as before.
 func _map_card_stylebox(selected: bool) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.set_corner_radius_all(10)
@@ -1371,7 +1681,7 @@ func _map_card_stylebox(selected: bool) -> StyleBoxFlat:
 
 func _build_map_card(i: int) -> Control:
 	var root := Control.new()
-	root.custom_minimum_size = Vector2(0, 216)
+	root.custom_minimum_size = Vector2(0, 228)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1383,7 +1693,7 @@ func _build_map_card(i: int) -> Control:
 	panel.add_child(vb)
 	var thumb := TextureRect.new()
 	thumb.texture = MAP_CARD_ART[i]
-	thumb.custom_minimum_size = Vector2(0, 132)
+	thumb.custom_minimum_size = Vector2(0, 140)
 	thumb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
@@ -1391,18 +1701,18 @@ func _build_map_card(i: int) -> Control:
 	var name_row := HBoxContainer.new()
 	name_row.add_theme_constant_override("separation", 6)
 	vb.add_child(name_row)
-	var badge := Label.new()
-	badge.text = "✓"
-	badge.add_theme_font_override("font", FONT_BODY_BOLD)
-	badge.add_theme_font_size_override("font_size", 22)
-	badge.add_theme_color_override("font_color", UI_SUCCESS)
+	# v3.6 QA-069: the selected state is a gohud GoBadge
+	# ("✓ SELECTED") instead of the bare ✓ Label; bigger art
+	# (148 px thumb, was 132) and name 24 px (was 22).
+	var badge := GoBadge.make(0, "✓ SELECTED", false, UI_SUCCESS)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.visible = false
 	name_row.add_child(badge)
 	_map_card_badges.append(badge)
 	var name_lbl := Label.new()
 	name_lbl.text = GameData.MAP_NAMES[i]
 	name_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
-	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_font_size_override("font_size", 24)
 	name_lbl.add_theme_color_override("font_color", UI_FONT)
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lbl.clip_contents = true
@@ -1410,7 +1720,7 @@ func _build_map_card(i: int) -> Control:
 	var info_lbl := Label.new()
 	info_lbl.text = GameData.MAP_CARD_INFO[i]
 	info_lbl.add_theme_font_override("font", FONT_BODY)
-	info_lbl.add_theme_font_size_override("font_size", 17)
+	info_lbl.add_theme_font_size_override("font_size", 18)
 	info_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
 	vb.add_child(info_lbl)
 	var hit := Button.new()
@@ -1427,27 +1737,15 @@ func _build_map_card(i: int) -> Control:
 	return root
 
 
-# v3.5 QA-059: small coloured badge chip (HOST / YOU / READY).
-func _badge_chip(text: String, bg: Color, fg: Color, font_size: int = 16) -> PanelContainer:
-	var p := PanelContainer.new()
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE # display-only; drags pass through to the scroll
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 8
-	sb.content_margin_right = 8
-	sb.content_margin_top = 3
-	sb.content_margin_bottom = 3
-	p.add_theme_stylebox_override("panel", sb)
-	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var l := Label.new()
-	l.text = text
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_override("font", FONT_BODY_BOLD)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", fg)
-	p.add_child(l)
-	return p
+# v3.6 QA-069: one lobby chip — a gohud GoBadge with words
+# (HOST / YOU / READY ✓ / NOT READY). Replaces the hand-rolled
+# _badge_chip PanelContainer (v3.5). Display-only: mouse-transparent
+# so a drag starting on a chip scrolls the left column.
+func _lobby_chip(text: String, ink: Color) -> GoBadge:
+	var b := GoBadge.make(0, text, false, ink)
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return b
 
 
 func _on_map_pressed(i: int) -> void:
@@ -1545,6 +1843,75 @@ func _on_time_pressed(mins: int) -> void:
 	_broadcast_lobby()
 
 
+# QA-078: team pick (team modes only). Stored per player in the
+# lobby dict, so every phone sees it; the host reads it at spawn
+# time (game.gd _do_spawn honours it unless the team is full).
+func _on_team_pressed(t: int) -> void:
+	_click()
+	_my_team = clampi(t, -1, 1)
+	GameData.team_pref = _my_team
+	var my_id := multiplayer.get_unique_id()
+	if _is_host:
+		if _lobby_players.has(my_id):
+			_lobby_players[my_id]["team"] = _my_team
+		_broadcast_lobby()
+	else:
+		rpc_id(1, "set_team", _my_team)
+	_refresh_lobby_buttons()
+
+
+@rpc("any_peer")
+func set_team(t: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _lobby_players.has(sender):
+		_lobby_players[sender]["team"] = clampi(t, -1, 1)
+		_broadcast_lobby()
+
+
+# QA-078: in-lobby appearance change. Updates my saved settings
+# AND my lobby entry, then syncs to the whole room at once.
+func _on_lobby_color_pressed(i: int) -> void:
+	_click()
+	GameData.color_index = i
+	GameData.save_settings()
+	_refresh_customize_buttons()
+	_sync_my_appearance()
+
+
+func _on_lobby_helmet_pressed(i: int) -> void:
+	_click()
+	GameData.helmet = i
+	GameData.save_settings()
+	_refresh_customize_buttons()
+	_sync_my_appearance()
+
+
+func _sync_my_appearance() -> void:
+	var my_id := multiplayer.get_unique_id()
+	if _is_host:
+		if _lobby_players.has(my_id):
+			_lobby_players[my_id]["color"] = GameData.color_index
+			_lobby_players[my_id]["helmet"] = GameData.helmet
+		_broadcast_lobby()
+	else:
+		rpc_id(1, "update_appearance", GameData.color_index, GameData.helmet)
+	_refresh_lobby_buttons()
+	_refresh_lobby_list()
+
+
+@rpc("any_peer")
+func update_appearance(color_idx: int, helmet_style: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _lobby_players.has(sender):
+		_lobby_players[sender]["color"] = clampi(color_idx, 0, GameData.COLOR_NAMES.size() - 1)
+		_lobby_players[sender]["helmet"] = clampi(helmet_style, 0, HELMET_NAMES.size() - 1)
+		_broadcast_lobby()
+
+
 func _refresh_lobby_buttons() -> void:
 	# v3.5 QA-059: map buttons are invisible hit areas over the map
 	# cards — no text or button style on them. The selected state
@@ -1557,7 +1924,7 @@ func _refresh_lobby_buttons() -> void:
 			(_map_cards[i] as PanelContainer).add_theme_stylebox_override("panel", _map_card_stylebox(selected))
 			(_map_cards[i] as Control).modulate = Color(1, 1, 1, 1) if _is_host else Color(1, 1, 1, 0.6)
 		if i < _map_card_badges.size():
-			(_map_card_badges[i] as Label).visible = selected
+			(_map_card_badges[i] as Control).visible = selected # v3.6 QA-069: GoBadge now, was a Label
 	for i in _mode_buttons.size():
 		var ob: Button = _mode_buttons[i]
 		ob.text = ("✓ " if i == GameData.game_mode else "") + GameData.MODE_NAMES[i]
@@ -1601,22 +1968,29 @@ func _refresh_lobby_buttons() -> void:
 		# The joiner's lifeline: the host IP is always visible here,
 		# in its chip (v3.5 QA-059). Keep the label's own visibility
 		# in sync with the chip — the flow test reads the label.
+		# QA-078: the LAN-local room code rides on the same chip,
+		# so the host can read it out to friends.
 		var ip_visible := false
+		var code_txt := ""
 		if _is_host:
 			var ip := LanDiscovery.lan_ip()
 			if ip != "":
-				_host_ip_label.text = "HOST IP: " + ip + "  —  friends type this IP to join"
+				code_txt = "  •  Room code: " + GameData.room_code(ip, GameData.room_name)
+				_host_ip_label.text = "HOST IP: " + ip + "  —  friends type this IP to join" + code_txt
 			else:
 				_host_ip_label.text = "No Wi-Fi IP found — connect to Wi-Fi or a hotspot, then re-host"
 			ip_visible = true
 		elif GameData.host_ip != "":
-			_host_ip_label.text = "Connected to host: " + GameData.host_ip
+			code_txt = "  •  Room code: " + GameData.room_code(GameData.host_ip, GameData.room_name)
+			_host_ip_label.text = "Connected to host: " + GameData.host_ip + code_txt
 			ip_visible = true
 		_host_ip_label.visible = ip_visible
 		if _host_ip_chip != null:
 			_host_ip_chip.visible = ip_visible
 	# v3.5 QA-059: room info is labelled fields in the room panel,
-	# not one long plain text line.
+	# not one long plain text line. v3.6 QA-069: the fields are
+	# tiles in the stat strip now, and the header pill shows the
+	# same player count — both updated here, same values.
 	if not _room_info_values.is_empty():
 		var priv := "Private" if GameData.room_private else "Public"
 		_room_info_values["Room"].text = "%s • %s" % [GameData.room_name, priv]
@@ -1626,6 +2000,32 @@ func _refresh_lobby_buttons() -> void:
 		_room_info_values["Kill limit"].text = str(GameData.kill_limit)
 		_room_info_values["Time"].text = "%d min" % GameData.match_minutes
 		_room_info_values["Friendly fire"].text = "On" if GameData.friendly_fire else "Off"
+	if _lobby_players_badge != null:
+		_lobby_players_badge.label_text = "%d/%d PLAYERS" % [_lobby_players.size(), GameData.max_players]
+	# QA-080: in Capture the Flag the limit is captures, not kills.
+	if _limit_label != null:
+		_limit_label.text = "Capture limit:" if GameData.game_mode == 4 else "Kill limit:"
+	if _strip_limit_cap != null:
+		_strip_limit_cap.text = "CAPTURE LIMIT" if GameData.game_mode == 4 else "KILL LIMIT"
+	# QA-078: team pick row only exists for team modes; the
+	# appearance rows always show the current saved choice.
+	var team_mode := GameData.game_mode == 1 or GameData.game_mode == 4
+	if _team_section_label != null:
+		_team_section_label.visible = team_mode
+	for i in _team_buttons.size():
+		var tb: Button = _team_buttons[i]
+		tb.visible = team_mode
+		var tv: int = [-1, 0, 1][i]
+		tb.text = ("✓ " if tv == _my_team else "") + ("AUTO" if tv == -1 else ("RED" if tv == 0 else "BLUE"))
+		_style_selected(tb, tv == _my_team, 20)
+	for i in _lobby_color_buttons.size():
+		var cb: Button = _lobby_color_buttons[i]
+		cb.text = ("✓ " if i == GameData.color_index else "") + GameData.COLOR_NAMES[i]
+		_style_selected(cb, i == GameData.color_index, 18)
+	for i in _lobby_helmet_buttons.size():
+		var hb: Button = _lobby_helmet_buttons[i]
+		hb.text = ("✓ " if i == GameData.helmet else "") + HELMET_NAMES[i]
+		_style_selected(hb, i == GameData.helmet, 18)
 	_refresh_vote_buttons()
 
 
@@ -1665,10 +2065,14 @@ func _refresh_lobby_list() -> void:
 		bar.custom_minimum_size = Vector2(8, 0)
 		bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.add_child(bar)
+		# v3.6 QA-069: the HOST / YOU / READY chips are gohud
+		# GoBadges now (the hand-rolled _badge_chip is deleted);
+		# portrait 60x72 (was 52x64). Badges stay
+		# mouse-transparent so drags scroll the left column.
 		var portrait := TextureRect.new()
 		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		portrait.texture = _portrait_texture(int(info.get("portrait", 0)))
-		portrait.custom_minimum_size = Vector2(52, 64)
+		portrait.custom_minimum_size = Vector2(60, 72)
 		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(portrait)
@@ -1682,14 +2086,23 @@ func _refresh_lobby_list() -> void:
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(lbl)
 		if int(id) == 1:
-			row.add_child(_badge_chip("HOST", Color(1.0, 0.773, 0.239, 0.25), UI_WARNING, 16))
+			row.add_child(_lobby_chip("HOST", UI_WARNING))
 		elif int(id) == multiplayer.get_unique_id():
-			row.add_child(_badge_chip("YOU", Color(0.0, 0.898, 1.0, 0.25), UI_ACCENT, 16))
+			row.add_child(_lobby_chip("YOU", UI_ACCENT))
 		var is_ready: bool = bool(info.get("ready", false))
 		if is_ready:
-			row.add_child(_badge_chip("READY ✓", Color(0.231, 1.0, 0.647, 0.25), UI_SUCCESS, 18))
+			row.add_child(_lobby_chip("READY ✓", UI_SUCCESS))
 		else:
-			row.add_child(_badge_chip("NOT READY", Color(0.522, 0.655, 0.741, 0.25), UI_FONT_MUTED, 18))
+			row.add_child(_lobby_chip("NOT READY", UI_FONT_MUTED))
+		# QA-078: team chip in team modes (RED / BLUE / AUTO).
+		if GameData.game_mode == 1 or GameData.game_mode == 4:
+			var pt: int = int(info.get("team", -1))
+			if pt == 0:
+				row.add_child(_lobby_chip("RED", UI_DANGER))
+			elif pt == 1:
+				row.add_child(_lobby_chip("BLUE", Color(0.25, 0.55, 0.95)))
+			else:
+				row.add_child(_lobby_chip("AUTO", UI_FONT_MUTED))
 		# The host can remove a player from the room.
 		if _is_host and int(id) != 1 and int(id) != multiplayer.get_unique_id():
 			var kick_btn := Button.new()
@@ -1713,11 +2126,17 @@ func _refresh_max_buttons() -> void:
 		var n: int = [2, 4, 6, 8, 10, 12][i]
 		var b: Button = _max_buttons[i]
 		b.text = ("✓ " if n == GameData.max_players else "") + str(n)
-		_style_selected(b, n == GameData.max_players, 20)
+		_style_selected(b, n == GameData.max_players, 22) # v3.6 QA-068: 64 px buttons, 22 px font (was 20)
 
 
 func _on_private_toggled(on: bool) -> void:
 	GameData.room_private = on
+	# v3.6 QA-068: the password field greys out when Private is
+	# off, so it is obvious it does nothing until Private is on.
+	# The text is kept, not cleared — flip Private back on and
+	# the password is still there.
+	if _room_password_input != null:
+		_room_password_input.editable = on
 
 
 func _on_friendly_fire_toggled(on: bool) -> void:
@@ -1825,6 +2244,27 @@ func _on_quick_match_pressed() -> void:
 	_set_status("No open rooms found — tap REFRESH, type the host IP, or host your own room.")
 
 
+func _on_join_code_pressed() -> void:
+	# QA-078: join by room code — look the code up in the rooms
+	# discovered on this Wi-Fi and join that room's IP. Private
+	# rooms still need their password (the password field above).
+	_click()
+	var code := _room_code_input.text.strip_edges().to_upper()
+	if code == "":
+		_set_status("Type the room code first — ask the host for it.")
+		return
+	if not code.begins_with("FRAG-"):
+		code = "FRAG-" + code
+	for room in _discovery.get_rooms():
+		if GameData.room_code(String(room["ip"]), String(room["room_name"])) == code:
+			if String(room.get("status", "")) != "lobby":
+				_set_status("That room is already in a match.")
+				return
+			join_game(String(room["ip"]), _join_password_input.text.strip_edges())
+			return
+	_set_status("No room with code %s on this Wi-Fi — tap REFRESH and try again." % code)
+
+
 func _on_refresh_pressed() -> void:
 	# Drop the cached list and rebuild it from fresh announcements.
 	_click()
@@ -1895,6 +2335,7 @@ func _my_lobby_info() -> Dictionary:
 		"portrait": GameData.portrait,
 		"ready": ready,
 		"vote": _my_vote,
+		"team": _my_team, # QA-078: RED 0 / BLUE 1 / AUTO -1 (team modes)
 		# Only used by register_lobby_player on the host; stripped
 		# before the player list is broadcast to anyone else.
 		"password": _join_password,
@@ -2095,6 +2536,8 @@ func _leave_lobby() -> void:
 	_join_rejected = false
 	_room_status = "lobby"
 	_my_vote = -1
+	_my_team = -1 # QA-078: a new room starts on AUTO team
+	GameData.team_pref = -1
 	_lobby_players.clear()
 
 
@@ -2137,11 +2580,12 @@ func _refresh_room_list() -> void:
 		var map_name := GameData.MAP_NAMES[int(room["map_id"])] if int(room["map_id"]) < GameData.MAP_NAMES.size() else "?"
 		var mode_name := GameData.MODE_NAMES[int(room["mode"])] if int(room["mode"]) < GameData.MODE_NAMES.size() else "?"
 		var lock := " 🔒" if bool(room["private"]) else ""
+		var code := GameData.room_code(ip, String(room["room_name"]))
 		var b := Button.new()
-		b.text = "%s%s — %s • %d/%d • %s • %s • %s • %s" % [
+		b.text = "%s%s — %s • %d/%d • %s • %s • %s • %s • %s" % [
 			String(room["room_name"]), lock, String(room["host_name"]),
 			int(room["players"]), int(room["max_players"]),
-			map_name, mode_name, String(room["status"]), ip,
+			map_name, mode_name, String(room["status"]), ip, code,
 		]
 		b.custom_minimum_size = Vector2(0, 56)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -2479,17 +2923,23 @@ func _sct_c_settings_drag() -> Array:
 	return [v > 0.0, "settings scroll_vertical=%d (max=%d, want >0 after drag on Back button)" % [int(v), int(mx)]]
 
 
-# v3.5 QA-059: the lobby's LEFT column (room panel, players, setup,
-# vote) must scroll on its own — at 720p it holds ~900 px of content
-# in ~460 px. Drag on the room info value label and check the left
-# scroll moves (the map scroll must NOT move from this drag).
+# v3.5 QA-059: the lobby's LEFT column (players, setup, vote) must
+# scroll on its own — at 720p it holds ~1000 px of content in ~460 px.
+# Drag on the "Players in the room:" header INSIDE the left scroll
+# and check the left scroll moves (the map scroll must NOT move).
+# v3.6 QA-078 fix (test only): the old step dragged on the Room info
+# value label, but the QA-078 redesign moved the room info out of the
+# left column into the top stat strip, which sits outside every
+# ScrollContainer — so the drag scrolled nothing (8/9 in the final
+# run). The left column itself still scrolls; the step now drags on
+# a label that actually lives inside it. No game code changed.
 func _sct_s_left_drag() -> void:
 	_show_only(_lobby_panel)
 	_lobby_left_scroll.scroll_vertical = 0
 	_lobby_scroll.scroll_vertical = 0
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var lbl: Label = _room_info_values["Room"]
+	var lbl: Label = _players_section_label
 	_sc_drag_up(807, _sc_vp_pos(lbl, Vector2(lbl.size.x * 0.5, lbl.size.y * 0.5)), 200.0, _sc_vp_scale(lbl))
 
 
@@ -2713,6 +3163,8 @@ func _update_menu_nettest(delta: float) -> void:
 func _mnt_build_steps() -> void:
 	_menu_net_steps = [
 		{"name": "PAYLOAD-ROUNDTRIP", "wait": 0.3, "setup": _mnt_s_noop, "check": _mnt_c_payload},
+		{"name": "PROFILE-LEVEL", "wait": 0.2, "setup": _mnt_s_noop, "check": _mnt_c_profile},
+		{"name": "ROOM-CODE", "wait": 0.2, "setup": _mnt_s_noop, "check": _mnt_c_roomcode},
 		{"name": "SUBNET-BROADCAST", "wait": 0.3, "setup": _mnt_s_noop, "check": _mnt_c_subnet},
 		{"name": "BAD-IP-ERROR", "wait": 1.0, "setup": _mnt_s_bad_ip, "check": _mnt_c_bad_ip},
 		{"name": "CREATE-ROOM", "wait": 0.5, "setup": _mnt_s_create_room, "check": _mnt_c_create_room},
@@ -2723,6 +3175,25 @@ func _mnt_build_steps() -> void:
 
 func _mnt_s_noop() -> void:
 	pass
+
+
+# QA-078: level math — 1 + one level per 50 lifetime kills.
+func _mnt_c_profile() -> Array:
+	var ok: bool = GameData.level_for_kills(0) == 1 and GameData.level_for_kills(49) == 1 and GameData.level_for_kills(50) == 2 and GameData.level_for_kills(120) == 3 and GameData.kills_into_level(120) == 20
+	# The card itself is filled (name + level line + stats line).
+	var card_ok: bool = _profile_name_lbl != null and _profile_name_lbl.text == GameData.player_name and _profile_level_lbl.text.begins_with("Level ")
+	return [ok and card_ok, "level(0/49/50/120)=%d/%d/%d/%d into=%d card='%s'" % [GameData.level_for_kills(0), GameData.level_for_kills(49), GameData.level_for_kills(50), GameData.level_for_kills(120), GameData.kills_into_level(120), _profile_level_lbl.text]]
+
+
+# QA-078: room code — deterministic for one room, different for
+# different rooms, always FRAG- + 4 digits.
+func _mnt_c_roomcode() -> Array:
+	var a := GameData.room_code("192.168.1.5", "Tharun's Room")
+	var b := GameData.room_code("192.168.1.5", "Tharun's Room")
+	var c := GameData.room_code("192.168.1.6", "Tharun's Room")
+	var d := GameData.room_code("192.168.1.5", "Other Room")
+	var ok: bool = a == b and a != c and a != d and a.begins_with("FRAG-") and a.length() == 9
+	return [ok, "code=%s repeat=%s other-ip=%s other-name=%s" % [a, b, c, d]]
 
 
 func _mnt_c_payload() -> Array:

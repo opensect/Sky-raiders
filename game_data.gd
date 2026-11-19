@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "3.5" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "3.6" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
@@ -34,6 +34,18 @@ static var room_private: bool = false
 static var room_password: String = ""
 static var last_host_ip: String = "" # prefilled after a disconnect, for reconnect
 static var last_room_name: String = ""
+# QA-078 (v3.6 phase 4): the player's team pick for team modes
+# (0 RED / 1 BLUE / -1 auto). Per-room choice, not saved — a new
+# room starts on auto. The menu writes it, the game reads it when
+# spawning (see game.gd _do_spawn / _announce_ready).
+static var team_pref: int = -1
+# QA-078: lifetime stats, local only (no account, no server — they
+# live in the same settings.cfg as the name/colour). Shown on the
+# main-menu profile card; level is 1 + kills/50.
+static var stat_matches: int = 0
+static var stat_wins: int = 0
+static var stat_kills: int = 0
+static var stat_deaths: int = 0
 # Full-flow check (--flow-test, v2.4): survives the scene change so
 # the menu side can hand the check to the game side and back again.
 # flow_phase: 0 = off, 1 = in the match, 2 = back at the menu.
@@ -74,7 +86,7 @@ const MAP_CARD_INFO: Array[String] = [
 	"3400 × 1800 • 14 platforms", "3000 × 1750 • 14 platforms",
 	"3200 × 1500 • 10 platforms",
 ]
-const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing"]
+const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"]
 # Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).
 # Exact text from gen_assets_v3/music/LICENCE.md.
 const MUSIC_CREDITS := "\"At Rest\" Kevin MacLeod (incompetech.com)\n\"Five Armies\" Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 4.0 License\nhttp://creativecommons.org/licenses/by/4.0/"
@@ -82,11 +94,49 @@ const MUSIC_CREDITS_SHORT := "Music: \"At Rest\" + \"Five Armies\" — Kevin Mac
 # Mode ids: 0 FFA (first to kill limit), 1 TDM (team kills), 2 Survival
 # (round-based: one life per round, last alive wins the round, first
 # to the round limit wins the match), 3 Last Man Standing (one life
-# for the whole match, last alive wins; no respawns).
+# for the whole match, last alive wins; no respawns), 4 Capture the
+# Flag (QA-080: team mode — carry the enemy flag to your base,
+# first to the capture limit wins; kill_limit is the capture limit).
 
 
 static func player_color() -> Color:
 	return PLAYER_COLORS[clampi(color_index, 0, PLAYER_COLORS.size() - 1)]
+
+
+# QA-078: level from lifetime kills — 1 + one level per 50 kills.
+# Pure function, tested by --menu-net-test.
+static func level_for_kills(kills: int) -> int:
+	return 1 + maxi(kills, 0) / 50
+
+
+# QA-078: kills into the current level (0-49), for the profile
+# progress line ("12 / 50 kills to level 3").
+static func kills_into_level(kills: int) -> int:
+	return maxi(kills, 0) % 50
+
+
+# QA-078: record one finished match for the local player only.
+# Called once per match from the game scene's end screen.
+static func record_match(kills: int, deaths: int, won: bool) -> void:
+	stat_matches += 1
+	if won:
+		stat_wins += 1
+	stat_kills += maxi(kills, 0)
+	stat_deaths += maxi(deaths, 0)
+	save_settings()
+
+
+# QA-078: the LAN-local room code. "FRAG-" + 4 digits derived from
+# the host IP + room name, so two rooms on the same Wi-Fi almost
+# never share a code and a friend can join by typing the code
+# instead of the IP (the join screen looks the code up in the
+# discovered-room list — no server, no account). Pure function,
+# tested by --menu-net-test.
+static func room_code(ip: String, room_name: String) -> String:
+	var h := 0
+	for c in (ip + "|" + room_name).to_utf8_buffer():
+		h = (h * 31 + int(c)) % 100000
+	return "FRAG-%04d" % (h % 10000)
 
 
 static func save_settings() -> void:
@@ -101,6 +151,10 @@ static func save_settings() -> void:
 	cfg.set_value("controls", "sensitivity", sensitivity)
 	cfg.set_value("controls", "show_fps", show_fps)
 	cfg.set_value("controls", "invert_aim", invert_aim)
+	cfg.set_value("stats", "matches", stat_matches)
+	cfg.set_value("stats", "wins", stat_wins)
+	cfg.set_value("stats", "kills", stat_kills)
+	cfg.set_value("stats", "deaths", stat_deaths)
 	cfg.save(SAVE_PATH)
 
 
@@ -118,6 +172,10 @@ static func load_settings() -> void:
 	sensitivity = float(cfg.get_value("controls", "sensitivity", sensitivity))
 	show_fps = bool(cfg.get_value("controls", "show_fps", show_fps))
 	invert_aim = bool(cfg.get_value("controls", "invert_aim", invert_aim))
+	stat_matches = int(cfg.get_value("stats", "matches", stat_matches))
+	stat_wins = int(cfg.get_value("stats", "wins", stat_wins))
+	stat_kills = int(cfg.get_value("stats", "kills", stat_kills))
+	stat_deaths = int(cfg.get_value("stats", "deaths", stat_deaths))
 
 
 # Phase 4 — map vote tally (pure function, tested by --features-test).

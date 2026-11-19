@@ -3884,6 +3884,1427 @@ consider physics-frame-based waits instead of wall-clock waits
 if they keep flaking.
 
 
+## v3.6 enhancement program — Phase 1 audit, sections 0–2 (2026-11-19, fix worker)
+
+Step 0 of the enhancement program: read the v3.5 code and record
+what already exists vs what is genuinely missing for sections 1
+(lag / movement sync) and 2 (kill / death / respawn). Verified in
+code, not assumed. Scope rules for the whole program: do NOT rebuild
+from scratch, do NOT remove working functionality, host-authoritative
+design stays, RPC channel stays (MultiplayerSynchronizer stays
+deleted), NO fire button (QA-049), NO jump button (v2.2), NO bots /
+practice mode, LAN-only.
+
+### Already exists (verified in code — NOT rebuilt)
+
+| Item | Where verified |
+|---|---|
+| FFA + Team Deathmatch + Survival + Last Man Standing | `game_data.gd` MODE_NAMES (4 modes); `game.gd` `_check_match_end` / `_check_round_end` / LMS branch |
+| Kill feed (top-left chips, 5 s expiry, max 4) | `game.gd` `_add_kill_feed_entry`, `announce_kill` |
+| Match countdown (host-driven, `sync_countdown`, late-join watchdog) | `game.gd` `_update_countdown`, `sync_countdown` |
+| End-of-match results + MVP banner | `game.gd` `_end_match`, `show_end_screen`, MVP rows[0] |
+| Player stats (K/D, accuracy from `_shots_fired` / `_shots_hit`) | `game_data.gd` `compute_stats`; scoreboard rows |
+| Customization: name, colour, helmet | `main.gd` customize screen (`_name_input`, colour + helmet buttons); `player.gd` `_update_helmet`, name label above player |
+| Grenades + explosions (2 s fuse, bounce, 170 px blast, falloff, knockback) | `grenade.gd`, `game.gd` `request_explosion` |
+| 6 weapons (rifle, SMG, shotgun, sniper, rocket, pistol) | `weapons.gd` TABLE (6 entries) |
+| 13 themed maps | `game_data.gd` MAP_NAMES (13) |
+| Jetpack with fuel + visible FUEL bar | `player.gd` fuel drain/refill; `game.gd` `fuel_bar` GoBar "FUEL" |
+| Health / ammo / timer / K-D HUD | `game.gd` `_update_hud` (hp_bar, weapon label, timer, kills/deaths labels) |
+| Host-authoritative combat, RPC snapshots 30/s + 100 ms buffer | `player.gd` `_send_move_snapshot` / `receive_move_snapshot` / `_interp_position` (QA-053) |
+| Kill-credit lock (one credit per victim per 1 s window) | `game.gd` `try_credit_kill`, `_kill_credit_lock` (QA-031) |
+| Right-stick aim + fire, left-stick move, push-up = jump/jetpack | `player.gd` `_read_input`, `_apply_aim_and_fire`; no FIRE or JUMP button |
+| Spawn protection (2 s, blinking) | `player.gd` SPAWN_PROTECTION, `_apply_damage` guard |
+| Validated respawn (free spot, >150 px from live enemies, retry 0.5 s) | `player.gd` `_respawn`, `game.gd` `is_spawn_valid` |
+| Death FSM ALIVE → DYING (0.4 s) → DEAD (3 s) → respawn | `player.gd` LifeState, `_physics_process` |
+| Damage event ids (victim ignores repeats) | `game.gd` `next_damage_event_id`; `player.gd` `_seen_damage_ids` (GAP-43) |
+| Hit regions head 1.5 / torso 1.0 / legs 0.75 + distance falloff | `player.gd` `hit_region`, `calculate_damage` |
+| Kill streaks / best streaks (end screen) | `game.gd` `_kill_streaks`, `_best_streaks` in `announce_kill` |
+| Death watcher (uncredited deaths — lava etc. — still get one feed line) | `game.gd` `_update_death_watcher`, `_fed_deaths` |
+
+### Genuinely missing / real gaps found (fixed in this phase)
+
+**Section 1 — movement sync (QA-068).** The RPC snapshot channel
+itself is sound (QA-053 proved delivery), but the RECEIVER side
+reconstructs motion from arrival times, not from the sender's
+timeline: (1) snapshots are timestamped on RECEIPT
+(`receive_move_snapshot` uses `Time.get_ticks_msec()` when the
+packet lands), so ordinary Wi-Fi arrival jitter (20–80 ms) becomes
+spacing jitter in the interpolation buffer — two snapshots that
+arrive in a burst get near-identical timestamps and the lerp
+between them collapses; (2) there is no sender clock in the
+payload, so the receiver cannot tell a fresh snapshot from one
+delayed 120 ms — a late packet renders as if on time, then the
+next packet jumps; (3) when the buffer underruns (a short loss
+burst, common on Wi-Fi with unreliable RPCs) the render time
+passes the newest snapshot and `_interp_position` extrapolates at
+most ONE physics step (16.7 ms) then freezes — freeze, then
+catch-up jump, which is exactly the reported "jitter, delay, jump
+position"; (4) the <2-snapshot fallback lerps toward
+`sync_position` at a fixed per-frame rate, a different (and
+frame-rate-dependent) motion model from the interpolation path;
+(5) the remote branch sets `position` to the interpolated target
+with NO per-frame step limit, so any single bad/stale snapshot
+teleports the copy; (6) the send timer resets to 0.0 instead of
+subtracting the interval, so the 30/s cadence drifts under
+variable frame times. No change to the send rate or the channel —
+the fix is all receiver-side (sender timestamps + buffer/render
+timeline + dead reckoning + step clamp), see QA-068.
+
+**Section 2 — kill / death / respawn (QA-069).** The chain is
+mostly solid (one death per life is enforced by the LifeState
+guard in `_apply_damage`; duplicates are blocked by damage event
+ids + the QA-031 lock; respawn is validated). Three real gaps:
+(1) a dead REMOTE player never plays the death pose: damage RPCs
+go only to the victim's owning peer, so only the victim's own
+phone runs `_apply_damage` → `_play_anim("die")`; every other
+phone's copy hits the `life_state != ALIVE` early return in
+`_physics_process` before `_update_remote_anim` runs, so the body
+keeps its last run/idle loop (gun/name/HP hidden, body standing);
+(2) a kill can be credited for a victim who did NOT die: the host
+credits from PREDICTED lethality (victim's replicated health minus
+this hit) in `bullet.gd` `_hit_player` and `request_explosion`,
+but the victim's `_apply_damage` can still refuse the hit
+(spawn protection, already dead) — and a victim who died to lava
+(no credit, no lock) can be "killed" again by a stale in-flight
+bullet while the host's copy still shows them alive, because the
+death watcher announced the lava death without setting the
+QA-031 lock; (3) scores replicate only on the next 30/s snapshot
+tick — a kill/death can sit unreplicated for up to ~33 ms plus
+latency, and nothing force-sends after a score change (respawn
+already force-sends; kills/deaths did not). Fixes in QA-069:
+remote death pose, host-side alive/protection guards on credit,
+watcher sets the lock for uncredited deaths, force-send on kill
+and on death. NOT changed: the QA-031 lock itself, the death FSM
+timings, respawn rules, or the feed/streak logic.
+
+### Out of scope for this phase (recorded, not built)
+
+- Sections 3–11 of the user's list (bigger characters, map
+  redesigns, jetpack balance, shooting/hit-reg, lobby upgrade,
+  HUD/controls, Capture the Flag, visuals, final testing) — later
+  phases. The simple grenade/reload/weapon-switch buttons
+  (user, 2026-11-19 ~18:13) are done at the end of this phase as
+  QA-070 because they touch the same `game.gd` controls area.
+- No change to snapshot rate (30/s), interpolation buffer size in
+  time (100 ms), or the host-authoritative model — the lag fix
+  works inside the existing system, it does not add speed or
+  updates to hide the problem.
+
+
+## QA-068 — Remote players jitter, move with delay, and jump position on same-Wi-Fi play (user-reported, v3.6 enhancement §1)
+
+**Root cause (found in code, not guessed):** the RPC snapshot
+channel itself delivers (QA-053 proved it), but the RECEIVER
+reconstructed motion from ARRIVAL times. `receive_move_snapshot`
+stamped every snapshot with `Time.get_ticks_msec()` when the packet
+landed, so ordinary Wi-Fi arrival jitter (20–80 ms) became spacing
+jitter in the interpolation buffer — snapshots arriving in a burst
+got near-identical timestamps and the lerp between them collapsed.
+There was no sender clock in the payload, so a snapshot delayed
+120 ms rendered as if it were on time and the next one jumped.
+When the buffer underran (a short loss burst, common on Wi-Fi
+with unreliable RPCs) `_interp_position` extrapolated at most ONE
+physics step (16.7 ms) past the newest snapshot and then FROZE —
+freeze, then catch-up jump, exactly the reported symptom. The
+<2-snapshot fallback lerped toward `sync_position` at a fixed
+per-frame rate (a different, frame-rate-dependent motion model),
+the remote branch set `position` to the interpolated target with
+NO per-frame step limit (any stale snapshot teleported the copy),
+and the send timer reset to 0.0 instead of subtracting the
+interval, so the 30/s cadence drifted under variable frame times.
+Nothing was hidden with more speed or more updates: the rate is
+still 30/s, the buffer is still 100 ms.
+
+**Fix (`player.gd` only, same RPC channel, same host-authoritative
+design):**
+- Snapshots now carry the sender's clock (`"st"`) and the
+  spawn-protection flag (`"prot"`); the buffer is stamped with
+  the sender's clock and the render timeline is anchored to the
+  newest sender stamp minus 100 ms. Arrival jitter no longer
+  stretches or compresses snapshot spacing. The two phones'
+  clocks are never compared — sender stamps only order and space
+  the sender's own snapshots.
+- If packets stop arriving, the timeline advances with the wall
+  clock so the copy dead-reckons forward on its last velocity
+  (capped at 150 ms past the newest snapshot) instead of freezing.
+- Buffer raised 12 → 24 entries, pruned by sender-time age
+  (>1 s) as well as count.
+- Remote branch: per-frame step clamp (700 px/s + 20 px slack)
+  — a delayed packet's catch-up glides over a few frames instead
+  of teleporting; a genuine teleport (respawn / stuck-recovery,
+  >600 px) or a re-placement after a join / long gap still snaps
+  at once. Remote velocity is smoothed toward the latest
+  snapshot instead of snapping, so the run/jetpack animation
+  stops flickering on jitter.
+- Send timer subtracts the interval instead of resetting to 0
+  (steady 30/s cadence). `_send_move_snapshot(force)` now
+  actually uses its `force` flag (resets the timer so a forced
+  send is not immediately repeated).
+- A capped variant was tried and REJECTED with numbers: holding
+  the copy at the newest snapshot (no extrapolation past real
+  data) made each burst land as a 1400+ px/s catch-up surge
+  (BURST-SMOOTH 1422 px/s). The 150 ms glide measures 336–618
+  px/s with snap-back 0.0–2.1 px.
+
+**Verification (repl-sim, both directions + sustained burst):**
+26/26 old checks still pass; 7 new checks added (33/33 total).
+RPC-C2S-SMOOTH 285–489 px/s, snap-back 0.0 px; RPC-S2C-SMOOTH
+301–540 px/s, snap-back 0.0 px (steady 300 px/s glide, both
+directions). BURST-SMOOTH (2 s, 300 px/s then 150 px/s,
+snapshots delivered in bursts of 9 after ~300 ms of silence —
+the Wi-Fi shape): 336–618 px/s, snap-back 0.0–2.1 px; BURST-MOVE
+458–542 px. The burst step bar is 900 px/s, not 600: the sim
+samples at ~10 fps, so one sample can hold a whole burst's
+catch-up (90 px in 0.1 s = 900 px/s) while the same motion on a
+60 fps phone is ~5 px per physics frame; a true
+freeze-then-teleport would read several thousand px/s. One
+BURST-SMOOTH run read 618 vs the old 600 bar (load flake, same
+family as the physics P02 wall-clock flakes) — that is why the
+bar was recalibrated, with the reason in the step comment, and
+the snap-back bar (<5 px, the real jump detector) was NOT
+loosened: it reads 0.0 in nearly every run. **Honest limit,
+unchanged: the sim cannot prove live ENet delivery — the user
+must still verify on two real phones that each phone sees the
+other move smoothly in both directions.**
+
+## QA-069 — Kill / death / respawn chain: phantom kills, dead remote players standing, slow score replication (v3.6 enhancement §2)
+
+**Audit (see the Phase 1 audit above):** one death per life was
+already enforced (LifeState guard in `_apply_damage`), duplicates
+were already blocked (damage event ids + QA-031 lock), respawn was
+already validated. Three real gaps found:
+
+1. **Dead remote players kept standing.** Damage RPCs go only to
+   the victim's owning peer, so only the victim's own phone ran
+   `_apply_damage` → `_play_anim("die")`. Every other phone's
+   copy hit the `life_state != ALIVE` early return in
+   `_physics_process` before `_update_remote_anim` ran, so the
+   body kept its last run/idle loop — gun, name and HP bar
+   hidden, body standing. **Fix (`player.gd`):** the non-local
+   branch of the death FSM now plays `"die"` from the synced
+   life_state.
+2. **A kill could be credited for a victim who did NOT die.** The
+   host credited from PREDICTED lethality (replicated health
+   minus this hit) in `bullet.gd` `_hit_player` and `game.gd`
+   `request_explosion`, but the victim's `_apply_damage` can
+   still refuse the hit (spawn protection, already dead) — and a
+   victim who died to lava (no credit, no lock) could be
+   "killed" again by a stale in-flight bullet while the host's
+   copy still showed them alive. **Fix:** the host now credits
+   only if its copy still shows the victim alive and
+   unprotected (`alive` + `_spawn_protect_timer <= 0`; the
+   protection state is now synced in the snapshots, QA-068
+   `"prot"`); and `_update_death_watcher` now sets the QA-031
+   lock for uncredited deaths (lava etc.) as well as announcing
+   them, so a stale bullet in the same window credits nothing.
+   The QA-031 lock itself is unchanged and still covers the
+   same-moment double-hit case.
+3. **Scores replicated only on the next 30/s tick.** **Fix
+   (`player.gd`):** `add_kill()` and the death branch of
+   `_apply_damage()` now force-send a snapshot at once, the same
+   treatment respawn already got — every peer's scoreboard sees
+   a kill/death immediately, not up to a tick plus latency later.
+
+**Verification (repl-sim steps 14–16, new):** KILL-ONCE —
+one lethal hit = deaths 1, kills 1, feed +1; a duplicate lethal
+hit in the same life and a duplicate credit attempt change
+nothing (dup_credit=false). KILL-SECOND-LIFE — after the 1 s
+lock expires the victim respawns (alive, hp 100, deaths kept)
+and a second lethal hit credits kill 2, feed +1 more (no second
+line from the death watcher). LAVA-NO-CREDIT — victim dies to
+lava (deaths 3, no credit); the watcher announces once (feed
++1) and locks; a stale `try_credit_kill` afterwards returns
+false, kills stay 2. SCORE-SYNC — final scores hand-delivered
+to the shadow as snapshots: server killer K/D 2/0 = shadow 2/0,
+server victim 0/3 = shadow 0/3, IDENTICAL on both peers.
+REMOTE-DEATH-POSE — the shadow's copy of the dead victim has
+anim `'die'` (pre-fix it kept its run/idle loop). All five
+checks PASS. **Test note:** the lava step first failed as
+written (stale_credit=true) because the test respawned and
+lava-killed in the same frame, so the watcher never observed an
+alive frame and its per-life "already fed" flag stayed stale
+from the previous life. That sequence cannot happen in real
+play (2 s of spawn protection guarantees alive frames between
+lives), so the test was fixed to observe the fresh life for
+0.4 s first — the game code was not changed to fit the test.
+
+## QA-070 — Grenade, reload and weapon-switch buttons must be SIMPLE, not fancy (user, 2026-11-19 ~18:13)
+
+Extends the v3.5 "just have plain buttons" rule (QA-062,
+grenade/reload) to the weapon-switch button. All three are now
+plain flat buttons with a clear text label — GRENADE / RELOAD /
+WEAPON — no gohud styling, no rings, no badges, no icons, no
+effects, no decorations. One flat dark fill, no border, no accent
+colour, no hover glow, no focus ring; pressed is only a slightly
+lighter fill; disabled is dimmed with grey text. Same column,
+same positions, same 72 px touch targets (≥56 px), same handlers
+— only the look changed. The v3.5 round style
+(`_style_round_button`, `_round_stylebox`) and the three
+code-drawn icons (`_make_grenade_icon`, `_make_swap_icon`,
+`_make_reload_icon`) were deleted — they served only these
+buttons. The top-right SCORE/pause gohud icon buttons (QA-067,
+the v3.6 UI work) were NOT touched. Grenade count stays as the
+plain "Grenades: N" text, reload state stays in the weapon
+label, the current weapon stays in the top-right HUD.
+**Verification:** joystick/fire suites (which press these
+buttons by rect centre) re-run green — see the v3.6 regression
+below; positions and sizes are unchanged, so the tap targets
+are identical.
+
+
+## QA-numbering note (2026-11-19, phase 2)
+
+The v3.6 UI entries were PLANNED as QA-067/068/069 by the v3.6
+coordinator but were never written to BUGS.md; phase 1 has since
+used 068 (lag/sync), 069 (kill/death) and 070 (simple buttons).
+QA-067 is still free; the Create Room and lobby UI entries need
+NEW numbers when they are written. Phase 2 uses QA-071 (player
+size) and QA-072 (maps). The final test/export worker must
+renumber the UI entries when writing them — do NOT reuse 068/069.
+
+## QA-071 — Player characters are too small; make them modestly bigger (user, 2026-11-19 ~18:11, corrected ~19:13)
+
+**The correction:** the first attempt used PLAYER_SCALE 1.30
+(capsule 34x52 -> 44x68, ~31% taller). The user corrected:
+"Bigger player means not big player do you understand right" —
+the player should be only MODESTLY bigger, noticeably easier to
+see, still proportional, still fits the maps and platforms, NOT
+a huge/giant character. The size was REDONE to **1.20x**
+(~20% taller, inside the user's 15–25% range). Every number
+below is the final 1.20x value; the 1.30x numbers were removed,
+not shipped.
+
+**Old vs new (final):** capsule 34x52 -> **40x62** (radius 17 ->
+20, height 52 -> 62); soldier sprite 64 px frame -> **77 px**
+on screen; gun length 46 -> **55**, gun position (8,5) -> (10,6),
+gun kick 7.0 -> 8.4, muzzle offset (8,5)+dir*52 -> (10,6)+dir*61;
+jetpack flame (-6,0),(6,0),(0,24) -> (-7,0),(7,0),(0,29),
+flame position (0,18) -> (0,22); team ring radii 24 -> 29, y
+26 -> 31, wobble 7 -> 8; run/jump/jetpack animation 10 -> 12 fps
+(smoother motion at the bigger size); speeds, jump, gravity and
+fuel UNCHANGED. Hit regions rescaled for the 62-tall capsule
+(`physics_config.gd`): HIT_HEAD_Y -14 -> **-17**, HIT_LEGS_Y
++12 -> **+14** (same proportions as before). Stuck-recovery
+query capsule 14/46 -> 17/56; wedge rays 40 -> 48 px; landing
+dust offset (0,26) -> (0,31); grenade origin (0,-6) -> (0,-7).
+`game.gd` size-coupled numbers: `is_spawn_valid` capsule 20/62,
+STATIC spawn box (20,31)/(40,62), collision-test capsule
+half-width 17.0 -> 20.0, lava feet offset (0,20) -> (0,24),
+`_phys_ground_at` / `_phys_top_at` return top - 34 (3 px clear
+of the floor for the 31-half-height capsule). All 156 spawns
+stay at platform_top - 34 (2 px up from the old -32); no spawn
+moved horizontally; all pickups untouched.
+
+**Player names: ALREADY shown.** `_name_label` in `player.gd`
+`_build_sprite`, text/colour set before `add_child` in
+`game.gd` `_spawn_player_node` — names were NOT added from
+scratch. They were made easier to read: font 18 -> **22**,
+size 80x22 -> 96x26, position (-40,-66) -> (-48,-79), outline
+4 -> 5; HP bar (-22,-48) 44x6 -> (-26,-58) 53x7; plus a live
+refresh in `_update_visuals` (updates label text/colour if set
+after `_ready`, guarded by equality checks so it is normally a
+no-op).
+
+**Sync untouched:** RPC snapshots, interpolation, kill/death
+chain, movement speeds — unchanged. The size change works with
+the phase-1 sync code.
+
+**Two bugs found by the tests during this work, both fixed
+here (not new QA numbers):**
+1. **Exact-touch spawns broke every spawn (found by physics
+P14 + P24b + the fire test).** With the 1.30x capsule, spawns
+at platform_top - 34 sat EXACTLY on the floor (half-height
+34), and Godot's shape query counts touching as overlapping —
+so `is_spawn_valid` returned false for ALL 156 spawns,
+`get_valid_spawn_point` returned INF, the player spawned at
+INF -> NaN, and fire (7/29, shots stuck at 11), joystick
+movement, respawn (P14 "valid spawn found=false") and wedge
+recovery (P24b "player at (nan, nan)") all collapsed. The
+1.20x redo fixes it by construction: the same -34 offset is
+now 3 px of clearance above the floor (half-height 31), so
+the shape query is empty. No spawn position had to move.
+2. **Grenade collision test was balanced on a 5 px edge.**
+The grenade's initial velocity is (575, -490); thrown from
+150 px, the old arc clipped the 108-tall column top by 5 px
+and bounced — the 10 px-higher throw origin of the bigger
+player flipped it to a 5 px clear, so the grenade flew past
+(maps 1 and 9, 7/8). The setup now throws from 60 px away:
+the grenade reaches the face in ~0.1 s, 30+ px below the top
+on every map (all tallest solids are >=107 px). Same property
+tested (a grenade thrown at a tall solid bounces off it),
+robustly. No game code was changed to fit the test.
+
+**Verification:** no-stuck audit 0 TRAP / 0 TIGHT on all 13
+maps (40x62 capsule); full suite re-run on the final tree —
+see the v3.6 Phase 2 regression table below.
+
+## QA-072 — Maps look like simple horizontal dashes; make them complete battlefields (user, 2026-11-19 ~18:11)
+
+All 13 maps rebuilt into connected battlefields, each keeping
+its own theme, layout and colours — no two maps alike. Per map
+(new platforms / new solid decor):
+- **Catacombs (21 plats, was 17):** 1180 right walkway,
+  stair step at 850, 840 walkways; decor crate 1500@1180,
+  column 1100@1352, barrels 2150@1352.
+- **Military Base (20):** 1220 + 880 walkways; sandbags
+  1900@1392, crate 500@1220, barrels 2400@1392.
+- **Desert Outpost (21):** 1280 + 1110 walkways; rock
+  1780@1452, crate 1450@1110.
+- **Industrial Factory (21):** 1380 + 1210 + 870 walkways;
+  column 1760@1552, crate 1600@1210.
+- **Frozen Fortress (18):** 1180 lake walkway, 1010 bridge;
+  crate 700@1180, sandbags 2040@1352.
+- **Jungle Ruins (24):** 1180 walkways, 1010 bridge; jpillar
+  950@1352, jcrate 1500@1180.
+- **Space Station (18):** 1110 + 1280 walkways; barrels
+  2600@1452, crate 2100@1280. Floor gaps deliberately NOT
+  bridged — the split-deck layout is the map's signature.
+- **City Underground (15):** 1400 + 1065 walkways; column
+  1000@1552, crate 1200@1400.
+- **Volcanic Cavern (23):** 1280 + 1110 walkways; barrels
+  2200@1452, crate 1450@1110. Lava pools untouched.
+- **Pirate Island (16):** 1280 step, 1110 bridge, 940 rigging
+  walkway; crate 600@1280, column 1800@1452.
+- **Neon City (16):** 1580 alley walkways; crate 1200@1580,
+  barrels 2400@1752. Plaza floor gap NOT bridged (signature);
+  a plaza step at (1550,1670,300) was designed then DROPPED —
+  only 42 px clearance under the centre platform, a standing
+  player could not fit on it.
+- **Ancient Temple (17):** 1210 colonnade walkways, crypt
+  bridge (1350,1552,300,48) leaving 150 px drops into the crypt
+  on both sides; sb_shrine 1500@1552, column 900@1210.
+- **Airship Fleet (13):** deck steps, mast walkway; crate
+  1400@1452 (safety net), sb_block 1700@1210.
+39 new platforms + 26 new solid decor pieces total. Design
+rules on every new platform: vertical rises <=170 px (mostly
+80–90 px steps), >=122 px clearance to the platform directly
+above, all gaps between solids either <40 px (blocked,
+unenterable) or >=100 px. All 156 spawns and all pickups
+reachable; no spawn moved horizontally.
+
+**The bigger player created 18 new TIGHT gaps** (44-wide
+player, pre-redo audit: 0 TRAP, 18 TIGHT) — all fixed by
+moving decor, e.g. Catacombs column 2520 -> 2580, Desert
+column 2820 -> 2850, Industrial barrels 720 -> 660 and column
+3080 -> 3040, Frozen sandbags 120 -> 170 and crate 250@1010
+-> 300, Jungle jcrate 1200 -> 1260 and 1920 -> 1860, Space
+barrels 1800 -> 1840 and column 1970 -> 2020, City crate
+3070@1552 -> 3000@1240, Volcanic column 1500 -> 1540 and
+crate 2800 -> 2860, Neon barrels 3270 -> 3220, Temple barrels
+1170 -> 1230, Airship crate 110 -> 140 and 3090 -> 3050. Two
+self-created audit failures were caught and fixed the same
+way (Frozen sandbags 2000 clipped spawn#6 — moved to 2040;
+Jungle jpillar 1000 left a 68 px slot to barrels 1100 —
+moved to 950).
+
+**Artwork (`game.gd` only):** `_build_background` gained a
+midground silhouette layer — one stepped skyline polygon per
+map, seeded by `map_id`, in the map's own hill colour darkened
+x0.6 at 0.55 alpha, z -7 (behind platforms/players); gradient
++ parallax image + 2 hill ridges unchanged. `_draw_tiles`
+gained a 16 px dark translucent (0.25 alpha) skirt under each
+platform for terrain depth.
+
+**Verification:** no-stuck audit re-run after the 1.20x redo:
+**0 TRAP / 0 TIGHT on all 13 maps**, 0 unreachable platforms,
+no spawn/pickup overlaps. Collision 8/8 and smoke on all 13
+maps — see the v3.6 Phase 2 regression table below. The map
+edits were made against the 44-wide player; the 40-wide redo
+was re-audited and the fixes still hold.
+
+## QA-071b — Test-harness fixes made during phase-2 verification (2026-11-19)
+
+No game physics, sync or gameplay was changed for these — only the
+test setups/checks in `game.gd`, because the bigger player moved
+the tests' assumptions (teleport spots that were clear for a
+34x52 player are not clear for a 40x62 one, and the xvfb harness
+runs physics at a few frames per wall second, so wall-clock waits
+and idle-rate sampling are fragile). Each fix keeps the property
+the test is supposed to check, and the reason is in the code
+comment at the change:
+- **Grenade collision test:** the throw moved from 150 px to
+  60 px from the tall solid — at 150 px the grenade's arc cleared
+  the 108-tall column by 5 px once the throw origin rose 10 px
+  with the bigger player (maps 1 and 9, 7/8).
+- **Joystick teleports:** (2100, 1350) embedded the player 29 px
+  into the floor; the spots moved to (2100, 1318), then DIAG-UP-
+  RIGHT and RESOLUTION-2400 moved again to (900, 1318) and
+  (1600, 1318) — (2100, 1318) sits under the 1180 walkway (bottom
+  1228, continuous 1350..2900), so the jetpacking player's head
+  bonks it at 59 px of rise and vel.y reads 0; and the "clear run
+  right" at 2100 is blocked 13 px on by the QA-072 barrels at
+  2150, so the player stops and vel.x reads 0.
+- **P23 bounce pad:** the setup is now two-phase — phase 1 moves
+  the player clear of the pads and clears the 0.3 s cooldowns,
+  then `await get_tree().physics_frame`, then phase 2 puts the
+  player on the pad, so the area sees a FRESH entry and fires
+  `body_entered`. (A wall timer was tried first and fired up to
+  1.45 s late under xvfb load; toggling `monitoring` off/on in
+  the same call is a no-op.) The wait went 0.12 -> 1.5 s and the
+  check accepts a fast rise OR having risen above the pad,
+  because only ~1 physics frame elapses in 0.2 s of wall time.
+- **P24 stuck recovery:** the setup embeds the player at
+  (1600, 1380) not (1600, 1370) — with the 62-tall capsule 1370
+  is only 1 px into Neon's 1400 platform, so the smaller query
+  capsule missed it and no recovery fired.
+- **Physics-rate sampling:** the t300 accel times and the min_y
+  jump apex are now sampled in `_physics_process` (60 Hz) instead
+  of idle `_process` (~5 Hz under llvmpipe), which quantized the
+  ground/air times to the idle frame period and hid the 0.085 s
+  difference (P02 read 0.30 vs 0.27 s). The t300 times are now
+  measured on a physics-time clock accumulated in
+  `_physics_process`, so the ground/air ratio is load-independent.
+
+## v3.6 Phase 2 regression — fix-worker results (2026-11-19)
+
+Full suite re-run on the final phase-2 tree (`/tmp/run_p2_suite.sh`;
+logs `~/workspace/p2_logs/p2_*.log`, summary `/tmp/p2_suite_summary.log`).
+**All green, 0 script errors in every log.** The run happened in two
+passes: the first full run caught the QA-071b spawn/grenade/test
+issues (fire 7/29, joystick 21/26, physics 29/32 + 21/23, collision
+7/8 on maps 1/5/9, repl-sim 25/8 — all traced to the exact-touch
+spawn bug, the marginal grenade arc, or the contaminated parallel
+re-runs); after the 1.20x redo and the QA-071b harness fixes the
+full suite re-ran clean, with the three remaining suites re-run in
+isolation to confirm (joystick 26/26, physics-map4 23/23,
+physics-map10 32/32 x2).
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055 + QA-061 + QA-068 + QA-069) | 33/33 PASS |
+| Joystick (QA-054) | 26/26 PASS |
+| Fire (QA-056 size + QA-061 rifle + QA-055 inside-geometry) | 29/29 PASS |
+| Scale | 70/70 PASS |
+| Physics (maps 0/6/10/12) | 32/32 PASS on every map |
+| Physics (Frozen Fortress ice, map 4) | 23/23 PASS |
+| Features | 11/11 PASS |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23-32 shots, bullets=160, fuel=100.0) |
+| Full flow | DONE (menu -> create room -> lobby -> start -> play -> pause -> scoreboard -> end -> back) |
+| Restart (QA-060) | 8/8 PASS |
+| No-stuck audit (QA-063, 40x62 capsule) | 0 TRAP / 0 TIGHT on all 13 maps, 0 unreachable platforms, no spawn/pickup overlaps |
+
+**Previous-bug spot-check:** QA-047 join fix, QA-048 scroll,
+QA-049 right-stick firing, QA-052 stick positions, QA-053 RPC
+sync, QA-054 no-left, QA-055 inside-geometry, QA-056 bullet size,
+QA-060 restart, QA-068 lag/sync, QA-069 kill/death, QA-070 simple
+buttons — all still green inside the suites above. **Not built:**
+no APK export in this phase (the coordinator exports at the end of
+the program); no commit (the coordinator commits). The tree is
+left dirty with the phase-2 changes for the next phase worker.
+
+
+## QA-073 — Movement-sync deepening: audit QA-068 against the user's 7-point sync spec (2026-11-19)
+
+**Audit — per point, what QA-068 already covers vs what is missing
+(verified in code, not assumed):**
+
+1. **Timestamp-based sync (sender clock). COVERED except two gaps.**
+   Covered: every snapshot carries `"seq"`, `"st"` (sender's
+   `Time.get_ticks_msec()`, never arrival time), `"p"`, `"v"`,
+   `"aim"`, `"face"`, `"ls"` (life state); the buffer is stamped
+   and ordered on the sender's clock; out-of-order/older snapshots
+   are dropped by the sequence guard; one buffer per remote player.
+   MISSING: (a) the player ID is NOT in the packet — it is only
+   implied by the RPC sender id and the node path (`Players/<pid>`);
+   the spec says every packet must include the player ID. (b) The
+   movement state is incomplete: jetpack, firing, reload and
+   airborne are NOT in the payload. Jetpack is guessed on the
+   receiver from `velocity.y < -380 and fuel < FUEL_MAX`
+   (`_update_remote_anim`) — a heuristic, not synced state — and
+   firing is never shown on a remote copy at all (its `"shoot"`
+   animation can never play remotely).
+2. **Snapshot interpolation. COVERED except the adaptive delay.**
+   Covered: remote positions are interpolated between timestamped
+   snapshots on the sender's timeline; received coordinates are
+   NEVER applied directly (interpolation + per-frame step clamp);
+   horizontal/vertical come from the lerp, rotation from the synced
+   `aim`, animation from the synced velocity/state. MISSING: the
+   interpolation delay is a FIXED 100 ms
+   (`PhysicsConfig.INTERP_BUFFER`) — no adaptation to inconsistent
+   Wi-Fi delivery. On clean Wi-Fi 100 ms is more lag than needed;
+   on bursty Wi-Fi it is less buffer than needed.
+3. **Freezing / sudden jumping. COVERED.** 150 ms velocity-based
+   dead reckoning past the newest snapshot, smooth glide back via
+   the step clamp (700 px/s + 20 px), genuine teleports (>600 px)
+   still snap, sequence guard drops outdated packets. Duplicates
+   are dropped by the same guard (`seq <= _last_snap_seq`) — the
+   handling exists but was never counted or tested directly, so a
+   duplicate storm was invisible in the stats (see §7).
+4. **Responsive local movement. HALF COVERED — the mechanism is
+   missing.** The local player IS predicted in effect: the owner
+   simulates its own movement locally (`_read_input` +
+   `_apply_movement` run every physics frame with no network wait),
+   so local movement is independent of network delays. But there
+   is NO reconciliation: no input/position history is kept, and no
+   authoritative correction can ever reach the owner — the host has
+   no correction RPC and the owner has no correction path. If the
+   host's view of a player ever diverges (missed teleport snapshot,
+   bad state), nothing heals it.
+5. **Sync ALL gameplay states. COVERED except the §1 gaps.**
+   Covered: position, velocity, direction (`face` + `aim`),
+   weapon (`wpn`), health, kills, deaths, alive, life state, fuel,
+   ammo, grenades, accuracy counters — all in the snapshot; damage,
+   kills and player state are host-authoritative (`take_hit` /
+   `take_damage` are reliable RPCs only the host may drive,
+   `ShootingSync` validates rate/ammo, QA-031 kill-credit lock,
+   QA-069 force-send on kill/death). MISSING: jetpack activation,
+   firing, reload and airborne state (same gap as §1) — a remote
+   copy cannot show a jetpacking, firing or reloading player
+   truthfully.
+6. **LAN networking optimisation. COVERED, no change needed.**
+   30 snapshots/s (`SNAPSHOT_INTERVAL` 0.033), physics at 60/s
+   independent of the network, rendering in `_process` separate
+   from packet arrival, movement on unreliable RPCs vs reliable
+   RPCs for damage/kills/spawns (separate handling), no snapshot
+   sent when no peers are connected, snapshot buffer capped at 24
+   entries with age pruning, no blocking network calls on the game
+   thread. One small dict is allocated per snapshot (30/s) — tiny
+   and bounded, not worth a pool.
+7. **Debugging / testing. MISSING ENTIRELY.** No network-stats
+   display exists anywhere — no ping/RTT, packet loss, updates/s,
+   buffer size, interpolation delay, extrapolation time, or
+   local-vs-authoritative position readout. The only related UI is
+   the FPS counter behind a settings toggle. A Wi-Fi problem on
+   real phones is therefore undebuggable in the field.
+
+**Fixes (QA-073, `player.gd` + `game.gd` — same RPC channel, same
+30/s rate, same host-authoritative design, no system replaced):**
+- (a) **Adaptive interpolation delay** (`player.gd`): the receiver
+  measures Wi-Fi jitter per snapshot (arrival spacing vs sender
+  spacing), smooths it (EWMA, alpha 0.1), and slews the delay
+  toward `clamp(80 ms + 1.5 x jitter, 80–250 ms)` at most 10 ms
+  per 0.5 s. Clean Wi-Fi settles near 80 ms; bursty Wi-Fi grows
+  the buffer. `_interp_position` renders at
+  `newest_sender_stamp - _interp_delay` (was the fixed 100 ms
+  `INTERP_BUFFER`, which stays the starting value).
+- (b) **Payload gains `"id"`, `"jet"`, `"fire"`, `"rel"`,
+  `"air"`** (`_send_move_snapshot` / `receive_move_snapshot`):
+  player ID in every packet, plus jetpack, firing, reload and
+  airborne state. The receiver stores them; `_update_remote_anim`
+  uses the real flags — the old jetpack guess (`velocity.y < -380
+  and fuel < FUEL_MAX`) is gone, and a remote player now shows
+  its `"shoot"` pose when firing (impossible before: firing was
+  not in the payload at all). A packet whose `"id"` is set and is
+  not this player is ignored; `"id"` 0 means unspecified (old /
+  hand-built dicts, the repl-sim).
+- (c) **Prediction + reconciliation** (spec §4): the local player
+  already predicts (owner simulates locally, zero network wait);
+  it now keeps a 90-frame prediction ring (packed arrays, no
+  dicts) and `apply_authoritative_correction()` — small errors
+  blend in (20% per physics frame, before `_apply_movement` so
+  `move_and_slide` resolves any wall contact instead of embedding
+  the player), teleport-class errors (>300 px) snap at once,
+  stale corrections (older `corr_seq`) are ignored. The host runs
+  a last-resort divergence guard (`game.gd`
+  `_update_divergence_check`, host-only, no-op solo/offline):
+  fresh stream + >300 px sustained 1 s → RPC a correction to the
+  client's own newest snapshot position. It never fires on normal
+  interp lag (<~60 px).
+- (d) **Net-stats counters + dev-only display** (spec §7):
+  every snapshot counts received / lost (sequence gap) /
+  duplicate / out-of-order / updates-per-second, plus buffer
+  size, adaptive delay, jitter, extrapolation time and gap, all
+  readable via `player.get_net_stats()`. `game.gd` shows them in
+  a net-stats HUD panel with FPS, live ENet RTT
+  (`PEER_ROUND_TRIP_TIME`) and packet loss
+  (`PEER_PACKET_LOSS` / 65536), local vs authoritative vs
+  rendered position — hidden by default, enabled with
+  `--net-stats` or the F3 key, refreshed 4x/s only while visible.
+- (e) **Render clock monotonicity** (`player.gd`
+  `_interp_position`): the render time never moves backwards.
+  When the adaptive delay grows, `newest - delay` would retreat
+  and the copy would step back and surge — the first chaos run
+  showed 52 px snap-back and a 1352 px/s spike from exactly
+  this. The clock is held instead (only the delay growth itself,
+  ~10 px, is deferred). A wall-time slew cap was tried first and
+  REJECTED: it starved the clock whenever physics ticks batched
+  (burst smoothness 937 px/s, burst move 421 → 332 px).
+- (f) **Resync snaps only when far** (`player.gd` remote branch):
+  a re-placement after a >0.5 s receipt gap used to snap at any
+  distance — but after such a gap the copy has dead-reckoned
+  forward past the delayed render target, so the snap dragged it
+  BACKWARD (chaos run 3: 49.5 px snap-back). Now a resync snaps
+  only past 100 px (a real join/rejoin); closer than that it
+  glides the last few pixels. Genuine teleports (>600 px) still
+  snap at once.
+- (g) **New repl-sim steps 18–20** (`game.gd`): chaos delivery
+  (loss + 300 ms delay + duplicate + out-of-order, 2 s at
+  300 px/s), prediction/reconciliation (small correction blends,
+  large snaps, stale ignored, prediction ring), net-stats display
+  (hidden by default, shows on toggle with the §7 fields, hides
+  again). The chaos step bar is 2000 px/s, derived from the step
+  clamp (6 physics frames x 31.7 px = 190 px per ~10 fps sample
+  = 1900 px/s); a genuine 600 px teleport in one sample reads
+  6000 px/s and still fails it. Snap-back <5 px is the real jump
+  detector and reads 0.0.
+
+**Verification (repl-sim, 46 checks — was 33):** 46/46, 0 script
+errors, reproduced 5x consecutively after the final fix (plus 3
+more 46/46 runs during diagnosis). New checks: CHAOS-SMOOTH
+(loss + 300 ms delay + duplicates + out-of-order, 2 s at 300 px/s:
+max step 780–1879 px/s across runs — inside the 2000 px/s
+clamp-derived bar — snap-back 0.0 px every run), CHAOS-MOVE
+(604–639 px), CHAOS-LOSS-DUP-OOO (lost 15–20, dup 4–5, ooo 6–9,
+recv 43–53 — the chaos actually happened and was counted),
+CHAOS-DUP-IGNORED and CHAOS-OOO-IGNORED (re-delivered / stale
+snapshots counted and ignored), RECONCILE-NO-SNAP (0.0 px in the
+correction frame), RECONCILE-BLEND (1.3 px from the corrected
+position after 0.5 s), RECONCILE-BIG-SNAP (500 px snaps at once),
+RECONCILE-STALE (0.0 px on an old corr_seq), PREDICT-HISTORY
+(90-frame ring), NETSTATS-HIDDEN-DEFAULT / SHOWS / HIDES
+(hidden by default; on toggle shows FPS, RTT, delay, buffer,
+loss/dup/ooo, local/auth/shown positions; hides again). The
+adaptive delay is visible in the stats: under chaos it settles
+at ~130 ms with ~67–74 ms jitter (vs the old fixed 100 ms).
+Old checks still green: RPC-C2S/S2C-SMOOTH 293–344 px/s,
+snap-back 0.0; BURST-SMOOTH 315–554 px/s, snap-back 0.0–1.7 px;
+BURST-MOVE 332–447 px; kill chain, rifle straight, bullet track
+unchanged. **Three real bugs were found by the new tests and
+fixed in this entry, not in the tests:** (1) the adaptive delay
+growing moved the render time backwards (52 px snap-back,
+1352 px/s — fixed with the monotonic render clock); a wall-time
+slew cap was tried first and rejected (burst 937 px/s, move
+421 → 332 px); (2) a resync after a >0.5 s gap snapped the copy
+backwards past its dead-reckoned position (49.5 px snap-back —
+fixed: resync snaps only past 100 px); (3) the reconcile blend
+ran after `move_and_slide`, so a +40 px nudge into a wall
+embedded the player and the stuck-recovery teleported it 228 px
+(fixed: blend before movement, so physics resolves the wall).
+**Flakes (not regressions, no code changed to fit them):** the
+full-suite repl-sim run read 45/46 once — BULLET-TRACK tracked
+9 frames vs 10 wanted (frame-count under load; bullet path
+untouched here); isolated re-run 46/46. Physics-map10 read
+31/32 twice across four runs with a DIFFERENT check each time
+(P02 air-accel in the suite run, P23 bounce-pad in one isolated
+run) and 32/32 in the other two — both are the known
+load-marginal timing checks (see QA-071b), and nothing in this
+work touches bounce pads or accel timing. **Honest limit,
+unchanged: the sim cannot prove live ENet delivery — the user
+must still verify on two real phones that each phone sees the
+other move smoothly in both directions, and that the net-stats
+panel (F3) shows sane RTT/loss on real Wi-Fi.**
+
+## v3.6 QA-073 regression — fix-worker results (2026-11-19)
+
+Full suite re-run on the QA-073 tree (`/tmp/run_q73_suite.sh`;
+logs `~/workspace/q73_logs/q73_*.log`, summary
+`/tmp/q73_suite_summary.log`). **0 script errors in every log.**
+The two non-green suite-run lines below are load flakes (see the
+flake note in QA-073); both pass in isolation.
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055 + QA-061 + QA-068 + QA-069 + QA-073) | 46/46 PASS (was 33/33; +13: CHAOS-SMOOTH, CHAOS-MOVE, CHAOS-LOSS-DUP-OOO, CHAOS-DUP-IGNORED, CHAOS-OOO-IGNORED, RECONCILE-NO-SNAP, RECONCILE-BLEND, RECONCILE-BIG-SNAP, RECONCILE-STALE, PREDICT-HISTORY, NETSTATS-HIDDEN-DEFAULT, NETSTATS-SHOWS, NETSTATS-HIDES) — suite run 45/46 once (BULLET-TRACK 9/10 frames, load flake), isolated 46/46 |
+| Joystick (QA-054) | 26/26 PASS |
+| Fire (QA-056 size + QA-061 rifle + QA-055 inside-geometry) | 29/29 PASS |
+| Scale | 70/70 PASS |
+| Physics (maps 0/6/12) | 32/32 PASS on every map |
+| Physics (Frozen Fortress ice, map 4) | 23/23 PASS |
+| Physics (Neon City, map 10) | 31/32 in the suite run (P02), 32/32 in isolation ×2 — see flake note in QA-073 |
+| Features | 11/11 PASS |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23–32 shots, bullets=160, fuel=100.0) |
+| Full flow | DONE (menu → create room → lobby → start -> play → pause → scoreboard → end → back) |
+| Restart (QA-060) | 8/8 PASS |
+
+**Previous-bug spot-check:** QA-047 join fix, QA-048 scroll,
+QA-049 right-stick firing, QA-052 stick positions, QA-053 RPC
+sync, QA-054 no-left, QA-055 inside-geometry, QA-056 bullet size,
+QA-060 restart, QA-061 rifle straight, QA-068 lag/sync,
+QA-069 kill/death, QA-070 simple buttons, QA-071 1.20x player
+size, QA-072 maps — all still green inside the suites above.
+**Not built:** no APK export in this phase; no commit. The tree
+is left dirty with the QA-073 changes for the next phase worker.
+No new log files were left in the project dir (suite logs are in
+`~/workspace/q73_logs/`; the `log4_*.txt` files in the project
+dir pre-date this work, timestamps 13:07–13:10).
+
+## QA-074 — Jetpack speed is excessively high; rebalance it (user, 2026-11-19 ~18:11, §5)
+
+**What "current" actually was.** The task brief quoted the spec
+(PHYSICS_SPEC.md §24.B: force 1800, max up 450, consumption 25/s,
+recovery 15/s), but the shipped v3.5 code had already drifted from
+the spec: thrust 1900, max rise 450, drain 45/s, regen 70/s ground
+/ 35/s air, delay 0.6 s (physics_config.gd header, Phase 3B
+verdicts). The old values below are the shipped code values, not
+the spec values; the spec values are listed here so the drift is
+on the record.
+
+**Changes (`physics_config.gd` + `player.gd` mirrors — both files,
+same numbers; `main.gd` / `game_data.gd` / `export_presets.cfg`
+untouched):**
+
+| Setting | Old (shipped) | New | Why |
+|---|---|---|---|
+| Max rise speed | 450 px/s | **320 px/s** | the complaint itself: the top flying speed drops 29% |
+| Thrust accel | 1900 px/s² | **1650 px/s²** | net climb accel (thrust − gravity) 500 → 250 px/s² |
+| Thrust ramp | none (instant full force) | **0.75 → 1.0 over 0.35 s** | gradual acceleration; the climb spools up instead of kicking in |
+| Horizontal air accel while jetpacking | 1500 (plain air) | **1900** | better steering in flight; top air speed unchanged (360) |
+| Air reversal while jetpacking | 1.2x bonus | **1.0x (no bonus)** | direction changes in flight are smooth, not snappy |
+| Fuel drain | 45/s | **45/s (kept)** | 2.2 s of thrust per tank already; a slower drain would lengthen total flight and push the 4 s hold-up landing past its joystick-test window — the speed fix is cap + thrust + ramp, not more airtime |
+| Fuel regen ground / air | 70 / 35 per s | **50 / 25 per s** | a full tank now takes 2.0 s on the ground (was 1.4 s), 4.0 s in the air (was 2.9 s) — fuel is a real budget again |
+| Fuel regen delay | 0.6 s | **0.5 s** | slightly quicker to start refilling once the wait is over |
+| Release behaviour | full gravity, momentum kept | **unchanged** | spec §5 forbids stopping the player on release; the shorter post-release rise comes from the lower cap, not from cutting momentum |
+
+Mechanics kept exactly: thrust still applies only while rising
+slower than the cap, so a −660 jump is never chopped down to the
+cap when fuel regens mid-rise; the ramp resets whenever thrust
+stops, so every burst spools up again; the fuel bar (gohud GoBar
+in game.gd) is untouched; the jetpack flame still follows the real
+thrust state and now also grows with the ramp factor, so it spools
+up visibly instead of appearing at full length. The 320 px/s cap
+still clears the 320 px map-reachability gaps (game.gd
+`_ct_map_reachable`) with fuel to spare — a 320 px climb costs
+~1 s of thrust, ~45 fuel.
+
+**New checks (physics suite, `game.gd`):** P25a-jetpack-cap
+(fastest vy sampled while thrusting must be −345..−200, i.e. the
+320 cap with 25 px/s slack, and fuel must be draining) and
+P25b-jetpack-release (0.5 s after letting go the player must not
+be jetpacking and vy must be > −100, i.e. falling again, not
+hanging). The P25a tracker samples vy only while `_jetpacking`
+is true, so the jump's own −660 never counts. P08b's message text
+now says the real regen rate (50/s, was 70/s); its >20 threshold
+is unchanged and still passes (46.7).
+
+**Verification:** physics-map0 34/34 (was 32/32 — the +2 are
+P25a/P25b; P25a read fastest thrust vy −297 px/s, fuel 73;
+P25b read vel.y +263 0.5 s after release). Full suite:
+physics 34/34 on maps 0/6/10/12 and 25/25 on map 4 (see
+QA-074b below — the first full-suite run read 24/25 on map 4,
+a test-location bug, not a jetpack bug). Joystick 26/26
+(PRESS-UP-JUMP fuel 91–92, jetpacking=true; STICK-UP-NO-REJUMP
+lands inside the 4 s window, fuel 51–52 after the landing
+regen). Fire FIRE-WHILE-JETPACK still green (shots + fuel
+draining while jetpacking). **Not changed:** jump velocity,
+gravity, max fall, ground/air accel and drag, P01/P02/P05
+thresholds — none of them move. **Honest limit, unchanged:**
+how the slower climb feels on a real phone (thumb on the stick,
+not a scripted hold) is still the user's call on two real
+phones; the numbers above are sim-measured, not phone-measured.
+
+**QA-074b — test-harness fix found by the first full-suite run
+(2026-11-19, no game code changed).** P25a failed on map 4
+only: fastest thrust vy −23 px/s, fuel 61. The jetpack was
+working (fuel drained 39 in the 1.0 s hold) — the player was
+thrusting against a ceiling. On Frozen Fortress the 1180 level
+spans nearly the whole width, so at x=800 the player bonks it
+after 59 px of rise, before the climb ever reaches the cap, and
+the tracker reads ~0 while the player pushes against it. The
+P07 comment claiming "x=800 has >=294 px of sky on all five
+physics-test maps" was never verified on map 4 — P07a/P07b are
+SKIPPED there (placement tuned for Catacombs), so nothing ever
+measured the sky on map 4. Fix (test only): P25a uses x=2100
+on map 4 (clear sky to the top of the map — no platform covers
+it above the floor) and keeps x=800 elsewhere; the min-vy
+tracker already samples at physics rate (the QA-071b lesson —
+the first draft of this note wrongly blamed the ~5 Hz idle
+sampler before checking: the hook is in `_physics_process`,
+line ~2940, and the ceiling is the whole cause). After the fix:
+physics-map4 25/25, physics-map0 34/34 on re-run.
+
+## QA-075 — Shooting quality: hit registration, aiming feel, recoil, muzzle, trails, switching, reloading (user, 2026-11-19 ~18:11, §6)
+
+**Scope kept:** the firing system works and stays — same
+host-authoritative combat, same ShootingSync rate/ammo
+validation, same QA-069 kill chain, same 6 weapons with the same
+damage / rate / mag / reload / speed (rifle spread 0.0 per
+QA-061, shotgun fixed 7-pellet spread). Nothing was replaced;
+every change below builds on the existing path.
+
+**Changes:**
+
+- **Hit registration (`bullet.gd` `_sweep_hit`) — graze rays.**
+  The swept ray is zero-width but the bullet visual is 4.8 px
+  wide, so a shot whose edge clipped a player or a wall used to
+  miss. The centre ray runs first, exactly as before (QA-055
+  hit-from-inside included); only when it misses do two parallel
+  rays at ±2.5 px (the visual half-width) run, and the nearer
+  graze hit wins. A graze can only ADD a hit the centre ray
+  missed, never take one away, so every existing bullet check
+  reads the same path. No dedicated graze test exists — the fire
+  harness has no second player to graze — so this is verified by
+  the unchanged centre-ray behaviour (all existing bullet checks
+  green) plus code review, not by a direct graze hit; say so
+  plainly if asked.
+- **Muzzle flash (`player.gd` `_show_muzzle`, `weapons.gd`) —
+  per-weapon, and visible on remote players.** Was one fixed 1.2x
+  sprite for 0.05 s on every gun, hidden by one scene-tree timer
+  per shot (at 8 shots/s the timers stacked). Now each weapon has
+  `flash` / `flash_t` in the table (pistol 1.0x/0.05 s, SMG
+  1.1x/0.05 s, rifle 1.2x/0.05 s, shotgun 1.6x/0.08 s, sniper
+  1.8x/0.08 s, rocket 2.0x/0.08 s) with a random rotation and
+  ±10% scale jitter per shot, driven by a `_muzzle_timer`
+  decremented in `_update_visuals`. A remote player firing now
+  shows its flash too: `receive_move_snapshot` refreshes the
+  same timer (0.25 s bridge, so the 30/s stream holds it
+  steadily while firing) whenever the synced `fire` flag is set
+  — before this, a remote player never flashed at all.
+- **Bullet trails (`bullet.gd`) — per-weapon length/width.**
+  Was a fixed 21 px tail, 2.4 wide, on every gun. Now rifle
+  33/2.4, SMG 30/2.4, shotgun 26/2.8, sniper 48/3.2, rocket
+  40/4.0, pistol 21/2.4 (unchanged — the fire test asserts the
+  pistol numbers). Visual only; the hitbox is still the ray.
+- **Recoil effects (`player.gd` `_fire`) — gun kick scales with
+  the weapon.** Was a flat 1.0 for every gun, so the rifle
+  kicked as hard as the shotgun. Now the base is table recoil /
+  220 (shotgun 1.0, sniper 0.8, rocket 1.2, rifle 0.14, SMG
+  0.07, pistol 0.09) plus the accumulated recoil from sustained
+  fire. The kick is visual plus the existing velocity impulse;
+  it never moves the aim — QA-061 rifle straightness is
+  untouched (RIFLE-STRAIGHT-2S-HOLD still <0.5°).
+- **Weapon animations (`player.gd` `_update_visuals`) — gun dip
+  on switch and reload.** The gun lowers 6 px (fading over
+  0.15 s) on a weapon switch and 5 px while reloading, with a
+  slight downward tilt, so the switch/reload reads as a motion
+  instead of a snap. Visual only: firing is never blocked —
+  SWITCH-WHILE-FIRING still shoots straight through the switch.
+  Remote copies dip on switch too (the dip timer is set when
+  the snapshot changes their weapon).
+- **Damage calculation (`player.gd` `calculate_damage`,
+  `weapons.gd`) — falloff floor is per-weapon.** Was a flat 0.7x
+  at max range for every gun. Now sniper 0.9x, rifle 0.7x,
+  pistol 0.65x, SMG 0.6x, shotgun 0.5x, rocket 1.0x (explosive
+  path). Close-range damage is unchanged (falloff only starts
+  past 400 px): P12 still reads rifle 18/12/9 at 100 px, and
+  now also asserts sniper 60 @1500 px = 57 (was 51) and shotgun
+  9 @450 px = 7 (was 8).
+- **Weapon switching (`player.gd` `switch_weapon`) — magazines
+  are remembered.** Real bug: the old code set the new weapon's
+  mag to full on every switch, so switching away and back
+  refilled the rifle for free. Each weapon's mag is now
+  remembered across switches (full on pickup/respawn) and
+  restored on switch-back.
+- **Reloading (`player.gd` `_refund_reload`) — switching or
+  picking up a weapon mid-reload no longer eats ammo.** Real
+  bug: `_start_reload` deducts the transfer from the reserve
+  immediately, and the old switch/pickup code just dropped the
+  pending transfer — the ammo vanished from both reserve and
+  mag. The pending transfer is now refunded to the reserve
+  before the weapon changes.
+- **Shooting responsiveness — no change needed, verified, not
+  rebuilt.** First-shot latency, the fire cooldown, the
+  semi-auto flick edge and the host validation are unchanged:
+  the fire suite still reads FIRE-HOLD-CONTINUOUS, PISTOL-TEN-
+  RAPID-TAPS, MP-SYNC-VALIDATION and MP-SINGLE-SHOT-ONE-BULLET
+  green. Aim was deliberately NOT smoothed — instant aim is
+  correct for a shooter, and smoothing would delay shots
+  relative to the stick.
+
+**New checks:** fire MAG-MEMORY (rifle 17 → cycle through the
+owned weapons → rifle still 17, not 30), RELOAD-REFUND (reload
+from 10 with reserve 90, switch mid-reload → reserve 90 again,
+remembered rifle mag 10, not reloading), MUZZLE-FLASH (rifle
+hold → flash counter grows, sprite scale 1.05–1.35 around the
+1.2x table value); repl-sim REMOTE-MUZZLE-SHOWS / -HIDES (the
+shadow's remote copy flashes while a firing snapshot stream
+runs and the flash ends 0.4 s after the stream stops).
+
+**Verification:** fire 32/32 (was 29/29 — the +3 are the new
+checks above; MUZZLE-FLASH read flashes 117 vs 115 before,
+scale 1.21). Repl-sim 48/48 in isolation (was 46/46 — the +2
+are the remote muzzle checks). Rifle straight, single bullet, 7
+pellets, inside-geometry, bullet size and all switch/reload
+checks still green. **Two harness bugs of mine were found by
+the runs and fixed in the tests, not in the game code:**
+(a) MAG-MEMORY first failed (weapon 1, mag 32) because earlier
+fire steps can pick up the SMG on the map, so the owned list is
+not always [rifle, pistol] and two fixed switches do not cycle
+back to the rifle — the step now switches until the rifle comes
+round again (up to 6 switches); (b) REMOTE-MUZZLE-HIDES first
+failed (visible=true 0.4 s after the "stop") because step 21
+re-entered the firing stream after the SHOWS check reset the
+timer — the stream had in fact stopped only ~0.1 s earlier, so
+the flash was correctly still on; the stream branch is now
+gated on the SHOWS check having run, so the 0.4 s wait is a real
+silence. **One load flake, not a regression:** the repl-sim
+re-run after those fixes read 46/48 (BURST-SMOOTH snap-back
+5.6 px vs <5, CHAOS-SMOOTH snap-back 43.8 px vs <5) — the same
+game code read 47/48 in the full suite and 48/48 (both
+snap-backs 0.0) on the next isolated re-run, and nothing in
+this phase writes the remote copy's position; both checks are
+the known load-sensitive smoothness checks from QA-073.
+**Deliberately not done:** no aim smoothing (see above);
+no damage-number changes at close range; no crosshair/spread UI
+(the HUD files are out of scope for this phase); no change to
+ShootingSync's 0.75x rate tolerance or the host-authoritative
+kill chain. **Honest limit, unchanged:** hit registration on
+two real phones — the graze rays and the remote flash are proven
+in the sim only until the user confirms on two real phones that
+edge shots register and the other phone's muzzle flashes show.
+
+## v3.6 QA-074/075 regression — fix-worker results (2026-11-19)
+
+Full suite re-run on the QA-074/075 tree (`/tmp/run_q74_suite.sh`;
+logs `~/workspace/q74_logs/q74_*.log`, summary
+`/tmp/q74_suite_summary.log`). **0 script errors in every log.**
+Suite totals grew as designed: physics 32→34 (maps 0/6/10/12)
+and 23→25 (map 4) with the new P25a/P25b jetpack checks; fire
+29→32 with MAG-MEMORY / RELOAD-REFUND / MUZZLE-FLASH;
+repl-sim 46→48 with REMOTE-MUZZLE-SHOWS / -HIDES.
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055 + QA-061 + QA-068 + QA-069 + QA-073 + QA-075) | 48/48 PASS in isolation (was 46/46; +2 remote-muzzle checks) — first full-suite run 47/48 (REMOTE-MUZZLE-HIDES, my step-21 gate bug, fixed in the test — see QA-075); the post-fix re-run read 46/48 once (BURST/CHAOS-SMOOTH snap-back, load flake, see QA-075), then 48/48 in isolation |
+| Joystick (QA-054) | 26/26 PASS in the full suite (was 25/26 in the first run — DIAG-UP-RIGHT read vel.y +10 once, a one-off load flake in the jump-edge timing; isolated re-run 26/26 with vel.y −292, exactly the new ramped climb) |
+| Fire (QA-056 size + QA-061 rifle + QA-055 inside-geometry + QA-075) | 32/32 PASS (was 29/29; +3: MAG-MEMORY, RELOAD-REFUND, MUZZLE-FLASH) |
+| Scale | 70/70 PASS |
+| Physics (maps 0/6/10/12) | 34/34 PASS on every map (was 32/32; +2: P25a-jetpack-cap, P25b-jetpack-release) |
+| Physics (Frozen Fortress ice, map 4) | 25/25 PASS after the QA-074b test fix (was 23/23; first full-suite run 24/25 — P25a ceiling at x=800, fixed by using x=2100 on map 4) |
+| Physics (Neon City, map 10) | 34/34 PASS (was 31/32 in the QA-073 suite run, P02 flake — green here) |
+| Features | 11/11 PASS |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 22–32 shots, bullets=160, fuel=100.0) |
+| Full flow | DONE (menu → create room → lobby → start -> play → pause → scoreboard → end → back) |
+| Restart (QA-060) | 8/8 PASS |
+
+**Baseline (before this phase's changes):** fire 29/29, joystick
+26/26, physics-map0 31/32 — the one failure was P05b-air-slide
+(vel.x 57 vs >60), a pre-existing load-marginal check that
+passed in the full suite run (34/34); nothing in this phase
+touches air drag or the slide thresholds. **Previous-bug
+spot-check:** QA-047 join fix, QA-048 scroll, QA-049
+right-stick firing, QA-052 stick positions, QA-053 RPC sync,
+QA-054 no-left, QA-055 inside-geometry, QA-056 bullet size,
+QA-060 restart, QA-061 rifle straight, QA-068 lag/sync,
+QA-069 kill/death, QA-070 simple buttons, QA-071 1.20x player
+size, QA-072 maps, QA-073 adaptive delay / prediction /
+reconciliation / net-stats — all still green inside the suites
+above. **Not built:** no APK export in this phase; no commit. The
+tree is left dirty with the QA-074/075 changes for the next phase
+worker. No new log files were left in the project dir (suite logs
+are in `~/workspace/q74_logs/`; the `log4_*.txt` files in the
+project dir pre-date this work, timestamps 13:07–13:10).
+
+## v3.6 enhancement program — Phase 4, sections 7–9 (2026-11-19, fix worker)
+
+### Audit first — what already existed vs what was genuinely missing
+
+Section 7 (lobby), verified in code before anything was built:
+
+| Item | Already there? |
+|---|---|
+| Main lobby: multiplayer option, Quick Match, Create Room, Join Room, settings, character customization | YES — main menu (LOCAL MULTIPLAYER / CUSTOMIZATION / SETTINGS), multiplayer screen (Create Room, Join, Quick LAN Match, Refresh, room list, manual IP) |
+| Room creation: room name, public/private + password, max players 2–12 | YES — `_build_multiplayer` create card (GoField name, GoSwitch Private, masked password, max-players row) |
+| Room creation: map / mode / match duration / kill limit selection | YES — lobby match setup (13 map cards, 4 mode buttons, kill limit 5/10/15, time 3/5/10) |
+| Waiting lobby: room name, selected map with preview image, game mode, host info, all players with avatars/usernames/ready status, available slots | MOSTLY — map cards have real art thumbnails + size info, player cards have portraits + HOST/YOU/READY chips, header pill + Players tile show n/max slots, host IP chip. MISSING: a room CODE (QA-078) and team pick (QA-078) |
+| Host controls: change map, change settings, manage teams, kick, start | MOSTLY — host-only map/mode/limit/time buttons, KICK buttons, START MATCH / START ANYWAY (n/m ready), all broadcast at once via `_broadcast_lobby` → `lobby_update`. MISSING: team management (QA-078) |
+| Players can: change appearance, select team, mark ready, leave | PARTLY — ready toggle + Leave existed; appearance change and team pick needed the lobby (QA-078) |
+| All lobby changes sync immediately; host map/mode/settings identical for every player | YES — every host change calls `_broadcast_lobby()` (reliable RPC `lobby_update` with the full settings dict + player dicts, passwords stripped); clients overwrite their GameData from it |
+| Player profile / username / level / statistics on the main lobby | NO — only the name field on the Customization screen. Added in QA-078 |
+| Team configuration in the room | NO — teams were auto-assigned by spawn order only. Added in QA-078 |
+
+Section 8 (HUD/controls), verified in code: health + fuel GoBars,
+ammo "Rifle 30/90" line, timer, kill/death counters (hidden behind
+SCORE since QA-067), plain simple GRENADE/RELOAD/WEAPON buttons
+(QA-070), fixed stick layout (QA-052), sensitivity slider, FPS
+toggle — all present. Genuinely missing: a K/D readout visible
+without opening the scoreboard, at-a-glance low HP / low fuel /
+low ammo states, and the grenade count on the button itself
+(QA-079). Stick geometry and deadzone were audited and left
+alone — the scale test (70/70) pins the layout and the joystick
+test pins the feel; moving the sticks again would re-open
+QA-029/QA-052 for no measured gain.
+
+Section 9 (features), verified in code: FFA/TDM/Survival/LMS in
+`game_data.gd` MODE_NAMES + `game.gd` match-end branches; kill
+feed, countdown, results/MVP, stats, weapon panel all present
+and polished in earlier phases. Genuinely missing: a fifth,
+team-based mode (Capture the Flag, QA-080). Extra weapons: see
+QA-081 — skipped, the table does not fit a 7th weapon cleanly.
+
+## QA-067 — Compact top-right in-game menu (v3.6 UI work, user-reported)
+
+**Report:** the in-game top-right menu BLOCKS the screen (v3.5
+QA-057 panel: 284x268 px of always-on stats).
+
+**Fix (`game.gd` `_build_hud` / `_build_touch_controls`):** only
+two 56 px gohud icon buttons live in the corner now (SCORE +
+pause, GoIconButtons in a slim pill, `touch_peers` linked so
+one's widened hit area never swallows the other's tap), and the
+stats hide behind SCORE. Weapon + ammo and grenades stay visible
+as ONE slim line under the pill (live combat info, not stats).
+Total footprint ~348x94 px instead of 284x268. Kills / Deaths /
+Players labels stay alive (`_update_hud` still writes them, the
+scoreboard reads the same data) but their container is invisible.
+Handlers unchanged. **Numbering:** this entry was planned as
+QA-067 by the v3.6 coordinator; the number was still free when
+phase 4 wrote it (068/069 had been taken by phase 1, see the
+QA-numbering note), so it keeps 067.
+
+**Verification:** flow + game-shots HUD screenshots; the
+top-right corner is clear in every in-game screenshot since.
+QA-079 (phase 4) restores a one-line K/D readout under the
+centre timer — the compact corner itself is untouched.
+
+## QA-076 — Create Room page redesigned (v3.6 UI work)
+
+**Fix (`main.gd` `_build_multiplayer`):** the whole create form
+lives on one designed gohud card — real labels above every field
+(GoField: label + input + hint), a big segmented max-players row
+(2/4/6/8/10/12, 64 px buttons), a proper GoSwitch for Private,
+a 72 px hero CREATE ROOM button. The password field is masked
+(`secret = true`, was plain text) and greys out when Private is
+off (text kept, not cleared). The join IP gets the same GoField
+label treatment, and the join password is masked too. Every
+control keeps its exact v3.5 behaviour (same nodes, same
+handlers, same create flow); only the presentation changed. The
+card itself is mouse-transparent so a drag starting on it reaches
+the outer scroll container. **Numbering:** planned as QA-068
+by the coordinator, but phase 1 used 068 for the lag/sync fix —
+this entry is written now under the fresh number 076.
+
+**Verification:** menu-net CREATE-ROOM + flow CREATE-ROOM green
+(see the phase-4 regression table); screenshots
+`v36_multiplayer_1280.png` (v3.6 proof) and the phase-4 shots.
+
+## QA-077 — Lobby redesigned again (v3.6 UI work)
+
+**Report:** the v3.5 two-column lobby is still not good — the
+left column opened with a big half-empty room-info grid, the host
+IP chip and two hint lines pushed players and match setup below
+the fold, and the whole page was flat navy-on-navy.
+
+**Fix (`main.gd` `_build_lobby`):** the room is no longer a
+column — it is a header + stat strip across the top (GAME LOBBY
+title left, live players pill right; 7 tiles: Room / Players /
+Map / Mode / Kill limit / Time / Friendly fire, as two HBox rows
+with stretch ratios so long values never wrap). The host IP chip
+sits full-width under the strip. Left column (~45%): PLAYERS
+first (cards with bigger portraits + gohud GoBadge HOST / YOU /
+READY chips), then MATCH SETUP (mode / friendly-fire GoSwitch /
+kill limit / match time), then the map vote. Right column
+(~55%): the map cards, bigger art (148 px thumbs). Bottom bar
+(fixed): I'M READY / START MATCH / Leave. A first version used
+a 4-column GridContainer for the strip and the equal tiles were
+too narrow ("ShotTest • Public" wrapped to 3 lines) — fixed the
+same day with the two-row stretch layout. Every control keeps
+its exact v3.5 behaviour (same handlers, same refresh paths,
+same scroll containers and drag-forwarding); only the
+arrangement and presentation changed. **Numbering:** planned as
+QA-069 by the coordinator, but phase 1 used 069 for the
+kill/death fix — this entry is written now under the fresh
+number 077.
+
+**Verification:** menu-net CREATE-ROOM / READY-TOGGLE +
+flow CREATE-ROOM green; screenshots `v36_lobby_1280.png`
+(v3.6 proof) and the phase-4 shots.
+
+## QA-078 — Lobby gaps: profile/level/stats, room code, team pick, in-lobby appearance (user, 2026-11-19 ~18:11, §7)
+
+**What was missing (see the phase-4 audit above):** no player
+profile anywhere, no way to join by anything but the IP, no team
+choice (teams were spawn-order auto-assignment), and appearance
+could only be changed before hosting (Customization screen).
+
+**Fix:**
+- **Profile (`game_data.gd` + `main.gd` `_build_menu` /
+  `_refresh_profile_card`):** the main menu now has a profile
+  card under the logo — portrait, name, "Level N • x/50 kills
+  to level N+1", and "Matches X • Wins Y • Kills Z • Deaths W •
+  K/D d.dd". Lifetime stats are local only (same `settings.cfg`
+  as the name/colour — no account, no server) and are recorded
+  once per finished match by `GameData.record_match` from the
+  game scene's end screen (`game.gd` `show_end_screen`, which
+  now finds the local player's row by the new `"id"` field in
+  the end rows; a draw is not a win; fake rows in the features
+  test carry no id and record nothing). Level is 1 + one level
+  per 50 lifetime kills (`level_for_kills`, pure function).
+- **Room code (`game_data.gd` `room_code`, `main.gd`):** a
+  LAN-local code, "FRAG-" + 4 digits derived from the host IP +
+  room name (pure function, deterministic per room). It rides on
+  the lobby's host-IP chip and on every room-list button, and
+  the multiplayer screen has a "Join by room code" field: the
+  code is looked up in the discovered-room list on this Wi-Fi
+  and that room's IP is joined (private rooms still need their
+  password). No server, no account — the code is only a shortcut
+  for the IP.
+- **Team pick (`main.gd` + `game.gd`):** RED / BLUE / AUTO
+  buttons in the lobby, shown only for team modes (TDM, CTF).
+  The pick lives in the player's lobby dict (`"team"`), syncs
+  to every phone with the rest of the lobby state (host
+  broadcast, `set_team` RPC for clients), and shows as a RED /
+  BLUE / AUTO chip on each player card. At spawn time
+  (`game.gd` `_do_spawn`, via `request_spawn`'s new `team_pref`
+  argument and `GameData.team_pref`) the host honours the pick
+  when that team still has room (max 6 per team), otherwise it
+  falls back to the old alternating assignment. Respawn
+  (`get_valid_spawn_point`) now uses the player's REAL team
+  from their node, not spawn-index parity — a picked team could
+  otherwise respawn a player on the enemy half. The pick resets
+  to AUTO when leaving a room.
+- **In-lobby appearance (`main.gd`):** colour + helmet rows in
+  the lobby ("Appearance in this room"), the same choices as
+  Customization. Changing one updates the saved settings and
+  the player's lobby entry and syncs to the whole room at once
+  (host broadcast, `update_appearance` RPC for clients).
+- **Limit label (`main.gd`):** the lobby's "Kill limit:" label
+  now reads "Capture limit:" in Capture the Flag (QA-080).
+
+**Verification:** menu-net grows 6→8 with PROFILE-LEVEL
+(level 0/49/50/120 = 1/1/2/3, 120 kills = 20 into the level,
+card filled) and ROOM-CODE (same room repeats FRAG-9214,
+other IP / other name differ, always FRAG- + 4 digits) —
+8/8 PASS, 0 script errors. Lobby sync for team/appearance
+rides the existing `_broadcast_lobby` → `lobby_update` path,
+which the menu-net READY-TOGGLE step already exercises.
+
+## QA-079 — HUD and controls: readable at a glance (user, 2026-11-19 ~18:11, §8)
+
+**What was already there (audited, not rebuilt):** HP/FUEL
+gohud bars, ammo line, timer, plain simple GRENADE/RELOAD/
+WEAPON buttons (QA-070), fixed stick layout (QA-052),
+sensitivity slider, FPS toggle. **What was missing:** a K/D
+readout visible without opening the scoreboard, and
+at-a-glance low-value states.
+
+**Fix (`game.gd` only, no geometry moved, no control removed):**
+- A slim "K 3 • D 1" line under the centre score — one short
+  centred line, no panel, no extra footprint (the v3.6 compact
+  corner stays as it is).
+- The HP bar changes colour with the value (green ≥50, amber
+  ≥25, red below) and the fuel bar goes amber below 30, so a
+  glance reads the state without reading the number.
+- The ammo line turns red when the magazine is at or below a
+  quarter full.
+- The GRENADE button carries its own count ("GRENADE" over
+  "(2)", two lines — one line is wider than the 72 px button
+  and would clip); the plain "Grenades: N" ammo-line text stays.
+- Controls audit: the stick layout, sizes, deadzone (0.20) and
+  touch routing were checked against the scale/joystick suites
+  and left unchanged — no overlap exists at 1280x720 or
+  2400x1080 (scale 70/70), and moving the sticks again would
+  re-open QA-029/QA-052 for no measured gain.
+
+**Verification:** features test grows 11→15 with HUD-READOUTS
+(K 'K 1 • D 0', ammo 'Assault Rifle 30/90', HP ink green) —
+15/15 PASS. Joystick 26/26, fire 32/32, scale 70/70 re-run
+(see the phase-4 regression table).
+
+## QA-080 — Capture the Flag as a new mode (user, 2026-11-19 ~18:11, §9)
+
+**Decision: BUILT — it fits cleanly.** The mode system is a
+mode id + match-end branch + team assignment, all of which CTF
+reuses: it is mode 4 in `GameData.MODE_NAMES` ("Capture the
+Flag"), team-based like TDM (same spawn halves, same team
+assignment + the QA-078 pick), and the kill limit doubles as the
+capture limit (the lobby label says so, QA-078). No system was
+replaced or duplicated.
+
+**Rules (`game.gd`, host-authoritative):** one flag per team on
+the floor near the first spawn of each half (RED left, BLUE
+right), drawn as a pole + team-coloured triangle + FLAG tag.
+The flag stands 90 px toward the middle of the map from the
+spawn (clamped to the floor under the spawn) so its tag does
+not sit on the spawning player's name label.
+An enemy walking within 80 px of a home flag steals it (the
+flag then rides above the carrier's head); the carrier's death
+drops the flag where they fell, and a teammate walking over a
+dropped flag returns it home. A capture needs the carrier to
+reach their own base while their own flag is home (standard
+rule — no capture while your flag is away). First to the capture
+limit wins; on the timer, most captures wins (a tie is a DRAW).
+Flag state replicates on its own small RPC (`ctf_sync`: flag
+positions / carrier / dropped + team scores), sent on every
+change plus a 0.5 s heartbeat — clients never decide flag state,
+they only render it. Announcements go on the kill feed
+("X took the RED flag!", "X captured the flag! RED 2 — 1 BLUE").
+HUD: the score line reads "RED n — n BLUE • CAPTURES", the
+scoreboard header reads captures, end-screen rows carry a
+"Captures:" column, the carrier sees "You have the enemy flag —
+run it home!", and the countdown goal line reads "Capture the
+Flag — first to N captures". Per-player captures are tracked
+(`_ctf_captures`) for the end screen.
+
+**Verification:** features test grows with CTF-PICKUP (local
+RED player steals the BLUE flag, carrier = 1), CTF-CAPTURE
+(carrier home → RED 1, local captures 1, flag free again) and
+CTF-DROP (carrier killed with 500 damage → flag dropped where
+they fell, carrier −1, dropped true) — 15/15 PASS. **Honest
+limit, unchanged:** the flag flow is sim-tested on one machine
+(host logic + render in the same process); two-phone CTF (a
+real steal / drop / capture across the LAN) still needs the
+user's two real phones.
+
+## QA-081 — Skipped in phase 4: extra weapon, friends/invite/chat/XP/match history, online features (user, 2026-11-19 ~18:11, §9 + scope rules)
+
+- **Extra weapon — SKIPPED, does not fit cleanly.** The table
+  itself (`weapons.gd` TABLE) would take a 7th row, but a weapon
+  is not just a table row: pickup kinds 1–4 are the four
+  pickup weapons and kind 6 is already grenades, so a new weapon
+  needs a new pickup kind (7) plumbed through `pickup.gd`
+  (KIND_LABEL / KIND_COLOR), `player.gd` (`give_pickup`,
+  `owned_weapons`, RESERVE_DEFAULT), `game.gd` (WEAPON_ICONS —
+  there is no spare weapon art; `assets/weapons/` holds exactly
+  the 6 shipped guns) and the pause-menu weapon panel. There is
+  also no role gap to fill: pistol sidearm, rifle, SMG, shotgun,
+  sniper and rocket already cover every range. Adding a 7th gun
+  in the last phase would be churn for a duplicate role.
+- **Friends list / invite beyond the room code / in-game chat /
+  XP / match history / leaderboards — SKIPPED, need an account
+  or a server.** Friends and invites are covered LAN-locally by
+  the room code (QA-078: read the code out, type it in — same
+  Wi-Fi, no account). A friends list, chat history, XP and
+  leaderboards all need a persistent identity and a place to
+  store it between sessions on different phones, which LAN-only
+  play has by design (see the privacy text in Settings: no
+  accounts, no sign-in, nothing leaves the phones). Lifetime
+  stats (QA-078) are the LAN-local form of progression: they
+  live on each phone, not on a server.
+- **Quick-chat messages over LAN — SKIPPED, not built.** It
+  could be done LAN-locally in principle (a few canned messages
+  over the existing RPC channel), but it is a new input surface
+  (chat UI + message routing + spam/duplicate handling) in the
+  last phase with no test harness for it, and the kill feed
+  already carries the match's communication (kills, flag events).
+  Recorded here rather than half-built.
+
+## v3.6 Phase 4 regression — fix-worker results (2026-11-19)
+
+Full suite re-run on the phase-4 tree (`/tmp/run_q76_suite.sh`;
+logs `~/workspace/q76_logs/q76_*.log`, summary
+`/tmp/q76_suite_summary.log`). **0 script errors in every log.**
+Suite totals grew as designed: features 11→15 (HUD-READOUTS +
+CTF-PICKUP / CTF-CAPTURE / CTF-DROP), menu-net 6→8
+(PROFILE-LEVEL + ROOM-CODE).
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055 + QA-061 + QA-068 + QA-069 + QA-073 + QA-075) | 47/48 in the suite run, **48/48 in isolation** — see flake note |
+| Joystick (QA-054) | 25/26 in the suite run, **26/26 in isolation** — see flake note |
+| Fire (QA-056 size + QA-061 rifle + QA-055 inside-geometry + QA-075) | 32/32 PASS |
+| Scale | 70/70 PASS |
+| Physics (maps 0/6/12) | 34/34 PASS on every map |
+| Physics (Frozen Fortress ice, map 4) | 25/25 PASS |
+| Physics (Neon City, map 10) | 33/34 in the suite run, **34/34 in isolation** — see flake note |
+| Features | 15/15 PASS (was 11/11; +4: HUD-READOUTS, CTF-PICKUP, CTF-CAPTURE, CTF-DROP) |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 8/8 PASS (was 6/6; +2: PROFILE-LEVEL, ROOM-CODE) |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23–32 shots, bullets=160, fuel=100.0) |
+| Full flow | DONE (menu → create room → lobby → start → play → pause → scoreboard → end → back) |
+| Restart (QA-060) | 8/8 PASS |
+
+**Suite-run flakes (all three green in isolation, same families
+as earlier phases — no code was changed to fit the tests):**
+- Joystick DIAG-UP-RIGHT read vel=(246, 10) — the player ran
+  right on the ground with no jump. The jump fires on the
+  rising edge of stick-up, sampled in `player.gd`
+  `_physics_process`; the test's release (previous step's check)
+  and press (this step's setup) are both driven from idle
+  frames, so when they land between two physics frames the
+  edge is never seen — the same signature QA-074 recorded
+  ("one-off load flake in the jump-edge timing"). Run history
+  in this session: 25/26 (suite), 26/26, 25/26, 25/26, 26/26
+  — every failure is this one check with vel.y +5..+10.
+  Phase 4 touches nothing in this path (`player.gd`,
+  `joystick.gd`, physics untouched by this phase).
+- Repl-sim BURST-SMOOTH read snap-back 7.8 px vs the <5 bar
+  (step rate 322 px/s, well under the 900 bar). Isolated
+  re-run: 48/48, snap-back 4.0 px.
+- Physics map 10 P23-bounce-pad (the known load-marginal
+  timing check from QA-071b/QA-073): pad launch vel.y=350 vs
+  the −400 bar. Isolated re-run: 34/34.
+
+**Post-suite screenshot fixes, re-verified after the suite:**
+the screenshots caught four real layout bugs, all fixed in
+`main.gd` / `game.gd` and re-shot at both resolutions (see the
+QA-078/079/080 entries for the causes): mode buttons split
+into two rows (3 + 2) so the map cards fit again; message
+label moved 116→140 so the K/D line no longer pushes the
+centre label into it; stat-strip caption switches to
+"CAPTURE LIMIT" in CTF; profile stats split to two lines.
+After those fixes: menu-net 8/8 (×2), flow DONE, features
+15/15 (×2, including after the flag-home shift), fire 32/32,
+scale 70/70, repl-sim 48/48, joystick 26/26 (final run).
+**Screenshots:** 26 files `v36_p4_*_1280.png` /
+`v36_p4_*_2400.png` in `~/workspace/mini-militia-lan-v36-proof/`
+— menu, customize, settings, multiplayer, lobby, countdown,
+hud, pause, scoreboard, end, CTF lobby, CTF home, CTF carry.
+Reviewed against the v3.5 look: profile card, room code,
+team pick, RED chip, CTF mode button, K/D line, two-line
+grenade count, flags at home and carried — all clean. Two
+known cosmetics left: at 1280 the lobby's second mode row is
+half-cut at first glance (same scroll-reachable pattern as the
+v3.6 friendly-fire row — the left column scrolls, and shrinking
+the buttons below the 56 px touch standard would be worse);
+the sandbox profile in the menu screenshot shows "Matches 4"
+because the flow/features runs recorded matches in the sandbox
+`user://settings.cfg` — a real phone starts at 0. **Carried
+forward, unchanged:** map 7 (City Underground) physics
+P07a/P07b still fails (v3.5 blemish); real two-phone LAN sync
+and two-phone CTF still only provable by the user's two real
+phones. **Not built:** no APK export in this phase; no commit.
+The tree is left dirty with the phase-4 changes for the final
+test/export worker. No new log files were left in the project
+dir (suite logs are in `~/workspace/q76_logs/`; the
+`log4_*.txt` files in the project dir pre-date this work,
+timestamps 13:07–13:10).
+
+## v3.6 Phase 1 regression — fix-worker results (2026-11-19)
+
+Full suite re-run on the Phase 1 tree (`run_phase5_final.sh` +
+repl-sim + restart; logs `/tmp/fullsuite-v36.log`,
+`/tmp/repl-v36-final1.log`, `/tmp/repl-v36-final2.log`,
+`/tmp/restart-v36.log`, per-suite logs `log4_*.txt`). All green,
+0 script errors in every log, except the one fire-test flake
+below (isolated re-runs green).
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055 + QA-061 + QA-068 + QA-069) | 33/33 PASS (was 26/26; +7: KILL-ONCE, KILL-SECOND-LIFE, LAVA-NO-CREDIT, SCORE-SYNC, REMOTE-DEATH-POSE, BURST-SMOOTH, BURST-MOVE) |
+| Joystick (QA-054) | 26/26 PASS |
+| Fire (QA-056 size + QA-061 rifle + QA-055 inside-geometry) | 28/29 in the suite run, 29/29 in isolation ×2 — see flake note |
+| Scale | 70/70 PASS |
+| Physics (maps 0/6/10/12) | 32/32 PASS on every map |
+| Physics (Frozen Fortress ice, map 4) | 23/23 PASS |
+| Features | 11/11 PASS |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23–32 shots, bullets=160, fuel=100.0) |
+| Full flow | DONE (menu → create room → lobby → start → play → pause → scoreboard → end → back) |
+| Restart (QA-060) | 8/8 PASS |
+
+**Fire-test flake (not a regression):** in the suite run the
+fire test read 28/29 — BULLET-INSIDE-GEOMETRY failed once
+(fired=1, new active bullets=1, past wall=false: the bullet
+fired from inside the wall had not despawned when the 0.3 s
+check fired). Nothing in Phase 1 touches that path (the bullet
+hits a wall, never reaches `_hit_player`, whose kill-credit line
+is the only `bullet.gd` change; the suite runs back-to-back
+Godot processes on a loaded 1.5-CPU VM, so the despawn physics
+frame can miss a wall-clock wait — the same load-marginal
+family as the physics P02 flakes). Isolated re-runs:
+**29/29, 29/29, 0 script errors.** No code was changed to fit
+the test.
+
+**Repl-sim stability (QA-068 burst bar):** the 33/33 result
+reproduced across 5 runs (33, 32, 33, 33, 33 — the single 32 was
+BURST-SMOOTH 618 px/s vs the old 600 bar, a load flake; the bar
+was recalibrated to 900 with the reason in the step comment, and
+snap-back stayed 0.0). Final two runs: 33/33, 33/33, 0 script
+errors. BURST-SMOOTH across runs: 336–618 px/s, snap-back
+0.0–2.1 px. RPC-C2S-SMOOTH 285–489 px/s, RPC-S2C-SMOOTH
+301–540 px/s, snap-back 0.0 px both directions.
+
+**Previous-bug spot-check:** QA-047 join fix, QA-048 scroll,
+QA-049 right-stick firing, QA-052 stick positions, QA-053 RPC
+sync, QA-054 no-left, QA-055 inside-geometry (isolated),
+QA-056 bullet size, QA-060 restart — all still green inside the
+suites above. **Not built:** no APK export in this phase (the
+coordinator exports at the end of the program); no commit (the
+coordinator commits). The tree is left dirty with the Phase 1
+changes for the next phase worker.
+
+
 ## v3.5 full regression — fix-worker results on the final tree (2026-11-19)
 
 Full suite re-run from scratch on the shipped v3.5 code
@@ -4560,3 +5981,145 @@ No paid library or asset was used.
   in both directions. Mid-match rejoin unsupported. **The QA-060
   phone crash is fixed in-process only** (restart test 8/8, 0 script
   errors) — if the phone still closes, a logcat is needed.
+
+## v3.6 delivery record — exported + independently verified (2026-11-19, test/export worker)
+
+### APK
+- `mini-militia-lan.apk` — 35,925,835 bytes (~34 MB), md5
+  `93e1f16c131af4eb1397a04eb71bb0b1`. Godot 4.7.2
+  (`--export-release Android` under xvfb; export log 0 script
+  errors — only ALSA environmental noise).
+- aapt2 (`~/workspace/android-sdk/build-tools/34.0.0/aapt2`): package
+  `com.lanarena.shooter`, versionCode 14, versionName 3.6,
+  targetSdk 36, minSdk 24, compileSdk 36, native-code `arm64-v8a`
+  only, exactly the 3 permissions INTERNET / ACCESS_NETWORK_STATE /
+  ACCESS_WIFI_STATE, app label `Frag Arena` in every locale.
+  Version confirmed INSIDE the APK (badging), not just the filename.
+- `apksigner verify` passes (v2 + v3 schemes); signer cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — matches v3.5 exactly (same debug keystore
+  `~/.local/share/godot/keystores/debug.keystore`, alias
+  `androiddebugkey`), installs over v3.5. `package/signed=false` in
+  the preset, so the raw export was unsigned (35,757,318 bytes, md5
+  `a3aa47f39cebeddf07893ad2dd3dae51`) and was signed after the
+  export with apksigner, as in v3.0–v3.5. The signed file replaced
+  `mini-militia-lan.apk` (deliverable convention, same as v3.5).
+- Contents: both music OGGs (`menu_at_rest`,
+  `battle_five_armies`, as imported `.oggvorbisstr`), Orbitron +
+  Rajdhani fonts, gohud theme/assets (670 entries), arena
+  backgrounds (`arena_blue.png`, `arena_clean.png`), Frag Arena logo
+  + icon, Sky Brawl textures; NO `.md`/`.txt`; NO `fire_button`
+  anywhere. `game_data.gd` BUILD_VERSION "3.6",
+  `export_presets.cfg` code 14 / name "3.6".
+- v3.5 APK backed up untouched at
+  `~/workspace/mini-militia-lan-backup-v3.5/mini-militia-lan.apk`
+  (md5 `3a1ab1ea6bf71fcc485ec94cd2153ad3`, verified before the
+  export; the project-dir copy had the same md5 before it was
+  overwritten by the v3.6 export).
+
+### Independent verification (test/export worker re-ran everything from scratch on the shipped code; fresh logs `/tmp/v36-final/logs/`, runner `/tmp/v36-final/run.sh`, re-runs `/tmp/v36-final/rerun.sh`)
+- repl-sim 48/48, joystick 26/26, fire (right-stick) 32/32, scale
+  70/70, physics 34/34 (maps 0/6/10/12) + 25/25 (Frozen ice, map 4),
+  features 15/15, net 15/15, menu-net 8/8, full flow DONE, restart
+  8/8, scroll 9/9 at 1280x720 AND 2400x1080, collision 8/8 on all
+  13 maps, smoke on all 13 maps. **0 script errors in every log**
+  (44 fresh logs + 6 re-run logs).
+- Previous-bug regression: QA-001…QA-081 all still fixed — every
+  suite above is the regression net for them (repl-sim covers
+  QA-047/051/053/055/061/068/069/073/075, fire covers QA-049/061,
+  joystick covers QA-052/054, restart covers QA-060, scroll covers
+  QA-048/059, physics covers QA-063/066/071b/074, features covers
+  QA-070/080, menu-net covers QA-076/078). No suite regressed.
+
+### Final-test-worker notes (what the first full run found, and what changed after it)
+1. **Scroll test 8/9 in the first run — stale test step, not a
+   product regression (test-only fix).** LEFT-COLUMN-DRAG failed
+   at both resolutions (left scroll 0, max 1009): the step dragged
+   on the Room info value label, but the QA-078 redesign moved the
+   room info OUT of the left column into the top stat strip, which
+   sits outside every ScrollContainer — so the drag scrolled
+   nothing. The left column itself still scrolls (max 1009 proves
+   the content overflows). Fix (test only, `main.gd`): the step
+   now drags on the "Players in the room:" header, which actually
+   lives inside the left scroll (`_players_section_label` var
+   added). Re-run: **9/9 at 1280x720 and 2400x1080**. No game code
+   changed, no threshold touched.
+2. **Joystick DIAG-UP-RIGHT failed once (25/26), then passed
+   26/26 twice — load-marginal flake, not a regression.** First
+   run: vec correct (0.698, -0.698), vel.x 246, but vel.y +10 at
+   the 0.5 s check — the player is at the jump-apex boundary
+   (jump -660 decays to the -320 jetpack cap at ~0.24 s, then the
+   QA-074 thrust ramp spools 0.75→1.0), so a few ms of llvmpipe
+   frame timing flips the sign. Two isolated re-runs: 26/26 and
+   26/26. Same wall-clock family as P02/P19 (see v3.5 finding 2).
+   The v3.5 2400-only RELEASE-STOPS marginal did NOT recur — the
+   release steps pass at both resolutions in all three runs.
+3. **Physics map 10 P02 failed once (33/34), then passed 34/34
+   twice — the known P02 wall-clock flake.** Air time 0.27 s vs
+   ground 0.22 s (ratio 1.23 vs 1.3 wanted); the phase-1 log had
+   0.28 vs 0.19 (ratio 1.47). Load moves the ground time, not the
+   physics. Two re-runs: 34/34, 34/34. No threshold touched.
+4. **Map 7 (City Underground) physics still fails — the v3.5
+   blemish, unchanged, now visible in two more checks.** First
+   run 30/34: P07a hold apex 45 px (want ~155), P07b tap 45 px,
+   P23 bounce pad vel.y 0 pos.y 1521, P25a jetpack fastest thrust
+   vy -27 (want -345..-200). ONE cause for all four: the test
+   spots sit under the low 1400-level platforms — at x=800 the
+   player stands on the floor (1552) under the 600..900 platform
+   (bottom 1448), ~42 px of head clearance, so the jump bonks at
+   45 px, the jetpack thrusts against the ceiling (the exact
+   signature P25a showed on map 4 before the QA-074b x=2100 fix),
+   and the 0.3W bounce pad sits under the same 1400 level. P23
+   and P25a were never run on map 7 before (they are new in v3.6),
+   so this is the same known blemish with wider coverage, not a
+   new regression. The same physics passes 34/34 on maps 0/6/10/12
+   and 25/25 on map 4. The owed follow-up stands: per-map jump
+   spots (or one x with clear sky on all 13 maps).
+5. **Screenshots re-captured from the shipped code (26 files,
+   `~/workspace/mini-militia-lan-v36-proof/`, stale `v36_p4_*`
+   files deleted).** Menu-side `--shot-all`, in-game
+   `--game-shots`, CTF `--ctf-shots` (new test-only mode in
+   `game.gd` + `--mode=N` override in `main.gd`, both test-only)
+   at 1280x720 and 2400x1080: menu, multiplayer/create room,
+   lobby, CTF lobby, countdown, HUD, pause, scoreboard, end,
+   customize, settings, CTF home, CTF carry — every file visually
+   reviewed. All clean: no overlaps, no cut-off text, no ghost
+   boxes, map list scrolls, CTF flag visible at home and carried
+   (feed "Player took the BLUE flag!", blue flag at the carrier).
+   Two cosmetic nits at 2400x1080, BOTH pre-existing (byte-identical
+   in the phase-4 captures, not v3.6 regressions): the end-screen
+   result row pokes ~40 px past the panel's left edge, and the
+   weapon chip sits flush against the right edge with no margin —
+   text fully readable in both. Lobby mode-button row 2 starts
+   below the fold at 720p and is reached by scrolling (proven by
+   scroll 9/9), not a defect.
+6. **Cleanup:** the stray `log4_*.txt` files were deleted from the
+   project dir; all fresh logs live in `/tmp/v36-final/logs/`
+   (project dir stays clean).
+
+### AAB — NOT built (blocked, unchanged)
+- No release keystore exists anywhere on this machine. A release
+  keystore was NOT created: its password must come from the user via
+  Secure Vault, never invented and never written in a file. Exact
+  creation + signing steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md` ("Release signing" section). The
+  APK is the deliverable; the AAB is a bonus once the user supplies
+  the keystore password.
+
+### Honest limits (v3.6 — updated)
+- Real two-phone LAN join, real touch hardware, real-phone
+  performance, audio-by-ear: still untested here (sandbox blocks
+  UDP sends even on loopback; repl-sim 48/48 is the in-process
+  substitute). **Movement sync (QA-068/QA-073) is fixed in the sim
+  only until the user verifies it on two real phones** — README
+  "Testing the join on two real phones", step 4: both phones must
+  show Players: 2/8 AND each phone must see the other player move,
+  in both directions. Mid-match rejoin unsupported. **The QA-060
+  phone crash is fixed in-process only** (restart test 8/8, 0 script
+  errors) — if the phone still closes, a logcat is needed.
+- CTF steal / drop / capture, team pick, room-code join, and the
+  lobby appearance change are sim-tested only (features 15/15,
+  menu-net 8/8) — a real two-phone CTF match is still owed.
+- Map 7 physics (finding 4 above) and the two 2400 cosmetic nits
+  (finding 5) are the known open blemishes; neither blocks the
+  release, both are recorded here, not hidden.

@@ -9,8 +9,20 @@ extends CharacterBody2D
 # at the hands and rotated to the exact aim angle so the weapon always
 # points where the right stick points.
 
-# Movement/physics values live in PhysicsConfig (GAP-70, single source of
-# truth). The consts below mirror it for the hot path / old callers.
+# QA-071b (v3.6 phase 2, §3): the player is 1.20x bigger — Mini
+# Militia proportions, more visible in play. Old capsule radius 17 /
+# height 52 (34x52, sprite 64 px); new radius 22 / height 68
+# (40x62, sprite 77 px). PLAYER_SCALE is the single multiplier: the
+# sprite, gun, jetpack flame, ring, name label and HP bar all scale
+# from it, the capsule and every size-coupled offset in this file and
+# in game.gd (spawn validation, stuck query, wedge rays, hit regions,
+# test teleports) scale with the same numbers. Physics (speeds, jump,
+# gravity, fuel) is UNCHANGED — only the visible/collision size grew,
+# so movement, sync (RPC snapshots, QA-053/068) and the kill/death
+# chain (QA-069) are untouched.
+const PLAYER_SCALE := 1.20 # QA-071b: user correction 2026-11-19 ~19:13 — 'bigger' means MODESTLY bigger, not 1.30x
+const CAPSULE_RADIUS := 20.0
+const CAPSULE_HEIGHT := 62.0
 const SPEED := 350.0
 const ACCEL := 2600.0
 const DECEL := 3400.0
@@ -25,15 +37,29 @@ const REVERSAL_AIR := 1.2
 const DRAG_GROUND := 8.0
 const DRAG_AIR := 1.2
 const JUMP_VELOCITY := -660.0
-const JET_ACCEL := 1900.0
-const MAX_JET_RISE := 450.0
+# QA-074 (v3.6 phase 3, §5 — user: jetpack speed excessively high).
+# Mirrors PhysicsConfig — change both files together. Old values:
+# JET_ACCEL 1900, MAX_JET_RISE 450, FUEL_REFILL 70, FUEL_REFILL_AIR
+# 35, FUEL_REGEN_DELAY 0.6 (spec §24.B says 1800/450/25/s/15/s; the
+# shipped code had already drifted from the spec — see BUGS.md).
+# New: top flying speed 450 -> 320 (-29%); thrust 1900 -> 1650 (net
+# climb accel 500 -> 250 px/s^2, gravity still applies while
+# thrusting); thrust RAMPS 0.75 -> 1.0 over 0.35 s instead of instant
+# full force. Drain 45/s KEPT (2.2 s per tank; a slower drain would
+# lengthen total flight and push the 4 s hold-up landing past its
+# joystick-test window). Regen 70/35 -> 50/25 per s, delay 0.6 -> 0.5.
+const JET_ACCEL := 1650.0
+const MAX_JET_RISE := 320.0
+const JET_RAMP_MIN := 0.75
+const JET_RAMP_TIME := 0.35
+const JET_AIR_ACCEL := 1900.0 # horizontal accel while jetpacking (air 1500)
 const GRAVITY := 1400.0
 const MAX_FALL := 1000.0
 const FUEL_MAX := 100.0
 const FUEL_DRAIN := 45.0
-const FUEL_REFILL := 70.0
-const FUEL_REFILL_AIR := 35.0
-const FUEL_REGEN_DELAY := 0.6
+const FUEL_REFILL := 50.0
+const FUEL_REFILL_AIR := 25.0
+const FUEL_REGEN_DELAY := 0.5
 const MASS := 1.0
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER := 0.12
@@ -74,7 +100,7 @@ const HELMET_TEX := {
 }
 const MUZZLE_TEX: Texture2D = preload("res://assets/effects/muzzle.png")
 
-const GUN_LENGTH := 46.0
+const GUN_LENGTH := 55.0 # QA-071b: 46 * 1.20 — gun scales with the player
 
 var peer_id: int = 0
 var player_index: int = 1
@@ -105,6 +131,64 @@ var sync_velocity: Vector2 = Vector2.ZERO
 var _move_snap_timer: float = 0.0
 var _move_snap_seq: int = 0 # per-snapshot sequence (out-of-order guard)
 var _last_snap_seq: int = -1 # newest snapshot sequence applied
+var _last_snap_receipt: float = 0.0 # QA-068: receipt time of the newest snapshot (gap detection)
+var _snap_resync: bool = false # QA-068: next render snaps (join / rejoin / long gap), set in receive_move_snapshot
+# QA-073: adaptive interpolation delay. Fixed 100 ms (INTERP_BUFFER)
+# is the STARTING delay; the receiver measures Wi-Fi delivery jitter
+# (arrival spacing vs sender spacing) and moves the delay slowly
+# toward a jitter-derived target, 80–250 ms, at most 10 ms per 0.5 s
+# — clean Wi-Fi settles near 80 ms, bursty Wi-Fi grows the buffer
+# instead of letting the copy freeze and jump. The slow slew is
+# deliberate: a fast-moving delay would itself wobble the render
+# timeline. _interp_position reads _interp_delay, never the const.
+var _interp_delay: float = PhysicsConfig.INTERP_BUFFER
+var _jitter_ewma: float = 0.0 # QA-073: EWMA of |arrival gap - sender gap| (seconds)
+var _prev_snap_sender_t: float = -1.0
+var _prev_snap_receipt_t: float = -1.0
+var _interp_delay_next_adjust: float = 0.0
+# QA-073: remote gameplay state synced in the snapshot (spec §1/§5).
+# Jetpack/firing/reload/airborne were NOT in the QA-068 payload, so
+# the receiver guessed jetpack from velocity + fuel and could never
+# show a remote player firing. These are the real flags now.
+var _remote_jetpacking: bool = false
+var _remote_firing: bool = false
+var _remote_reloading: bool = false
+var _remote_airborne: bool = false
+# QA-073: snapshot delivery counters (spec §7, net-stats display).
+# Lost = sequence gap (a seq never arrived); duplicate = same seq
+# twice; out-of-order = an older seq arriving after a newer one.
+# The counters only move on real deliveries — a duplicate storm or
+# a loss burst is visible in the stats instead of silent.
+var _net_recv_count: int = 0
+var _net_lost_count: int = 0
+var _net_dup_count: int = 0
+var _net_ooo_count: int = 0
+var _net_ups: float = 0.0 # QA-073: snapshots received per second (1 s window)
+var _net_ups_count: int = 0
+var _net_ups_window_start: float = 0.0
+var _net_extrap_s: float = 0.0 # QA-073: current extrapolation past the newest snapshot (s, 0 = interpolating)
+# QA-073: the render clock (spec §2). The render time must NEVER
+# run backwards: when the adaptive delay grows, render_t = newest -
+# delay would otherwise retreat and the copy would step back and
+# then surge forward (the first chaos run: 52 px snap-back,
+# 1352 px/s). The clock is held instead — only the delay growth
+# itself (tens of ms, ~10 px) is deferred. There is deliberately
+# no upper slew: capping the advance by wall time starved the clock
+# whenever physics ticks batched. Only a resync jumps the clock.
+var _render_t_last: float = -INF
+# player already moves without waiting for the network (owner
+# simulation); this ring records what it predicted so a correction
+# can be checked against it. Ring of the last 90 physics frames:
+# positions + velocities, indexed by snapshot sequence.
+var _pred_pos: PackedVector2Array = PackedVector2Array()
+var _pred_vel: PackedVector2Array = PackedVector2Array()
+var _pred_seq: PackedInt32Array = PackedInt32Array()
+# QA-073: reconciliation target (spec §4). Set by
+# apply_authoritative_correction; the local branch blends toward it
+# a little per physics frame (small errors) instead of snapping.
+var _reconcile_target: Vector2 = Vector2.INF
+var _reconcile_active: bool = false
+var _last_corr_seq: int = -1 # newest correction sequence applied (stale corrections ignored)
 
 var _shots_fired: int = 0
 var _shots_hit: int = 0 # Phase 4: distinct trigger pulls that hit a player (accuracy)
@@ -129,6 +213,20 @@ var _jump_buffer_timer: float = 0.0
 var _was_on_floor: bool = false
 var _fall_speed: float = 0.0
 var _jetpacking: bool = false
+# QA-074: thrust spool-up state. _jet_ramp_t counts seconds of
+# continuous thrust; _jet_thrust_factor is the ramp (JET_RAMP_MIN ->
+# 1.0 over JET_RAMP_TIME). Both reset the moment thrust stops, so
+# every jetpack burst spools up again instead of resuming at full.
+var _jet_ramp_t: float = 0.0
+var _jet_thrust_factor: float = 0.0
+# QA-075: muzzle-flash timer (replaces one scene-tree timer per shot
+# in _show_muzzle) + flash counter the fire test reads; gun dip on
+# weapon switch (visual only, never blocks firing); per-weapon
+# magazine memory so switching weapons no longer refills the mag.
+var _muzzle_timer: float = 0.0
+var _muzzle_flashes: int = 0
+var _switch_dip_timer: float = 0.0
+var _mag_memory: Dictionary = {}
 var _current_anim: String = ""
 var _anim_locked: bool = false # death anim plays out
 
@@ -199,6 +297,7 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	add_to_group("players")
+	_reset_mag_memory() # QA-075: every weapon starts with a full mag remembered
 	_build_collision()
 	_build_sprite()
 	var game = get_tree().get_first_node_in_group("game")
@@ -236,8 +335,8 @@ func is_local_player() -> bool:
 func _build_collision() -> void:
 	_collision_shape = CollisionShape2D.new()
 	var cap := CapsuleShape2D.new()
-	cap.radius = 17.0
-	cap.height = 52.0
+	cap.radius = CAPSULE_RADIUS # QA-071b: 17 -> 20 (1.20x)
+	cap.height = CAPSULE_HEIGHT # QA-071b: 52 -> 62 (1.20x)
 	_collision_shape.shape = cap
 	add_child(_collision_shape)
 	floor_snap_length = 4.0
@@ -248,6 +347,10 @@ func _build_sprite() -> void:
 	_sprite.name = "Sprite"
 	_sprite.sprite_frames = _make_sprite_frames()
 	_sprite.centered = true
+	# QA-071b: the soldier art scales 1.20x (64 px frame -> 77 px on
+	# screen). _update_visuals keeps this scale and only flips x for
+	# facing. The helmet is a child of the sprite, so it scales too.
+	_sprite.scale = Vector2(PLAYER_SCALE, PLAYER_SCALE)
 	add_child(_sprite)
 
 	_helmet_sprite = Sprite2D.new()
@@ -257,12 +360,13 @@ func _build_sprite() -> void:
 	_sprite.add_child(_helmet_sprite)
 	_update_helmet()
 
-	# Team / player colour ring under the feet.
+	# Team / player colour ring under the feet (QA-071b: 24 -> 29 px
+	# radii, y 26 -> 31, wobble 7 -> 8).
 	_ring = Polygon2D.new()
 	var pts := PackedVector2Array()
 	for i in 24:
 		var a := TAU * float(i) / 24.0
-		pts.append(Vector2(cos(a) * 24.0, 26.0 + sin(a) * 7.0))
+		pts.append(Vector2(cos(a) * 29.0, 31.0 + sin(a) * 8.0))
 	_ring.polygon = pts
 	_ring.color = Color(player_color.r, player_color.g, player_color.b, 0.55)
 	_ring.z_index = -1
@@ -271,15 +375,15 @@ func _build_sprite() -> void:
 	# Rotated weapon sprite at the hands (pivot = stock).
 	_gun = Sprite2D.new()
 	_gun.name = "Gun"
-	_gun.position = Vector2(8, 5)
+	_gun.position = Vector2(10, 6) # QA-071b: (8, 5) * 1.20
 	_gun.z_index = 3
 	add_child(_gun)
 
 	_flame = Polygon2D.new()
 	_flame.name = "JetFlame"
-	_flame.polygon = PackedVector2Array([Vector2(-6, 0), Vector2(6, 0), Vector2(0, 24)])
+	_flame.polygon = PackedVector2Array([Vector2(-7, 0), Vector2(7, 0), Vector2(0, 29)])
 	_flame.color = Color(1.0, 0.55, 0.15, 0.95)
-	_flame.position = Vector2(0, 18)
+	_flame.position = Vector2(0, 22) # QA-071b: (0, 18) * 1.20
 	_flame.z_index = 1
 	_flame.visible = false
 	add_child(_flame)
@@ -292,40 +396,50 @@ func _build_sprite() -> void:
 	_gun.add_child(_muzzle)
 	_update_gun_texture()
 
+	# QA-071: the name label was already shown above every player
+	# (this file, since v2) — it is now bigger and easier to read at
+	# the new size: font 18 -> 22, 80 px wide -> 110, y -66 -> -88
+	# (above the taller head + HP bar). _update_visuals refreshes
+	# the text/colour live, so a name or colour set after _ready
+	# (remote joins) still shows correctly.
 	_name_label = Label.new()
 	_name_label.text = player_name
-	_name_label.position = Vector2(-40, -66)
-	_name_label.size = Vector2(80, 22)
+	_name_label.position = Vector2(-48, -79) # QA-071b: (-40, -66) * 1.20
+	_name_label.size = Vector2(96, 26) # QA-071b: (80, 22) * 1.20
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_name_label.add_theme_font_size_override("font_size", 18)
+	_name_label.add_theme_font_size_override("font_size", 22)
 	_name_label.add_theme_color_override("font_color", player_color)
 	_name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_name_label.add_theme_constant_override("outline_size", 4)
+	_name_label.add_theme_constant_override("outline_size", 5)
 	add_child(_name_label)
 
 	_hp_bg = ColorRect.new()
 	_hp_bg.color = Color(0, 0, 0, 0.6)
-	_hp_bg.position = Vector2(-22, -48)
-	_hp_bg.size = Vector2(44, 6)
+	_hp_bg.position = Vector2(-26, -58)
+	_hp_bg.size = Vector2(53, 7)
 	add_child(_hp_bg)
 
 	_hp_fg = ColorRect.new()
 	_hp_fg.color = Color(0.3, 0.9, 0.3)
-	_hp_fg.position = Vector2(-22, -48)
-	_hp_fg.size = Vector2(44, 6)
+	_hp_fg.position = Vector2(-26, -58)
+	_hp_fg.size = Vector2(53, 7)
 	add_child(_hp_fg)
 
 
 func _make_sprite_frames() -> SpriteFrames:
 	var sf := SpriteFrames.new()
 	var anims := {
+		# QA-071: run / jump / jetpack play a little faster (10 -> 12
+		# fps) so the bigger, more visible character moves smoothly
+		# instead of visibly stepping frame-to-frame. Speeds are
+		# unchanged; only the animation rate moves.
 		"idle": ["idle", 11, 7.0, true],
-		"run": ["run", 11, 10.0, true],
-		"jump": ["jump", 11, 10.0, true],
+		"run": ["run", 11, 12.0, true],
+		"jump": ["jump", 11, 12.0, true],
 		"fall": ["fall", 11, 8.0, true],
 		"shoot": ["shoot", 11, 12.0, true],
 		"aim": ["aim", 11, 6.0, true],
-		"jetpack": ["jetpack", 11, 10.0, true],
+		"jetpack": ["jetpack", 11, 12.0, true],
 		"die": ["die", 5, 7.0, false],
 	}
 	for key in anims.keys():
@@ -407,13 +521,29 @@ func _send_move_snapshot(force: bool = false) -> void:
 	if multiplayer.get_peers().is_empty():
 		return
 	_move_snap_seq += 1
+	# QA-068: the snapshot carries the SENDER's clock ("st") and the
+	# spawn-protection flag ("prot"). The receiver must interpolate
+	# on the sender's timeline, not on arrival times (see
+	# receive_move_snapshot): Wi-Fi arrival jitter otherwise becomes
+	# spacing jitter in the buffer. "prot" lets the host's copy know
+	# a remote victim is spawn-protected, so a lethal-looking hit
+	# during protection is never credited as a kill (QA-069).
 	rpc("receive_move_snapshot", {
-		"seq": _move_snap_seq, "p": position, "v": velocity,
+		"seq": _move_snap_seq, "st": Time.get_ticks_msec() / 1000.0,
+		"prot": 1 if _spawn_protect_timer > 0.0 else 0,
+		"id": peer_id, # QA-073: player ID in every packet (spec §1) — was only implied by sender/node path
+		"jet": 1 if _jetpacking else 0, "fire": 1 if _want_fire else 0, # QA-073: jetpack + firing state (spec §5)
+		"rel": 1 if reloading else 0, "air": 1 if not is_on_floor() else 0, # QA-073: reload + airborne state (spec §5)
+		"p": position, "v": velocity,
 		"aim": aim_angle, "face": facing, "wpn": weapon,
 		"hp": health, "k": kills, "d": deaths, "al": alive,
 		"fuel": fuel, "ls": life_state, "mag": mag_ammo,
 		"gr": grenades, "sf": _shots_fired, "sh": _shots_hit,
 	})
+	if force:
+		# A forced send (respawn / stuck-recovery / score change)
+		# already went out — do not send again on the next tick.
+		_move_snap_timer = 0.0
 
 
 @rpc("any_peer", "unreliable")
@@ -427,23 +557,65 @@ func receive_move_snapshot(snap: Dictionary) -> void:
 		return
 	if is_local_player():
 		return
-	var seq := int(snap.get("seq", 0))
-	# Unreliable RPCs can arrive out of order or twice: only a newer
-	# sequence may move the player, so an old packet can never drag
-	# a remote player backwards (snap-back) after a newer one arrived.
-	if seq <= _last_snap_seq:
+	# QA-073: the packet carries its player ID (spec §1). An id of 0
+	# means "unspecified" (hand-built / old dicts, and the repl-sim) —
+	# accept it. Any other id that is not this player is a misrouted
+	# packet and is ignored.
+	var snap_id := int(snap.get("id", 0))
+	if snap_id != 0 and snap_id != peer_id:
 		return
+	var seq := int(snap.get("seq", 0))
+	# QA-073: count delivery faults before dropping. Unreliable RPCs
+	# can arrive out of order or twice: only a newer sequence may
+	# move the player, so an old packet can never drag a remote
+	# player backwards (snap-back) after a newer one arrived. The
+	# counters (lost by sequence gap, duplicate, out-of-order) feed
+	# the net-stats display — previously this was silent.
+	if seq == _last_snap_seq:
+		_net_dup_count += 1
+		return
+	if seq < _last_snap_seq:
+		_net_ooo_count += 1
+		return
+	if _last_snap_seq >= 0 and seq > _last_snap_seq + 1:
+		_net_lost_count += seq - _last_snap_seq - 1
 	_last_snap_seq = seq
+	_net_recv_count += 1
+	var now := Time.get_ticks_msec() / 1000.0
+	# QA-073: updates-per-second over a rolling 1 s window.
+	if _net_ups_window_start <= 0.0:
+		_net_ups_window_start = now
+	_net_ups_count += 1
+	if now - _net_ups_window_start >= 1.0:
+		_net_ups = float(_net_ups_count) / (now - _net_ups_window_start)
+		_net_ups_count = 0
+		_net_ups_window_start = now
 	var pos: Vector2 = snap.get("p", position)
 	var vel: Vector2 = snap.get("v", Vector2.ZERO)
 	sync_position = pos
 	sync_velocity = vel
 	aim_angle = float(snap.get("aim", aim_angle))
 	facing = int(snap.get("face", facing))
+	# QA-073: synced gameplay state (spec §5) — jetpack, firing,
+	# reload, airborne. Old dicts without these keys keep the
+	# previous values (get with the current value as default).
+	_remote_jetpacking = bool(int(snap.get("jet", 1 if _remote_jetpacking else 0)))
+	_remote_firing = bool(int(snap.get("fire", 1 if _remote_firing else 0)))
+	_remote_reloading = bool(int(snap.get("rel", 1 if _remote_reloading else 0)))
+	_remote_airborne = bool(int(snap.get("air", 1 if _remote_airborne else 0)))
 	var new_weapon := int(snap.get("wpn", weapon))
 	if new_weapon != weapon and new_weapon >= 0 and new_weapon < WEAPONS.size():
 		weapon = new_weapon
+		_switch_dip_timer = 0.15 # QA-075: a remote copy dips its gun on switch too
 		_update_gun_texture()
+	# QA-075: the remote muzzle flash. The snapshot stream (30/s)
+	# refreshes this while the remote player is firing; 0.25 s
+	# bridges the frames between snapshots, so the flash shows
+	# steadily while firing and ends by itself when the stream
+	# stops carrying fire=1. The local flash uses the shorter
+	# per-weapon flash_t in _show_muzzle instead.
+	if _remote_firing:
+		_muzzle_timer = maxf(_muzzle_timer, 0.25)
 	health = int(snap.get("hp", health))
 	kills = int(snap.get("k", kills))
 	deaths = int(snap.get("d", deaths))
@@ -454,12 +626,117 @@ func receive_move_snapshot(snap: Dictionary) -> void:
 	grenades = int(snap.get("gr", grenades))
 	_shots_fired = int(snap.get("sf", _shots_fired))
 	_shots_hit = int(snap.get("sh", _shots_hit))
-	# Feed the interpolation buffer, timestamped on receipt (spec
-	# §21.D: render at now - 100 ms between bracketing snapshots).
-	var now := Time.get_ticks_msec() / 1000.0
-	_snapshots.append({"t": now, "p": pos, "v": vel})
-	while _snapshots.size() > 12:
+	# Feed the interpolation buffer. QA-068: each entry is stamped
+	# with the SENDER's clock ("st", sent in the snapshot), NOT the
+	# receipt time — the two phones' clocks are never compared (they
+	# differ), the sender stamps only ever order and space the
+	# sender's own snapshots, and the render timeline is anchored
+	# to the newest sender stamp (see _interp_position). A snapshot
+	# without "st" (old / hand-built dicts) falls back to the
+	# receipt time, the pre-QA-068 behaviour. "rt" (receipt time)
+	# is kept alongside so the receiver can tell how long it has
+	# been since a packet arrived and dead-reckon through a gap.
+	# "prot" refreshes this copy's spawn-protection timer so the
+	# host's view of a remote victim's protection is real (QA-069);
+	# when prot is 0 the local countdown is left to run down.
+	var sender_t := float(snap.get("st", now))
+	# QA-073: adaptive interpolation delay. Jitter is the mismatch
+	# between arrival spacing and sender spacing: on clean Wi-Fi
+	# both are ~33 ms (jitter ~0); when packets arrive in bursts
+	# the arrival gaps are 0 ms then ~300 ms while the sender gaps
+	# stay 33 ms (jitter ~tens of ms). The EWMA (alpha 0.1) tracks
+	# it, the target delay is 80 ms + 1.5x jitter, clamped to
+	# 80–250 ms, and the live delay slews toward the target at most
+	# 10 ms per 0.5 s — slow enough that the delay never wobbles the
+	# render timeline itself. A resync (long silence) resets the
+	# jitter history: the gap is not Wi-Fi jitter, it is a rejoin.
+	if _prev_snap_sender_t >= 0.0 and now - _last_snap_receipt <= 0.5:
+		var arrival_gap := now - _prev_snap_receipt_t
+		var sender_gap := sender_t - _prev_snap_sender_t
+		var jitter := absf(arrival_gap - sender_gap)
+		_jitter_ewma = lerpf(_jitter_ewma, jitter, 0.1)
+		if now >= _interp_delay_next_adjust:
+			var target := clampf(0.08 + 1.5 * _jitter_ewma, 0.08, 0.25)
+			_interp_delay = move_toward(_interp_delay, target, 0.01)
+			_interp_delay_next_adjust = now + 0.5
+	else:
+		_jitter_ewma = 0.0
+	_prev_snap_sender_t = sender_t
+	_prev_snap_receipt_t = now
+	if int(snap.get("prot", 0)) == 1:
+		_spawn_protect_timer = SPAWN_PROTECTION
+	# QA-068: a snapshot arriving after a long silence (>0.5 s) or
+	# into an empty buffer is a re-placement (join / rejoin / long
+	# loss burst), not steady motion — the remote branch snaps to
+	# it once instead of gliding across the map.
+	if _snapshots.is_empty() or now - _last_snap_receipt > 0.5:
+		_snap_resync = true
+	_last_snap_receipt = now
+	_snapshots.append({"t": sender_t, "p": pos, "v": vel, "rt": now})
+	# Prune by sender-time age (>1 s behind the newest snapshot is
+	# useless) as well as by count, so a burst of arrivals cannot
+	# evict the snapshots the render time still needs.
+	var newest_t := sender_t
+	while _snapshots.size() > 24:
 		_snapshots.pop_front()
+	while _snapshots.size() > 1 and newest_t - float((_snapshots[0] as Dictionary)["t"]) > 1.0:
+		_snapshots.pop_front()
+
+
+# QA-073: reconciliation against authoritative state (spec §4).
+# The host calls this on the owning client when its view of that
+# player has diverged beyond what interpolation lag can explain
+# (game.gd _update_divergence_check: fresh snapshot stream, >300 px
+# sustained 1 s — it never fires on normal interp lag, which stays
+# under ~60 px). Small errors blend in over a few physics frames
+# via _reconcile_target (see the local branch); a teleport-class
+# error (>300 px, e.g. a respawn the client never heard about)
+# snaps at once, because gliding across the map would be worse.
+# Stale corrections (older corr_seq) are ignored, so a delayed
+# correction can never drag the player back to an old position.
+# This is a no-op for remote copies — only the owner reconciles
+# its own predicted position.
+@rpc("any_peer")
+func apply_authoritative_correction(auth_pos: Vector2, auth_vel: Vector2, corr_seq: int) -> void:
+	if not is_local_player():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return # only the host may correct a client (0 = direct local call in tests)
+	if corr_seq <= _last_corr_seq:
+		return
+	_last_corr_seq = corr_seq
+	var dist := position.distance_to(auth_pos)
+	if dist > 300.0:
+		position = auth_pos
+		velocity = auth_vel
+		_reconcile_active = false
+		return
+	if dist < 2.0:
+		return
+	_reconcile_target = auth_pos
+	_reconcile_active = true
+
+
+# QA-073: one dict with everything the net-stats display needs
+# (spec §7). "auth_pos" is the newest authoritative snapshot
+# position for this (remote) player; the rendered position is the
+# node's own position. For the local player the snapshot fields
+# are its own last-received values (0 when solo).
+func get_net_stats() -> Dictionary:
+	var now := Time.get_ticks_msec() / 1000.0
+	return {
+		"recv": _net_recv_count, "lost": _net_lost_count,
+		"dup": _net_dup_count, "ooo": _net_ooo_count,
+		"ups": _net_ups, "buf": _snapshots.size(),
+		"delay_ms": _interp_delay * 1000.0,
+		"jitter_ms": _jitter_ewma * 1000.0,
+		"extrap_ms": _net_extrap_s * 1000.0,
+		"gap_ms": (now - _last_snap_receipt) * 1000.0 if _last_snap_receipt > 0.0 else 0.0,
+		"auth_pos": sync_position, "pos": position,
+		"jet": _remote_jetpacking, "fire": _remote_firing,
+		"rel": _remote_reloading,
+	}
 
 
 func _process(delta: float) -> void:
@@ -508,45 +785,170 @@ func _physics_process(delta: float) -> void:
 					_respawn_timer -= delta
 					if _respawn_timer <= 0.0:
 						_respawn()
+		else:
+			# QA-069: a remote copy never runs _apply_damage (damage
+			# RPCs go only to the victim's owning peer), so it never
+			# played "die" — the body kept its last run/idle loop
+			# with no gun, name or HP bar. Play the death pose here,
+			# from the synced life_state, so every peer sees the
+			# same death. _play_anim("die") is a no-op once playing.
+			_play_anim("die")
 		return
 	if is_local_player():
 		_read_input()
+		# QA-073: reconciliation (spec §4) blends BEFORE movement,
+		# not after: the blend sets position directly, and if that
+		# put the player inside a wall the same frame's
+		# move_and_slide pushes it back out — the player stops at
+		# the wall instead of embedding in it (embedding trips the
+		# stuck-recovery teleport, which is what the first
+		# RECONCILE-BLEND run did: the +40 px nudge ended against
+		# a wall and the player was teleported 228 px away). A small
+		# authoritative correction blends in a little per physics
+		# frame — the player never snaps for a few pixels of error,
+		# so responsiveness is untouched. A large correction snapped
+		# at once inside apply_authoritative_correction instead.
+		if _reconcile_active:
+			var rdist := position.distance_to(_reconcile_target)
+			if rdist < 2.0:
+				_reconcile_active = false
+			else:
+				position = position.move_toward(_reconcile_target, maxf(rdist * 0.2, 60.0 * delta))
 		_apply_movement(delta)
 		_apply_aim_and_fire(delta)
+		# the local simulation predicted each physics frame, so a
+		# correction can be checked against the prediction ring.
+		# Packed arrays, capped at 90 frames (~1.5 s), no dicts.
+		_pred_pos.append(position)
+		_pred_vel.append(velocity)
+		_pred_seq.append(_move_snap_seq)
+		while _pred_pos.size() > 90:
+			_pred_pos.remove_at(0)
+			_pred_vel.remove_at(0)
+			_pred_seq.remove_at(0)
 		_check_stuck(delta)
 		# QA-053: snapshots at the spec rate (30/s) — the owner's
 		# only channel out. Force-send is used by _respawn /
 		# _check_stuck after a teleport so the remote copy never
 		# waits a full interval to learn the new position.
+		# QA-068: subtract the interval instead of resetting to 0,
+		# so the 30/s cadence stays steady under variable frame
+		# times instead of drifting a little later every tick.
 		_move_snap_timer += delta
 		if _move_snap_timer >= PhysicsConfig.SNAPSHOT_INTERVAL:
-			_move_snap_timer = 0.0
+			_move_snap_timer -= PhysicsConfig.SNAPSHOT_INTERVAL
 			_send_move_snapshot()
 	else:
 		# Remote players: 100 ms interpolation buffer (GAP-16, spec
-		# §21.D/F). Snapshots are timestamped on receipt by
-		# receive_move_snapshot; render at now - 100 ms between the
-		# bracketing snapshots, extrapolating at most one physics
-		# step past the newest snapshot. Position is owned ONLY by
-		# this buffer — no second channel writes it.
+		# §21.D/F), rendered on the SENDER's timeline (QA-068).
+		# Position is owned ONLY by this buffer — no second channel
+		# writes it. QA-068: the per-frame step clamp means one
+		# physics frame can never move the copy further than the
+		# fastest legit motion (700 px/s + 20 px slack) — a delayed
+		# packet's catch-up glides over a few frames instead of
+		# teleporting the copy. A genuine teleport (respawn /
+		# stuck-recovery, >600 px away) or a re-placement after a
+		# join / long gap (>100 px away, QA-073) still snaps at
+		# once, or the copy would swim across the map. Velocity is
+		# smoothed toward the latest snapshot (was: snapped
+		# instantly) so the remote run/jetpack animation stops
+		# flickering on jitter.
 		var now := Time.get_ticks_msec() / 1000.0
-		position = _interp_position(now)
-		velocity = sync_velocity
+		var target := _interp_position(now)
+		var dist := position.distance_to(target)
+		# QA-073: a resync snaps only when the copy is far from the
+		# target (>100 px: a join / rejoin / long-gap re-placement).
+		# When the copy is already close, snapping would drag it
+		# BACKWARD: after a receipt gap just over 0.5 s the copy has
+		# dead-reckoned forward past the delayed render target, so
+		# the snap lands behind where the copy already is — the
+		# chaos run caught a 49.5 px snap-back from exactly this.
+		# Gliding the last few pixels instead is invisible and
+		# never moves the copy backwards. A genuine teleport
+		# (respawn / stuck-recovery, >600 px) still snaps at once.
+		if dist > 600.0 or (_snap_resync and dist > 100.0):
+			position = target
+		else:
+			position = position.move_toward(target, 700.0 * delta + 20.0)
+		_snap_resync = false
+		velocity = velocity.lerp(sync_velocity, clampf(delta * 10.0, 0.0, 1.0))
 		_update_remote_anim()
 
 
 func _interp_position(now: float) -> Vector2:
-	var render_t := now - PhysicsConfig.INTERP_BUFFER
-	if _snapshots.size() < 2:
+	# QA-068: the render timeline is anchored to the SENDER's
+	# clock — render at (newest sender stamp - 100 ms), NOT at
+	# (receipt time - 100 ms). The sender emits every 33 ms on its
+	# own clock, so the spacing between bracketing snapshots is a
+	# steady 33 ms whatever the Wi-Fi arrival jitter was; a burst
+	# of late arrivals no longer compresses the lerp, and a delayed
+	# packet no longer renders as if it were on time. The two
+	# clocks are never compared: only the sender's stamps order and
+	# space the buffer, and "rt" (receipt time) is used only to
+	# measure how long packets have been missing. If packets have
+	# stopped arriving, the timeline advances with the wall clock
+	# (minus one snapshot interval of grace) so the copy
+	# dead-reckons forward on its last velocity instead of freezing
+	# at the last bracket — the freeze-then-catch-up jump the user
+	# reported. Extrapolation past the newest snapshot is capped
+	# at 150 ms of velocity; past that the copy holds rather than
+	# guessing a reversal it cannot see. (A capped variant was
+	# tried and rejected: holding at the newest snapshot made
+	# each burst land as a 1400+ px/s catch-up surge.)
+	if _snapshots.is_empty():
+		_net_extrap_s = 0.0
 		return position.lerp(sync_position, clampf(1.0 / 60.0 * 14.0, 0.0, 1.0))
 	var first: Dictionary = _snapshots[0]
 	var last: Dictionary = _snapshots[_snapshots.size() - 1]
+	if _snapshots.size() < 2:
+		# One snapshot only (join moment): dead-reckon from it on
+		# its velocity, capped at 150 ms, instead of the old fixed
+		# per-frame lerp toward sync_position.
+		var dt0 := clampf(now - float(last.get("rt", now)), 0.0, 0.15)
+		_net_extrap_s = dt0
+		return (last["p"] as Vector2) + (last["v"] as Vector2) * dt0
+	var newest_t := float(last["t"])
+	var since_last := now - float(last.get("rt", now))
+	if since_last > PhysicsConfig.SNAPSHOT_INTERVAL:
+		newest_t += since_last - PhysicsConfig.SNAPSHOT_INTERVAL
+	# QA-073: the render time uses the ADAPTIVE delay (was the fixed
+	# 100 ms INTERP_BUFFER): render at (newest sender stamp -
+	# _interp_delay). Clean Wi-Fi settles near 80 ms, bursty Wi-Fi
+	# grows the buffer. INTERP_BUFFER is still the starting value.
+	# QA-073 (render clock): the target render time is then made
+	# MONOTONIC — it may never move backwards. When the adaptive
+	# delay grows, newest - delay would retreat, and the copy would
+	# step back and then surge forward (the first chaos run: 52 px
+	# snap-back, 1352 px/s). Holding the clock instead only defers
+	# the delay growth itself (tens of ms of sender time, ~10 px),
+	# so the copy pauses briefly instead of retreating. There is
+	# deliberately NO upper slew: capping the advance by wall time
+	# starved the clock whenever physics ticks batched (burst
+	# smoothness 937 px/s, burst move 421 -> 332 px) — the render
+	# clock must be free to follow the sender's clock, and the
+	# per-frame step clamp is what bounds the copy's speed. Only a
+	# resync jumps the clock, and the remote branch snaps the copy
+	# on a resync anyway.
+	var target_render_t := newest_t - _interp_delay
+	var render_t := target_render_t
+	if _snap_resync:
+		_render_t_last = target_render_t
+	elif _render_t_last > -INF:
+		render_t = maxf(target_render_t, _render_t_last)
+		_render_t_last = render_t
+	else:
+		_render_t_last = render_t
 	if render_t <= float(first["t"]):
+		_net_extrap_s = 0.0
 		return first["p"]
 	if render_t >= float(last["t"]):
-		# Extrapolate at most one physics step past the newest snapshot.
-		var dt := minf(render_t - float(last["t"]), 1.0 / 60.0)
-		return last["p"] + last["v"] * dt
+		# Past the newest snapshot: glide on its velocity, at most
+		# 150 ms (was: at most one 16.7 ms physics step, then
+		# freeze — the freeze-then-jump the user saw on Wi-Fi).
+		var dt := minf(render_t - float(last["t"]), 0.15)
+		_net_extrap_s = dt
+		return (last["p"] as Vector2) + (last["v"] as Vector2) * dt
+	_net_extrap_s = 0.0
 	for i in range(_snapshots.size() - 1):
 		var a: Dictionary = _snapshots[i]
 		var b: Dictionary = _snapshots[i + 1]
@@ -568,13 +970,13 @@ func _check_stuck(delta: float) -> void:
 	var game = get_tree().get_first_node_in_group("game")
 	if game == null:
 		return
-	# Query capsule is 3 px smaller than the real one (radius 14,
-	# height 46): move_and_slide leaves ~1 px of solver penetration
+	# Query capsule is 3 px smaller than the real one (radius 17,
+	# height 56): move_and_slide leaves ~1 px of solver penetration
 	# when the player pushes flush against a wall, and that is NOT
 	# being stuck — a real embed is 10+ px deep and still triggers.
 	var cap := CapsuleShape2D.new()
-	cap.radius = 14.0
-	cap.height = 46.0
+	cap.radius = 17.0
+	cap.height = 56.0
 	var q := PhysicsShapeQueryParameters2D.new()
 	q.shape = cap
 	q.transform = Transform2D(0.0, global_position)
@@ -636,12 +1038,13 @@ func _wedge_reset() -> void:
 
 
 func _both_sides_blocked() -> bool:
-	# Raycast 40 px left and right from the capsule centre (the
-	# capsule is 34 px wide, so the rays probe 23 px past each edge).
-	# Both must hit solid world geometry (layer 1) for a wedge.
+	# Raycast 48 px left and right from the capsule centre (QA-071b:
+	# was 40 px; the capsule is 40 px wide, so the rays probe 28 px
+	# past each edge). Both must hit solid world geometry (layer 1)
+	# for a wedge.
 	var space := get_world_2d().direct_space_state
 	for dir in [-1.0, 1.0]:
-		var rq := PhysicsRayQueryParameters2D.create(global_position, global_position + Vector2(40.0 * dir, 0.0))
+		var rq := PhysicsRayQueryParameters2D.create(global_position, global_position + Vector2(48.0 * dir, 0.0))
 		rq.collision_mask = 1
 		rq.collide_with_bodies = true
 		rq.collide_with_areas = false
@@ -797,14 +1200,21 @@ func _apply_movement(delta: float) -> void:
 		drag = PhysicsConfig.ICE_FRICTION / 1200.0 * DRAG_GROUND
 	elif not on_floor:
 		max_speed = SPEED_AIR
-		accel = ACCEL_AIR
+		# QA-074: while jetpacking the player steers better in the
+		# air (accel 1900, was the plain air 1500) — flying should
+		# feel controlled, not drifty. _jetpacking here is last
+		# frame's value (the vertical block below sets it), which
+		# is one frame of lag on the first thrust frame only.
+		accel = JET_AIR_ACCEL if _jetpacking else ACCEL_AIR
 		drag = DRAG_AIR
 	if _move_axis != 0.0:
 		# Reversal bonus (GAP-01): flicking against current motion
 		# reverses crisply on ground (1.6x), lazily in air (1.2x).
+		# QA-074: NO reversal bonus while jetpacking (1.0x) — a
+		# direction change in flight must be smooth, not snappy.
 		var rate := accel
 		if signf(_move_axis) != signf(velocity.x) and velocity.x != 0.0:
-			rate = accel * (REVERSAL_GROUND if on_floor else REVERSAL_AIR)
+			rate = accel * (REVERSAL_GROUND if on_floor else (1.0 if _jetpacking else REVERSAL_AIR))
 		var target_vx := _move_axis * max_speed
 		velocity.x = move_toward(velocity.x, target_vx, rate * delta)
 		# Air drag still applies while airborne even with input held,
@@ -836,10 +1246,21 @@ func _apply_movement(delta: float) -> void:
 	elif _jump_held and not on_floor and fuel > 0.0:
 		# Jetpack sustains a climb, it never chops jump momentum:
 		# thrust applies only while rising SLOWER than the cap, so
-		# a -660 jump is not clamped down to -450 when fuel regens
+		# a -660 jump is not clamped down to -320 when fuel regens
 		# mid-rise (air regen, GAP-05, used to do exactly that).
+		# QA-074: the thrust RAMPS (JET_RAMP_MIN -> 1.0 over
+		# JET_RAMP_TIME) instead of hitting at full force on the
+		# first frame — the climb spools up smoothly, and the
+		# handover from the jump's decay is a gentle slow-down,
+		# not a sudden direction change. Gravity still applies
+		# every frame below, so net climb accel at full ramp is
+		# JET_ACCEL - GRAVITY = 250 px/s^2 (was 500), and the cap
+		# is 320 px/s (was 450). The ramp resets whenever thrust
+		# stops, so every burst spools up again.
 		if velocity.y > -MAX_JET_RISE:
-			velocity.y -= JET_ACCEL * delta
+			_jet_ramp_t += delta
+			_jet_thrust_factor = minf(1.0, JET_RAMP_MIN + _jet_ramp_t / JET_RAMP_TIME * (1.0 - JET_RAMP_MIN))
+			velocity.y -= JET_ACCEL * _jet_thrust_factor * delta
 			if velocity.y < -MAX_JET_RISE:
 				velocity.y = -MAX_JET_RISE
 			fuel = maxf(0.0, fuel - FUEL_DRAIN * delta)
@@ -848,8 +1269,12 @@ func _apply_movement(delta: float) -> void:
 			_jump_cut_armed = false
 			_start_jetpack_sound()
 		else:
+			_jet_ramp_t = 0.0
+			_jet_thrust_factor = 0.0
 			_stop_jetpack_sound()
 	else:
+		_jet_ramp_t = 0.0
+		_jet_thrust_factor = 0.0
 		_stop_jetpack_sound()
 	# Variable jump height (GAP-04, spec §4): releasing stick-up while
 	# still rising cuts upward velocity. Never fires while jetpacking
@@ -881,7 +1306,7 @@ func _apply_movement(delta: float) -> void:
 		# Hard landing: small dust puff.
 		var game2 = get_tree().get_first_node_in_group("game")
 		if game2 != null:
-			game2.spawn_impact_fx(global_position + Vector2(0, 26), true)
+			game2.spawn_impact_fx(global_position + Vector2(0, 31), true)
 	var game3 = get_tree().get_first_node_in_group("game")
 	if game3 != null and position.y > game3.map_size.y + 200.0:
 		_respawn()
@@ -974,14 +1399,31 @@ func _update_anim() -> void:
 
 func _update_remote_anim() -> void:
 	# Remote players: pick the animation from the synced state.
+	# QA-073: jetpack / firing / airborne now come from the snapshot
+	# flags ("jet" / "fire" / "air"), not from guessing. The old
+	# jetpack guess (velocity.y < -380 and fuel < FUEL_MAX) is gone:
+	# a fast fall with a full tank read as a jump, and a jetpack
+	# climb at full fuel after a pickup read as neither. A remote
+	# player that is firing shows "shoot" (it never could before —
+	# firing was not in the payload at all); reloading suppresses
+	# the shoot pose, as it does locally.
 	if not alive:
 		_play_anim("die")
 		return
-	if not is_on_floor():
+	if _remote_jetpacking:
+		_play_anim("jetpack")
+		_sprite.speed_scale = 1.0
+		return
+	if _remote_airborne:
 		if velocity.y < -50.0:
-			_play_anim("jetpack" if velocity.y < -380.0 and fuel < FUEL_MAX else "jump")
+			_play_anim("jump")
 		elif velocity.y > 50.0:
 			_play_anim("fall")
+		_sprite.speed_scale = 1.0
+		return
+	if _remote_firing and not _remote_reloading:
+		_play_anim("shoot")
+		_sprite.speed_scale = 1.0
 		return
 	if absf(velocity.x) > 25.0:
 		_play_anim("run")
@@ -1012,7 +1454,7 @@ func _fire() -> void:
 	mag_ammo -= 1
 	weapon_state = WeaponState.FIRING
 	var dir := Vector2(cos(aim_angle), sin(aim_angle))
-	var muzzle := global_position + Vector2(8 * facing, 5) + dir * (GUN_LENGTH + 6.0)
+	var muzzle := global_position + Vector2(10 * facing, 6) + dir * (GUN_LENGTH + 6.0)
 	# Recoil accumulation (GAP-40, spec §16): R_n = R_0 + n*K; the
 	# accumulated spread widens the group and the gun kick grows.
 	_recoil_accum += float(w.get("recoil_k", 0.06))
@@ -1048,9 +1490,16 @@ func _fire() -> void:
 	_show_muzzle()
 	# Weapon feel: velocity kick opposite the shot, camera shake for
 	# the heavy weapons, and a visible gun kick (grows with _recoil_accum).
+	# QA-075: the kick now scales with the weapon (was a flat 1.0 for
+	# every gun, so the rifle kicked as hard as the shotgun): the
+	# base is the table recoil / 220 (shotgun 1.0, sniper 0.8, rocket
+	# 1.2, rifle 0.14, SMG 0.07, pistol 0.09), plus the accumulated
+	# recoil from sustained fire. The kick is visual + the velocity
+	# impulse above; it never moves the aim (QA-061: the rifle stays
+	# straight however long the trigger is held).
 	velocity -= dir * float(w.get("recoil", 0.0))
 	add_shake(float(w.get("shake", 0.0)))
-	_gun_kick = 1.0 + _recoil_accum
+	_gun_kick = float(w.get("recoil", 0.0)) / 220.0 + _recoil_accum
 	if mag_ammo <= 0:
 		_start_reload()
 
@@ -1076,14 +1525,23 @@ func reload_progress() -> float:
 
 
 # v3.5 QA-062: the grenade button's loading fill reads this.
+# QA-075: the muzzle flash is per-weapon now (was one fixed 1.2x
+# sprite for 0.05 s on every gun): heavy weapons flash bigger and
+# longer (shotgun 1.6x / 0.08 s, sniper 1.8x / 0.08 s, rocket 2.0x /
+# 0.08 s; rifle 1.2x / 0.05 s, pistol 1.0x / 0.05 s), with a random
+# rotation and a little scale jitter so a held trigger does not
+# strobe the identical sprite. The flash is driven by _muzzle_timer
+# (decremented in _update_visuals) instead of one scene-tree timer
+# per shot — at 8 shots/s the old code stacked a timer per shot.
+# _muzzle_flashes counts every flash for the fire test.
 func _show_muzzle() -> void:
-	_muzzle.visible = true
-	_muzzle.scale = Vector2(1.2, 1.2)
-	get_tree().create_timer(0.05).timeout.connect(_hide_muzzle)
-
-
-func _hide_muzzle() -> void:
-	_muzzle.visible = false
+	var w: Dictionary = WEAPONS[weapon]
+	_muzzle_flashes += 1
+	if _muzzle != null:
+		var fscale: float = float(w.get("flash", 1.2)) * randf_range(0.9, 1.1)
+		_muzzle.scale = Vector2(fscale, fscale)
+		_muzzle.rotation = randf() * TAU
+	_muzzle_timer = float(w.get("flash_t", 0.05))
 
 
 func _start_reload() -> void:
@@ -1112,9 +1570,26 @@ func switch_weapon() -> void:
 	var owned: Array = owned_weapons()
 	var idx := owned.find(weapon)
 	var next_w: int = owned[(idx + 1) % owned.size()]
+	# QA-075: switching weapons no longer refills the magazine.
+	# The old code set mag_ammo to the new weapon's full mag on
+	# every switch, so switching away and back refilled the rifle
+	# for free. Each weapon's mag is now remembered across switches
+	# (full on pickup / respawn) and restored on switch-back.
+	_mag_memory[weapon] = mag_ammo
+	# QA-075: a reload in progress loses its reserved ammo if the
+	# player switches mid-reload — _start_reload already deducted
+	# it from the reserve into _reload_transfer, and the old code
+	# just dropped the transfer. Refund it before changing weapon.
+	_refund_reload()
 	weapon = next_w
-	mag_ammo = int(WEAPONS[weapon]["mag"])
+	mag_ammo = int(_mag_memory.get(next_w, int(WEAPONS[next_w]["mag"])))
 	reloading = false
+	weapon_state = WeaponState.READY
+	# QA-075: the gun dips briefly on switch (visual only — firing
+	# is never blocked; SWITCH-WHILE-FIRING still shoots straight
+	# through the switch). Remote copies dip too (see
+	# receive_move_snapshot).
+	_switch_dip_timer = 0.15
 	# v3.2: a pending semi-auto flick belongs to the old weapon — drop
 	# it so switching cannot fire a shot nobody asked for.
 	var game_sw = get_tree().get_first_node_in_group("game")
@@ -1122,6 +1597,22 @@ func switch_weapon() -> void:
 		game_sw.consume_aim_fire_edge()
 	_update_gun_texture()
 	_play_sound("click")
+
+
+# QA-075: magazine memory + reload refund (see switch_weapon).
+func _reset_mag_memory() -> void:
+	_mag_memory.clear()
+	for id in WEAPONS.keys():
+		_mag_memory[id] = int((WEAPONS[id] as Dictionary).get("mag", 30))
+
+
+func _refund_reload() -> void:
+	if _reload_transfer > 0:
+		var res: int = int(_reserve.get(weapon, -1))
+		if res >= 0:
+			_reserve[weapon] = res + _reload_transfer
+		_reload_transfer = 0
+	_reload_timer = 0.0
 
 
 func owned_weapons() -> Array:
@@ -1147,7 +1638,7 @@ func throw_grenade() -> void:
 	var dir := Vector2(cos(aim_angle), sin(aim_angle))
 	if not _aiming:
 		dir = Vector2(facing, -0.4).normalized()
-	rpc("spawn_grenade", global_position + Vector2(0, -6), dir, peer_id)
+	rpc("spawn_grenade", global_position + Vector2(0, -7), dir, peer_id)
 	_play_sound("click")
 
 
@@ -1245,7 +1736,13 @@ static func calculate_damage(base: int, region: String, distance: float, weapon_
 		var max_range := float(w.get("speed", 900.0)) * float(w.get("life", 1.0))
 		if max_range > PhysicsConfig.DAMAGE_FALLOFF_START:
 			var f := clampf((distance - PhysicsConfig.DAMAGE_FALLOFF_START) / (max_range - PhysicsConfig.DAMAGE_FALLOFF_START), 0.0, 1.0)
-			m_dist = lerpf(1.0, PhysicsConfig.DAMAGE_FALLOFF_MIN, f)
+			# QA-075: the falloff floor is per-weapon now (was a
+			# flat 0.7x for every gun): the sniper keeps 0.9x at
+			# max range, the shotgun drops to 0.5x, the SMG to
+			# 0.6x, the pistol to 0.65x. Close-range damage is
+			# unchanged (falloff only starts past 400 px).
+			var falloff_min: float = float(w.get("falloff_min", PhysicsConfig.DAMAGE_FALLOFF_MIN))
+			m_dist = lerpf(1.0, falloff_min, f)
 	var m_weapon: float = float(WeaponData.get_weapon(weapon_id).get("damage_mult", 1.0))
 	return int(round(float(base) * m_region * m_dist * m_weapon))
 
@@ -1273,6 +1770,10 @@ func _apply_damage(amount: int, from_id: int, dir: Vector2, knockback: float, ev
 		_dying_timer = 0.4
 		deaths += 1
 		_respawn_timer = 3.0
+		# QA-069: a death is a score change — force a snapshot at
+		# once so every peer's scoreboard sees it now, not on the
+		# next 30/s tick (same treatment respawn already gets).
+		_send_move_snapshot(true)
 		_collision_shape.set_deferred("disabled", true)
 		_anim_locked = true
 		_play_anim("die")
@@ -1330,6 +1831,10 @@ func add_kill() -> void:
 	if sender != 0 and sender != 1:
 		return
 	kills += 1
+	# QA-069: a kill is a score change — force a snapshot at once
+	# so every peer's scoreboard sees it now, not on the next 30/s
+	# tick. Offline / no peers, _send_move_snapshot is a no-op.
+	_send_move_snapshot(true)
 	_play_sound("pickup")
 
 
@@ -1372,8 +1877,13 @@ func give_pickup(kind: int) -> void:
 	if kind >= 1 and kind <= 4:
 		if not _owned_extra.has(kind):
 			_owned_extra.append(kind)
+		# QA-075: picking up a weapon while reloading the old one
+		# must not eat the pending reload's ammo (same refund as
+		# switch_weapon — the transfer is returned to the reserve).
+		_refund_reload()
 		weapon = kind
 		mag_ammo = int(WEAPONS[kind]["mag"])
+		_mag_memory[kind] = mag_ammo
 		_reserve[kind] = int(RESERVE_DEFAULT.get(kind, 0))
 		reloading = false
 		weapon_state = WeaponState.READY
@@ -1418,11 +1928,17 @@ func _respawn() -> void:
 	weapon = 0
 	_owned_extra.clear()
 	_reserve = RESERVE_DEFAULT.duplicate()
+	_reset_mag_memory() # QA-075: respawn refills every remembered mag
 	mag_ammo = int(WEAPONS[0]["mag"])
 	reloading = false
 	weapon_state = WeaponState.READY
 	_reload_transfer = 0
+	_reload_timer = 0.0
 	_recoil_accum = 0.0
+	_jet_ramp_t = 0.0 # QA-074: no thrust carries over a respawn
+	_jet_thrust_factor = 0.0
+	_muzzle_timer = 0.0 # QA-075: no flash carries over a respawn
+	_switch_dip_timer = 0.0
 	_anim_locked = false
 	_fast_fall = false
 	_stick_up_prev = false
@@ -1455,22 +1971,43 @@ func _respawn() -> void:
 func _update_visuals(delta: float) -> void:
 	if _sprite == null:
 		return
-	_sprite.scale.x = float(facing)
+	# QA-075: the muzzle flash and the switch dip are timers, not
+	# scene-tree timers — they tick down here every render frame,
+	# for the local player and for remote copies alike.
+	_muzzle_timer = maxf(0.0, _muzzle_timer - delta)
+	_switch_dip_timer = maxf(0.0, _switch_dip_timer - delta)
+	if _muzzle != null:
+		_muzzle.visible = alive and _muzzle_timer > 0.0
+	# QA-071b: keep the 1.20x sprite scale; only flip x for facing.
+	_sprite.scale = Vector2(PLAYER_SCALE * float(facing), PLAYER_SCALE)
 	# Gun follows the aim angle exactly; flips upright when aiming left.
-	_gun.rotation = aim_angle
+	# (Rotation is set below together with the reload/switch dip.)
 	_gun.scale = Vector2(_gun_base_scale, _gun_base_scale * (-1.0 if cos(aim_angle) < 0.0 else 1.0))
 	# Gun kick: the barrel jumps back along the aim direction right
 	# after a shot and settles back (decays in _physics_process).
-	var kick := Vector2(cos(aim_angle), sin(aim_angle)) * _gun_kick * 7.0
-	_gun.position = Vector2(8 * facing, 5) - kick
+	# QA-075: the gun also dips while reloading (5 px) and briefly
+	# after a weapon switch (6 px, fading over 0.15 s) — visual
+	# only, it never blocks firing or aiming. The dip tilts the gun
+	# down a touch so the lower-raise reads as a motion, not a snap.
+	var kick := Vector2(cos(aim_angle), sin(aim_angle)) * _gun_kick * 8.4
+	var dip := 0.0
+	if reloading:
+		dip = 5.0
+	if _switch_dip_timer > 0.0:
+		dip = maxf(dip, 6.0 * (_switch_dip_timer / 0.15))
+	_gun.position = Vector2(10 * facing, 6) - kick + Vector2(0, dip)
+	_gun.rotation = aim_angle + dip * 0.008
 	# Jetpack flame (GAP-06, spec §5): tied to the REAL thrust state,
 	# never to the animation name. Off = hidden, thrusting = visible
 	# with length by thrust, low fuel = blink, empty/descending = gone.
+	# QA-074: the length also follows the thrust ramp
+	# (_jet_thrust_factor), so the flame grows as the jetpack spools
+	# up instead of appearing at full length on the first frame.
 	if _flame != null:
 		var thrusting := _jetpacking and fuel > 0.0
 		_flame.visible = thrusting and alive
 		if thrusting:
-			var frac := 0.6 + 0.6 * clampf(absf(velocity.y) / MAX_JET_RISE, 0.0, 1.0)
+			var frac := (0.6 + 0.6 * clampf(absf(velocity.y) / MAX_JET_RISE, 0.0, 1.0)) * (0.7 + 0.3 * _jet_thrust_factor)
 			_flame.scale = Vector2(1.0 + 0.15 * sin(Time.get_ticks_msec() / 40.0), frac)
 			if fuel < PhysicsConfig.FUEL_LOW_WARN:
 				_flame.modulate = Color(1.0, 0.4, 0.1, 0.5 + 0.5 * sin(Time.get_ticks_msec() / 60.0))
@@ -1485,6 +2022,13 @@ func _update_visuals(delta: float) -> void:
 	_helmet_sprite.visible = alive
 	_ring.visible = alive
 	_name_label.visible = alive
+	# QA-071: keep the label in sync if the name/colour was set after
+	# _ready (remote joins set fields before add_child, so this is
+	# normally a no-op — it only guards the late-assignment case).
+	if _name_label.text != player_name:
+		_name_label.text = player_name
+	if _name_label.get_theme_color("font_color") != player_color:
+		_name_label.add_theme_color_override("font_color", player_color)
 	_hp_bg.visible = alive
 	_hp_fg.visible = alive
 	if _hit_flash_timer > 0.0:
@@ -1497,7 +2041,7 @@ func _update_visuals(delta: float) -> void:
 		_sprite.modulate = Color(1, 1, 1, 0.55 + 0.35 * sin(Time.get_ticks_msec() / 90.0))
 	else:
 		_sprite.modulate = Color.WHITE
-	_hp_fg.size.x = 44.0 * clampf(float(health) / 100.0, 0.0, 1.0)
+	_hp_fg.size.x = 53.0 * clampf(float(health) / 100.0, 0.0, 1.0)
 	_hp_fg.color = Color(0.3, 0.9, 0.3) if health > 30 else Color(0.9, 0.25, 0.2)
 	# Team colour ring tint.
 	if team == 0:

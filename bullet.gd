@@ -40,6 +40,14 @@ var _life: float = 1.4
 var _trail: Line2D
 var _visual: Polygon2D
 var _dead: bool = false
+# QA-075: bullet trail length / width by weapon (was a fixed 21 px
+# tail, 2.4 wide, on every gun). The pistol keeps exactly 21.0 /
+# 2.4 — the fire test asserts those numbers. Faster, heavier rounds
+# read longer and wider: the sniper's trail is the longest, the
+# rocket's the widest. Visual only; the hitbox is the swept ray.
+var _trail_len: float = 21.0
+const TRAIL_LEN := {0: 33.0, 1: 30.0, 2: 26.0, 3: 48.0, 4: 40.0, 5: 21.0}
+const TRAIL_WIDTH := {0: 2.4, 1: 2.4, 2: 2.8, 3: 3.2, 4: 4.0, 5: 2.4}
 
 
 func _ready() -> void:
@@ -115,6 +123,8 @@ func _apply_visual() -> void:
 	_visual.color = col
 	if _trail != null:
 		_trail.default_color = Color(col.r, col.g, col.b, 0.5)
+		_trail.width = float(TRAIL_WIDTH.get(kind, 2.4))
+		_trail_len = float(TRAIL_LEN.get(kind, 21.0))
 
 
 func _despawn() -> void:
@@ -142,15 +152,13 @@ func _physics_process(delta: float) -> void:
 	var to := from + step
 	rotation = velocity.angle()
 	# Swept test: ray from where we were to where we are going.
-	var space := get_world_2d().direct_space_state
-	var query := PhysicsRayQueryParameters2D.create(from, to, 3) # mask 3: world(1) + players(2)
-	# QA-055: a bullet whose muzzle starts INSIDE solid geometry
-	# (player flush against a wall, aiming into it) used to fly
-	# straight through the wall — a ray that starts inside a shape
-	# reports no hit by default. Hit-from-inside makes it impact at
-	# once, like a bullet fired point-blank into a wall should.
-	query.hit_from_inside = true
-	var hit: Dictionary = space.intersect_ray(query)
+	# QA-075: _sweep_hit runs the centre ray first (the QA-055
+	# hit-from-inside behaviour, unchanged), then two graze rays
+	# offset +/-2.5 px — the bullet visual is 4.8 px wide, so a
+	# shot whose edge clips a player or a wall used to miss on a
+	# zero-width ray. A graze hit is handled exactly like a centre
+	# hit below; a centre hit always wins over a graze.
+	var hit: Dictionary = _sweep_hit(from, to)
 	if not hit.is_empty():
 		var collider: Object = hit["collider"]
 		var hit_pos: Vector2 = hit["position"]
@@ -191,8 +199,43 @@ func _update_trail(from: Vector2, to: Vector2) -> void:
 		return
 	# QA-056: tail 21 px behind the tip (was 26) — 80%, matching the
 	# smaller bullet so the trail still ends at the bullet's tail.
-	_trail.set_point_position(0, to_local(from - direction * 21.0))
+	# QA-075: the length is per-weapon now (_trail_len: pistol 21,
+	# sniper 48); the pistol value is unchanged, so the fire test's
+	# bullet-size numbers still hold.
+	_trail.set_point_position(0, to_local(from - direction * _trail_len))
 	_trail.set_point_position(1, to_local(to))
+
+
+# QA-075: the swept collision, centre ray first, graze rays second.
+# The centre ray is the QA-055 ray exactly (mask 3: world + players,
+# hit_from_inside so a muzzle inside geometry impacts at once). Only
+# when it misses do the two offset rays run — a graze can only ADD
+# a hit the centre ray missed, never take one away, so every
+# existing bullet test (inside-geometry, single bullet, 7 pellets,
+# rifle straight, repl-sim bullet track) reads the same path.
+func _sweep_hit(from: Vector2, to: Vector2) -> Dictionary:
+	var space := get_world_2d().direct_space_state
+	var query := PhysicsRayQueryParameters2D.create(from, to, 3)
+	query.hit_from_inside = true
+	var hit: Dictionary = space.intersect_ray(query)
+	if not hit.is_empty():
+		return hit
+	var step := to - from
+	if step.length() < 0.5:
+		return hit
+	var perp := step.normalized().orthogonal() * 2.5
+	var best := hit
+	var best_d := INF
+	for off in [perp, -perp]:
+		var q2 := PhysicsRayQueryParameters2D.create(from + off, to + off, 3)
+		q2.hit_from_inside = true
+		var h2: Dictionary = space.intersect_ray(q2)
+		if not h2.is_empty():
+			var d2 := (h2["position"] as Vector2).distance_to(from)
+			if d2 < best_d:
+				best = h2
+				best_d = d2
+	return best
 
 
 func _impact(hit_pos: Vector2) -> void:
@@ -245,7 +288,17 @@ func _hit_player(p: Node, hit_pos: Vector2) -> void:
 			# The kill is credited here, by the host, when its own hit
 			# is lethal (victim's replicated health minus this damage).
 			# The victim's peer never awards kills any more.
-			var lethal := int(p.health) - final_dmg <= 0
+			# QA-069: credit ONLY if the host's copy still shows the
+			# victim alive and unprotected. The host predicts
+			# lethality from replicated health, but the victim's
+			# _apply_damage can still refuse the hit (already dead,
+			# spawn protection — its timer is now synced in the
+			# snapshots, QA-068 "prot"), and a credit for a refused
+			# hit is a phantom kill: the shooter gains a kill and
+			# the feed announces a death that never happened. The
+			# QA-031 lock still covers the same-moment double-hit
+			# case; this guard covers the stale-copy case.
+			var lethal: bool = int(p.health) - final_dmg <= 0 and p.alive and p._spawn_protect_timer <= 0.0
 			if p.get_multiplayer_authority() == multiplayer.get_unique_id():
 				p.take_hit(final_dmg, owner_id, kb_dir, kb, event_id)
 			elif multiplayer.get_peers().has(p.get_multiplayer_authority()):

@@ -19,6 +19,25 @@ extends RefCounted
 # (spec 25/s = 4 s of thrust would change every map's vertical
 # balance); refill 70/s ground / 35/s air KEPT-ish (spec 15/s = 6.7 s
 # to refill is far too slow) with the new 0.6 s regen delay (GAP-05).
+# QA-074 (v3.6 phase 3, §5 — user: jetpack speed excessively high):
+# max rise 450 -> 320 (-29%, the top flying speed itself); thrust
+# 1900 -> 1650 (net climb accel 500 -> 250 px/s^2, gravity still
+# applies while thrusting); thrust now RAMPS (0.75 -> 1.0 over 0.35 s)
+# instead of instant full force, so the climb spools up smoothly;
+# air accel while jetpacking 1900 (was the plain air 1500) with NO
+# reversal bonus (1.0x, was 1.2x) so direction changes in flight are
+# smooth, not snappy. Drain 45/s KEPT on purpose: 2.2 s of thrust
+# per tank already, and a slower drain would push the 4 s hold-up
+# landing in the joystick test past its window and lengthen total
+# flight — the speed complaint is fixed by cap + thrust + ramp, not
+# by more airtime. Regen 70/35 -> 50/25 per s and delay 0.6 -> 0.5 s:
+# a full tank now takes 2.0 s on the ground (was 1.4 s) and 4.0 s in
+# the air (was 2.9 s), so fuel is a real budget instead of a refill
+# you never notice. Release behaviour is unchanged (full gravity
+# resumes, momentum kept, spec §5) — the shorter post-release rise
+# comes from the lower cap; P25b proves the player is falling again
+# 0.5 s after release. The 320 px/s cap still clears the 320 px
+# map-reachability gaps (game.gd _ct_map_reachable) with fuel to spare.
 # Player-to-player (§14): the spec's recommended default — bodies pass
 # through each other, bullets/explosions still hit.
 
@@ -40,24 +59,37 @@ const JUMP_CUT := 0.45 # variable jump height: release while rising cuts vy
 const AIR_CONTROL := 0.65
 
 # --- Jetpack (spec §5, §24.B) ---
-const JET_ACCEL := 1900.0
-const MAX_JET_RISE := 450.0
+# QA-074: values below are the retuned ones; the old values are in
+# the header comment above and in BUGS.md QA-074. player.gd mirrors
+# these consts for the hot path — change both files together.
+const JET_ACCEL := 1650.0
+const MAX_JET_RISE := 320.0
+const JET_RAMP_MIN := 0.75 # thrust starts at 75% and spools to full
+const JET_RAMP_TIME := 0.35 # seconds to spool from JET_RAMP_MIN to 1.0
+const JET_AIR_ACCEL := 1900.0 # horizontal accel while jetpacking (air 1500)
 const FUEL_MAX := 100.0
 const FUEL_DRAIN := 45.0
-const FUEL_REFILL_GROUND := 70.0
-const FUEL_REFILL_AIR := 35.0
-const FUEL_REGEN_DELAY := 0.6
+const FUEL_REFILL_GROUND := 50.0
+const FUEL_REFILL_AIR := 25.0
+const FUEL_REGEN_DELAY := 0.5
 const FUEL_LOW_WARN := 25.0
 
 # --- Hit regions (spec §17.3) ---
 # Arms fold into torso: a single capsule cannot distinguish arms, so
 # the documented deviation is head 1.5 / torso 1.0 / legs 0.75.
 const REGION_MULT := {"head": 1.5, "torso": 1.0, "legs": 0.75, "arms": 0.85}
-const HIT_HEAD_Y := -14.0 # rel_y < -14 (from player centre) = head
-const HIT_LEGS_Y := 12.0 # rel_y > 12 = legs, else torso
+# QA-071b: hit-region boundaries scale with the 1.20x player (was
+# -14 / +12 for the 52-tall capsule; now -17 / +14 for the 62-tall
+# capsule, so head/torso/legs keep the same proportions).
+const HIT_HEAD_Y := -17.0 # QA-071b: rel_y < -17 (from player centre) = head (was -14, 62-tall capsule)
+const HIT_LEGS_Y := 14.0 # QA-071b: rel_y > 14 = legs, else torso (was 12, 62-tall capsule)
 
 # --- Damage falloff (spec §17.2) ---
 const DAMAGE_FALLOFF_START := 400.0 # full damage inside this range
+# QA-075: the default floor at max range; each weapon overrides it
+# with its own "falloff_min" in weapons.gd (sniper keeps 0.9x at
+# range, shotgun drops to 0.5x — a long-range weapon should not fade
+# like a close-range one). Weapons without the field use this.
 const DAMAGE_FALLOFF_MIN := 0.7 # at max weapon range
 
 # --- Explosions (spec §10) ---

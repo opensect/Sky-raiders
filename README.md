@@ -1,10 +1,190 @@
-# Frag Arena — v3.5
+# Frag Arena — v3.6
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi. (Renamed from "LAN Arena Shooter" in v3.5 —
 see QA-065 in BUGS.md; the package name `com.lanarena.shooter` is unchanged,
-so v3.5 installs over v3.4.)
+so v3.6 installs over v3.5.)
+
+## What's new in v3.6
+
+- **Multiplayer lag / movement sync — receiver rebuilt (QA-068).**
+  Remote players jittered, moved late, and jumped position on
+  same-Wi-Fi play. The channel was fine (RPC snapshots at 30/s);
+  the receiver was rebuilding motion from packet ARRIVAL times,
+  so Wi-Fi jitter became spacing jitter, and a short loss burst
+  froze the remote player and then jumped it forward. Snapshots
+  now carry the sender's clock, the receiver interpolates on the
+  sender's timeline, gaps dead-reckon forward on velocity (150 ms
+  cap), and each physics frame clamps the copy's step so a delayed
+  packet glides instead of teleporting. Repl-sim 33/33 at the time
+  (both directions smooth, snap-back 0.0 px; 2 s burst-delivery
+  check: max step 336–618 px/s, snap-back 0.0–2.1 px); the final
+  v3.6 run is 48/48. **Still sim-only until you verify on two real
+  phones** — same two-phone check as before, step 4 below.
+- **Kill / death / respawn chain fixed (QA-069).** Dead players
+  on the OTHER phone kept standing (their copy never played the
+  death pose) — fixed. A kill could be credited for a victim who
+  did not die (spawn protection, already dead, or a lava death
+  re-credited by a stale bullet) — the host now credits only a
+  victim it still sees alive and unprotected, and the death
+  watcher locks uncredited deaths too. Kills and deaths now
+  force-send a snapshot at once, so every peer's scoreboard
+  updates immediately. New repl-sim kill chain: one lethal hit =
+  one death, one kill, one feed line; second life credits a
+  second kill; lava death credits nobody; final scores identical
+  on both peers.
+- **Movement sync deepened (QA-073).** The QA-068 receiver is now
+  audited against the full 7-point sync spec. What changed: the
+  interpolation delay adapts to Wi-Fi quality (80–250 ms instead
+  of a fixed 100 ms); snapshots now carry the player ID plus
+  jetpack, firing, reload and airborne state, so a remote player
+  shows its jetpack and firing truthfully instead of being
+  guessed; the local player keeps a prediction history and
+  reconciles against authoritative corrections from the host
+  (small errors blend in, big ones snap); and there is a dev-only
+  network-stats panel — hidden in normal play, shown with
+  `--net-stats` or the F3 key — with ping, packet loss,
+  snapshots/s, buffer size, interpolation delay, extrapolation
+  time and local vs authoritative position, for debugging Wi-Fi
+  problems on real phones. Same 30/s snapshot rate, same RPC
+  channel, same host-authoritative combat. New repl-sim checks:
+  chaos delivery (lost + delayed + duplicated + out-of-order
+  packets), prediction/reconciliation, net-stats display — 46/46
+  at the time, 48/48 in the final v3.6 run.
+  **Still sim-only until you verify on two real phones.**
+- **Jetpack rebalanced (QA-074).** The jetpack was too fast. It
+  now climbs at 320 px/s (was 450), the thrust is gentler, and it
+  spools up smoothly over a third of a second instead of kicking
+  in at full force. Steering in the air is better, and changing
+  direction while flying is smoother. Fuel still drains at the
+  same rate while you fly, but it refills more slowly (2 s for a
+  full tank on the ground, 4 s in the air), so fuel is a real
+  budget. Letting go still drops you naturally — momentum is
+  kept, gravity does the work. The fuel bar is unchanged.
+- **Shooting feels better (QA-075).** Same guns, same damage up
+  close, same host-authoritative hits — but shots whose edge
+  clips a player or a wall now register, the muzzle flash is
+  bigger on heavy weapons and shows on the other phone too,
+  bullets leave a longer trail on fast guns, the gun kicks
+  harder on the shotgun/sniper/rocket than on the rifle, the gun
+  dips when you switch or reload, and switching weapons no
+  longer refills your magazine for free (each gun remembers its
+  own mag). Two real fixes: switching or picking up a weapon
+  mid-reload no longer eats the ammo. At long range the sniper
+  now keeps most of its damage while the shotgun fades faster.
+- **Grenade, reload and weapon-switch buttons are SIMPLE now
+  (QA-070).** Plain flat buttons with a clear text label
+  (GRENADE / RELOAD / WEAPON) — no fancy styling, no rings, no
+  badges, no icons. Same column, same 72 px targets, same
+  behaviour. This extends the v3.5 "just have plain buttons" rule
+  to the weapon-switch button.
+- **Compact top-right in-game menu (QA-067).** The old stats panel
+  (284x268 px) blocked the screen. Only two small icon buttons live
+  in the corner now (SCORE + pause) with the stats hidden behind
+  SCORE; weapon, ammo and grenades stay visible as one slim line
+  under them. QA-079 later put kills/deaths back as one slim line
+  under the centre timer.
+- **What was deliberately NOT built (QA-081).** A 7th weapon (no
+  role gap, no spare weapon art, needs a new pickup kind plumbed
+  through five files); friends list / invites beyond the room
+  code / in-game chat / XP / match history / leaderboards (all
+  need an account or a server, which LAN-only play has by design —
+  the room code is the LAN-local way to invite a friend); quick
+  chat (new input surface, no test harness for it; the kill feed
+  already carries match events). Full reasons in BUGS.md QA-081.
+- **Final verification (2026-11-19, fresh full run on the shipped
+  code).** Repl-sim 48/48, joystick 26/26, fire 32/32, scale
+  70/70, physics 34/34 (maps 0/6/10/12) + 25/25 (Frozen ice,
+  map 4), features 15/15, net 15/15, menu-net 8/8, full flow,
+  restart 8/8, scroll 9/9 at 1280x720 and 2400x1080, collision
+  8/8 on all 13 maps, smoke on all 13 maps, 0 script errors in
+  every log. Two honest blemishes, both carried from v3.5 and
+  unchanged: City Underground (map 7) physics still fails
+  P07a/P07b (the jump-test spot sits under a low platform — 45 px
+  apex vs ~155; the same ceiling also blocks the bounce-pad and
+  jetpack checks there), and the joystick suite needed a second
+  run once (DIAG-UP-RIGHT read vel.y +10 at the apex boundary)
+  and physics map 10 once (P02 air-accel ratio 1.23 vs 1.3) —
+  both passed 26/26 and 34/34 on two re-runs each, both are the
+  known load-marginal wall-clock family, no threshold was loosened.
+  Screenshots re-captured from the shipped code (26 files,
+  `~/workspace/mini-militia-lan-v36-proof/`). Two-phone LAN play
+  still needs your two real phones to prove — see BUGS.md.
+
+## What's new in v3.6 — Lobby, HUD and Capture the Flag (phase 4)
+
+- **Capture the Flag is a new mode (QA-080).** Pick it in the
+  lobby like any other mode. Two team flags sit at the two bases
+  (RED left, BLUE right). Steal the enemy flag by walking over
+  it, carry it home while your own flag is home, and your team
+  scores — first to the capture limit wins (the lobby's kill
+  limit is the capture limit in this mode). Die while carrying
+  and the flag drops where you fell; a teammate walking over a
+  dropped flag carries it home. The HUD shows captures, the
+  scoreboard and end screen show who captured, and the carrier
+  sees "You have the enemy flag — run it home!". Host-authoritative
+  like everything else. **Sim-tested only so far — a real steal /
+  drop / capture still needs two real phones.**
+- **Your profile is on the main menu now (QA-078).** Avatar,
+  name, level (1 level per 50 lifetime kills) and lifetime
+  stats — matches, wins, kills, deaths, K/D. All local to your
+  phone, no account, no server.
+- **Join by room code (QA-078).** The lobby shows a room code
+  (FRAG-1234) next to the host IP. A friend types the code
+  instead of the IP — same Wi-Fi only, no server. Private rooms
+  still need their password.
+- **Pick your team in the lobby (QA-078).** RED / BLUE / AUTO
+  buttons, for Team Deathmatch and Capture the Flag. The host
+  honours your pick unless that team is full (6), then it falls
+  back to auto. Your team shows on your player card.
+- **Change your look without leaving the room (QA-078).**
+  Colour and helmet can now be changed in the lobby, and every
+  phone in the room sees the change at once.
+- **HUD reads at a glance (QA-079).** Kills and deaths are back
+  on screen as one slim "K 3 • D 1" line under the score (they
+  were hidden behind SCORE since the compact top-right menu).
+  The HP bar turns amber then red as health drops, the fuel bar
+  goes amber when nearly empty, the ammo line turns red on a
+  nearly-empty magazine, and the GRENADE button shows its own
+  count. The sticks and buttons did not move.
+- **Create Room and lobby pages, redesigned (QA-076/077).**
+  The create form is one designed card with real labels above
+  every field, a big max-players row and a proper Private switch
+  (password masked); the lobby has a header + stat strip across
+  the top, players first in the left column, and bigger map cards
+  on the right. Same buttons, same behaviour — only the layout
+  changed.
+
+## What's new in v3.6 — Bigger players and complete battlefields (phase 2)
+
+- **Players are modestly bigger and easier to see (QA-071).** The
+  characters were too small on a phone screen. They are now ~20%
+  taller (capsule 34x52 -> 40x62, soldier sprite 64 -> 77 px on
+  screen) — noticeably easier to see, still proportional, still
+  fits the maps and platforms. NOT a giant character: the first
+  attempt at 1.30x was too big and the user corrected it ("bigger
+  player means not big player"), so it was redone to 1.20x.
+  Weapons, jetpack flame, team ring, name label and HP bar all
+  scaled to match; hit regions rescaled (head -17, legs +14);
+  movement speeds, jump, gravity and fuel unchanged.
+- **Player names are bigger above characters (QA-071).** Names
+  were already shown above every character; they are now larger
+  (22 pt) and easier to read, with a bigger HP bar underneath.
+- **All 13 maps are complete battlefields now (QA-072).** They
+  used to read as simple horizontal dashes and disconnected
+  platforms. Every map now has connected walkways, bridges and
+  steps, multiple floors and elevation levels, large ground
+  structures (columns, crates, barrels, sandbags, shrines,
+  towers), walls and bunkers, hidden spots and strategic
+  positions — 39 new platforms and 26 new solid structures
+  across the 13 maps. Each map keeps its own theme, layout and
+  colours (Desert stays desert, Jungle stays jungle, Frozen
+  stays snow, City stays underground). Backgrounds gained a
+  midground skyline silhouette per map, and platforms have a
+  terrain skirt underneath. All spawns and pickups are still
+  reachable, and a no-stuck audit of all 13 maps comes back
+  0 trap gaps / 0 tight gaps.
 
 ## What's new in v3.5 (crash fix + rifle straight + no more stuck + REAL lobby redesign + Frag Arena)
 
@@ -391,8 +571,8 @@ so v3.5 installs over v3.4.)
   sync (60 ticks/sec, 100 ms buffer), hit regions head 1.5× / torso
   1.0× / legs 0.75× / arms 0.85×, velocity inheritance 0.15, coyote
   0.10 s + jump buffer 0.12 s, fuel drain 45/s with regen delay, stuck
-  -player recovery. Verified by a 31-step physics harness on maps 0,
-  6, 10, 12 and 22 steps live on the Frozen Fortress ice (map 4).
+  -player recovery. Verified by a 34-check physics harness on maps 0,
+  6, 10, 12 and 25 checks live on the Frozen Fortress ice (map 4).
 - **All common game features (11/11):** kill feed, end-of-match stats
   (K/D, accuracy, best streak), real settings screen (sound/music
   volume, music on/off, joystick sensitivity, show FPS, invert aim —
@@ -403,7 +583,7 @@ so v3.5 installs over v3.4.)
   map vote (host's map + next two, live counts), health/grenade
   pickups, and spectator mode (Survival / Last Man Standing, NEXT
   PLAYER cycling). Modes: Deathmatch, Team Deathmatch, Survival,
-  Last Man Standing.
+  Last Man Standing, Capture the Flag (added in v3.6 phase 4).
 - **Music:** menu track (`menu_at_rest`) in menu/lobby/end screens and
   battle track (`battle_five_armies`) in matches, with a procedural
   loop as fallback; music on/off and volume in settings. Sky Brawl
@@ -851,9 +1031,11 @@ gradient, and Airship Fleet uses a warm sunset gradient.
   run at full speed. The character faces the direction you push and the
   run animation matches your speed. Release the stick to stop (no
   sliding) and the idle animation plays. **Push the stick up to jump;
-  hold it up in the air to fly with the jetpack.** The jetpack uses fuel
-  (blue bar); it refills when you stand on the ground. Push the stick
-  down while falling to drop faster.
+  hold it up in the air to fly with the jetpack.** The jetpack
+  climbs at a controlled speed and spools up smoothly — it is not
+  instant full power any more. It uses fuel (blue bar); fuel
+  refills on the ground (faster) and in the air (slower). Push the
+  stick down while falling to drop faster.
 - **Right stick** — aim AND shoot (QA-049, v3.2). Push the right
   stick in any direction (full 360°) to aim — the weapon points
   where the stick points and the character faces the aim direction —
