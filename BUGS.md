@@ -2841,6 +2841,164 @@ because the HUD still worked).
 the theme outline. Verified on the fresh HUD screenshot: the
 controls hint and "You are the HOST. Your IP: …" both show.
 
+## QA-051 — Movements not reflecting on the other phone (real-phone bug, v3.2)
+
+**Symptom (user-tested v3.2 on two real phones):** both players
+are visible on BOTH phones (QA-047 join fix holds), and a player
+moves on their own phone — but the other phone never sees the
+movement. The host's 2nd player stands frozen; the joiner's
+remote copy stands frozen too.
+
+**Root cause (proven by inspection, player.gd):** the
+`MultiplayerSynchronizer`'s OWN authority was never set.
+`_setup_sync()` created the synchronizer, added the properties
+and set `replication_interval`, but never called
+`_sync.set_multiplayer_authority(peer_id)`, never set `root_path`
+explicitly, and never set any property's replication mode
+explicitly. The only authority assignment in the file was on the
+player root (`_enter_tree`: `set_multiplayer_authority(int(name))`)
+— and a synchronizer does NOT inherit its parent's authority, so
+it effectively stayed the server (1) on every copy. A client's
+`sync_position` writes never left the client, and the host
+re-broadcast its stale spawn-point `sync_position` back. Local
+input → movement was fine (`_physics_process` local branch reads
+`game.touch_move_vec`, `_apply_movement()` → `move_and_slide()`,
+then `sync_position = position`); transport, permissions and
+signals were fine (spawn/list RPCs arrive on real phones). The
+old `--repl-sim-test` could not have caught this: one process,
+one `OfflineMultiplayerPeer`, payloads hand-delivered, and its
+SYNC-CHANNEL check only asserted the PLAYER's authority, never
+the synchronizer's.
+
+**Fix (player.gd `_setup_sync()` only — smallest correct change,
+no redesign to server-authoritative movement, no RPC position
+fallback):** `_sync.set_multiplayer_authority(peer_id)` (falling
+back to `get_multiplayer_authority()` if `peer_id` is 0 — it is
+always set before `add_child` by `_spawn_player_node`, so the
+fallback never fires in practice), `_sync.root_path =
+NodePath("..")` explicitly, and for every replicated property
+`cfg.property_set_replication_mode(NodePath(prop),
+SceneReplicationConfig.REPLICATION_MODE_ALWAYS)` plus
+`cfg.property_set_spawn(NodePath(prop), true)`. Two test hooks
+added to player.gd: `get_sync_authority()` and
+`get_sync_replication_mode(prop)`. The QA-047 join fix, UI,
+scroll fix and right-stick firing are untouched.
+
+**Test (`--repl-sim-test`, game.gd, steps 8–11 — 5 new checks,
+19 total):** SYNC-AUTHORITY (synchronizer authority 1/2/1/2
+across server p1/p2 + shadow p1/p2), SYNC-MODE
+(sync_position/sync_velocity == REPLICATION_MODE_ALWAYS on all 4
+copies), SYNC-CLIENT-TO-SERVER (shadow pid-2 moved +300 px,
+snapshot hand-delivered, server pid-2 copy moved 300 px),
+SYNC-HOST-WRITE (server pid-1 moved +300 px, its sync_position
+moved 356 px — the owner's write the synchronizer replicates;
+the extra 56 px is a short fall during the 0.6 s wait),
+SYNC-SERVER-TO-CLIENT (host snapshot hand-delivered, shadow
+pid-1 copy moved 356 px). **REPLSIM DONE: 19 passed, 0 failed**
+— the old 14 checks still pass. Honest limit of the sim: it can
+only hand-deliver sync_position payloads (no live ENet). One
+process also shares a single offline peer (unique id 1), so
+pid-1 is "local" on BOTH instances and its local branch would
+overwrite a delivered sync_position and never run the
+interpolation path; step 10 emulates a real client by overriding
+the shadow pid-1 copy's ROOT authority to 2 (the synchronizer
+config asserted above is untouched) so the remote branch runs.
+**Live ENet proof still needs the user's two real phones** —
+see README "Testing the join on two real phones", step 4.
+
+## QA-052 — Joysticks moved inward from the bottom corners (user-requested, v3.3)
+
+**Change (game.gd `_build_touch_controls()` only):** LEFT stick
+up and to the right, RIGHT stick left and up — a modest nudge of
+50 px each way at 1280x720 (anchor offsets, so it scales with the
+stretch at other resolutions). Old → new positions (150x150
+bases, 1280x720 canvas):
+
+| Stick | Old position | Old rect | New position | New rect |
+|---|---|---|---|---|
+| Move (bottom-left anchor) | (40, -190) | x 40–190, y 530–680 | (90, -240) | x 90–240, y 480–630 |
+| Aim (bottom-right anchor) | (-290, -190) | x 990–1140, y 530–680 | (-340, -240) | x 940–1090, y 480–630 |
+
+**Collision check:** the RELOAD / GRENADE / WEAPON column sits at
+x 810–920 (RELOAD y 380–440, GRENADE y 460–520, WEAPON y 540–600),
+so the aim stick's new left edge (x 940) still clears the column
+by 20 px; the move stick has nothing on the left side. The bottom
+hint label (y 656–680) clears both sticks' new bottom edge (y 630)
+by 26 px; pause/score buttons (top-right) are untouched. The
+layout check in the fire test (`_ft_layout_ok`: no two of the 7
+HUD controls overlap, all inside the viewport) passes at 1280x720
+and 1920x1080. Stick bases stay fixed, knobs move as before, and
+the touch conversion (`hud.get_final_transform()` + local space,
+QA-029) is unchanged, so the sticks track the finger exactly at
+the new positions.
+
+**Harness bug found by the move (test-only, not game code):** the
+joystick test's KNOB-CLAMP step pressed at move-centre + (500, 0).
+The move centre moved right to x=165, so +500 landed at x=665 —
+past the 640 screen-half line, where `_on_touch_press` routes to
+the AIM stick — and the move stick stayed idle (knob=0, vec=0).
+Fixed in the test: offset 500 → 400 (x=565, still far outside the
+60 px base radius, still on the left half).
+
+**Tests:** joystick 21/21 PASS (after the harness fix above),
+scale 70/70 PASS (all 5 resolutions), fire 26/26 PASS (layout
+checks at 1280/1920 included), full flow DONE, smoke DONE
+(players=1, local_alive=true, shots=23, bullets=160, fuel=100.0),
+0 script errors in every log. Screenshots verified by viewing:
+`~/workspace/mini-militia-lan-v33-proof/v33_hud.png`
+(1280x720) and `v33_hud_phone.png` (2400x1080) — both sticks sit
+inward with clear space around them, no overlap with the button
+column, hint or host-IP line. (The right-edge clipping of the
+"Assault Rifle 30/90" / "Grenades: 2" labels in the 2400x1080
+shot is pre-existing — identical in the v3.2 phone shot — and is
+not from this change.)
+
+## v3.3 full regression — previous bugs re-verified (2026-11-19)
+
+Full suite re-run from scratch on the shipped v3.3 code by the
+test/export worker (fresh logs `/tmp/v33_*.txt`, post-bump re-run
+`/tmp/v33b_*.txt`). All green, 0 script errors in every log.
+
+| Suite | Result |
+|---|---|
+| Joystick (QA-052) | 21/21 PASS |
+| Fire (right-stick suite, QA-049) | 26/26 PASS |
+| Scale (1280x720 / 2400x1080 / 1920x1080 / 800x480 / 2340x1080) | 70/70 PASS |
+| Physics (spec points 1–28, maps 0/6/10/12) | 31/31 PASS (see P02 note below) |
+| Physics (Frozen Fortress ice, map 4) | 22/22 PASS |
+| Features (11 common features) | 11/11 PASS |
+| Multiplayer (net test) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23–32 shots, bullets=160, fuel=100.0) |
+| Full flow (menu → create room → lobby → start → play → pause → scoreboard → end → back) | DONE |
+| Replication sim (QA-047 + QA-051) | 19/19 PASS (14 old + 5 new SYNC checks) |
+| Scroll 1280x720 (QA-048) | 8/8 PASS |
+| Scroll 2400x1080 genuine (QA-048) | 8/8 PASS (`--resolution 2400x1080` before `--`) |
+
+**P02-air-accel timing flake (test-only, not a game bug):** the
+first full-suite run scored physics 30/31 on maps 0 and 6 — only
+P02-air-accel failed (air 0.24 s vs ground 0.28 s on map 0;
+0.30 s vs 0.24 s on map 6; want air >1.3x ground). The check
+compares two wall-clock timings under llvmpipe, and both
+measurements carry fixed frame latency, so the 1.3x threshold
+sits near the noise floor when the ground time inflates
+(0.24–0.28 s vs a typical 0.19–0.20 s). No physics code changed
+in v3.3 (the fix touched only `_setup_sync` and the stick
+positions). Re-runs on the identical code: map 0 **31/31 three
+times in a row** (air 0.31/0.29/0.30 s vs ground 0.20/0.19/0.19 s)
+and map 6 **31/31** once. Recorded here so a future 30/31 on
+P02 alone is recognised as this flake, not a regression — re-run
+before touching physics.
+
+**Post-version-bump re-run** (after `BUILD_VERSION` 3.2 → 3.3,
+menu label v3.3, export preset code 11 / name 3.3 — display and
+version strings only): repl-sim 19/19, full flow DONE, physics
+map 0 31/31, 0 script errors. QA-047 join fix untouched and still
+green in the sim (its 14 checks are inside the 19 above).
+
+### Previous-bug regression table (QA-001…QA-052)
+
 ## v3.2 full regression — previous bugs re-verified (2026-11-19)
 
 Every suite re-run after the v3.2 changes (theme, scroll, controls,
@@ -2862,24 +3020,24 @@ QA-047 join fix). All green, 0 script errors in every log.
 | Scroll 1280x720 (QA-048) | 8/8 PASS |
 | Scroll 2400x1080 genuine (QA-048) | 8/8 PASS |
 
-### Previous-bug regression table (QA-001…QA-047)
+### Previous-bug regression table (QA-001…QA-052)
 
-| QA | Still fixed? | Evidence in v3.2 |
+| QA | Still fixed? | Evidence in v3.3 |
 |---|---|---|
 | QA-001 centred panels off-centre/clipped | Yes | Flow test DONE; screenshots: menu, lobby, pause, scoreboard, end all centred, no clipping |
-| QA-002 spawn protection | Yes | Physics 31/31; spawn-protection logic untouched by v3.2 (UI/input only) |
+| QA-002 spawn protection | Yes | Physics 31/31; spawn-protection logic untouched by v3.3 |
 | QA-003 animation freezes during reload | Yes | Smoke DONE (reload cycle runs, anim=idle); fire test RELOAD-COMPLETES |
-| QA-004 camera smoothing reset on respawn | Yes | Physics 31/31; camera code untouched by v3.2 |
+| QA-004 camera smoothing reset on respawn | Yes | Physics 31/31; camera code untouched by v3.3 |
 | QA-005 host's own game in its own room list | Yes | Menu-net 6/6; discovery code untouched |
-| QA-006 START MATCH double-tap | Yes | Flow test DONE (single start); lobby code untouched except styling |
+| QA-006 START MATCH double-tap | Yes | Flow test DONE (single start); lobby code untouched in v3.3 |
 | QA-007 HELMET_NAMES labels wrong | Yes | Customize screenshot verified; data untouched |
 | QA-008 menu background too dark | Yes | Menu screenshot: arena background + scrim, sky visible |
-| QA-009 script error on scene change while centring | Yes | 0 script errors across all 13 suite logs |
-| QA-010 rifle peeks out at straight up/down aim | Known artifact, unchanged | Documented as known in v3.1; not a fix target; no change in v3.2 |
-| QA-011 music restarts on every scene change | Known, not fixed | Documented; music code untouched in v3.2 |
-| QA-012 jetpack loop audible pulse | Known, not fixed | Documented; audio untouched in v3.2 |
-| QA-013 unused asset files shipped in APK | Known, not fixed | Documented; only arena_map_02.png newly imported in v3.2 |
-| QA-014 real two-phone LAN join untestable here | Limitation, unchanged | Sandbox still blocks UDP sends (verified twice); repl-sim 14/14 is the in-process substitute; real two-phone check still owed to the user |
+| QA-009 script error on scene change while centring | Yes | 0 script errors across all v3.3 suite logs |
+| QA-010 rifle peeks out at straight up/down aim | Known artifact, unchanged | Documented as known in v3.1; not a fix target; no change in v3.3 |
+| QA-011 music restarts on every scene change | Known, not fixed | Documented; music code untouched in v3.3 |
+| QA-012 jetpack loop audible pulse | Known, not fixed | Documented; audio untouched in v3.3 |
+| QA-013 unused asset files shipped in APK | Known, not fixed | Documented; nothing newly imported in v3.3 |
+| QA-014 real two-phone LAN join untestable here | Limitation, unchanged | Sandbox still blocks UDP sends (verified twice); repl-sim 19/19 is the in-process substitute; real two-phone check still owed to the user |
 | QA-015 ObjectDB leak warning at exit | Observed, not a runtime leak | Same exit notice as before (2 resources in use at exit in the smoke log); not a script error |
 | QA-016 gun kept firing after finger lifted | Yes — re-fixed under the new input path | Fire test: AIM-FIRE-RELEASE (firing false, aim zero); joystick test FIRE-WHILE-PAUSED / FIRE-AFTER-MATCH-END |
 | QA-017 joystick-test take_damage() 1-arg (test-only) | Yes | Joystick 21/21 PASS |
@@ -2894,8 +3052,8 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-026 host-authoritative combat | Yes | Net 15/15; fire test MP-SYNC-VALIDATION |
 | QA-027 semi-auto tap silently lost | Yes — carried into the new input path | Fire test PISTOL-TAP-ONE-SHOT (+1), PISTOL-TEN-RAPID-TAPS (10/10); pending-edge flag + synchronous arm |
 | QA-028 script errors when leaving a match | Yes | 0 script errors in flow + all suite logs |
-| QA-029 joysticks move downwards on real phone | Yes | Joystick 21/21; scale 70/70 across 5 resolutions; transform untouched by v3.2 (only the aim-stick visual cue added) |
-| QA-030 bullets/player pass through obstacles | Yes | Collision 8/8 (Catacombs); physics 31/31 |
+| QA-029 joysticks move downwards on real phone | Yes | Joystick 21/21; scale 70/70 across 5 resolutions; touch conversion untouched by v3.3 (only the stick positions moved, QA-052) |
+| QA-030 bullets/player pass through obstacles | Yes | Collision 8/8 on all 13 maps; physics 31/31 |
 | QA-031 simultaneous lethal hits double-credit a kill | Yes | Fire test MP cases; kill-credit lock untouched; code path verified |
 | QA-032 pickup RPC to disconnected peer spams errors | Yes | Net 15/15; 0 script errors |
 | QA-033 Frozen Fortress rebuilt as small duel map | Yes | Map present in the 13-map set; scroll test reaches map 12 |
@@ -2903,7 +3061,7 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-035 touch controls draw over pause/scoreboard/end panels | Yes | Pause + scoreboard screenshots: sticks hidden behind panels |
 | QA-036 fire-test tap driver leak / P07b load-flake (harness only) | Yes | Fire test 26/26 (rewritten suite, no leaked driver) |
 | QA-037 spectator test vs LMS elimination rule (test-only) | Yes | Features test 11/11 (SPECTATOR, second living bot keeps match live) |
-| QA-038 removing exclude_filter breaks preset validation (build) | Yes | Export preset keeps `exclude_filter=""`; v3.2 export succeeded |
+| QA-038 removing exclude_filter breaks preset validation (build) | Yes | Export preset keeps `exclude_filter=""`; v3.3 export succeeded |
 | QA-039 rock decor does not block spawn-height sightlines | Yes | Map rule (rocks excluded from floor-lane fill); collision 8/8 × 13 maps |
 | QA-040 collision-test ray needs a clear approach (floor cover) | Yes | First floor cover face ≥150 px from left edge on every map; collision 8/8 × 13 |
 | QA-041 harness run-ups must stay clear of solid floor decor | Yes | CLEAR_STRETCH + spawn#0 run-up rule; physics 31/31, fire 26/26 |
@@ -2912,7 +3070,12 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-044 physics harness used Catacombs-tuned coordinates | Yes | Map-relative helpers (_phys_ground_at / _phys_top_at); physics 31/31 on maps 0/6/10/12 |
 | QA-045 no explosive barrel on Space Station / Airship Fleet | Yes | ≥1 barrels guaranteed on every map floor; physics P22 passes |
 | QA-046 cover crate vs harness left run + palm walk | Yes | Joystick test teleports clear of cover; Desert/Pirate palms moved to x=400 |
-| QA-047 join stuck on "Connecting...", 0/8 (real-phone, v3.1) | Fixed, sim-verified | Repl-sim 14/14 PASS (spawn broadcast + player-list heal + retry re-send + "Connecting..." clears); live two-phone ENet still needs the user's two phones — see README "Testing the join on two real phones" |
+| QA-047 join stuck on "Connecting...", 0/8 (real-phone, v3.1) | Fixed, sim-verified | Repl-sim 19/19 PASS (spawn broadcast + player-list heal + retry re-send + "Connecting..." clears, plus the 5 new QA-051 sync checks); live two-phone ENet still needs the user's two phones — see README "Testing the join on two real phones" |
+| QA-048 map scroll on a real phone (v3.1) | Yes | Scroll 8/8 at 1280x720 AND 2400x1080 (genuine); scroll code untouched in v3.3 |
+| QA-049 FIRE button removed; right-stick firing (v3.2) | Yes | Fire test 26/26; no FIRE button in the HUD screenshots or the v3.3 APK |
+| QA-050 HUD hint + host-IP line invisible (v3.2) | Yes | v33 HUD screenshots (1280x720 and 2400x1080): bottom hint and "You are the HOST. Your IP: …" line both visible |
+| QA-051 movements not reflecting on the other phone (v3.2) | Fixed in v3.3, sim-verified | Repl-sim 19/19 — the 5 new SYNC checks assert synchronizer authority 1/2/1/2, ALWAYS replication mode, and client→server + server→client movement delivery; live two-phone ENet proof still needs the user's two phones (README step 4) |
+| QA-052 joysticks moved inward (v3.3) | Yes | Joystick 21/21, scale 70/70, fire 26/26 at the new positions; HUD screenshots show both sticks inward with clear space, no overlap with the RELOAD/GRENADE/WEAPON column |
 
 ### T-items (physics audit T-01–T-75, inside QA-030)
 
@@ -3003,3 +3166,79 @@ No paid library or asset was used.
   UDP sends even on loopback; repl-sim 14/14 is the in-process
   substitute). Mid-match rejoin unsupported. GoSurface modals left
   out (risky); no separate map-vote screenshot.
+
+## v3.3 delivery record — exported + independently verified (2026-11-19, test/export worker)
+
+### APK
+- `mini-militia-lan.apk` — 35,732,833 bytes (~34 MB), md5
+  `296d69ea8c2959073709e27d784a5c09`. Godot 4.7.2
+  (`--export-release Android`), `export_presets.cfg` version/code=11,
+  version/name="3.3", `GameData.BUILD_VERSION` "3.3", menu label
+  "LAN Arena Shooter v3.3". (The v2.5 `exclude_filter="gen_assets_v3/*"`
+  is long gone — `exclude_filter=""` since v3.0; the music OGGs ship
+  inside the APK, verified below.)
+- aapt2 (`~/workspace/android-sdk/build-tools/34.0.0/aapt2` — found
+  on this machine, not on PATH): package `com.lanarena.shooter`,
+  versionCode 11, versionName 3.3, targetSdk 36, minSdk 24,
+  compileSdk 36, native-code `arm64-v8a` only, exactly the 3
+  permissions INTERNET / ACCESS_NETWORK_STATE / ACCESS_WIFI_STATE.
+- `apksigner verify` passes (v2 + v3 schemes); signer cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — matches v3.2 exactly (same debug keystore
+  `~/.local/share/godot/keystores/debug.keystore`, alias
+  `androiddebugkey`), installs over v3.2. `package/signed=false` in
+  the preset, so the raw export was unsigned and was signed after
+  the export with apksigner, as in v3.0/v3.1/v3.2.
+- Contents: both music OGGs (`menu_at_rest`,
+  `battle_five_armies`, as imported `.oggvorbisstr`), Orbitron +
+  Rajdhani fonts, gohud theme/assets, arena background
+  (`arena_blue.png`), Sky Brawl textures; NO `.md`/`.txt`; NO
+  `fire_button` anywhere. Size 35.7 MB → 35.7 MB (no new assets in
+  v3.3 — code-only fix). Export log: 0 script errors.
+- v3.2 APK backed up untouched at
+  `~/workspace/mini-militia-lan-backup-v3.2/mini-militia-lan.apk`
+  (md5 `cf1d7392f79bd1ba1f1104e26f18cf26`, verified before the
+  export; the in-project v3.2 APK was copied to `/tmp/v32-apk-backup.apk`
+  first, md5 matched).
+
+### Independent verification (test/export worker re-ran everything from scratch on the shipped code; fresh logs /tmp/v33_*.txt)
+- Joystick 21/21, fire (right-stick) 26/26, scale 70/70, physics
+  31/31 (maps 0/6/10/12) + 22/22 (Frozen ice, map 4), features
+  11/11, net 15/15, menu-net 6/6, full flow DONE, repl-sim 19/19,
+  scroll 8/8 at 1280x720 AND 2400x1080, collision 8/8 on all 13
+  maps, smoke DONE on all 13 maps. **0 script errors in total
+  across all logs.** One first-run physics 30/31 on maps 0 and 6
+  was the documented P02-air-accel timing flake — re-runs 31/31
+  (see the v3.3 regression section above); no physics code changed
+  in v3.3.
+- Screenshot spot-check (fix worker's `v33_hud.png` 1280x720 and
+  `v33_hud_phone.png` 2400x1080, re-viewed by the verifier): both
+  sticks sit inward with clear space, no overlap with the
+  RELOAD/GRENADE/WEAPON column, hint or host-IP line; bottom hint
+  + host-IP line visible (QA-050); no FIRE button (QA-049). The
+  right-edge clipping of the "Assault Rifle 30/90" / "Grenades: 2"
+  labels in the 2400x1080 shot is pre-existing — identical in the
+  v3.2 phone shot — and is not from this change.
+- Version bump (the only change after the first full run):
+  `game_data.gd` BUILD_VERSION, `main.gd` menu label, and
+  `export_presets.cfg` code/name. Post-bump re-run: repl-sim 19/19,
+  flow DONE, physics map 0 31/31, 0 script errors.
+
+### AAB — NOT built (blocked, unchanged)
+- No release keystore exists anywhere on this machine. A release
+  keystore was NOT created: its password must come from the user via
+  Secure Vault, never invented and never written in a file. Exact
+  creation + signing steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md` ("Release signing" section). The
+  APK is the deliverable; the AAB is a bonus once the user supplies
+  the keystore password.
+
+### Honest limits (unchanged)
+- Real two-phone LAN join, real touch hardware, real-phone
+  performance, audio-by-ear: still untested here (sandbox blocks
+  UDP sends even on loopback; repl-sim 19/19 is the in-process
+  substitute). **Movement sync (QA-051) is fixed in the sim only
+  until the user verifies it on two real phones** — README
+  "Testing the join on two real phones", step 4: both phones must
+  show Players: 2/8 AND each phone must see the other player move,
+  in both directions. Mid-match rejoin unsupported.

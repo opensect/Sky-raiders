@@ -725,6 +725,9 @@ var _repl_sim_sent: Array = [] # payloads _send_all_players_to recorded in sim m
 var _repl_sim_shadow = null # second Game instance playing the client
 var _repl_sim_server_list: Array = []
 var _repl_sim_move_start: Vector2 = Vector2.ZERO # CONTROLS-ATTACH snapshot
+var _repl_sim_c2s_start: Vector2 = Vector2.ZERO # QA-051 SYNC-CLIENT-TO-SERVER baseline (server pid-2 pos)
+var _repl_sim_host_sync_start: Vector2 = Vector2.ZERO # QA-051 SYNC-HOST-WRITE baseline (server pid-1 sync_position)
+var _repl_sim_s2c_start: Vector2 = Vector2.ZERO # QA-051 SYNC-SERVER-TO-CLIENT baseline (shadow pid-1 pos)
 var _net_test: bool = false # v2.4: --net-test harness
 var _net_steps: Array = []
 var _net_step: int = 0
@@ -2281,10 +2284,15 @@ func _build_touch_controls() -> void:
 	# any more — the FIRE button it mirrored with is gone. Move stick
 	# bottom-left, aim stick bottom-right, RELOAD / GRENADE / WEAPON
 	# column above the aim stick on the right.
+	# v3.3 QA-052: sticks moved inward from the bottom corners —
+	# move stick up/right, aim stick up/left, 50 px each way at
+	# 1280x720 (anchor offsets, so it scales with the stretch).
+	# Was move (40, -190), aim (-290, -190). Aim stick still clears
+	# the RELOAD/GRENADE/WEAPON column (x 810-920) by 20 px.
 	move_stick = JOYSTICK_SCRIPT.new()
 	move_stick.name = "MoveStick"
 	move_stick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	move_stick.position = Vector2(40, -190)
+	move_stick.position = Vector2(90, -240)
 	move_stick.size = Vector2(150, 150)
 	hud.add_child(move_stick)
 
@@ -2296,7 +2304,7 @@ func _build_touch_controls() -> void:
 	aim_stick.name = "AimStick"
 	aim_stick.is_aim = true
 	aim_stick.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	aim_stick.position = Vector2(-290, -190)
+	aim_stick.position = Vector2(-340, -240)
 	aim_stick.size = Vector2(150, 150)
 	hud.add_child(aim_stick)
 
@@ -3314,6 +3322,12 @@ func _update_jointest(delta: float) -> void:
 # spawn is "lost", the client retries, the server re-sends, the
 # shadow heals via the player list; (3) double delivery stays
 # idempotent; (4) disconnect despawns on the client. Verdict + quit.
+# Steps 8-11 (v3.3 QA-051): synchronizer authority + replication
+# mode on all copies, then client->server and server->client
+# movement delivery through the remote interpolation path. The sim
+# can only hand-deliver sync_position payloads (no live ENet) — see
+# the SYNC-SERVER-TO-CLIENT note in step 10 for the one-process
+# limit (pid-1 is "local" on both instances) and its workaround.
 # =====================================================================
 
 func _repl_sim_check(label: String, ok: bool, detail: String = "") -> void:
@@ -3492,8 +3506,108 @@ func _update_replsimtest(delta: float) -> void:
 			_on_touch_release(930)
 			_repl_sim_check("CONTROLS-ATTACH", moved > 50.0,
 				"list-spawned local player moved %.0f px under the move stick (want >50)" % moved)
+			_repl_sim_step = 8
+			_repl_sim_timer = 0.0
+		8:
+			# Steps 8-11: v3.3 QA-051 movement-sync checks. (a) the
+			# synchronizer's own authority must equal the owning peer
+			# on BOTH players on BOTH instances; (b) sync_position /
+			# sync_velocity must be REPLICATION_MODE_ALWAYS everywhere.
+			# Then (c) client->server: move the shadow's pid-2 player
+			# +300 px (position + sync_position, as its owner would
+			# write them) and hand-deliver that sync_position to the
+			# server instance's pid-2 copy.
+			if _repl_sim_timer < 0.3:
+				return
+			var s_p1 = players_node.get_node_or_null("1")
+			var s_p2 = players_node.get_node_or_null("2")
+			var c_p1 = _repl_sim_shadow.players_node.get_node_or_null("1")
+			var c_p2 = _repl_sim_shadow.players_node.get_node_or_null("2")
+			var auth_ok: bool = s_p1 != null and s_p2 != null and c_p1 != null and c_p2 != null \
+				and s_p1.get_sync_authority() == 1 and s_p2.get_sync_authority() == 2 \
+				and c_p1.get_sync_authority() == 1 and c_p2.get_sync_authority() == 2
+			_repl_sim_check("SYNC-AUTHORITY", auth_ok,
+				"sync authority server p1=%s p2=%s shadow p1=%s p2=%s (want 1/2/1/2 — v3.1/v3.2 left every synchronizer at 1)" % [
+					s_p1.get_sync_authority() if s_p1 != null else -1,
+					s_p2.get_sync_authority() if s_p2 != null else -1,
+					c_p1.get_sync_authority() if c_p1 != null else -1,
+					c_p2.get_sync_authority() if c_p2 != null else -1])
+			var mode_ok := s_p1 != null and s_p2 != null and c_p1 != null and c_p2 != null
+			for p in [s_p1, s_p2, c_p1, c_p2]:
+				if p == null:
+					mode_ok = false
+				elif p.get_sync_replication_mode("sync_position") != SceneReplicationConfig.REPLICATION_MODE_ALWAYS \
+					or p.get_sync_replication_mode("sync_velocity") != SceneReplicationConfig.REPLICATION_MODE_ALWAYS:
+					mode_ok = false
+			_repl_sim_check("SYNC-MODE", mode_ok,
+				"sync_position/sync_velocity replication mode == ALWAYS on all 4 copies (want true)")
+			if s_p2 != null and c_p2 != null:
+				_repl_sim_c2s_start = s_p2.position
+				c_p2.position = c_p2.position + Vector2(300, 0)
+				c_p2.sync_position = c_p2.position
+				c_p2.sync_velocity = Vector2.ZERO
+				# Hand-deliver the client's snapshot to the server
+				# copy — what the synchronizer would carry over ENet.
+				s_p2.sync_position = c_p2.sync_position
+				s_p2.sync_velocity = Vector2.ZERO
+			_repl_sim_step = 9
+			_repl_sim_timer = 0.0
+		9:
+			if _repl_sim_timer < 0.6:
+				return
+			var s_p2b = players_node.get_node_or_null("2")
+			var moved_c2s := 0.0
+			if s_p2b != null:
+				moved_c2s = s_p2b.position.distance_to(_repl_sim_c2s_start)
+			_repl_sim_check("SYNC-CLIENT-TO-SERVER", moved_c2s > 50.0,
+				"server pid-2 copy moved %.0f px after the client's +300 px snapshot was delivered (want >50)" % moved_c2s)
+			# (d) setup: move the HOST's player (pid 1) +300 px on
+			# the server. Its local branch writes sync_position =
+			# position every physics frame — the write the
+			# synchronizer must carry to the client.
+			var s_p1b = players_node.get_node_or_null("1")
+			if s_p1b != null:
+				_repl_sim_host_sync_start = s_p1b.sync_position
+				s_p1b.position = s_p1b.position + Vector2(300, 0)
+			_repl_sim_step = 10
+			_repl_sim_timer = 0.0
+		10:
+			if _repl_sim_timer < 0.6:
+				return
+			var s_p1c = players_node.get_node_or_null("1")
+			var host_moved := 0.0
+			if s_p1c != null:
+				host_moved = s_p1c.sync_position.distance_to(_repl_sim_host_sync_start)
+			_repl_sim_check("SYNC-HOST-WRITE", host_moved > 50.0,
+				"server pid-1 sync_position moved %.0f px after the host moved +300 px (want >50 — the owner's write the synchronizer replicates)" % host_moved)
+			# (d) delivery: the shadow's pid-1 copy is "local" in
+			# this one process (both instances share the offline
+			# peer, unique id 1), so its local branch would
+			# overwrite the delivered sync_position and never run
+			# the interpolation path. A real client has unique id
+			# 2, so pid-1 is remote there. Emulate that here by
+			# overriding the shadow copy's ROOT authority to 2 —
+			# the synchronizer config asserted above is untouched
+			# — then hand-deliver the host's snapshot to it.
+			var c_p1b = _repl_sim_shadow.players_node.get_node_or_null("1")
+			if c_p1b != null and s_p1c != null:
+				_repl_sim_s2c_start = c_p1b.position
+				c_p1b.set_multiplayer_authority(2)
+				c_p1b.sync_position = s_p1c.sync_position
+				c_p1b.sync_velocity = s_p1c.sync_velocity
+			_repl_sim_step = 11
+			_repl_sim_timer = 0.0
+		11:
+			if _repl_sim_timer < 0.6:
+				return
+			var c_p1c = _repl_sim_shadow.players_node.get_node_or_null("1")
+			var moved_s2c := 0.0
+			if c_p1c != null:
+				moved_s2c = c_p1c.position.distance_to(_repl_sim_s2c_start)
+			_repl_sim_check("SYNC-SERVER-TO-CLIENT", moved_s2c > 50.0,
+				"shadow pid-1 copy moved %.0f px after the host's +300 px snapshot was delivered (want >50)" % moved_s2c)
 			_repl_sim_done = true
-			print("REPLSIM DONE: %d passed, %d failed (simulated wire only — live two-phone ENet still needs real phones, see BUGS.md QA-047)" % [_repl_sim_passed, _repl_sim_failed])
+			print("REPLSIM DONE: %d passed, %d failed (simulated wire only — live two-phone ENet still needs real phones, see BUGS.md QA-047/QA-051)" % [_repl_sim_passed, _repl_sim_failed])
 			get_tree().quit()
 
 
@@ -4365,7 +4479,12 @@ func _jt_c_diag_speed() -> Array:
 
 func _jt_s_knob_clamp() -> void:
 	# Press far outside the stick: the knob must clamp to the base.
-	_jt_press_move(Vector2(500, 0))
+	# v3.3 QA-052: offset is 400, not 500 — touches are routed by
+	# screen half, and the move stick's centre moved right to x=165,
+	# so +500 would land at x=665, past the 640 half-line, and grab
+	# the AIM stick instead. +400 (x=565) stays on the left half
+	# while still being far outside the 60 px base radius.
+	_jt_press_move(Vector2(400, 0))
 
 
 func _jt_c_knob_clamp() -> Array:

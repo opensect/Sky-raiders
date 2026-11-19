@@ -362,9 +362,41 @@ func _setup_sync() -> void:
 	var cfg := SceneReplicationConfig.new()
 	for prop in ["sync_position", "sync_velocity", "aim_angle", "facing", "health", "kills", "deaths", "weapon", "mag_ammo", "grenades", "alive", "fuel", "life_state", "_shots_fired", "_shots_hit"]:
 		cfg.add_property(NodePath(prop))
+		# v3.3 QA-051: set the replication mode explicitly — never
+		# rely on the SceneReplicationConfig default. Every property
+		# is ALWAYS replicated, and spawns with its current value so
+		# a late-joining peer gets the live state at once.
+		cfg.property_set_replication_mode(NodePath(prop), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+		cfg.property_set_spawn(NodePath(prop), true)
 	_sync.replication_config = cfg
 	_sync.replication_interval = 0.033 # 30 snapshots/s (GAP-60, spec §21.F)
+	# v3.3 QA-051: the synchronizer's OWN authority was never set,
+	# so it stayed the server (1) on every copy — a client's
+	# sync_position writes never left the client, and the host
+	# re-broadcast its stale spawn-point sync_position back. The
+	# player root's authority (set in _enter_tree from the node
+	# name) does NOT propagate to the synchronizer. Set it
+	# explicitly to the owning peer, and pin root_path to the
+	# player explicitly instead of relying on the default.
+	var owner_id: int = peer_id if peer_id > 0 else get_multiplayer_authority()
+	_sync.set_multiplayer_authority(owner_id)
+	_sync.root_path = NodePath("..")
 	add_child(_sync)
+
+
+# v3.3 QA-051: test hooks for the repl-sim — the synchronizer's own
+# authority and a property's replication mode, so the sim can assert
+# the configuration instead of only the player root's authority.
+func get_sync_authority() -> int:
+	if _sync == null:
+		return -1
+	return _sync.get_multiplayer_authority()
+
+
+func get_sync_replication_mode(prop: String) -> int:
+	if _sync == null or _sync.replication_config == null:
+		return -1
+	return _sync.replication_config.property_get_replication_mode(NodePath(prop))
 
 
 func _process(delta: float) -> void:

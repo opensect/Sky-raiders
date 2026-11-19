@@ -1,8 +1,68 @@
-# LAN Arena Shooter — v3.2
+# LAN Arena Shooter — v3.3
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi.
+
+## What's new in v3.3 (movement sync fix + joysticks moved inward)
+
+- **Movement now syncs to the other phone (QA-051).** In v3.2 both
+  players were visible on both phones, but movement did not reflect —
+  the other phone's copy of you stood frozen. Cause: the
+  `MultiplayerSynchronizer` on each player never had its own
+  authority set, so it stayed the server on every copy and a client's
+  position writes never left the client. The synchronizer now gets
+  the owning peer's authority, its root path is pinned, and every
+  replicated property is explicitly `REPLICATION_MODE_ALWAYS` with
+  spawn on. Simulated two-peer test 19/19 (14 old + 5 new sync
+  checks) — **the live two-phone check is still yours to do**, see
+  "Testing the join on two real phones", step 4.
+- **Joysticks moved inward from the bottom corners (QA-052).** Both
+  sticks sit 50 px up and 50 px toward the centre (move stick
+  x 90–240, aim stick x 940–1090 at 1280x720) — easier to reach, and
+  the aim stick still clears the RELOAD / GRENADE / WEAPON column.
+  Nothing else about the controls changed: left stick moves, right
+  stick aims and shoots, touch conversion is untouched.
+- Nothing else changed: same NEON ARENA UI, same 13 maps, same
+  features, same 3 permissions, same debug keystore — v3.3 installs
+  over v3.2.
+
+### v3.3 build (delivered 2026-11-19, independently verified + exported)
+
+- **APK:** `mini-militia-lan.apk` — 35,732,833 bytes (~34 MB), md5
+  `296d69ea8c2959073709e27d784a5c09`, versionCode **11**,
+  versionName **3.3**, targetSdk 36, minSdk 24, package
+  `com.lanarena.shooter`, arm64-v8a only. Built with Godot 4.7.2
+  (`--export-release Android`), signed with the same debug keystore
+  as v3.2 — `apksigner verify` passes, cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v3.2 exactly, so it installs over v3.2. Exactly the 3
+  permissions (INTERNET / ACCESS_NETWORK_STATE /
+  ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
+  fonts, gohud theme, arena background, Sky Brawl textures; no
+  `.md`/`.txt`, no `fire_button` leftovers. v3.2 APK backed up at
+  `~/workspace/mini-militia-lan-backup-v3.2/` (md5
+  `cf1d7392f79bd1ba1f1104e26f18cf26`).
+- **Independent verification (fresh re-run on the shipped code, not
+  the builder's logs):** joystick 21/21, fire (right-stick) 26/26,
+  scale 70/70, physics 31/31 (maps 0/6/10/12) + 22/22 (Frozen ice,
+  map 4), features 11/11, net 15/15, menu-net 6/6, full flow DONE,
+  repl-sim 19/19, scroll 8/8 at 1280x720 AND 2400x1080, collision
+  8/8 on all 13 maps, smoke DONE on all 13 maps — **0 script errors
+  in every log**. One first-run physics 30/31 on maps 0 and 6 was a
+  documented P02-air-accel timing flake under llvmpipe — re-runs on
+  the identical code were 31/31 (see BUGS.md); no physics code
+  changed in v3.3.
+- **AAB: NOT built — blocked on the release keystore.** No release
+  keystore exists anywhere on this machine; one must be created with
+  a password supplied by you via Secure Vault (never invented, never
+  written in a file). Exact steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md`. The APK above is the deliverable.
+- **Honest limits (unchanged):** real two-phone LAN join and
+  movement sync, real touch hardware, real-phone performance and
+  audio-by-ear are still untested here (the sandbox blocks UDP
+  sends; repl-sim 19/19 is the in-process substitute). Mid-match
+  rejoin is not supported.
 
 ## What's new in v3.2 (totally new UI + right-stick firing + join fix)
 
@@ -461,7 +521,7 @@ happened:
     the host never replied — a Wi-Fi/IP problem.
   - **Players seen** is how many players your phone can see. 0/8
     with "Server answered: yes" is the old v3.1 bug — update both
-    phones to v3.2.
+    phones to v3.3.
 - Tap **Retry**: if the link is still up it re-asks the host for your
   player; if the link is gone it takes you back to the menu with the
   host IP already filled in — tap **JOIN** to try again.
@@ -471,25 +531,31 @@ happened:
   host's lobby and try again.
 - Restart the app on both phones and try again. The host creates the
   room first, then the joiner joins.
-- **Both phones must run the same version** (v3.2). A version
+- **Both phones must run the same version** (v3.3). A version
   mismatch is refused with a clear message ("Version mismatch: host
-  runs 3.2, you run 3.1. Update and rejoin.").
+  runs 3.3, you run 3.2. Update and rejoin.").
 
-### Testing the join on two real phones (v3.2 acceptance test)
+### Testing the join on two real phones (v3.3 acceptance test)
 
 The build machine cannot test two-phone play (its sandbox blocks UDP
 traffic between processes), so **run this check on two real phones
 before trusting a release**. It takes two minutes:
 
-1. Install the same v3.2 APK on both phones. Both on the same Wi-Fi.
+1. Install the same v3.3 APK on both phones. Both on the same Wi-Fi.
 2. Host: LOCAL MULTIPLAYER → CREATE ROOM → I'M READY. Joiner:
    LOCAL MULTIPLAYER → **QUICK LAN MATCH**.
 3. Host taps START MATCH. **Both phones must show Players: 2/8**
    and both players must be visible in the world.
-4. **Move on the joining phone** (left stick). The 2nd player on the
-   HOST phone must move too. If the host's 2nd player stands frozen,
-   the join is still broken — note the exact error text from the
-   "Connecting..." section above.
+4. **Movement check (QA-051 — the v3.2 bug, fixed in v3.3, was:
+   both players visible, but movement not reflecting). Move on the joining
+   phone** (left stick) and watch the HOST phone: the 2nd player
+   there must move too. Then **move on the host phone** and watch
+   the JOINING phone: the host's player must move there as well.
+   **Pass = both phones show Players: 2/8 AND each phone sees the
+   other player move.** If either player's remote copy stands
+   frozen while the player moves on their own phone, note which
+   direction failed (joiner→host or host→joiner) and the exact
+   error text from the "Connecting..." section above.
 5. **Shoot on the joining phone** (right stick). The host must see
    the shots and the kill feed must update.
 6. Joiner: leave the match (pause → Leave). The host must see
