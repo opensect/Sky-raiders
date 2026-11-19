@@ -441,11 +441,14 @@ func _vbox(parent: Control, sep: int = 12) -> VBoxContainer:
 
 
 func _section_label(text: String) -> Label:
+	# QA-058: section headers are cyan, 22 px SemiBold — the same
+	# hierarchy on every page (menu, multiplayer, lobby, settings,
+	# customize), so a section reads as a section at a glance.
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
-	l.add_theme_font_size_override("font_size", 20)
-	l.add_theme_color_override("font_color", UI_FONT_MUTED)
+	l.add_theme_font_size_override("font_size", 22)
+	l.add_theme_color_override("font_color", UI_ACCENT)
 	return l
 
 
@@ -488,17 +491,21 @@ func _build_menu() -> void:
 	_menu_panel = _panel(Color(0.07, 0.11, 0.18, 0.96), true)
 	var box := _vbox(_menu_panel, 14)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	var title := _title_label("LAN ARENA SHOOTER", 40)
+	var title := _title_label("LAN ARENA SHOOTER", 48)
 	title.add_theme_color_override("font_color", UI_ACCENT)
 	box.add_child(title)
 	var sub := _body_label("2D shooter - local Wi-Fi only, no accounts", 20)
 	sub.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(sub)
+	var title_sep := HSeparator.new()
+	title_sep.custom_minimum_size = Vector2(420, 0)
+	title_sep.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(title_sep)
 	var mp_btn := Button.new()
 	mp_btn.text = "LOCAL MULTIPLAYER"
 	mp_btn.icon = _gohud_icon("play")
 	mp_btn.expand_icon = true
-	mp_btn.custom_minimum_size = Vector2(420, 64)
+	mp_btn.custom_minimum_size = Vector2(460, 64)
 	mp_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(mp_btn, 26, 64, true)
 	mp_btn.pressed.connect(func() -> void: _click(); _show_only(_mp_panel))
@@ -507,7 +514,7 @@ func _build_menu() -> void:
 	cust_btn.text = "CUSTOMIZATION"
 	cust_btn.icon = _gohud_icon("user")
 	cust_btn.expand_icon = true
-	cust_btn.custom_minimum_size = Vector2(420, 64)
+	cust_btn.custom_minimum_size = Vector2(460, 64)
 	cust_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(cust_btn, 26, 64)
 	cust_btn.pressed.connect(func() -> void: _click(); _show_only(_custom_panel))
@@ -516,7 +523,7 @@ func _build_menu() -> void:
 	set_btn.text = "SETTINGS"
 	set_btn.icon = _gohud_icon("settings")
 	set_btn.expand_icon = true
-	set_btn.custom_minimum_size = Vector2(420, 64)
+	set_btn.custom_minimum_size = Vector2(460, 64)
 	set_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(set_btn, 26, 64)
 	set_btn.pressed.connect(func() -> void: _click(); _show_only(_settings_panel))
@@ -739,7 +746,7 @@ func _build_settings() -> void:
 	privacy_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(privacy_lbl)
 	var version_lbl := Label.new()
-	version_lbl.text = "LAN Arena Shooter v3.3  •  LAN only — no accounts, no servers"
+	version_lbl.text = "LAN Arena Shooter v3.4  •  LAN only — no accounts, no servers"
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
@@ -811,7 +818,7 @@ func _on_invert_toggled(on: bool) -> void:
 func _build_multiplayer() -> void:
 	_mp_panel = _panel()
 	var box := _vbox(_mp_panel, 12)
-	box.add_child(_title_label("LOCAL MULTIPLAYER", 30))
+	box.add_child(_title_label("LOCAL MULTIPLAYER", 36))
 	var hint := _body_label("All phones must be on the same Wi-Fi network (or one phone's hotspot).", 18)
 	hint.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(hint)
@@ -977,7 +984,7 @@ func _build_lobby() -> void:
 	# grid, mode, kill limit and match time scroll inside.
 	_lobby_panel = _panel()
 	var box := _vbox(_lobby_panel, 10)
-	box.add_child(_title_label("GAME LOBBY", 30))
+	box.add_child(_title_label("GAME LOBBY", 36))
 	_lobby_status = Label.new()
 	_lobby_status.text = ""
 	_lobby_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1049,10 +1056,11 @@ func _build_lobby() -> void:
 		b.text = GameData.MAP_NAMES[i]
 		if MAP_THUMBS.has(i):
 			b.icon = MAP_THUMBS[i]
-		b.custom_minimum_size = Vector2(0, 72)
+			b.expand_icon = true # QA-058: bigger thumbs — the map art reads, not just the name
+		b.custom_minimum_size = Vector2(0, 84)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_style_button(b, 20, 72)
+		_style_button(b, 22, 84)
 		b.pressed.connect(_on_map_pressed.bind(i))
 		map_grid.add_child(b)
 		_map_buttons.append(b)
@@ -1339,11 +1347,30 @@ func _refresh_lobby_list() -> void:
 	ids.sort()
 	for id in ids:
 		var info: Dictionary = _lobby_players[id]
+		# QA-058: each player is a card, not a bare line — a subtle
+		# navy row with the player's colour as a left bar, a bigger
+		# portrait, the name in SemiBold, and a READY / not-ready
+		# tag that reads at a glance.
+		var card := PanelContainer.new()
+		var card_sb := StyleBoxFlat.new()
+		card_sb.bg_color = Color(0.10, 0.16, 0.25, 0.85)
+		card_sb.set_corner_radius_all(8)
+		card_sb.content_margin_left = 12
+		card_sb.content_margin_right = 12
+		card_sb.content_margin_top = 8
+		card_sb.content_margin_bottom = 8
+		card.add_theme_stylebox_override("panel", card_sb)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
+		card.add_child(row)
+		var bar := ColorRect.new()
+		bar.color = GameData.PLAYER_COLORS[int(info.get("color", 0)) % GameData.PLAYER_COLORS.size()]
+		bar.custom_minimum_size = Vector2(6, 0)
+		bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		row.add_child(bar)
 		var portrait := TextureRect.new()
 		portrait.texture = _portrait_texture(int(info.get("portrait", 0)))
-		portrait.custom_minimum_size = Vector2(36, 48)
+		portrait.custom_minimum_size = Vector2(44, 56)
 		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(portrait)
@@ -1354,15 +1381,19 @@ func _refresh_lobby_list() -> void:
 		elif int(id) == multiplayer.get_unique_id():
 			tag = " (YOU)"
 		lbl.text = "%s%s" % [String(info.get("name", "Player")), tag]
+		lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
 		lbl.add_theme_font_size_override("font_size", 22)
 		lbl.add_theme_color_override("font_color", GameData.PLAYER_COLORS[int(info.get("color", 0)) % GameData.PLAYER_COLORS.size()])
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(lbl)
 		var ready_lbl := Label.new()
 		var is_ready: bool = bool(info.get("ready", false))
 		ready_lbl.text = "READY ✓" if is_ready else "not ready"
+		ready_lbl.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
 		ready_lbl.add_theme_font_size_override("font_size", 20)
 		ready_lbl.add_theme_color_override("font_color", UI_SUCCESS if is_ready else UI_FONT_MUTED)
+		ready_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(ready_lbl)
 		# The host can remove a player from the room.
 		if _is_host and int(id) != 1 and int(id) != multiplayer.get_unique_id():
@@ -1373,7 +1404,7 @@ func _refresh_lobby_list() -> void:
 			kick_btn.pressed.connect(_on_kick_pressed.bind(int(id)))
 			row.add_child(kick_btn)
 			_connect_scroll_button(kick_btn, _lobby_scroll)
-		_lobby_list.add_child(row)
+		_lobby_list.add_child(card)
 
 
 func _on_max_pressed(n: int) -> void:

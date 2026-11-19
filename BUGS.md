@@ -2953,6 +2953,439 @@ column, hint or host-IP line. (The right-edge clipping of the
 shot is pre-existing — identical in the v3.2 phone shot — and is
 not from this change.)
 
+## QA-053 — Player movement STILL not syncing on real phones (v3.3), bullets/grenades sync fine
+
+**Symptom (user-tested v3.3 on two real phones, 2026-11-19
+~13:56 IST):** each phone's own player moves locally, but the
+other phone never sees it move — the remote player stays frozen
+at its spawn point. Bullets and grenades ARE visible and sync on
+the other phone. Same symptom as v3.2, which QA-051 was supposed
+to have fixed.
+
+**Decisive evidence:** the RPC channel works on real phones
+(spawn_bullet / spawn_grenade / spawn_player_remote all arrive),
+so this is not a network, permission, or Wi-Fi problem. The
+MultiplayerSynchronizer channel delivers nothing on real ENet,
+even after QA-051 fixed its authority, root_path and replication
+mode. The in-process repl-sim could not see this: it
+hand-delivers payloads inside one process, so it only ever
+asserted the synchronizer's *configuration*, never a live wire
+delivery.
+
+**Root cause (proven from code, player.gd `_setup_sync` +
+`_ready`):** QA-051's config fix was real but insufficient. The
+synchronizer is created in `_ready()` with
+`MultiplayerSynchronizer.new()` and **no explicit name**, so
+Godot gives it an auto-uniquified name such as
+`"@MultiplayerSynchronizer@1335"` — a different name on every
+peer. Synchronizer packets are addressed by **node path**, so the
+remote peer has no node at that path and drops them silently:
+nothing is ever delivered, on either direction, for any player.
+RPCs, by contrast, are addressed by the player node path
+`Players/<pid>`, which is identical on every peer — that is why
+spawn_bullet / spawn_grenade / spawn_player_remote arrive and
+positions do not.
+
+**Knock-on effect (found while diagnosing):** the synchronizer
+was the ONLY carrier for health, kills, deaths, weapon,
+mag_ammo, grenades, alive, fuel, life_state and
+`_shots_fired`/`_shots_hit`. Damage RPCs (`take_hit` /
+`take_damage`, bullet.gd:241, game.gd:3917) go only to the
+victim's owning peer, `add_kill` only to the killer, and weapon
+switches are local-only writes — so remote copies also had stale
+health/kills/weapons/ammo, not just frozen positions. The ammo
+mirror in shooting_sync.gd relies on replicated `mag_ammo`; with
+the synchronizer dead the host's copy stayed at 30, so the
+mirror never emptied and ammo validation was effectively
+disabled (a cheat concern only, not user-visible). The fix below
+restores all of it.
+
+**Fix (player.gd, game.gd):** the synchronizer is GONE —
+`_setup_sync()`, the `_sync` var, `get_sync_authority()` and
+`get_sync_replication_mode()` are deleted. Player state now
+travels on the proven RPC channel, exactly like bullets:
+- Owner sends `_send_move_snapshot()` at
+  `PhysicsConfig.SNAPSHOT_INTERVAL` (0.033 s, 30/s), plus a
+  forced snapshot after every respawn/teleport (`_respawn`,
+  `_check_stuck`).
+- One unreliable RPC, `receive_move_snapshot(snap)`, carries a
+  dict `{seq, p, v, aim, face, wpn, hp, k, d, al, fuel, ls, mag,
+  gr, sf, sh}` — position, velocity, aim angle, facing, weapon,
+  health, kills, deaths, alive, fuel, life state, mag ammo,
+  grenades, shots fired/hit.
+- Receiver ignores snapshots for its own player, ignores
+  out-of-order snapshots (`seq <= _last_snap_seq` — no
+  snap-back), applies weapon changes with `_update_gun_texture()`,
+  and appends `{t, p, v}` to a 12-entry `_snapshots` buffer
+  timestamped on receipt.
+- Remote visible position has ONE owner: the interpolation in
+  `_interp_position` (100 ms buffer per PHYSICS_SPEC.md point
+  21) over the snapshot buffer. The local branch no longer
+  writes `sync_position`; the remote branch no longer watches
+  for sync changes — it just interpolates. No two channels can
+  fight over the position any more.
+- Combat stays server-authoritative: health/damage/kills/
+  respawn/timer/scoreboard are still host-decided; movement
+  itself stays owner-driven with snapshots, as the spec says.
+
+**Smoothness (user requirement, 2026-11-19 ~13:58):** the
+repl-sim now streams a player at a steady 300 px/s and measures
+the remote copy frame by frame (both directions): max step rate
+314 px/s (C2S) and 350 px/s (S2C) — i.e. the remote copy moves
+at the same speed as the sender, no jumps bigger than one
+frame's movement — and snap-back 0.0 px in both directions (no
+frozen-then-catch-up bursts, no teleporting back to old
+positions).
+
+**Honest note on QA-051:** the v3.3 fix was tested only in the
+in-process sim, which cannot prove live ENet delivery — and on
+real phones it delivered nothing. This fix uses the RPC channel
+precisely because RPCs are *proven* to arrive on real phones
+(bullets and grenades). The sim below still cannot prove live
+ENet delivery either; **real two-phone verification is still
+required before calling movement sync fixed.**
+
+**Tests (fix worker, 2026-11-19):** repl-sim **24/24 PASS**
+(was 19/19; new steps 8–12: NO-SYNC check on all 4 copies,
+RPC-C2S-DELIVER + MOVE 172 px + SMOOTH 314 px/s / snap-back
+0.0, RPC-S2C-DELIVER + MOVE 470 px + SMOOTH 350 px/s /
+snap-back 0.0, BULLET-SPAWN/TRACK/SMOOTH — see QA-055),
+0 script errors. Net test 15/15 PASS, physics 31/31 PASS,
+smoke DONE. The sim runs ~10 fps under llvmpipe, so the
+BULLET-TRACK window was lengthened to 1.0 s to collect ≥10
+tracked frames (0.5 s gave only 8 — a harness limit, not a game
+bug). Test-results section for the test worker: full-suite
+re-run + APK export + real two-phone verification (see
+"v3.4 full regression" below).
+
+## QA-054 — Push joystick RIGHT, release, player TURNS LEFT (user-reported, v3.3)
+
+**Repro:** on a real phone, push either joystick RIGHT, release
+it. The player turns/faces LEFT instead of stopping and staying
+facing right. (User, 2026-11-19 ~14:00 IST.)
+
+**Root cause (proven from code, not the knob):** the knob return
+tween is visual-only and cannot overshoot; `reset_input()`
+zeroes the vector immediately; no facing code defaults to left
+on a zero vector (facing is only assigned in
+`_apply_aim_and_fire` under `_aiming` or `_move_axis != 0`).
+The real cause is `project.godot`:
+`pointing/emulate_touch_from_mouse=true` and
+`emulate_mouse_from_touch` left at its Godot default (true), so
+on a phone every touch ALSO reads as a held left mouse button at
+the finger position. player.gd `_read_input`'s mouse-aim
+fallback ("desktop testing only") then aims the gun at the
+left-half touch point (LEFT) while the player runs RIGHT; facing
+follows aim, and facing only ever changes on fresh aim/move
+input, so it stays left after release. Headless joystick tests
+never caught it: they simulate touches via `_on_touch_press`
+directly, never through the OS input pipeline (no
+`parse_input_event` anywhere in the codebase before this fix).
+
+**Fix:**
+- player.gd: the mouse-aim fallback now also requires
+  `not game.touch_recently_used()`.
+- game.gd: new `_last_touch_msec` + `touch_recently_used()`
+  (true while a stick is held, or within 500 ms of the last
+  touch end), latched in `_on_touch_press`, `_on_touch_release`
+  and `_reset_all_touch_state`. 500 ms covers the finger lifting
+  after the emulated mouse button releases; a real desktop mouse
+  is unaffected (no touch events, latch stays cold).
+- On release the vector is exactly (0,0) immediately, the knob
+  returns to centre without overshoot, and facing keeps the last
+  non-zero direction — never flips to the opposite side.
+
+**Regression test (game.gd joystick test, 4 new steps):**
+MOVE-RELEASE-NO-LEFT and AIM-RELEASE-NO-LEFT at 1280x720, plus
+RESOLUTION-2400 and MOVE-RELEASE-NO-LEFT-2400 at 2400x1080.
+Each step presses the stick right, injects a real emulated mouse
+press at the finger position via `Input.parse_input_event`
+(+ `warp_mouse`, so the viewport mouse position is actually
+set — `parse_input_event` alone sets the button state but leaves
+`get_mouse_position()` at the screen centre in this headless
+run), releases touch + mouse together, then asserts ~0.5 s
+(30 frames) after release: emulated mouse seen on the correct
+half, facing == 1, no leftward velocity (move: vel.x ≥ −1;
+aim: vel.x ≥ −5, because rifle recoil leaves a small negative
+vel.x that decays to 0), vector == (0,0), knob < 2.0,
+cos(aim_angle) > 0.5, and (aim) not firing. The checks require
+`_joy_mouse_seen`, so they fail loudly if the injection breaks
+instead of passing vacuously. The 2400 step asserts the viewport
+*aspect* (2.22), not raw pixels — the resize reports the logical
+canvas size (1600x720), which expands only in aspect.
+
+**Tests:** joystick **25/25 PASS** (was 21/21), 0 script errors.
+Sample: MOVE-RELEASE-NO-LEFT mouse (225,555) left of centre 640,
+facing=1, vel.x=190, vec=(0,0), knob=0.0, aim=0.00;
+AIM-RELEASE-NO-LEFT mouse (1075,555) right of centre, facing=1,
+vel.x=−1, firing=false; 2400 variants PASS.
+
+## QA-055 — Bullet audit: flight is NOT realtime on the remote phone; one tunnelling hole (v3.3)
+
+**User reports:** bullets ARE visible on the other phone, but
+they do not move like realtime (2026-11-19 ~14:01 IST) — delayed,
+jumpy, step-by-step instead of smooth and matching the shooting
+phone exactly. Spawn works; the problem is how they move there.
+
+**Audit findings (bullet.gd + game.gd + player.gd):**
+- Structurally sound: swept raycast (mask 3: world+players),
+  host-only damage, pooled bullets, velocity inheritance 0.15,
+  rocket gravity 500. No tunnelling by speed: sniper 1600 px/s ×
+  1/30 s step = 53 px, the ray covers from→to; platforms are
+  48 px thick.
+- (a) **Real bug — tunnelling through walls:** the swept ray's
+  `hit_from_inside` defaulted to false, so a bullet whose muzzle
+  starts inside solid geometry (player flush against a wall,
+  aiming into it) flies straight through the wall. Fixed:
+  `query.hit_from_inside = true`.
+- (b) **Real cause of the non-realtime look — stale shooter
+  pose:** the remote bullet itself was simulated correctly from
+  its spawn data (same params, fixed 1/60 physics step — the
+  deterministic model is the right one, and LAN spawn latency
+  is only a few ms), but the shooter's aim angle and facing on
+  the remote phone were frozen by the dead synchronizer
+  (QA-053), so every bullet *looked* wrong relative to the
+  shooter. Fixed by QA-053: snapshots now carry aim/facing, so
+  the remote shooter's pose tracks the real one.
+- (c) No other defect found: spawn (muzzle position, direction,
+  ownership), flight (speed, straight trajectory), impact (stop
+  at solid obstacles with FX, damage only on real hits) all check
+  out in code and in the sim below. If bullets still look wrong
+  on real phones after v3.4, it is a live-ENet timing effect the
+  sim cannot show — the user should describe exactly what they
+  see (delay vs jump vs wrong angle).
+
+**Fix:** bullet.gd `hit_from_inside = true` only; the realtime
+flight itself is the deterministic per-peer simulation verified
+below (same speed, same timestep, same start position/
+direction, no local divergence) — no per-frame position RPCs,
+which would add latency and jitter instead of removing it.
+
+**Tests (repl-sim steps 11–12):** server bullet spawned via the
+real `spawn_bullet` path, shadow bullet via `obtain_bullet()` +
+`setup()` directly (the shadow's `spawn_bullet` resolves
+"game" via `get_first_node_in_group("game")`, which returns the
+SERVER instance — documented workaround, both bullets run real
+flight code). BULLET-SPAWN PASS (both at (1920,455), <5 px
+apart after 0.1 s), BULLET-TRACK PASS (≥10 frames tracked, max
+error **0.0 px**), BULLET-SMOOTH PASS (step rate 1198 px/s vs
+rifle speed 1100 px/s — no teleporting). Fire test 26/26 PASS
+after the change (see QA-056).
+
+## QA-056 — Bullets 20% smaller (user-requested, v3.4)
+
+**Change (bullet.gd only):** every bullet's visual size scaled
+to 80% — length 22→17.6 px (rocket), 14→11.2 px (all others);
+half-width 3→2.4 px; trail width 3.0→2.4 px; trail tail offset
+26→21 px. All weapons: pistol, rifle, SMG, shotgun pellets,
+sniper, rocket (projectile body only — the rocket's explosion
+visuals are untouched, they are not load-bearing on the
+projectile size).
+
+**Hitbox:** the hitbox IS the zero-width swept ray, so shrinking
+the visual keeps see-is-what-hits — there is no big invisible
+hitbox around the small bullet, by construction. Muzzle flash is
+unchanged (it lives on the gun, not the bullet) and the trail
+scale was shrunk with the bullet, so both still look right.
+
+**Tests:** fire test **26/26 PASS**, bullet audit checks
+(QA-055) PASS, 0 script errors.
+
+## QA-057 — Top-right in-game menu redesigned (user-requested, v3.4)
+
+**Change (game.gd `_build_hud` + `_build_touch_controls`
+only):** the top bar was one HBox of plain text; it is now three
+anchored sections. TOP_RIGHT is a real gohud PanelContainer
+(navy 0.03,0.07,0.13,0.92, margins 16/12) at (−300..−16,
+12..280) holding: a button row (SCORE 96×56 first, then pause
+"II" 56×56 — both ≥ 56 px touch targets, working exactly as
+before), an HSeparator, then the stats — Kills, Deaths, Players,
+weapon + ammo (with weapon icon), Grenades — right-aligned with
+clear labels and aligned numbers. The timer stays screen-centred
+in CENTER_TOP, so nothing overlaps it; the kill feed stays
+top-left; the panel clears the RELOAD/GRENADE/WEAPON column and
+the right joystick (QA-052 aim stick rect x 940–1090,
+y 480–630) by a wide margin. The scrim/outline treatment makes
+it readable over every map, bright or dark.
+
+**Screenshots reviewed (fix worker, 2026-11-19):**
+`~/workspace/mini-militia-lan-v34-proof/v34_hud_1280.png` and
+`v34_hud_2400.png` (cropped top-right reviewed at 2x) vs the
+v3.3 look (`~/workspace/mini-militia-lan-v33-proof/v33_hud.png`,
+`v33_hud_phone.png`) — the panel is visibly better at both
+resolutions: designed panel instead of plain stacked text,
+buttons clearly tappable, stats aligned and readable. No
+overlap with the timer, kill feed, buttons, or aim stick at
+either resolution.
+
+## QA-058 — Lobby and ALL pages redesigned (user-requested, v3.4)
+
+**Change (main.gd only, visual redesign — no flow or button
+changes):** every screen now uses the same Neon Arena treatment
+(gohud scifi_dark, cyan-on-navy, Orbitron/Rajdhani):
+- `_section_label` is now cyan, 22 px SemiBold (was 20 px
+  muted) — applies on every page.
+- Menu: title 40→48 px, HSeparator under the subtitle, buttons
+  420→460 px wide.
+- Multiplayer + lobby titles ("LOCAL MULTIPLAYER",
+  "GAME LOBBY") 30→36 px.
+- Lobby player rows are now cards: PanelContainer, navy
+  (0.10,0.16,0.25,0.85), corner radius 8, margins 12/8, with a
+  player-colour left bar (6 px), portrait 44×56 (was 36×48),
+  name SemiBold 22 with HOST/YOU tag, READY ✓ / not ready
+  SemiBold 20 (success/muted). KICK button unchanged.
+- Lobby map buttons: height 72→84, font 20→22,
+  `expand_icon = true` for bigger thumbnails.
+- The lobby already had portraits, HOST/YOU tags, READY status,
+  KICK, map thumbnails, vote/mode/limit/time controls; the menu
+  already had gohud icons + 64 px buttons; the multiplayer page
+  already had room-name input, max players, private/password,
+  CREATE ROOM, Manual IP JOIN, QUICK LAN MATCH, REFRESH and the
+  room list. This change is polish on top of that structure.
+- One typo fixed on the end screen while reviewing it:
+  "You wins!" → "You win!" (game.gd `show_end_screen`, line
+  ~4022 — winner is "You" for the local player, a name for
+  anyone else; screenshot-verified after the fix).
+
+**Per-page screenshot review (fix worker, 2026-11-19; all at
+1280x720 and 2400x1080, files in
+`~/workspace/mini-militia-lan-v34-proof/`):**
+
+| Page | 1280 | 2400 | Verdict vs v3.3 |
+|---|---|---|---|
+| Menu (`v34_menu_*`) | ✓ | ✓ | Visibly better — bigger cyan title, divider, wider buttons |
+| Multiplayer (`v34_multiplayer_*`) | ✓ | ✓ | Visibly better — cyan section headers, clear hierarchy, no cut-off text |
+| Lobby (`v34_lobby_*`) | ✓ | ✓ | Visibly better — player cards with colour bar + portrait + READY, bigger map thumbs, prominent START ANYWAY |
+| Customize (`v34_customize_*`) | ✓ | ✓ | Visibly better — cyan section headers, selected colour/helmet clearly highlighted |
+| Settings (`v34_settings_*`) | ✓ | ✓ | Visibly better — cyan section headers, sliders + toggles aligned, credits readable |
+| HUD / top-right (QA-057) | ✓ | ✓ | Visibly better — designed panel, see QA-057 |
+| Countdown (`v34_countdown_*`) | ✓ | ✓ | Unchanged layout (was already clean), top-right panel improved |
+| Pause (`v34_pause_*`) | ✓ | ✓ | Unchanged layout (was already clean), top-right panel improved |
+| Scoreboard (`v34_scoreboard_*`) | ✓ | ✓ | Unchanged layout (was already clean), top-right panel improved |
+| End / MVP (`v34_end_*`) | ✓ | ✓ | Visibly better — "You win!" typo fixed; Rematch / Back to Lobby clear |
+
+No overlaps and no cut-off text on any page at either
+resolution. Map list scrolling did NOT regress: scroll test
+**8/8 PASS at 1280x720 and 8/8 PASS at 2400x1080** (QA-048
+still green). Map-vote page was not separately screenshotted —
+it is the lobby's vote section, reviewed in the lobby shots.
+
+**Pre-existing art quirk (not a regression, not fixed):** the
+empty rounded box visible top-left on every menu page is a
+platform drawn in the menu background artwork itself
+(`assets/backgrounds/arena_blue.png`, added in v3.2, unchanged
+since — confirmed by `git log`). The live control tree was
+dumped to prove it: no Control exists at that position; the
+background TextureRect + 0.55 scrim is the only thing there.
+It shows through the 0.92-alpha panels on the other pages. It
+looks like an empty floating box on the menu; swapping the
+background art would remove it, but that is out of scope for
+this UI polish — noted here so it is not mistaken for a v3.4
+bug.
+
+**Joystick audit — the rest (user said "there are some
+glitches", 2026-11-19 ~13:58):** apart from QA-054, the full
+audit found NO other glitch. joystick.gd already handles the
+dead zone once (0.20, rescaled), knob clamp to radius,
+`get_vector()` zero unless a touch is held, `reset_input()` on
+focus-out/pause (QA-016), one finger per stick, whole-half
+capture by design. game.gd routes via `_unhandled_input` (GUI
+buttons consume first), `_on_touch_press` checks
+`is_hud_control_pos` first, `_reset_all_touch_state` on
+scoreboard/pause/focus-out. Direction, diagonals, multi-touch
+(move + aim + buttons), focus-out, pause, and the QA-052
+positions are all covered by the joystick test (25/25 PASS)
+and the fire/scale layout checks. If the user still sees a
+glitch, it needs an exact description — the code audit found
+nothing else.
+
+## v3.4 full regression — independent test-worker results (2026-11-19)
+
+Full suite re-run from scratch on the shipped v3.4 code by the
+test/export worker (fresh logs `/tmp/v34-test/*.txt`; post-fix
+re-run `/tmp/v34-test/repl-sim2.txt`, `flow2.txt`,
+`scroll-2400b.txt`, `smoke0b.txt`). All green, 0 script errors
+in every log. These numbers are independent of the fix worker's
+run — same results, re-run by the test worker.
+
+| Suite | Result |
+|---|---|
+| Replication sim (QA-053 + QA-055) | 24/24 PASS (was 19/19; +5 new RPC/smoothness/bullet checks), re-run 24/24 after the HUD-count fix below |
+| Joystick (QA-054) | 25/25 PASS (was 21/21; +4 new no-left-turn steps) |
+| Fire (QA-056 bullet size) | 26/26 PASS |
+| Scale (1280x720 / 2400x1080 / 1920x1080 / 800x480 / 2340x1080) | 70/70 PASS |
+| Physics (spec points 1–28, maps 0/6/10/12) | 31/31 PASS on every map |
+| Physics (Frozen Fortress ice, map 4) | 22/22 PASS |
+| Features (11 common features) | 11/11 PASS |
+| Multiplayer (net test, QA-047 join) | 15/15 PASS |
+| Menu network | 6/6 PASS |
+| Collision (all 13 maps) | 8/8 PASS on every map |
+| Smoke (all 13 maps) | DONE on every map (players=1, local_alive=true, 23–32 shots, bullets=160, fuel=100.0) |
+| Full flow (menu → create room → lobby → start → play → pause → scoreboard → end → back) | DONE, re-run DONE after the HUD-count fix below |
+| Scroll 1280x720 (QA-048) | 8/8 PASS |
+| Scroll 2400x1080 genuine (QA-048) | 8/8 PASS (`--resolution 2400x1080` before `--`), re-run 8/8 after the HUD-count fix below |
+| Screenshots (QA-057 + QA-058) | 10 pages × 2 resolutions reviewed by the test worker, see QA-057/QA-058 |
+
+**Repl-sim detail (independent run, both directions):**
+RPC-C2S-SMOOTH max step rate 303 px/s, snap-back 0.0 px
+(limit <600 px/s / <5 px); RPC-S2C-SMOOTH 315 px/s, snap-back
+0.0 px — steady ~300 px/s glide, no jumps, no frozen-then-
+catch-up bursts. BULLET-TRACK: 12 frames tracked, max position
+error 0.0 px (limit <10 px); BULLET-SMOOTH max step rate of the
+shadow bullet 1201 px/s (limit <2200; rifle flies 1100 px/s —
+a freeze-then-jump would be far faster). NO-SYNC: no
+MultiplayerSynchronizer on any of the 4 player copies
+(server p1/p2, shadow p1/p2) — snapshots are the only channel.
+**Joystick detail (QA-054 repro):** MOVE-RELEASE-NO-LEFT and
+AIM-RELEASE-NO-LEFT PASS at 1280x720 and 2400x1080 — push
+right, release, facing stays 1 (right), no leftward velocity,
+vector zero, aim stays right.
+
+**Fix found during independent verification (HUD player count,
+QA-057 follow-up):** the top-right panel showed
+"Players: 1/12" in every room — `_update_hud` used
+`MAX_PLAYERS` (the 12-player absolute cap) instead of the
+room's `max_players` (default 8; the lobby showed "1/4" in a
+4-player room while the HUD showed "1/12"). Pre-existing
+since v3.2, not a v3.4 regression. Fixed in v3.4
+(`game.gd`: `_update_hud` and the initial label now use
+`max_players`) and verified in a fresh render: the HUD now
+shows "Players: 1/8" in the default 8-player room, so the
+README two-phone check ("Players: 2/8") is what the user
+will actually see. Repl-sim, flow, scroll-2400 and smoke
+map 0 were re-run after this one-line fix — all green
+(see table above).
+
+**Screenshot corrections by the test worker:** the fix
+worker's `v34_end_2400.png` still showed "You wins!" — it
+was captured before the typo fix landed. Re-captured from
+the shipped code (`--game-shots` at 2400x1080): the end
+screen now reads "You win!" at both resolutions, and the
+stale file in `~/workspace/mini-militia-lan-v34-proof/` was
+replaced with the fresh capture (same for `v34_hud_2400.png`,
+which now shows "Players: 1/8"). The settings privacy line
+looked cut off at 2400x1080 in the fix worker's shot; a
+geometry probe (`/tmp/probe_settings.gd`) proved it wraps
+to 2 lines at both 1280x720 and 2400x1080 — the continuation
+is below the fold in the screenshot, not clipped. No defect.
+
+**Post-version-bump re-run** (after `BUILD_VERSION` 3.3 → 3.4,
+settings version label v3.4, export preset code 12 / name 3.4 —
+display and version strings only, plus the HUD-count fix above):
+repl-sim 24/24, full flow DONE, physics map 0 31/31, smoke map 0
+DONE, 0 script errors. Logs `/tmp/v34-test/repl-sim3.txt`,
+`flow3.txt`, `physics-map0b.txt`, `smoke0c.txt`.
+
+**Previous-bug spot-check in v3.4:** QA-047 join fix still
+green inside the repl-sim (its 14 checks are inside the 24
+above); QA-048 scroll 8/8 × 2; QA-049 right-stick firing in the
+fire test 26/26; QA-052 stick positions in the joystick test
+25/25 and the fire-test layout checks. QA-051 is SUPERSEDED by
+QA-053 (the synchronizer it fixed is deleted; the sim-only fix
+did not hold on real phones — see QA-053). Full regression
+table QA-001…QA-058 is in the v3.2 section below, updated
+for v3.4.
+
 ## v3.3 full regression — previous bugs re-verified (2026-11-19)
 
 Full suite re-run from scratch on the shipped v3.3 code by the
@@ -2997,8 +3430,6 @@ version strings only): repl-sim 19/19, full flow DONE, physics
 map 0 31/31, 0 script errors. QA-047 join fix untouched and still
 green in the sim (its 14 checks are inside the 19 above).
 
-### Previous-bug regression table (QA-001…QA-052)
-
 ## v3.2 full regression — previous bugs re-verified (2026-11-19)
 
 Every suite re-run after the v3.2 changes (theme, scroll, controls,
@@ -3020,27 +3451,27 @@ QA-047 join fix). All green, 0 script errors in every log.
 | Scroll 1280x720 (QA-048) | 8/8 PASS |
 | Scroll 2400x1080 genuine (QA-048) | 8/8 PASS |
 
-### Previous-bug regression table (QA-001…QA-052)
+### Previous-bug regression table (QA-001…QA-058) — re-verified in v3.4
 
-| QA | Still fixed? | Evidence in v3.3 |
+| QA | Still fixed? | Evidence in v3.4 |
 |---|---|---|
 | QA-001 centred panels off-centre/clipped | Yes | Flow test DONE; screenshots: menu, lobby, pause, scoreboard, end all centred, no clipping |
-| QA-002 spawn protection | Yes | Physics 31/31; spawn-protection logic untouched by v3.3 |
+| QA-002 spawn protection | Yes | Physics 31/31; spawn-protection logic untouched by v3.4 |
 | QA-003 animation freezes during reload | Yes | Smoke DONE (reload cycle runs, anim=idle); fire test RELOAD-COMPLETES |
-| QA-004 camera smoothing reset on respawn | Yes | Physics 31/31; camera code untouched by v3.3 |
+| QA-004 camera smoothing reset on respawn | Yes | Physics 31/31; camera code untouched by v3.4 |
 | QA-005 host's own game in its own room list | Yes | Menu-net 6/6; discovery code untouched |
-| QA-006 START MATCH double-tap | Yes | Flow test DONE (single start); lobby code untouched in v3.3 |
+| QA-006 START MATCH double-tap | Yes | Flow test DONE (single start); lobby code untouched in v3.4 |
 | QA-007 HELMET_NAMES labels wrong | Yes | Customize screenshot verified; data untouched |
 | QA-008 menu background too dark | Yes | Menu screenshot: arena background + scrim, sky visible |
-| QA-009 script error on scene change while centring | Yes | 0 script errors across all v3.3 suite logs |
-| QA-010 rifle peeks out at straight up/down aim | Known artifact, unchanged | Documented as known in v3.1; not a fix target; no change in v3.3 |
-| QA-011 music restarts on every scene change | Known, not fixed | Documented; music code untouched in v3.3 |
-| QA-012 jetpack loop audible pulse | Known, not fixed | Documented; audio untouched in v3.3 |
-| QA-013 unused asset files shipped in APK | Known, not fixed | Documented; nothing newly imported in v3.3 |
-| QA-014 real two-phone LAN join untestable here | Limitation, unchanged | Sandbox still blocks UDP sends (verified twice); repl-sim 19/19 is the in-process substitute; real two-phone check still owed to the user |
+| QA-009 script error on scene change while centring | Yes | 0 script errors across all v3.4 suite logs |
+| QA-010 rifle peeks out at straight up/down aim | Known artifact, unchanged | Documented as known in v3.1; not a fix target; no change in v3.4 |
+| QA-011 music restarts on every scene change | Known, not fixed | Documented; music code untouched in v3.4 |
+| QA-012 jetpack loop audible pulse | Known, not fixed | Documented; audio untouched in v3.4 |
+| QA-013 unused asset files shipped in APK | Known, not fixed | Documented; nothing newly imported in v3.4 |
+| QA-014 real two-phone LAN join untestable here | Limitation, unchanged | Sandbox still blocks UDP sends (verified twice); repl-sim 24/24 is the in-process substitute; real two-phone check still owed to the user |
 | QA-015 ObjectDB leak warning at exit | Observed, not a runtime leak | Same exit notice as before (2 resources in use at exit in the smoke log); not a script error |
 | QA-016 gun kept firing after finger lifted | Yes — re-fixed under the new input path | Fire test: AIM-FIRE-RELEASE (firing false, aim zero); joystick test FIRE-WHILE-PAUSED / FIRE-AFTER-MATCH-END |
-| QA-017 joystick-test take_damage() 1-arg (test-only) | Yes | Joystick 21/21 PASS |
+| QA-017 joystick-test take_damage() 1-arg (test-only) | Yes | Joystick 25/25 PASS |
 | QA-018 JUMP button removed; jump on left stick | Yes | Joystick test STICK-UP-NO-REJUMP; hint text documents it |
 | QA-019 HOST GAME shows world, no buttons | Yes | Flow test DONE; lobby screenshot shows all buttons |
 | QA-020 HOST/JOIN dead after leaving a match (FLOW-017) | Yes | Flow test DONE (back to menu, host again) |
@@ -3052,7 +3483,7 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-026 host-authoritative combat | Yes | Net 15/15; fire test MP-SYNC-VALIDATION |
 | QA-027 semi-auto tap silently lost | Yes — carried into the new input path | Fire test PISTOL-TAP-ONE-SHOT (+1), PISTOL-TEN-RAPID-TAPS (10/10); pending-edge flag + synchronous arm |
 | QA-028 script errors when leaving a match | Yes | 0 script errors in flow + all suite logs |
-| QA-029 joysticks move downwards on real phone | Yes | Joystick 21/21; scale 70/70 across 5 resolutions; touch conversion untouched by v3.3 (only the stick positions moved, QA-052) |
+| QA-029 joysticks move downwards on real phone | Yes | Joystick 25/25; scale 70/70 across 5 resolutions; touch conversion untouched by v3.4 (only the stick positions moved, QA-052) |
 | QA-030 bullets/player pass through obstacles | Yes | Collision 8/8 on all 13 maps; physics 31/31 |
 | QA-031 simultaneous lethal hits double-credit a kill | Yes | Fire test MP cases; kill-credit lock untouched; code path verified |
 | QA-032 pickup RPC to disconnected peer spams errors | Yes | Net 15/15; 0 script errors |
@@ -3061,7 +3492,7 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-035 touch controls draw over pause/scoreboard/end panels | Yes | Pause + scoreboard screenshots: sticks hidden behind panels |
 | QA-036 fire-test tap driver leak / P07b load-flake (harness only) | Yes | Fire test 26/26 (rewritten suite, no leaked driver) |
 | QA-037 spectator test vs LMS elimination rule (test-only) | Yes | Features test 11/11 (SPECTATOR, second living bot keeps match live) |
-| QA-038 removing exclude_filter breaks preset validation (build) | Yes | Export preset keeps `exclude_filter=""`; v3.3 export succeeded |
+| QA-038 removing exclude_filter breaks preset validation (build) | Yes | Export preset keeps `exclude_filter=""`; v3.4 export succeeded |
 | QA-039 rock decor does not block spawn-height sightlines | Yes | Map rule (rocks excluded from floor-lane fill); collision 8/8 × 13 maps |
 | QA-040 collision-test ray needs a clear approach (floor cover) | Yes | First floor cover face ≥150 px from left edge on every map; collision 8/8 × 13 |
 | QA-041 harness run-ups must stay clear of solid floor decor | Yes | CLEAR_STRETCH + spawn#0 run-up rule; physics 31/31, fire 26/26 |
@@ -3070,12 +3501,18 @@ QA-047 join fix). All green, 0 script errors in every log.
 | QA-044 physics harness used Catacombs-tuned coordinates | Yes | Map-relative helpers (_phys_ground_at / _phys_top_at); physics 31/31 on maps 0/6/10/12 |
 | QA-045 no explosive barrel on Space Station / Airship Fleet | Yes | ≥1 barrels guaranteed on every map floor; physics P22 passes |
 | QA-046 cover crate vs harness left run + palm walk | Yes | Joystick test teleports clear of cover; Desert/Pirate palms moved to x=400 |
-| QA-047 join stuck on "Connecting...", 0/8 (real-phone, v3.1) | Fixed, sim-verified | Repl-sim 19/19 PASS (spawn broadcast + player-list heal + retry re-send + "Connecting..." clears, plus the 5 new QA-051 sync checks); live two-phone ENet still needs the user's two phones — see README "Testing the join on two real phones" |
-| QA-048 map scroll on a real phone (v3.1) | Yes | Scroll 8/8 at 1280x720 AND 2400x1080 (genuine); scroll code untouched in v3.3 |
-| QA-049 FIRE button removed; right-stick firing (v3.2) | Yes | Fire test 26/26; no FIRE button in the HUD screenshots or the v3.3 APK |
-| QA-050 HUD hint + host-IP line invisible (v3.2) | Yes | v33 HUD screenshots (1280x720 and 2400x1080): bottom hint and "You are the HOST. Your IP: …" line both visible |
-| QA-051 movements not reflecting on the other phone (v3.2) | Fixed in v3.3, sim-verified | Repl-sim 19/19 — the 5 new SYNC checks assert synchronizer authority 1/2/1/2, ALWAYS replication mode, and client→server + server→client movement delivery; live two-phone ENet proof still needs the user's two phones (README step 4) |
-| QA-052 joysticks moved inward (v3.3) | Yes | Joystick 21/21, scale 70/70, fire 26/26 at the new positions; HUD screenshots show both sticks inward with clear space, no overlap with the RELOAD/GRENADE/WEAPON column |
+| QA-047 join stuck on "Connecting...", 0/8 (real-phone, v3.1) | Fixed, sim-verified | Repl-sim 24/24 PASS (spawn broadcast + player-list heal + retry re-send + "Connecting..." clears, plus the 5 new QA-051 sync checks, now superseded by QA-053's RPC channel); live two-phone ENet still needs the user's two phones — see README "Testing the join on two real phones" |
+| QA-048 map scroll on a real phone (v3.1) | Yes | Scroll 8/8 at 1280x720 AND 2400x1080 (genuine); scroll code untouched in v3.4 |
+| QA-049 FIRE button removed; right-stick firing (v3.2) | Yes | Fire test 26/26; no FIRE button in the HUD screenshots or the v3.4 APK |
+| QA-050 HUD hint + host-IP line invisible (v3.2) | Yes | v34 HUD screenshots (1280x720 and 2400x1080): bottom hint and "You are the HOST. Your IP: …" line both visible |
+| QA-051 movements not reflecting on the other phone (v3.2) | SUPERSEDED by QA-053 | The v3.3 synchronizer fix did NOT hold on real phones (user-tested v3.3, 2026-11-19 ~13:56: still frozen, bullets sync fine). The synchronizer is deleted in v3.4; movement now travels on the proven RPC channel — see QA-053. Repl-sim 24/24 replaces the old 19/19 |
+| QA-052 joysticks moved inward (v3.3) | Yes | Joystick 25/25, scale 70/70, fire 26/26 at the new positions; HUD screenshots show both sticks inward with clear space, no overlap with the RELOAD/GRENADE/WEAPON column |
+| QA-053 movement STILL not syncing on real phones (v3.3) | Fixed, sim-verified | Root cause: MultiplayerSynchronizer got a different auto-uniquified name on every peer (e.g. "@MultiplayerSynchronizer@1335"), so synchronizer packets addressed by node path were dropped; RPCs (addressed by Players/<pid>) worked. Synchronizer deleted; player state now travels on unreliable RPC snapshots at 30/s with a 12-entry 100 ms interpolation buffer, out-of-order drops, one owner for remote visible position. Repl-sim 24/24: both directions smooth (max step 303/315 px/s, snap-back 0.0 px), bullet track max error 0.0 px. Live two-phone ENet proof still needs the user's two phones (README step 4) — the sim cannot prove live delivery |
+| QA-054 push joystick RIGHT, release, player TURNS LEFT (v3.3) | Yes | Cause: emulate_mouse_from_touch + mouse-aim fallback aiming at the left-half touch point while running right. Fixed with a 500 ms touch_recently_used() gate; fallback requires not touch_recently_used(). Joystick 25/25 incl. MOVE-RELEASE-NO-LEFT and AIM-RELEASE-NO-LEFT at 1280x720 and 2400x1080 (facing stays right, no leftward velocity) |
+| QA-055 bullet flight not realtime on the remote phone (v3.3) | Yes | Audit found one real bug: swept ray hit_from_inside was false, so bullets fired through walls when the muzzle started inside geometry (fixed in bullet.gd). The non-realtime look was the stale shooter pose from the dead synchronizer — fixed by QA-053 (snapshots carry aim/facing). Flight stays deterministic per-peer simulation, not replaced. Repl-sim BULLET-SPAWN/TRACK/SMOOTH PASS (12 frames, max error 0.0 px, max step 1201 px/s vs 2200 limit) |
+| QA-056 bullets 20% smaller (user-requested, v3.4) | Done | Visual size 80% on all weapons, trail matched; hitbox is the zero-width swept ray, unchanged. Fire test 26/26 |
+| QA-057 top-right in-game menu (SCORE + pause + stats) | Done | Real gohud panel: SCORE 96×56 + pause 56×56, Kills/Deaths/Players/weapon+ammo/Grenades. HUD screenshots at both resolutions: no overlap with timer, kill feed, buttons or right stick. Follow-up found in independent verification: the panel showed "Players: 1/12" (used the 12-player cap, not the room max) — fixed in v3.4 to use max_players, fresh render shows "Players: 1/8" in the default room |
+| QA-058 lobby and ALL pages redesigned (user-requested, v3.4) | Done | Section labels, titles, lobby player cards, map buttons on every screen (menu, multiplayer, lobby, settings, customization, countdown, map vote, pause, scoreboard, end). "You wins!" → "You win!" (test worker re-captured the 2400 end shot from the shipped code — the fix worker's file was stale). 10 pages × 2 resolutions reviewed by the test worker; no overlaps, no cut-off text. Settings privacy line wraps to 2 lines (probe-verified). Map scroll still 8/8 × 2. The empty box top-left on menu pages is background art (arena_blue.png), NOT a control — verified by control-tree dump; not fixed |
 
 ### T-items (physics audit T-01–T-75, inside QA-030)
 

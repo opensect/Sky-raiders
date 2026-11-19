@@ -53,7 +53,7 @@ func _ready() -> void:
 	_visual = Polygon2D.new()
 	add_child(_visual)
 	_trail = Line2D.new()
-	_trail.width = 3.0
+	_trail.width = 2.4 # QA-056: 80% of 3.0, matching the smaller bullet
 	_trail.add_point(Vector2.ZERO)
 	_trail.add_point(Vector2.ZERO)
 	add_child(_trail)
@@ -92,9 +92,14 @@ func setup(p_pos: Vector2, p_dir: Vector2, p_speed: float, p_damage: int, p_kind
 func _apply_visual() -> void:
 	if _visual == null:
 		return
-	var length := 22.0 if kind == 4 else 14.0
+	# QA-056: bullets are 20% smaller (visual 80% of v3.3). The
+	# swept raycast IS the hitbox (zero-width ray down the bullet's
+	# path), so shrinking the visual keeps see-is-what-hits: the
+	# 4.8 px wide visual stays centred on the same ray, with no big
+	# invisible hitbox around a small bullet.
+	var length := 17.6 if kind == 4 else 11.2
 	_visual.polygon = PackedVector2Array([
-		Vector2(-length, -3), Vector2(length, -3), Vector2(length, 3), Vector2(-length, 3),
+		Vector2(-length, -2.4), Vector2(length, -2.4), Vector2(length, 2.4), Vector2(-length, 2.4),
 	])
 	var col := Color(1.0, 0.85, 0.3)
 	if kind == 1:
@@ -139,6 +144,12 @@ func _physics_process(delta: float) -> void:
 	# Swept test: ray from where we were to where we are going.
 	var space := get_world_2d().direct_space_state
 	var query := PhysicsRayQueryParameters2D.create(from, to, 3) # mask 3: world(1) + players(2)
+	# QA-055: a bullet whose muzzle starts INSIDE solid geometry
+	# (player flush against a wall, aiming into it) used to fly
+	# straight through the wall — a ray that starts inside a shape
+	# reports no hit by default. Hit-from-inside makes it impact at
+	# once, like a bullet fired point-blank into a wall should.
+	query.hit_from_inside = true
 	var hit: Dictionary = space.intersect_ray(query)
 	if not hit.is_empty():
 		var collider: Object = hit["collider"]
@@ -178,7 +189,9 @@ func _physics_process(delta: float) -> void:
 func _update_trail(from: Vector2, to: Vector2) -> void:
 	if _trail == null:
 		return
-	_trail.set_point_position(0, to_local(from - direction * 26.0))
+	# QA-056: tail 21 px behind the tip (was 26) — 80%, matching the
+	# smaller bullet so the trail still ends at the bullet's tail.
+	_trail.set_point_position(0, to_local(from - direction * 21.0))
 	_trail.set_point_position(1, to_local(to))
 
 

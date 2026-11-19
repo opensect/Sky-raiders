@@ -1,8 +1,10 @@
 extends CharacterBody2D
 
 # Animated soldier: analog run, jump, jetpack, full 360-degree aim.
-# Each peer owns its own player (multiplayer authority); a
-# MultiplayerSynchronizer replicates state to the other peers.
+# Each peer owns its own player (multiplayer authority); movement is
+# replicated by unreliable RPC snapshots on the SAME channel bullets
+# and grenades already use (QA-053) — the MultiplayerSynchronizer
+# proved undeliverable on real ENet (see BUGS.md QA-053) and is gone.
 # The soldier art has a rifle baked in; a separate weapon sprite is drawn
 # at the hands and rotated to the exact aim angle so the weapon always
 # points where the right stick points.
@@ -94,6 +96,15 @@ var fuel: float = FUEL_MAX
 var reloading: bool = false
 var sync_position: Vector2 = Vector2.ZERO
 var sync_velocity: Vector2 = Vector2.ZERO
+# QA-053: sync_position / sync_velocity are now the LAST RECEIVED
+# snapshot values (written by receive_move_snapshot, read by the
+# remote interpolation path). Nothing writes them from local movement
+# any more — the local branch sends snapshots instead (see
+# _send_move_snapshot). They are kept (same names) so _interp_position
+# and the repl-sim keep working unchanged.
+var _move_snap_timer: float = 0.0
+var _move_snap_seq: int = 0 # per-snapshot sequence (out-of-order guard)
+var _last_snap_seq: int = -1 # newest snapshot sequence applied
 
 var _shots_fired: int = 0
 var _shots_hit: int = 0 # Phase 4: distinct trigger pulls that hit a player (accuracy)
@@ -157,8 +168,6 @@ var _jump_cut_armed: bool = false # variable jump height (GAP-04)
 var _fuel_delay_timer: float = 0.0 # fuel regen delay (GAP-05)
 var _seen_damage_ids: Array = [] # unique damage event ids (GAP-43)
 var _snapshots: Array = [] # remote interpolation buffer (GAP-16)
-var _last_snap_pos: Vector2 = Vector2.INF
-var _last_snap_vel: Vector2 = Vector2.INF
 var _cam_anchor: Vector2 = Vector2.ZERO # camera dead-zone anchor (GAP-52)
 var _cam_anchor_init: bool = false
 var _cam_look: float = 0.0 # smoothed look-ahead (GAP-53)
@@ -174,7 +183,6 @@ var _ring: Polygon2D
 var _name_label: Label
 var _hp_bg: ColorRect
 var _hp_fg: ColorRect
-var _sync: MultiplayerSynchronizer
 var _audio # GameAudio node (set by game)
 var _camera: Camera2D # kept so respawn can reset smoothing (see below)
 
@@ -188,7 +196,6 @@ func _ready() -> void:
 	add_to_group("players")
 	_build_collision()
 	_build_sprite()
-	_setup_sync()
 	var game = get_tree().get_first_node_in_group("game")
 	if game != null:
 		position = game.get_valid_spawn_point(player_index, peer_id)
@@ -357,46 +364,97 @@ func _update_gun_texture() -> void:
 		_muzzle.position = Vector2(tex.get_width(), 0)
 
 
-func _setup_sync() -> void:
-	_sync = MultiplayerSynchronizer.new()
-	var cfg := SceneReplicationConfig.new()
-	for prop in ["sync_position", "sync_velocity", "aim_angle", "facing", "health", "kills", "deaths", "weapon", "mag_ammo", "grenades", "alive", "fuel", "life_state", "_shots_fired", "_shots_hit"]:
-		cfg.add_property(NodePath(prop))
-		# v3.3 QA-051: set the replication mode explicitly — never
-		# rely on the SceneReplicationConfig default. Every property
-		# is ALWAYS replicated, and spawns with its current value so
-		# a late-joining peer gets the live state at once.
-		cfg.property_set_replication_mode(NodePath(prop), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
-		cfg.property_set_spawn(NodePath(prop), true)
-	_sync.replication_config = cfg
-	_sync.replication_interval = 0.033 # 30 snapshots/s (GAP-60, spec §21.F)
-	# v3.3 QA-051: the synchronizer's OWN authority was never set,
-	# so it stayed the server (1) on every copy — a client's
-	# sync_position writes never left the client, and the host
-	# re-broadcast its stale spawn-point sync_position back. The
-	# player root's authority (set in _enter_tree from the node
-	# name) does NOT propagate to the synchronizer. Set it
-	# explicitly to the owning peer, and pin root_path to the
-	# player explicitly instead of relying on the default.
-	var owner_id: int = peer_id if peer_id > 0 else get_multiplayer_authority()
-	_sync.set_multiplayer_authority(owner_id)
-	_sync.root_path = NodePath("..")
-	add_child(_sync)
+# QA-053 — movement / state replication over the PROVEN RPC channel.
+# v3.3's MultiplayerSynchronizer is deleted: on real phones it delivered
+# nothing (its packets are addressed by the synchronizer's node path,
+# and a synchronizer created in _ready() gets an auto-uniquified name
+# like "@MultiplayerSynchronizer@1335" that differs on every peer, so
+# the remote peer has no node at the packet's path and drops it — the
+# sim could never catch this because it hand-assigned sync_position
+# directly, bypassing the wire entirely). RPCs, by contrast, are
+# addressed by the PLAYER node's path (Players/<pid>), which is
+# identical on every peer — the same reason spawn_bullet /
+# spawn_grenade / spawn_player_remote all arrive on real phones.
+#
+# _send_move_snapshot runs on the OWNER only, at the spec's snapshot
+# rate (PhysicsConfig.SNAPSHOT_INTERVAL = 0.033 s, 30/s, spec §21.F),
+# and carries position + velocity + aim + facing + the visible state
+# the synchronizer used to carry (weapon, health, kills, deaths,
+# alive, fuel, life state, ammo, grenades, accuracy counters) — damage
+# RPCs (take_hit / take_damage) go only to the victim's owning peer,
+# and weapon switches / reloads are local-only writes, so without this
+# payload the remote copies would show stale health, kills, weapons
+# and ammo too. Combat stays host-authoritative: snapshots only RELAY
+# values the host already decided via its RPCs; nothing here lets a
+# client award itself damage, kills or pickups.
+# One owner for the remote player's visible position: the snapshot
+# buffer, consumed by the remote branch's _interp_position. No second
+# channel touches position any more.
+func _send_move_snapshot(force: bool = false) -> void:
+	if not is_local_player():
+		return
+	# Offline harnesses have no peers to send to (and rpc() with no
+	# peer would only spam the log at 30/s); the repl-sim calls
+	# receive_move_snapshot directly instead. A host with nobody
+	# connected yet has nobody to send to either.
+	if not multiplayer.has_multiplayer_peer():
+		return
+	if multiplayer.get_peers().is_empty():
+		return
+	_move_snap_seq += 1
+	rpc("receive_move_snapshot", {
+		"seq": _move_snap_seq, "p": position, "v": velocity,
+		"aim": aim_angle, "face": facing, "wpn": weapon,
+		"hp": health, "k": kills, "d": deaths, "al": alive,
+		"fuel": fuel, "ls": life_state, "mag": mag_ammo,
+		"gr": grenades, "sf": _shots_fired, "sh": _shots_hit,
+	})
 
 
-# v3.3 QA-051: test hooks for the repl-sim — the synchronizer's own
-# authority and a property's replication mode, so the sim can assert
-# the configuration instead of only the player root's authority.
-func get_sync_authority() -> int:
-	if _sync == null:
-		return -1
-	return _sync.get_multiplayer_authority()
-
-
-func get_sync_replication_mode(prop: String) -> int:
-	if _sync == null or _sync.replication_config == null:
-		return -1
-	return _sync.replication_config.property_get_replication_mode(NodePath(prop))
+@rpc("any_peer", "unreliable")
+func receive_move_snapshot(snap: Dictionary) -> void:
+	# Accept only the owner's snapshots (sender 0 = a direct local
+	# call in the sim / tests, where there is no sender). A snapshot
+	# for our OWN player is ignored — the local branch owns the local
+	# position and must never be overwritten by a stale echo.
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != peer_id:
+		return
+	if is_local_player():
+		return
+	var seq := int(snap.get("seq", 0))
+	# Unreliable RPCs can arrive out of order or twice: only a newer
+	# sequence may move the player, so an old packet can never drag
+	# a remote player backwards (snap-back) after a newer one arrived.
+	if seq <= _last_snap_seq:
+		return
+	_last_snap_seq = seq
+	var pos: Vector2 = snap.get("p", position)
+	var vel: Vector2 = snap.get("v", Vector2.ZERO)
+	sync_position = pos
+	sync_velocity = vel
+	aim_angle = float(snap.get("aim", aim_angle))
+	facing = int(snap.get("face", facing))
+	var new_weapon := int(snap.get("wpn", weapon))
+	if new_weapon != weapon and new_weapon >= 0 and new_weapon < WEAPONS.size():
+		weapon = new_weapon
+		_update_gun_texture()
+	health = int(snap.get("hp", health))
+	kills = int(snap.get("k", kills))
+	deaths = int(snap.get("d", deaths))
+	alive = bool(snap.get("al", alive))
+	fuel = float(snap.get("fuel", fuel))
+	life_state = int(snap.get("ls", life_state))
+	mag_ammo = int(snap.get("mag", mag_ammo))
+	grenades = int(snap.get("gr", grenades))
+	_shots_fired = int(snap.get("sf", _shots_fired))
+	_shots_hit = int(snap.get("sh", _shots_hit))
+	# Feed the interpolation buffer, timestamped on receipt (spec
+	# §21.D: render at now - 100 ms between bracketing snapshots).
+	var now := Time.get_ticks_msec() / 1000.0
+	_snapshots.append({"t": now, "p": pos, "v": vel})
+	while _snapshots.size() > 12:
+		_snapshots.pop_front()
 
 
 func _process(delta: float) -> void:
@@ -451,20 +509,22 @@ func _physics_process(delta: float) -> void:
 		_apply_movement(delta)
 		_apply_aim_and_fire(delta)
 		_check_stuck(delta)
-		sync_position = position
-		sync_velocity = velocity
+		# QA-053: snapshots at the spec rate (30/s) — the owner's
+		# only channel out. Force-send is used by _respawn /
+		# _check_stuck after a teleport so the remote copy never
+		# waits a full interval to learn the new position.
+		_move_snap_timer += delta
+		if _move_snap_timer >= PhysicsConfig.SNAPSHOT_INTERVAL:
+			_move_snap_timer = 0.0
+			_send_move_snapshot()
 	else:
 		# Remote players: 100 ms interpolation buffer (GAP-16, spec
-		# §21.D/F). Snapshots are timestamped on receipt; render at
-		# now - 100 ms between the bracketing snapshots, extrapolating
-		# at most one physics step past the newest snapshot.
+		# §21.D/F). Snapshots are timestamped on receipt by
+		# receive_move_snapshot; render at now - 100 ms between the
+		# bracketing snapshots, extrapolating at most one physics
+		# step past the newest snapshot. Position is owned ONLY by
+		# this buffer — no second channel writes it.
 		var now := Time.get_ticks_msec() / 1000.0
-		if sync_position != _last_snap_pos or sync_velocity != _last_snap_vel:
-			_snapshots.append({"t": now, "p": sync_position, "v": sync_velocity})
-			_last_snap_pos = sync_position
-			_last_snap_vel = sync_velocity
-			while _snapshots.size() > 12:
-				_snapshots.pop_front()
 		position = _interp_position(now)
 		velocity = sync_velocity
 		_update_remote_anim()
@@ -521,8 +581,10 @@ func _check_stuck(delta: float) -> void:
 		var spot: Vector2 = game.get_valid_spawn_point(player_index, peer_id)
 		print("STUCK-RECOVERY: player %d was inside solid geometry, moved to %s" % [peer_id, str(spot)])
 		position = spot
-		sync_position = position
 		velocity = Vector2.ZERO
+		# QA-053: teleport — tell the other phones at once instead
+		# of waiting for the next 33 ms snapshot tick.
+		_send_move_snapshot(true)
 
 
 func _update_camera(delta: float) -> void:
@@ -623,11 +685,26 @@ func _read_input() -> void:
 	if Input.is_action_just_pressed("ui_accept"):
 		_jump_pressed = true
 	if not _aiming and game.touch_aim_active == false:
+		# QA-054 — the "turns left on release" glitch: on a phone,
+		# Godot emulates a mouse from every touch
+		# (emulate_mouse_from_touch defaults to true; project.godot
+		# never turns it off), so holding the MOVE stick also read
+		# as a held left mouse button at the finger's position — and
+		# this fallback then aimed the gun at the left-half touch
+		# point, i.e. LEFT, while the player ran RIGHT. Facing
+		# follows the aim, so the player faced left for the whole
+		# move and stayed facing left after release (facing only
+		# ever changes on a fresh aim/move input, so nothing ever
+		# turned it back). The mouse branch must never run while a
+		# touch is held or was just released (game.touch_recently_used
+		# covers both, with a 500 ms latch for a stale emulated
+		# button-up). On a touch device this branch is effectively
+		# desktop-only, which is what its comment always said.
 		var mouse_pos := get_viewport().get_mouse_position()
 		# Mouse aims only — it never fires (the right stick shoots).
 		# Clicks on HUD controls (fire / grenade / weapon / pause /
 		# score / reload) must not swing the aim.
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not game.is_hud_control_pos(mouse_pos):
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not game.is_hud_control_pos(mouse_pos) and not game.touch_recently_used():
 			var center := get_viewport().get_visible_rect().size * 0.5
 			var dir := mouse_pos - center
 			if dir.length() > 40.0:
@@ -1282,9 +1359,11 @@ func _respawn() -> void:
 	if game0 != null:
 		game0.consume_aim_fire_edge()
 	position = spot
-	sync_position = position
 	velocity = Vector2.ZERO
-	sync_velocity = Vector2.ZERO
+	# QA-053: respawn is a teleport — force a snapshot at once so the
+	# remote copy learns the new spawn immediately (and never keeps
+	# interpolating toward the old death position).
+	_send_move_snapshot(true)
 	_collision_shape.set_deferred("disabled", false)
 	_update_gun_texture()
 	_play_anim("idle")

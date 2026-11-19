@@ -541,6 +541,7 @@ var switch_button: Button
 var reload_button: Button # v2.4
 var pause_button: Button
 var score_button: Button
+var _topright_btn_row: HBoxContainer # QA-057: SCORE + pause live in the top-right panel
 var hint_label: Label
 var bullet_pool: BulletPool # v2.4: pooled bullets
 var shooting_sync: ShootingSync # v2.4: host-side fire-rate/ammo validation
@@ -560,6 +561,12 @@ var touch_firing: bool = false
 
 var _move_touch_id: int = -1
 var _aim_touch_id: int = -1
+# QA-054: when the last touch ended (msec clock). The mouse-aim
+# fallback in player.gd must never fire from a touch Godot emulated
+# as a mouse press — touch_recently_used() is true while any stick
+# is held and for 500 ms after the last touch ends, so even a stale
+# emulated button-up in the release frame cannot swing the aim.
+var _last_touch_msec: int = -1000000
 # v3.2 right-stick fire (CONTROLS_CHANGE.md §2): semi-auto weapons fire
 # once per fresh ZERO -> non-zero transition of the aim vector. The
 # transition arms one pending shot (QA-027 carry-over: a flick fires
@@ -645,6 +652,9 @@ var _joy_shots_before: int = 0
 var _joy_fuel_before: float = 0.0
 var _joy_pos_before: Vector2 = Vector2.ZERO
 var _joy_vel_before: Vector2 = Vector2.ZERO
+var _joy_mouse_seen: bool = false # QA-054: emulated mouse button was actually down during the hold
+var _joy_mouse_pos_seen: Vector2 = Vector2.ZERO # QA-054: emulated mouse position during the hold
+var _joy_aim_before: float = 0.0 # QA-054: aim angle before the push-right hold
 var _lava_cd: Dictionary = {} # peer id -> seconds until next lava damage tick
 var _round_wins: Dictionary = {} # v2.4 Survival: peer id -> rounds won
 # Phase 4 — kill feed, streaks, countdown, hitmarkers, spectator.
@@ -725,9 +735,22 @@ var _repl_sim_sent: Array = [] # payloads _send_all_players_to recorded in sim m
 var _repl_sim_shadow = null # second Game instance playing the client
 var _repl_sim_server_list: Array = []
 var _repl_sim_move_start: Vector2 = Vector2.ZERO # CONTROLS-ATTACH snapshot
-var _repl_sim_c2s_start: Vector2 = Vector2.ZERO # QA-051 SYNC-CLIENT-TO-SERVER baseline (server pid-2 pos)
-var _repl_sim_host_sync_start: Vector2 = Vector2.ZERO # QA-051 SYNC-HOST-WRITE baseline (server pid-1 sync_position)
-var _repl_sim_s2c_start: Vector2 = Vector2.ZERO # QA-051 SYNC-SERVER-TO-CLIENT baseline (shadow pid-1 pos)
+var _repl_sim_c2s_start: Vector2 = Vector2.ZERO # QA-053 RPC-C2S baseline (server pid-2 pos)
+var _repl_sim_s2c_start: Vector2 = Vector2.ZERO # QA-053 RPC-S2C baseline (shadow pid-1 pos)
+var _repl_sim_seq: int = 0 # QA-053: snapshot sequence for streamed snapshots
+var _repl_sim_stream_x: float = 0.0 # QA-053: streamed snapshot target x (steady +5 px/frame)
+var _repl_sim_stream_y: float = 0.0 # QA-053: streamed snapshot target y
+var _repl_sim_track_prev: Vector2 = Vector2.INF # QA-053: smoothness tracker, previous pos
+var _repl_sim_track_max_step: float = 0.0 # QA-053: biggest single-frame step RATE (px/s) seen
+var _repl_sim_track_max_back: float = 0.0 # QA-053: biggest backward (snap-back) step seen
+var _repl_sim_track_best_x: float = -INF # QA-053: furthest forward x reached (snap-back baseline)
+var _repl_sim_warm_done: bool = false # QA-053: warm-up window passed (buffer full, tracking live)
+var _repl_sim_bullet_a = null # QA-055: server instance bullet under test
+var _repl_sim_bullet_b = null # QA-055: shadow instance bullet under test
+var _repl_sim_bullet_max_err: float = 0.0 # QA-055: max pos error between the two bullets
+var _repl_sim_bullet_max_step: float = 0.0 # QA-055: max step RATE (px/s) of the shadow bullet
+var _repl_sim_bullet_prev_b: Vector2 = Vector2.INF # QA-055: previous shadow bullet pos
+var _repl_sim_bullet_frames: int = 0 # QA-055: frames both bullets were tracked
 var _net_test: bool = false # v2.4: --net-test harness
 var _net_steps: Array = []
 var _net_step: int = 0
@@ -1659,18 +1682,18 @@ func _build_hud() -> void:
 	hud.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(hud)
 
-	var top := HBoxContainer.new()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.offset_left = 16
-	top.offset_right = -16
-	top.offset_top = 12
-	top.offset_bottom = 64
-	top.add_theme_constant_override("separation", 16)
-	hud.add_child(top)
-
+	# QA-057: the top bar is three anchored sections, not one HBox —
+	# the right side is a real panel (its content is ~230 px tall,
+	# far taller than a 52 px bar), and the timer must stay centred
+	# on the screen, not centred in the space left over by the sides.
 	var left := VBoxContainer.new()
+	left.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	left.offset_left = 16
+	left.offset_top = 12
+	left.offset_right = 296
+	left.offset_bottom = 72
 	left.add_theme_constant_override("separation", 6)
-	top.add_child(left)
+	hud.add_child(left)
 
 	# v3.2: health and jetpack fuel as gohud GoBars — the bar shows
 	# its own label + number (readout VALUE, set explicitly so the
@@ -1711,8 +1734,12 @@ func _build_hud() -> void:
 	fuel_row.add_child(fuel_bar)
 
 	var mid := VBoxContainer.new()
-	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(mid)
+	mid.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	mid.offset_left = -200
+	mid.offset_right = 200
+	mid.offset_top = 12
+	mid.offset_bottom = 120
+	hud.add_child(mid)
 	timer_label = Label.new()
 	timer_label.text = "5:00"
 	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1733,9 +1760,43 @@ func _build_hud() -> void:
 	_outline_label(_centre_label)
 	mid.add_child(_centre_label)
 
+	# QA-057 — TOP-RIGHT MENU CARD: SCORE + pause buttons and the
+	# match stats (Kills / Deaths / Players / weapon + ammo /
+	# Grenades) in one designed Neon Arena panel — navy scrim with
+	# the gohud cut-corner border, buttons on top, stats below.
+	# Readable over every map (the panel's own fill, not bare text
+	# on the sky). Bottom ~y280: clear of the RELOAD/GRENADE/WEAPON
+	# column (y380+) and the aim stick (y480+); the centred message
+	# label (y116) and kill feed (top-left) never reach this corner.
+	var topright_panel := PanelContainer.new()
+	topright_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	topright_panel.offset_left = -300
+	topright_panel.offset_right = -16
+	topright_panel.offset_top = 12
+	topright_panel.offset_bottom = 280
+	topright_panel.theme = GoUi.theme()
+	var top_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
+	if top_sb != null:
+		var top_dup := top_sb.duplicate()
+		if top_dup is GoStyleBoxCut:
+			(top_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.92)
+			(top_dup as GoStyleBoxCut).content_margin_left = 16
+			(top_dup as GoStyleBoxCut).content_margin_right = 16
+			(top_dup as GoStyleBoxCut).content_margin_top = 12
+			(top_dup as GoStyleBoxCut).content_margin_bottom = 12
+		topright_panel.add_theme_stylebox_override("panel", top_dup)
+	hud.add_child(topright_panel)
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
-	top.add_child(right)
+	topright_panel.add_child(right)
+
+	# Button row: SCORE + pause land here from _build_touch_controls.
+	_topright_btn_row = HBoxContainer.new()
+	_topright_btn_row.alignment = BoxContainer.ALIGNMENT_END
+	_topright_btn_row.add_theme_constant_override("separation", 8)
+	right.add_child(_topright_btn_row)
+	var top_sep := HSeparator.new()
+	right.add_child(top_sep)
 
 	kills_label = Label.new()
 	kills_label.text = "Kills: 0"
@@ -1752,7 +1813,7 @@ func _build_hud() -> void:
 	right.add_child(deaths_label)
 
 	players_label = Label.new()
-	players_label.text = "Players: 1/4"
+	players_label.text = "Players: 1/%d" % max_players # v3.4: room max, not the 12-player cap — the HUD must agree with the lobby ("1/4" in a 4-player room, "2/8" in the default 8-player room)
 	players_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	players_label.add_theme_font_size_override("font_size", 20)
 	_outline_label(players_label)
@@ -2339,23 +2400,23 @@ func _build_touch_controls() -> void:
 	reload_button.pressed.connect(_on_reload_pressed)
 	hud.add_child(reload_button)
 
+	# QA-057: the buttons live in the top-right panel's button row
+	# (created in _build_hud), not floating at y196 — 56 px targets
+	# inside the designed card, beside the stats they control.
+	# SCORE first, pause second (left to right, as before).
+	score_button = Button.new()
+	score_button.text = "SCORE"
+	_style_hud_button(score_button)
+	score_button.custom_minimum_size = Vector2(96, 56)
+	score_button.pressed.connect(_on_score_pressed)
+	_topright_btn_row.add_child(score_button)
+
 	pause_button = Button.new()
 	pause_button.text = "II"
 	_style_hud_button(pause_button)
 	pause_button.custom_minimum_size = Vector2(56, 56)
-	pause_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	pause_button.position = Vector2(-72, 196)
 	pause_button.pressed.connect(_toggle_pause)
-	hud.add_child(pause_button)
-
-	score_button = Button.new()
-	score_button.text = "SCORE"
-	_style_hud_button(score_button)
-	score_button.custom_minimum_size = Vector2(90, 56)
-	score_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	score_button.position = Vector2(-178, 196)
-	score_button.pressed.connect(_on_score_pressed)
-	hud.add_child(score_button)
+	_topright_btn_row.add_child(pause_button)
 
 
 func _on_reload_pressed() -> void:
@@ -2463,6 +2524,7 @@ func _notification(what: int) -> void:
 func _reset_all_touch_state() -> void:
 	_move_touch_id = -1
 	_aim_touch_id = -1
+	_last_touch_msec = Time.get_ticks_msec()
 	if move_stick != null:
 		move_stick.reset_input()
 	if aim_stick != null:
@@ -2473,6 +2535,15 @@ func _reset_all_touch_state() -> void:
 	touch_firing = false
 	_aim_fire_pending = false
 	_aim_vec_prev_nonzero = false
+
+
+# QA-054: true while a stick is held, or within 500 ms of the last
+# touch press/release. The player's mouse-aim fallback consults this
+# so a touch can never be mistaken for a mouse click.
+func touch_recently_used() -> bool:
+	if _move_touch_id != -1 or _aim_touch_id != -1:
+		return true
+	return Time.get_ticks_msec() - _last_touch_msec < 500
 
 
 # QA-035: hide/show the gameplay touch cluster (sticks,
@@ -2496,6 +2567,7 @@ func _on_touch_press(index: int, pos: Vector2) -> void:
 	#    already declined them, but a stray touch must never reach a
 	#    stick — return without routing).
 	# 2. Sticks by screen half (move left, aim right).
+	_last_touch_msec = Time.get_ticks_msec() # QA-054: mouse-aim latch
 	if is_hud_control_pos(pos):
 		return
 	var vp := get_viewport().get_visible_rect().size
@@ -2525,6 +2597,7 @@ func _on_touch_drag(index: int, pos: Vector2) -> void:
 
 
 func _on_touch_release(index: int) -> void:
+	_last_touch_msec = Time.get_ticks_msec() # QA-054: mouse-aim latch
 	if index == _move_touch_id:
 		_move_touch_id = -1
 		move_stick.release_touch(index)
@@ -2664,7 +2737,7 @@ func consume_aim_fire_edge() -> void:
 func _update_hud(delta: float) -> void:
 	var lp = _get_local_player()
 	var count := players_node.get_child_count()
-	players_label.text = "Players: %d/%d" % [count, MAX_PLAYERS]
+	players_label.text = "Players: %d/%d" % [count, max_players] # v3.4: room max (was MAX_PLAYERS=12, so a default 8-player room wrongly showed "2/12")
 	# Timer (THEME_SPEC.md §3): ice normally, amber under 30 s,
 	# danger red under 10 s.
 	var t := int(maxf(0.0, _time_left))
@@ -3322,12 +3395,16 @@ func _update_jointest(delta: float) -> void:
 # spawn is "lost", the client retries, the server re-sends, the
 # shadow heals via the player list; (3) double delivery stays
 # idempotent; (4) disconnect despawns on the client. Verdict + quit.
-# Steps 8-11 (v3.3 QA-051): synchronizer authority + replication
-# mode on all copies, then client->server and server->client
-# movement delivery through the remote interpolation path. The sim
-# can only hand-deliver sync_position payloads (no live ENet) — see
-# the SYNC-SERVER-TO-CLIENT note in step 10 for the one-process
-# limit (pid-1 is "local" on both instances) and its workaround.
+# Steps 8-11 (v3.4 QA-053): the RPC snapshot channel replaces the
+# synchronizer — no MultiplayerSynchronizer on any copy, snapshots
+# hand-delivered to the receiver's receive_move_snapshot (the same
+# hand-delivery the spawn RPCs get), streamed at a steady +5 px/frame
+# so smoothness can be asserted too (small forward steps, no
+# snap-back). Steps 12-13 (v3.4 QA-055): the same rifle bullet fired
+# on both instances must track the same path frame by frame.
+# The sim can only hand-deliver payloads (no live ENet) — see the
+# note in step 10 for the one-process limit (pid-1 is "local" on both
+# instances) and its workaround.
 # =====================================================================
 
 func _repl_sim_check(label: String, ok: bool, detail: String = "") -> void:
@@ -3349,6 +3426,54 @@ func _repl_sim_deliver_recorded() -> void:
 		elif d.get("kind", "") == "player_list_remote":
 			_repl_sim_shadow.player_list_remote(d.get("data", []))
 	_repl_sim_sent.clear()
+
+
+func _repl_sim_snapshot(seq: int, pos: Vector2, vel: Vector2) -> Dictionary:
+	# One QA-053 move snapshot, exactly as _send_move_snapshot builds
+	# it (same keys the receiver reads).
+	return {"seq": seq, "p": pos, "v": vel, "aim": 0.0, "face": 1,
+		"wpn": 0, "hp": 100, "k": 0, "d": 0, "al": true, "fuel": 100.0,
+		"ls": 0, "mag": 30, "gr": 2, "sf": 0, "sh": 0}
+
+
+func _repl_sim_track_reset(pos: Vector2) -> void:
+	_repl_sim_track_prev = pos
+	_repl_sim_track_max_step = 0.0
+	_repl_sim_track_max_back = 0.0
+	_repl_sim_track_best_x = pos.x
+
+
+func _repl_sim_track(pos: Vector2, frame_delta: float) -> void:
+	# Smoothness tracker: biggest single-frame step RATE (px/s), and
+	# biggest backward (snap-back) move from the furthest-forward x
+	# reached. The rate is used, not the raw step, because the sim
+	# runs at ~10 fps under llvmpipe: a healthy 300 px/s glide is a
+	# 30 px step between _process frames there, but still 300 px/s.
+	# A freeze-then-catch-up burst or a snap-back to an old position
+	# shows up here as a multi-thousand px/s step or a backward jump.
+	if _repl_sim_track_prev == Vector2.INF:
+		_repl_sim_track_prev = pos
+		_repl_sim_track_best_x = pos.x
+		return
+	var step_rate := pos.distance_to(_repl_sim_track_prev) / maxf(frame_delta, 0.001)
+	if step_rate > _repl_sim_track_max_step:
+		_repl_sim_track_max_step = step_rate
+	if pos.x < _repl_sim_track_best_x:
+		var back := _repl_sim_track_best_x - pos.x
+		if back > _repl_sim_track_max_back:
+			_repl_sim_track_max_back = back
+	if pos.x > _repl_sim_track_best_x:
+		_repl_sim_track_best_x = pos.x
+	_repl_sim_track_prev = pos
+
+
+func _repl_sim_has_sync(p) -> bool:
+	if p == null:
+		return false
+	for c in p.get_children():
+		if c is MultiplayerSynchronizer:
+			return true
+	return false
 
 
 func _update_replsimtest(delta: float) -> void:
@@ -3412,16 +3537,18 @@ func _update_replsimtest(delta: float) -> void:
 				"message='%s' local=%s (want no 'Connecting...', local player found)" % [_repl_sim_shadow.message_label.text, _repl_sim_shadow._get_local_player() != null])
 			_repl_sim_check("HOST-PLAYER-TOO", _repl_sim_shadow.players_node.get_node_or_null("1") != null,
 				"host player visible on the client (v3.1 lost it as well)")
-			# The synchronizer's node name is auto-uniquified at runtime
-			# ("@MultiplayerSynchronizer@1335"), so find it by type.
+			# QA-053: there must be NO MultiplayerSynchronizer on the
+			# player any more — the RPC snapshot channel is the only
+			# channel (a leftover synchronizer would be a second
+			# writer on the same position). Authority still 2.
 			var sync_node = null
 			if lp != null:
 				for c in lp.get_children():
 					if c is MultiplayerSynchronizer:
 						sync_node = c
 						break
-			_repl_sim_check("SYNC-CHANNEL", sync_node != null and lp != null and lp.get_multiplayer_authority() == 2,
-				"client player has synchronizer=%s authority=%s (input flows to host via this)" % [sync_node != null, lp.get_multiplayer_authority() if lp != null else -1])
+			_repl_sim_check("RPC-CHANNEL", sync_node == null and lp != null and lp.get_multiplayer_authority() == 2,
+				"client player has synchronizer=%s authority=%s (want none/2 — snapshots are the only channel)" % [sync_node != null, lp.get_multiplayer_authority() if lp != null else -1])
 			# Double delivery must stay idempotent.
 			_repl_sim_shadow.player_list_remote(_repl_sim_server_list)
 			_repl_sim_step = 4
@@ -3509,105 +3636,206 @@ func _update_replsimtest(delta: float) -> void:
 			_repl_sim_step = 8
 			_repl_sim_timer = 0.0
 		8:
-			# Steps 8-11: v3.3 QA-051 movement-sync checks. (a) the
-			# synchronizer's own authority must equal the owning peer
-			# on BOTH players on BOTH instances; (b) sync_position /
-			# sync_velocity must be REPLICATION_MODE_ALWAYS everywhere.
-			# Then (c) client->server: move the shadow's pid-2 player
-			# +300 px (position + sync_position, as its owner would
-			# write them) and hand-deliver that sync_position to the
-			# server instance's pid-2 copy.
+			# Steps 8-11 (v3.4 QA-053): the RPC snapshot channel.
+			# (a) NO MultiplayerSynchronizer on any of the 4 player
+			# copies — one channel only. (b) Client->server: stream
+			# snapshots of the shadow's pid-2 player moving steadily
+			# right (+5 px/frame, as a 30/s snapshot flow would) and
+			# hand-deliver each one to the server copy's
+			# receive_move_snapshot — the same hand-delivery the
+			# spawn RPCs get. Step 9 asserts the server copy follows
+			# smoothly (moves, small steps, no snap-back).
 			if _repl_sim_timer < 0.3:
 				return
 			var s_p1 = players_node.get_node_or_null("1")
 			var s_p2 = players_node.get_node_or_null("2")
 			var c_p1 = _repl_sim_shadow.players_node.get_node_or_null("1")
 			var c_p2 = _repl_sim_shadow.players_node.get_node_or_null("2")
-			var auth_ok: bool = s_p1 != null and s_p2 != null and c_p1 != null and c_p2 != null \
-				and s_p1.get_sync_authority() == 1 and s_p2.get_sync_authority() == 2 \
-				and c_p1.get_sync_authority() == 1 and c_p2.get_sync_authority() == 2
-			_repl_sim_check("SYNC-AUTHORITY", auth_ok,
-				"sync authority server p1=%s p2=%s shadow p1=%s p2=%s (want 1/2/1/2 — v3.1/v3.2 left every synchronizer at 1)" % [
-					s_p1.get_sync_authority() if s_p1 != null else -1,
-					s_p2.get_sync_authority() if s_p2 != null else -1,
-					c_p1.get_sync_authority() if c_p1 != null else -1,
-					c_p2.get_sync_authority() if c_p2 != null else -1])
-			var mode_ok := s_p1 != null and s_p2 != null and c_p1 != null and c_p2 != null
-			for p in [s_p1, s_p2, c_p1, c_p2]:
-				if p == null:
-					mode_ok = false
-				elif p.get_sync_replication_mode("sync_position") != SceneReplicationConfig.REPLICATION_MODE_ALWAYS \
-					or p.get_sync_replication_mode("sync_velocity") != SceneReplicationConfig.REPLICATION_MODE_ALWAYS:
-					mode_ok = false
-			_repl_sim_check("SYNC-MODE", mode_ok,
-				"sync_position/sync_velocity replication mode == ALWAYS on all 4 copies (want true)")
+			var no_sync: bool = s_p1 != null and s_p2 != null and c_p1 != null and c_p2 != null \
+				and not _repl_sim_has_sync(s_p1) and not _repl_sim_has_sync(s_p2) \
+				and not _repl_sim_has_sync(c_p1) and not _repl_sim_has_sync(c_p2)
+			_repl_sim_check("NO-SYNC", no_sync,
+				"synchronizer present on server p1/p2=%s/%s shadow p1/p2=%s/%s (want none — snapshots are the only channel)" % [
+					_repl_sim_has_sync(s_p1), _repl_sim_has_sync(s_p2),
+					_repl_sim_has_sync(c_p1), _repl_sim_has_sync(c_p2)])
 			if s_p2 != null and c_p2 != null:
 				_repl_sim_c2s_start = s_p2.position
-				c_p2.position = c_p2.position + Vector2(300, 0)
-				c_p2.sync_position = c_p2.position
-				c_p2.sync_velocity = Vector2.ZERO
-				# Hand-deliver the client's snapshot to the server
-				# copy — what the synchronizer would carry over ENet.
-				s_p2.sync_position = c_p2.sync_position
-				s_p2.sync_velocity = Vector2.ZERO
+				_repl_sim_stream_x = c_p2.position.x
+				_repl_sim_stream_y = c_p2.position.y
+				_repl_sim_seq = 0
+				_repl_sim_track_reset(s_p2.position)
+				_repl_sim_seq += 1
+				s_p2.receive_move_snapshot(_repl_sim_snapshot(_repl_sim_seq,
+					Vector2(_repl_sim_stream_x, _repl_sim_stream_y), Vector2(300, 0)))
+			_repl_sim_check("RPC-C2S-DELIVER", s_p2 != null and s_p2.sync_position == Vector2(_repl_sim_stream_x, _repl_sim_stream_y) and s_p2._snapshots.size() >= 1,
+				"server pid-2 last snapshot=%s buffered=%d (want the delivered pos, >=1 snapshot)" % [s_p2.sync_position if s_p2 != null else Vector2.INF, s_p2._snapshots.size() if s_p2 != null else -1])
 			_repl_sim_step = 9
 			_repl_sim_timer = 0.0
 		9:
+			# Stream one snapshot per frame (+5 px in x, 300 px/s)
+			# and track the server copy's rendered position: it must
+			# glide forward in small steps, never freeze and jump,
+			# never snap back to an old position. The first 0.2 s is
+			# warm-up (the interpolation buffer fills; the very first
+			# snapshot pins the copy at the stream start, which is a
+			# join-moment placement, not steady-state motion) — the
+			# tracker starts after it so only steady motion is scored.
+			var s_p2b = players_node.get_node_or_null("2")
+			if s_p2b != null:
+				# Stream by TIME (300 px/s), not per frame: the sim
+				# runs ~10 fps under llvmpipe, so +5 px/frame was
+				# only +30 px in 0.6 s.
+				_repl_sim_stream_x += 300.0 * delta
+				_repl_sim_seq += 1
+				s_p2b.receive_move_snapshot(_repl_sim_snapshot(_repl_sim_seq,
+					Vector2(_repl_sim_stream_x, _repl_sim_stream_y), Vector2(300, 0)))
+				if _repl_sim_timer < 0.2:
+					pass
+				elif not _repl_sim_warm_done:
+					_repl_sim_warm_done = true
+					_repl_sim_track_reset(s_p2b.position)
+				else:
+					_repl_sim_track(s_p2b.position, delta)
 			if _repl_sim_timer < 0.6:
 				return
-			var s_p2b = players_node.get_node_or_null("2")
 			var moved_c2s := 0.0
 			if s_p2b != null:
 				moved_c2s = s_p2b.position.distance_to(_repl_sim_c2s_start)
-			_repl_sim_check("SYNC-CLIENT-TO-SERVER", moved_c2s > 50.0,
-				"server pid-2 copy moved %.0f px after the client's +300 px snapshot was delivered (want >50)" % moved_c2s)
-			# (d) setup: move the HOST's player (pid 1) +300 px on
-			# the server. Its local branch writes sync_position =
-			# position every physics frame — the write the
-			# synchronizer must carry to the client.
+			_repl_sim_check("RPC-C2S-MOVE", moved_c2s > 50.0,
+				"server pid-2 copy moved %.0f px under the streamed snapshots (want >50)" % moved_c2s)
+			_repl_sim_check("RPC-C2S-SMOOTH", _repl_sim_track_max_step < 600.0 and _repl_sim_track_max_back < 5.0,
+				"max step rate=%.0f px/s, max snap-back=%.1f px (want <600 px/s / <5 px — steady 300 px/s glide, no jumps)" % [_repl_sim_track_max_step, _repl_sim_track_max_back])
+			# (d) setup: the HOST's player (pid 1) now moves +300 px
+			# on the server; its snapshots are what the client must
+			# render. The shadow's pid-1 copy is "local" in this one
+			# process (both instances share the offline peer, unique
+			# id 1), so its local branch would swallow a delivered
+			# snapshot and never run the interpolation path. A real
+			# client has unique id 2, so pid-1 is remote there.
+			# Emulate that here by overriding the shadow copy's ROOT
+			# authority to 2, then stream its snapshots in step 11.
 			var s_p1b = players_node.get_node_or_null("1")
-			if s_p1b != null:
-				_repl_sim_host_sync_start = s_p1b.sync_position
-				s_p1b.position = s_p1b.position + Vector2(300, 0)
+			var c_p1s = _repl_sim_shadow.players_node.get_node_or_null("1")
+			if s_p1b != null and c_p1s != null:
+				_repl_sim_s2c_start = c_p1s.position
+				_repl_sim_stream_x = s_p1b.position.x + 300.0
+				_repl_sim_stream_y = s_p1b.position.y
+				c_p1s.set_multiplayer_authority(2)
+				_repl_sim_seq = 1000
+				_repl_sim_track_reset(c_p1s.position)
+				_repl_sim_seq += 1
+				c_p1s.receive_move_snapshot(_repl_sim_snapshot(_repl_sim_seq,
+					Vector2(_repl_sim_stream_x, _repl_sim_stream_y), Vector2(300, 0)))
+			_repl_sim_check("RPC-S2C-DELIVER", c_p1s != null and c_p1s.sync_position == Vector2(_repl_sim_stream_x, _repl_sim_stream_y) and c_p1s._snapshots.size() >= 1,
+				"shadow pid-1 last snapshot=%s buffered=%d (want the delivered pos, >=1 snapshot)" % [c_p1s.sync_position if c_p1s != null else Vector2.INF, c_p1s._snapshots.size() if c_p1s != null else -1])
+			_repl_sim_warm_done = false
 			_repl_sim_step = 10
 			_repl_sim_timer = 0.0
 		10:
-			if _repl_sim_timer < 0.6:
-				return
-			var s_p1c = players_node.get_node_or_null("1")
-			var host_moved := 0.0
-			if s_p1c != null:
-				host_moved = s_p1c.sync_position.distance_to(_repl_sim_host_sync_start)
-			_repl_sim_check("SYNC-HOST-WRITE", host_moved > 50.0,
-				"server pid-1 sync_position moved %.0f px after the host moved +300 px (want >50 — the owner's write the synchronizer replicates)" % host_moved)
-			# (d) delivery: the shadow's pid-1 copy is "local" in
-			# this one process (both instances share the offline
-			# peer, unique id 1), so its local branch would
-			# overwrite the delivered sync_position and never run
-			# the interpolation path. A real client has unique id
-			# 2, so pid-1 is remote there. Emulate that here by
-			# overriding the shadow copy's ROOT authority to 2 —
-			# the synchronizer config asserted above is untouched
-			# — then hand-deliver the host's snapshot to it.
-			var c_p1b = _repl_sim_shadow.players_node.get_node_or_null("1")
-			if c_p1b != null and s_p1c != null:
-				_repl_sim_s2c_start = c_p1b.position
-				c_p1b.set_multiplayer_authority(2)
-				c_p1b.sync_position = s_p1c.sync_position
-				c_p1b.sync_velocity = s_p1c.sync_velocity
-			_repl_sim_step = 11
-			_repl_sim_timer = 0.0
-		11:
+			# Same stream, server -> client: the shadow's pid-1 copy
+			# (authority overridden to 2 in step 9, so it runs the
+			# remote branch) receives one snapshot per frame, +5 px
+			# in x. First 0.2 s warms the interpolation buffer up;
+			# then the tracker scores steady motion only.
+			var c_p1t = _repl_sim_shadow.players_node.get_node_or_null("1")
+			if c_p1t != null:
+				_repl_sim_stream_x += 300.0 * delta
+				_repl_sim_seq += 1
+				c_p1t.receive_move_snapshot(_repl_sim_snapshot(_repl_sim_seq,
+					Vector2(_repl_sim_stream_x, _repl_sim_stream_y), Vector2(300, 0)))
+				if _repl_sim_timer < 0.2:
+					pass
+				elif not _repl_sim_warm_done:
+					_repl_sim_warm_done = true
+					_repl_sim_track_reset(c_p1t.position)
+				else:
+					_repl_sim_track(c_p1t.position, delta)
 			if _repl_sim_timer < 0.6:
 				return
 			var c_p1c = _repl_sim_shadow.players_node.get_node_or_null("1")
 			var moved_s2c := 0.0
 			if c_p1c != null:
 				moved_s2c = c_p1c.position.distance_to(_repl_sim_s2c_start)
-			_repl_sim_check("SYNC-SERVER-TO-CLIENT", moved_s2c > 50.0,
-				"shadow pid-1 copy moved %.0f px after the host's +300 px snapshot was delivered (want >50)" % moved_s2c)
+			_repl_sim_check("RPC-S2C-MOVE", moved_s2c > 50.0,
+				"shadow pid-1 copy moved %.0f px under the streamed snapshots (want >50)" % moved_s2c)
+			_repl_sim_check("RPC-S2C-SMOOTH", _repl_sim_track_max_step < 600.0 and _repl_sim_track_max_back < 5.0,
+				"max step rate=%.0f px/s, max snap-back=%.1f px (want <600 px/s / <5 px — steady 300 px/s glide, no jumps)" % [_repl_sim_track_max_step, _repl_sim_track_max_back])
+			# (e) QA-055 bullet tracking: fire the SAME rifle bullet
+			# on both instances (identical spawn params, direct
+			# calls = the spawn RPC hand-delivered) from open air
+			# (1700, 455) on map 0, and compare the two flights
+			# frame by frame in steps 11-12.
+			var s_p1f = players_node.get_node_or_null("1")
+			var muzzle := Vector2(1700, 455)
+			if s_p1f != null:
+				s_p1f.spawn_bullet(muzzle, Vector2.RIGHT, 1100.0, 12, 0, 1, 999, Vector2(1100, 0))
+			var b_bullet = _repl_sim_shadow.obtain_bullet()
+			b_bullet.setup(muzzle, Vector2.RIGHT, 1100.0, 12, 0, 1, false, 0.0, 1.2, 999, Vector2(1100, 0), 0.0)
+			if b_bullet.get_parent() == null:
+				_repl_sim_shadow.bullets_node.add_child(b_bullet)
+			_repl_sim_bullet_a = null
+			_repl_sim_bullet_b = null
+			for b in bullets_node.get_children():
+				if b.active:
+					_repl_sim_bullet_a = b
+			for b in _repl_sim_shadow.bullets_node.get_children():
+				if b.active:
+					_repl_sim_bullet_b = b
+			_repl_sim_bullet_max_err = 0.0
+			_repl_sim_bullet_max_step = 0.0
+			_repl_sim_bullet_prev_b = Vector2.INF
+			_repl_sim_bullet_frames = 0
+			_repl_sim_step = 11
+			_repl_sim_timer = 0.0
+		11:
+			# Track both bullets every frame: their positions must
+			# agree (same params, same fixed physics step) and the
+			# shadow bullet must advance in small per-frame steps.
+			if is_instance_valid(_repl_sim_bullet_a) and is_instance_valid(_repl_sim_bullet_b) \
+					and _repl_sim_bullet_a.active and _repl_sim_bullet_b.active:
+				var err: float = _repl_sim_bullet_a.position.distance_to(_repl_sim_bullet_b.position)
+				if err > _repl_sim_bullet_max_err:
+					_repl_sim_bullet_max_err = err
+				if _repl_sim_bullet_prev_b != Vector2.INF:
+					var st: float = _repl_sim_bullet_b.position.distance_to(_repl_sim_bullet_prev_b) / maxf(delta, 0.001)
+					if st > _repl_sim_bullet_max_step:
+						_repl_sim_bullet_max_step = st
+				_repl_sim_bullet_prev_b = _repl_sim_bullet_b.position
+				_repl_sim_bullet_frames += 1
+			if _repl_sim_timer < 0.1:
+				return
+			var a_pos: Vector2 = _repl_sim_bullet_a.position if is_instance_valid(_repl_sim_bullet_a) else Vector2.INF
+			var b_pos: Vector2 = _repl_sim_bullet_b.position if is_instance_valid(_repl_sim_bullet_b) else Vector2.INF
+			_repl_sim_check("BULLET-SPAWN", is_instance_valid(_repl_sim_bullet_a) and is_instance_valid(_repl_sim_bullet_b) \
+					and _repl_sim_bullet_a.active and _repl_sim_bullet_b.active and a_pos.distance_to(b_pos) < 5.0,
+				"server bullet=%s shadow bullet=%s (want both active, <5 px apart at spawn)" % [a_pos, b_pos])
+			_repl_sim_step = 12
+			_repl_sim_timer = 0.0
+		12:
+			# Keep tracking the flight for 1.0 s (~1100 px at rifle
+			# speed, still inside map 0 and clear of platforms; the
+			# bullet lives 1.2 s, so it is still flying at the check.
+			# 1.0 s is needed because the sim runs ~10 fps under
+			# llvmpipe — 0.5 s was only ~5 tracked frames.
+			if is_instance_valid(_repl_sim_bullet_a) and is_instance_valid(_repl_sim_bullet_b) \
+					and _repl_sim_bullet_a.active and _repl_sim_bullet_b.active:
+				var err: float = _repl_sim_bullet_a.position.distance_to(_repl_sim_bullet_b.position)
+				if err > _repl_sim_bullet_max_err:
+					_repl_sim_bullet_max_err = err
+				if _repl_sim_bullet_prev_b != Vector2.INF:
+					var st: float = _repl_sim_bullet_b.position.distance_to(_repl_sim_bullet_prev_b) / maxf(delta, 0.001)
+					if st > _repl_sim_bullet_max_step:
+						_repl_sim_bullet_max_step = st
+				_repl_sim_bullet_prev_b = _repl_sim_bullet_b.position
+				_repl_sim_bullet_frames += 1
+			if _repl_sim_timer < 1.0:
+				return
+			_repl_sim_check("BULLET-TRACK", _repl_sim_bullet_frames >= 10 and _repl_sim_bullet_max_err < 10.0,
+				"tracked %d frames, max position error=%.1f px (want >=10 frames, <10 px — same path, realtime)" % [_repl_sim_bullet_frames, _repl_sim_bullet_max_err])
+			_repl_sim_check("BULLET-SMOOTH", _repl_sim_bullet_max_step < 2200.0,
+				"max step rate of the shadow bullet=%.0f px/s (want <2200 — rifle is 1100 px/s; a freeze-then-jump would be far faster)" % _repl_sim_bullet_max_step)
 			_repl_sim_done = true
-			print("REPLSIM DONE: %d passed, %d failed (simulated wire only — live two-phone ENet still needs real phones, see BUGS.md QA-047/QA-051)" % [_repl_sim_passed, _repl_sim_failed])
+			print("REPLSIM DONE: %d passed, %d failed (simulated wire only — live two-phone ENet still needs real phones, see BUGS.md QA-047/QA-053)" % [_repl_sim_passed, _repl_sim_failed])
 			get_tree().quit()
 
 
@@ -3791,7 +4019,10 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 	# Phase 6: the match is over — back to the calm menu track.
 	if audio != null:
 		audio.play_menu_music()
-	end_title.text = "%s wins!\n%s" % [winner, reason] if winner != "DRAW" else "Draw!\n%s" % reason
+	# "You win!" not "You wins!" — winner is "You" for the local
+	# player, a name for anyone else.
+	var win_word := "You win!" if winner == "You" else "%s wins!" % winner
+	end_title.text = "%s\n%s" % [win_word, reason] if winner != "DRAW" else "Draw!\n%s" % reason
 	# Phase 4: MVP / match summary banner (most kills, best accuracy).
 	# Rows arrive sorted by kills, so rows[0] is the MVP.
 	for n in _mvp_nodes:
@@ -4267,6 +4498,8 @@ func _joytest_build_steps() -> void:
 		{"name": "PRESS-RIGHT", "wait": 0.6, "setup": _jt_s_press_right, "check": _jt_c_press_right},
 		{"name": "PRESS-UP-JUMP", "wait": 0.4, "setup": _jt_s_press_up, "check": _jt_c_press_up},
 		{"name": "RELEASE-STOPS", "wait": 0.5, "setup": _jt_s_release_move, "check": _jt_c_release_stops},
+		{"name": "MOVE-RELEASE-NO-LEFT", "wait": 0.8, "setup": _jt_s_move_right_mouse, "check": _jt_c_move_release_no_left},
+		{"name": "AIM-RELEASE-NO-LEFT", "wait": 0.8, "setup": _jt_s_aim_right_mouse, "check": _jt_c_aim_release_no_left},
 		{"name": "FUEL-STABLE", "wait": 0.5, "setup": _jt_s_noop, "check": _jt_c_fuel_stable},
 		{"name": "PRESS-DOWN-FAST-FALL", "wait": 0.4, "setup": _jt_s_press_down, "check": _jt_c_press_down},
 		{"name": "DIAG-UP-RIGHT", "wait": 0.5, "setup": _jt_s_diag_up_right, "check": _jt_c_diag_up_right},
@@ -4284,6 +4517,8 @@ func _joytest_build_steps() -> void:
 		{"name": "FIRE-AFTER-MATCH-END", "wait": 0.6, "setup": _jt_s_match_end_aim_fire, "check": _jt_c_fire_after_match_end},
 		{"name": "STICK-UP-NO-REJUMP", "wait": 4.0, "setup": _jt_s_hold_up_long, "check": _jt_c_no_rejump},
 		{"name": "RESOLUTION-1920", "wait": 0.5, "setup": _jt_s_resize_1920, "check": _jt_c_resolution_1920},
+		{"name": "RESOLUTION-2400", "wait": 0.5, "setup": _jt_s_resize_2400, "check": _jt_c_resolution_2400},
+		{"name": "MOVE-RELEASE-NO-LEFT-2400", "wait": 0.5, "setup": _jt_s_noop, "check": _jt_c_move_release_no_left_2400},
 	]
 
 
@@ -4421,6 +4656,137 @@ func _jt_c_release_stops() -> Array:
 	_joy_fuel_before = lp.fuel
 	var ok: bool = touch_move_vec == Vector2.ZERO and move_stick.get_knob_offset().length() < 2.0 and not lp._jetpacking and absf(lp.velocity.x) < 60.0
 	return [ok, "vec=%s knob=%.1f jetpacking=%s vel.x=%d fuel=%d" % [touch_move_vec, move_stick.get_knob_offset().length(), lp._jetpacking, round(lp.velocity.x), round(lp.fuel)]]
+
+
+# --- QA-054 regression: push RIGHT, release, player must NOT turn left.
+# On a real phone Godot emulates a mouse from every touch, so a MOVE
+# stick hold also read as a held left mouse button at the finger's
+# position — and the mouse-aim fallback in player.gd aimed the gun at
+# that left-half point (LEFT) while the player ran RIGHT. Facing
+# follows the aim, so the player faced left for the whole move and
+# stayed facing left after release. These steps reproduce the phone
+# exactly: a real touch hold PLUS an injected emulated mouse press at
+# the same point (Input.parse_input_event, the OS path), released
+# together 0.3 s later; the check runs ~0.5 s after release (30
+# frames) and asserts no leftward velocity and no facing flip. The
+# check REQUIRES the mouse press to have been seen during the hold
+# (_joy_mouse_seen) — without it the test would pass vacuously if
+# the injection ever stopped working.
+func _jt_inject_mouse_press(canvas_pos: Vector2) -> void:
+	var vp := _to_viewport_pos(canvas_pos)
+	# warp_mouse sets the viewport's mouse POSITION deterministically;
+	# parse_input_event alone sets the button state but leaves
+	# get_mouse_position() at its default (screen centre) in this
+	# headless run, so the position assertion would read the centre.
+	get_viewport().warp_mouse(vp)
+	var btn := InputEventMouseButton.new()
+	btn.button_index = MOUSE_BUTTON_LEFT
+	btn.pressed = true
+	btn.position = vp
+	Input.parse_input_event(btn)
+
+
+func _jt_inject_mouse_release() -> void:
+	var btn := InputEventMouseButton.new()
+	btn.button_index = MOUSE_BUTTON_LEFT
+	btn.pressed = false
+	btn.position = get_viewport().get_mouse_position()
+	Input.parse_input_event(btn)
+
+
+func _jt_release_move_mouse() -> void:
+	# Record the emulated-mouse state BEFORE releasing it: the
+	# check needs proof the mouse press was really down mid-hold.
+	_joy_mouse_seen = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	_joy_mouse_pos_seen = get_viewport().get_mouse_position()
+	_jt_release_move()
+	_jt_inject_mouse_release()
+
+
+func _jt_release_aim_mouse() -> void:
+	_joy_mouse_seen = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	_joy_mouse_pos_seen = get_viewport().get_mouse_position()
+	_jt_release_aim()
+	_jt_inject_mouse_release()
+
+
+func _jt_s_move_right_mouse() -> void:
+	var lp = _jt_lp()
+	lp.position = Vector2(2100, 1350)
+	lp.velocity = Vector2.ZERO
+	_joy_aim_before = lp.aim_angle
+	_joy_mouse_seen = false
+	_jt_press_move(Vector2(60, 0))
+	_jt_inject_mouse_press(_jt_move_center() + Vector2(60, 0))
+	get_tree().create_timer(0.3).timeout.connect(_jt_release_move_mouse)
+
+
+func _jt_c_move_release_no_left() -> Array:
+	var lp = _jt_lp()
+	var centre_x := get_viewport().get_visible_rect().size.x * 0.5
+	var ok: bool = _joy_mouse_seen and _joy_mouse_pos_seen.x < centre_x \
+		and lp.facing == 1 and lp.velocity.x >= -1.0 \
+		and touch_move_vec == Vector2.ZERO and move_stick.get_knob_offset().length() < 2.0 \
+		and cos(lp.aim_angle) > 0.5
+	return [ok, "mouse_seen=%s mouse_pos=%s (want left of centre %.0f) facing=%d vel.x=%d vec=%s knob=%.1f aim=%.2f (want facing 1, no leftward vel, vec 0, aim right)" % [_joy_mouse_seen, _joy_mouse_pos_seen, centre_x, lp.facing, round(lp.velocity.x), touch_move_vec, move_stick.get_knob_offset().length(), lp.aim_angle]]
+
+
+func _jt_s_aim_right_mouse() -> void:
+	var lp = _jt_lp()
+	lp.position = Vector2(2100, 1350)
+	lp.velocity = Vector2.ZERO
+	_joy_aim_before = lp.aim_angle
+	_joy_mouse_seen = false
+	_jt_press_aim(Vector2(60, 0))
+	_jt_inject_mouse_press(_jt_aim_center() + Vector2(60, 0))
+	get_tree().create_timer(0.3).timeout.connect(_jt_release_aim_mouse)
+
+
+func _jt_c_aim_release_no_left() -> Array:
+	var lp = _jt_lp()
+	var centre_x := get_viewport().get_visible_rect().size.x * 0.5
+	var ok: bool = _joy_mouse_seen and _joy_mouse_pos_seen.x > centre_x \
+		and lp.facing == 1 and lp.velocity.x >= -5.0 \
+		and not touch_firing and touch_aim == Vector2.ZERO \
+		and cos(lp.aim_angle) > 0.5
+	return [ok, "mouse_seen=%s mouse_pos=%s (want right of centre %.0f) facing=%d vel.x=%d firing=%s aim_vec=%s aim=%.2f (want facing 1, not firing, aim right)" % [_joy_mouse_seen, _joy_mouse_pos_seen, centre_x, lp.facing, round(lp.velocity.x), touch_firing, touch_aim, lp.aim_angle]]
+
+
+func _jt_s_resize_2400() -> void:
+	# Same clear floor as the 1280 steps: (2100, 1350) has a clear
+	# run right to the map edge on map 0.
+	var lp = _jt_lp()
+	lp.position = Vector2(2100, 1350)
+	lp.velocity = Vector2.ZERO
+	get_window().size = Vector2(2400, 1080)
+	_joy_mouse_seen = false
+	_jt_press_move(Vector2(60, 0))
+	_jt_inject_mouse_press(_jt_move_center() + Vector2(60, 0))
+
+
+func _jt_c_resolution_2400() -> Array:
+	var lp = _jt_lp()
+	var vp_size := get_viewport().get_visible_rect().size
+	# Same stick math at phone aspect: rightward vector, moving right.
+	# The resize reports the logical canvas size, which expands only
+	# in aspect (1600x720 is the 2400x1080 aspect 2.22) — assert the
+	# aspect, not raw window pixels. Release here (touch + emulated
+	# mouse together); the next step observes the 30 frames after
+	# release at this resolution.
+	var ok: bool = absf(vp_size.x / vp_size.y - 2400.0 / 1080.0) < 0.05 and touch_move_vec.x > 0.5 and lp.velocity.x > 50.0
+	_jt_release_move_mouse()
+	return [ok, "viewport=%s vec=%s vel.x=%d" % [vp_size, touch_move_vec, round(lp.velocity.x)]]
+
+
+func _jt_c_move_release_no_left_2400() -> Array:
+	var lp = _jt_lp()
+	var centre_x := get_viewport().get_visible_rect().size.x * 0.5
+	var ok: bool = _joy_mouse_seen and _joy_mouse_pos_seen.x < centre_x \
+		and lp.facing == 1 and lp.velocity.x >= -1.0 \
+		and touch_move_vec == Vector2.ZERO and move_stick.get_knob_offset().length() < 2.0 \
+		and cos(lp.aim_angle) > 0.5
+	get_window().size = Vector2(1280, 720)
+	return [ok, "mouse_seen=%s mouse_pos=%s (want left of centre %.0f) facing=%d vel.x=%d vec=%s knob=%.1f aim=%.2f at 2400x1080 (want facing 1, no leftward vel, vec 0, aim right)" % [_joy_mouse_seen, _joy_mouse_pos_seen, centre_x, lp.facing, round(lp.velocity.x), touch_move_vec, move_stick.get_knob_offset().length(), lp.aim_angle]]
 
 
 func _jt_c_fuel_stable() -> Array:

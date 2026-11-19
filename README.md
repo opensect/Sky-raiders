@@ -1,8 +1,105 @@
-# LAN Arena Shooter — v3.3
+# LAN Arena Shooter — v3.4
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi.
+
+## What's new in v3.4 (RPC movement sync + joystick release fix + bullet audit + top-right & lobby UI)
+
+- **Movement sync rebuilt on the proven RPC channel (QA-053).**
+  In v3.3 both players were visible but movement still did not reflect
+  on the other phone — while bullets and grenades DID sync. Root cause:
+  the `MultiplayerSynchronizer` was created with no explicit name, so
+  Godot gave it a different auto-uniquified name on every peer (e.g.
+  `@MultiplayerSynchronizer@1335`); synchronizer packets are addressed
+  by node path, so remote peers dropped them silently. RPCs worked
+  because they are addressed by the player node path
+  (`Players/<pid>`). The synchronizer is now deleted entirely; player
+  state travels on unreliable RPC snapshots at 30/s, with out-of-order
+  drops and interpolation over a 12-entry 100 ms buffer. One owner for
+  the remote visible position; combat stays host-authoritative.
+  Simulated two-peer test 24/24 (both directions smooth: max step
+  303/315 px/s, snap-back 0.0 px; bullet tracking max error 0.0 px) —
+  **the live two-phone check is still yours to do**, see "Testing the
+  join on two real phones", step 4 — the sim cannot prove live ENet
+  delivery, and the v3.3 sim passed 19/19 while real phones still
+  failed.
+- **Joystick release no longer turns you left (QA-054).** Pushing the
+  stick right and releasing it made the player turn left. Cause:
+  `emulate_mouse_from_touch` plus the mouse-aim fallback aiming at the
+  left-half touch point while running right. Fixed with a 500 ms
+  touch gate; the fallback only runs when no touch was used recently.
+  Joystick test 25/25, including the exact repro (push right →
+  release → no leftward velocity, no facing flip in the next 30
+  frames) on both sticks at 1280x720 and 2400x1080.
+- **Bullet audit (QA-055) + bullets 20% smaller (QA-056).** One real
+  bug found: the swept ray's `hit_from_inside` was false, so bullets
+  fired through walls when the muzzle started inside geometry — fixed.
+  The "bullets don't look realtime" report was the stale shooter pose
+  from the dead synchronizer; snapshots now carry aim/facing, and
+  flight stays deterministic per-peer simulation. Bullets are now 20%
+  smaller on all weapons (visual 80%, trail matched; the hitbox is
+  the zero-width swept ray, unchanged).
+- **Top-right menu redesigned (QA-057) + lobby and all pages
+  redesigned (QA-058).** The in-game top-right is now a proper Neon
+  Arena panel: SCORE (96×56) + pause (56×56) buttons, Kills, Deaths,
+  Players, weapon + ammo, Grenades — readable over all maps, no
+  overlap with the timer, kill feed, buttons or right stick. Every
+  screen (menu, multiplayer, lobby, settings, customization,
+  countdown, map vote, pause, scoreboard, end) got section labels,
+  titles and lobby player cards in the same theme; the end screen
+  typo is fixed ("You win!", not "You wins!"). Map-list scrolling
+  did not regress (8/8 at both resolutions). One fix found while
+  verifying: the HUD showed "Players: 1/12" in every room (it used
+  the 12-player cap, not the room's max) — it now shows the room max,
+  so a default room reads "Players: 2/8" with two players.
+- Nothing else changed: same 13 maps, same features, same 3
+  permissions, same debug keystore — v3.4 installs over v3.3.
+
+### v3.4 build (delivered 2026-11-19, independently verified + exported)
+
+- **APK:** `mini-militia-lan.apk` — 35,576,986 bytes (~34 MB), md5
+  `39e11621341a78a04b8f4b7ce7108453`, versionCode **12**,
+  versionName **3.4**, targetSdk 36, minSdk 24, package
+  `com.lanarena.shooter`, arm64-v8a only. Built with Godot 4.7.2
+  (`--export-release Android` under xvfb). **Signing note:** the
+  Godot export came out unsigned this time (preset
+  `package/signed=false`), so the APK was signed afterwards with
+  `apksigner` using the same debug keystore as v3.2/v3.3 —
+  `apksigner verify` passes (v2 + v3 schemes), cert SHA-256
+  `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  matches v3.3 exactly, so it installs over v3.3. Exactly the 3
+  permissions (INTERNET / ACCESS_NETWORK_STATE /
+  ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
+  fonts, gohud theme, arena background, Sky Brawl textures; no
+  `.md`/`.txt`, no `fire_button` leftovers. v3.3 APK backed up at
+  `~/workspace/mini-militia-lan-backup-v3.3/` (md5
+  `296d69ea8c2959073709e27d784a5c09`).
+- **Independent verification (fresh re-run on the shipped code, not
+  the builder's logs):** repl-sim 24/24 (both directions smooth,
+  snap-back 0.0 px, bullet tracking max error 0.0 px), joystick
+  25/25, fire (right-stick) 26/26, scale 70/70, physics 31/31 (maps
+  0/6/10/12) + 22/22 (Frozen ice, map 4), features 11/11, net 15/15,
+  menu-net 6/6, full flow DONE, scroll 8/8 at 1280x720 AND
+  2400x1080, collision 8/8 on all 13 maps, smoke DONE on all 13
+  maps — **0 script errors in every log**. Previous-bug regression
+  QA-001…QA-058 all still fixed (see BUGS.md). Screenshots
+  re-reviewed by the test worker at both resolutions (menu, lobby,
+  HUD, pause, scoreboard, end, settings, customization,
+  multiplayer, countdown); two stale proof files (end + HUD at
+  2400) were re-captured from the shipped code.
+- **AAB: NOT built — blocked on the release keystore.** No release
+  keystore exists anywhere on this machine; one must be created with
+  a password supplied by you via Secure Vault (never invented, never
+  written in a file). Exact steps are in
+  `PLAY_SUBMISSION_CHECKLIST.md`. The APK above is the deliverable.
+- **Honest limits (unchanged):** real two-phone LAN join and
+  movement sync, real touch hardware, real-phone performance and
+  audio-by-ear are still untested here (the sandbox blocks UDP
+  sends; repl-sim 24/24 is the in-process substitute). The v3.3 sim
+  passed 19/19 while real phones still failed, so the two-phone
+  check below is the only proof that counts. Mid-match rejoin is
+  not supported.
 
 ## What's new in v3.3 (movement sync fix + joysticks moved inward)
 
@@ -521,7 +618,7 @@ happened:
     the host never replied — a Wi-Fi/IP problem.
   - **Players seen** is how many players your phone can see. 0/8
     with "Server answered: yes" is the old v3.1 bug — update both
-    phones to v3.3.
+    phones to v3.4.
 - Tap **Retry**: if the link is still up it re-asks the host for your
   player; if the link is gone it takes you back to the menu with the
   host IP already filled in — tap **JOIN** to try again.
@@ -531,36 +628,44 @@ happened:
   host's lobby and try again.
 - Restart the app on both phones and try again. The host creates the
   room first, then the joiner joins.
-- **Both phones must run the same version** (v3.3). A version
+- **Both phones must run the same version** (v3.4). A version
   mismatch is refused with a clear message ("Version mismatch: host
-  runs 3.3, you run 3.2. Update and rejoin.").
+  runs 3.4, you run 3.3. Update and rejoin.").
 
-### Testing the join on two real phones (v3.3 acceptance test)
+### Testing the join on two real phones (v3.4 acceptance test)
 
 The build machine cannot test two-phone play (its sandbox blocks UDP
 traffic between processes), so **run this check on two real phones
 before trusting a release**. It takes two minutes:
 
-1. Install the same v3.3 APK on both phones. Both on the same Wi-Fi.
+1. Install the same v3.4 APK on both phones. Both on the same Wi-Fi.
 2. Host: LOCAL MULTIPLAYER → CREATE ROOM → I'M READY. Joiner:
    LOCAL MULTIPLAYER → **QUICK LAN MATCH**.
 3. Host taps START MATCH. **Both phones must show Players: 2/8**
    and both players must be visible in the world.
-4. **Movement check (QA-051 — the v3.2 bug, fixed in v3.3, was:
-   both players visible, but movement not reflecting). Move on the joining
-   phone** (left stick) and watch the HOST phone: the 2nd player
-   there must move too. Then **move on the host phone** and watch
-   the JOINING phone: the host's player must move there as well.
+4. **Movement check (QA-053 — the v3.3 bug, fixed in v3.4, was:
+   both players visible, but movement not reflecting, while bullets
+   and grenades DID sync). Move on the joining phone** (left stick)
+   and watch the HOST phone: the 2nd player there must move too —
+   smoothly, no jumps, no snap-back, no frozen-then-catch-up burst.
+   Then **move on the host phone** and watch the JOINING phone: the
+   host's player must move there as well, just as smoothly.
    **Pass = both phones show Players: 2/8 AND each phone sees the
-   other player move.** If either player's remote copy stands
-   frozen while the player moves on their own phone, note which
-   direction failed (joiner→host or host→joiner) and the exact
+   other player move in both directions.** If either player's remote
+   copy stands frozen while the player moves on their own phone, note
+   which direction failed (joiner→host or host→joiner) and the exact
    error text from the "Connecting..." section above.
 5. **Shoot on the joining phone** (right stick). The host must see
-   the shots and the kill feed must update.
-6. Joiner: leave the match (pause → Leave). The host must see
+   the shots fly smoothly and in realtime, tracking the same path
+   the shooting phone shows — no delay, jumps, or steps — and the
+   kill feed must update.
+6. **Joystick release check (QA-054):** on either phone, push the
+   left stick RIGHT, then release it. The player must stop and keep
+   facing right — it must NOT turn left. Do the same with the right
+   (aim) stick.
+7. Joiner: leave the match (pause → Leave). The host must see
    Players: 1/8 again, with no error spam.
-7. Repeat once with the room list (tap the room instead of QUICK LAN
+8. Repeat once with the room list (tap the room instead of QUICK LAN
    MATCH) and once by typing the host IP manually — all three join
    paths must work.
 
@@ -664,8 +769,10 @@ Shotgun, Health or Grenades.
 
 - Green bar (top left): health — the number next to it is your exact
   HP. Blue bar under it: jetpack fuel, with its number next to it.
-- Top right: kills, deaths, players in the game, current weapon and
-  ammo (e.g. "Rifle 24/30"), grenades left.
+- Top right: a panel with **SCORE** and **II** (pause) buttons, then
+  kills, deaths, players in the game (out of the room max, e.g.
+  "Players: 2/8"), current weapon and ammo (e.g. "Rifle 24/30"),
+  grenades left. Tap **SCORE** for the scoreboard, **II** to pause.
 - Top centre: match timer and the kill limit ("First to 10 kills").
 - If you are eliminated, you respawn after 3 seconds, with 2 seconds of
   spawn protection (your soldier blinks while protected). In Survival
