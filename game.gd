@@ -12504,7 +12504,7 @@ func _physicstest_build_steps() -> void:
 		{"name": "P17-recoil-accum", "wait": 0.1, "setup": _phys_s_recoil_fire, "check": _phys_c_recoil},
 		{"name": "P17b-recoil-decay", "wait": 2.0, "setup": _phys_s_noop, "check": _phys_c_recoil_decay},
 		{"name": "P18a-ice-run", "wait": 0.5, "setup": _phys_s_ice, "check": _phys_c_ice},
-		{"name": "P19-camera", "wait": 0.4, "setup": _phys_s_camera, "check": _phys_c_camera},
+		{"name": "P19-camera", "wait": 0.9 if map_id == GameData.SKYFALL_MAP_ID else 0.4, "setup": _phys_s_camera, "check": _phys_c_camera}, # v3.11 QA-131: Skyfall's 0.4 s window is load-marginal — _cam_look builds at 240 px/s toward a target set by sprint velocity, and under xvfb load physics dilates so the player is still ramping at 0.4 s (look-ahead read 24-32, want >40; isolated runs read 50). 0.9 s gives the same check room to build; the player is still mid-run on the L7 perch staircase at 0.9 s (gate at x1742 is ~740 px away), so nothing else changes. Flat maps keep 0.4 s.
 		{"name": "P20-pool-budget", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_pool},
 		{"name": "P21-version-handshake", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_version},
 		{"name": "P22-barrel", "wait": 0.1, "setup": _phys_s_barrel, "check": _phys_c_barrel},
@@ -12661,9 +12661,53 @@ func _phys_s_fall() -> void:
 	# check does not depend on sampling the exact landing frame.
 	# QA-095 (v3.7): the old ice map's x=400 branch is gone
 	# with that map — every kept map has a clear fall at x=1000.
-	_phys_teleport(Vector2(1000, 300))
+	# v3.11: Skyfall is the exception — at x=1000 the first
+	# platform below y=300 is (700,690), only ~340 px of fall,
+	# so the true landing speed (~976) sits just above the 950
+	# floor and the per-render-frame max_vy sample reads 863-933
+	# under xvfb load (two 32/34 runs, P19 passed on re-run);
+	# x=1800 is worse, it lands on the summit gate box (top
+	# y=484, ~130 px fall, reads 513-583). Scan for the longest
+	# clear drop from y=300 instead (platforms + solid decor +
+	# gate box); the other five maps keep x=1000.
+	var fall_x := 1000.0
+	if map_id == 5:
+		fall_x = _phys_longest_drop_x(300.0)
+	_phys_teleport(Vector2(fall_x, 300))
 	_phys_data["max_vy"] = 0.0
 	_phys_data["track_max_vy"] = true
+
+
+# Longest clear vertical drop from from_y on the current map:
+# for each candidate column, the first solid top below from_y
+# (platform rects + solid decor + the Skyfall summit gate box).
+# Falls back to x=1000 if nothing is found.
+func _phys_longest_drop_x(from_y: float) -> float:
+	var solids: Array = []
+	for p in (MAPS[map_id]["platforms"] as Array):
+		solids.append(p as Rect2)
+	solids.append_array(_ct_solid_rects(MAPS[map_id]))
+	if map_id == 5:
+		solids.append(Rect2(1742, 484, 116, 378)) # summit gate box (see _build_skyfall_gate)
+	var best_x := 1000.0
+	var best_drop := -1.0
+	var x := 60.0
+	while x <= map_size.x - 60.0:
+		var land_y := map_size.y
+		for r in solids:
+			var rr: Rect2 = r
+			if rr.end.x < x - 30.0 or rr.position.x > x + 30.0:
+				continue
+			if rr.position.y <= from_y:
+				continue
+			if rr.position.y < land_y:
+				land_y = rr.position.y
+		var drop := land_y - from_y
+		if drop > best_drop:
+			best_drop = drop
+			best_x = x
+		x += 40.0
+	return best_x
 
 
 func _phys_c_terminal() -> Array:
