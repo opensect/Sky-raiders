@@ -6,7 +6,7 @@ class_name GameAudio
 
 const MIX_RATE := 22050
 
-# Phase 6: real music tracks (Kevin MacLeod, CC BY 4.0 — attribution
+# Phase 6: real music tracks (Kevin MacLeod, CC BY 4.0 - attribution
 # in GameData.MUSIC_CREDITS, shown in the settings screen). The menu
 # track loops cleanly; the battle track restarts loud, so its loop
 # restart is crossfaded between two players (see _process).
@@ -23,6 +23,7 @@ var _jet_player: AudioStreamPlayer
 var sfx_volume: float = 0.8
 var music_volume: float = 0.5
 var music_enabled: bool = true
+var sfx_enabled: bool = true # QA-128: SFX mute toggle (settings); true = sounds on
 var _current_track: String = "" # "" | "menu" | "battle" | "procedural"
 var _last_track: String = "" # remembered across a music on/off toggle
 var _xfade_t: float = -1.0 # >= 0 while a battle crossfade is running
@@ -71,9 +72,27 @@ func _build_streams() -> void:
 	_streams["spawn"] = _make_sweep(220.0, 660.0, 0.25, 0.6)
 	_streams["jetpack"] = _make_noise_loop(1.0, 0.35, 900.0)
 	_streams["win"] = _make_melody([523.0, 659.0, 784.0, 1047.0], 0.16)
+	# QA-128 (v3.11): first SFX pass - power-up pickup / activation
+	# sounds and hazard sounds. All synthesized in code (no audio
+	# files, no licensing risk - the music OGGs stay the only
+	# external audio, Kevin MacLeod CC BY 4.0). Volumes stay <= 0.8
+	# so SFX never drowns the music (music plays at volume * 0.5).
+	_streams["shield"] = _make_hum(0.9, 0.6) # energy hum, detuned sines
+	_streams["speed"] = _make_noise_sweep(0.35, 0.7, 300.0, 3200.0) # whoosh up
+	_streams["heal"] = _make_melody([880.0, 1174.7], 0.14) # soft two-note chime
+	_streams["jetpack_boost"] = _make_noise_sweep(0.5, 0.7, 400.0, 2600.0) # fuel rush
+	_streams["wind"] = _make_gust(0.7, 0.8) # wind blast gust
+	_streams["thunder"] = _make_thunder() # crack + low rumble
+	_streams["invis"] = _make_shimmer(0.6, 0.5) # shimmer glissando
+	_streams["tap"] = _make_tone(880.0, 0.04, 0.5, 0) # slot-button tap
+	_streams["fire_burn"] = _make_noise_burst(0.4, 0.6, 2500.0) # fire crackle/hiss
+	_streams["storm"] = _make_rumble(1.5, 0.5) # storm rumble
+	_streams["rock_impact"] = _make_thud(0.3, 0.9) # falling-rock thud
 
 
 func play(sound_name: String) -> void:
+	if not sfx_enabled:
+		return
 	if not _streams.has(sound_name):
 		return
 	var stream: AudioStreamWAV = _streams[sound_name]
@@ -104,6 +123,18 @@ func set_music_enabled(enabled: bool) -> void:
 	elif _last_track != "":
 		_play_track(_last_track)
 		_last_track = ""
+
+
+# QA-128: SFX mute. Stops any playing SFX at once; play() no-ops
+# while muted. The settings UI toggle (game.gd step) calls this
+# next to set_music_enabled; the persisted value lives in
+# GameData.sfx_enabled.
+func set_sfx_enabled(enabled: bool) -> void:
+	sfx_enabled = enabled
+	if not enabled:
+		for p in _players:
+			p.stop()
+		_jet_player.stop()
 
 
 func current_track() -> String:
@@ -158,8 +189,8 @@ func _play_track(track: String) -> void:
 	elif track == "battle":
 		stream = BATTLE_TRACK
 	if stream == null:
-		# Fallback: the old procedural loop (never expected — the
-		# OGGs ship in the APK — but the game must never go silent
+		# Fallback: the old procedural loop (never expected - the
+		# OGGs ship in the APK - but the game must never go silent
 		# because a file failed to load).
 		_current_track = "procedural"
 		_music_player.stream = _make_music_loop()
@@ -293,6 +324,129 @@ func _make_noise_loop(dur: float, vol: float, cutoff: float) -> AudioStreamWAV:
 	wav.loop_begin = 0
 	wav.loop_end = int(MIX_RATE * dur)
 	return wav
+
+
+# QA-128: filtered noise whose lowpass cutoff rises - a whoosh /
+# rush (speed boost, jetpack boost fuel rush). Swells in and out.
+func _make_noise_sweep(dur: float, vol: float, cutoff0: float, cutoff1: float) -> AudioStreamWAV:
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var last := 0.0
+	for i in n:
+		var frac := float(i) / n
+		var cutoff := lerpf(cutoff0, cutoff1, frac)
+		var alpha := clampf(cutoff / MIX_RATE, 0.01, 1.0)
+		var env := sin(PI * frac)
+		var white := randf() * 2.0 - 1.0
+		last += alpha * (white - last)
+		samples[i] = last * vol * env * 2.0
+	return _pack_samples(samples)
+
+
+# QA-128: wind gust - low filtered noise with a slow swell and a
+# 7 Hz tremble, so it reads as a gust rather than steady hiss.
+func _make_gust(dur: float, vol: float) -> AudioStreamWAV:
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var last := 0.0
+	for i in n:
+		var frac := float(i) / n
+		var env := sin(PI * frac)
+		var wobble := 0.7 + 0.3 * sin(TAU * 7.0 * float(i) / MIX_RATE)
+		var white := randf() * 2.0 - 1.0
+		last += 0.08 * (white - last)
+		samples[i] = last * vol * env * wobble * 3.0
+	return _pack_samples(samples)
+
+
+# QA-128: thunder - a loud short low crack, then a 60 Hz rumble
+# decaying over 1.2 s. Used by the Thunder Strike power-up and by
+# the summit lightning hazard (same sound, one stream).
+func _make_thunder() -> AudioStreamWAV:
+	var dur := 1.2
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var last := 0.0
+	var phase := 0.0
+	for i in n:
+		var t := float(i) / MIX_RATE
+		var crack_env := exp(-t * 22.0)
+		var white := randf() * 2.0 - 1.0
+		last += 0.05 * (white - last)
+		var crack := last * crack_env * 2.2
+		phase += TAU * 60.0 / MIX_RATE
+		var rumble := sin(phase) * exp(-t * 3.0) * 0.7
+		samples[i] = (crack + rumble) * 0.8
+	return _pack_samples(samples)
+
+
+# QA-128: invisibility shimmer - a high sine gliding down
+# (1600 -> 550 Hz) with an 18 Hz tremolo. Quiet by design.
+func _make_shimmer(dur: float, vol: float) -> AudioStreamWAV:
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var phase := 0.0
+	for i in n:
+		var frac := float(i) / n
+		var freq := lerpf(1600.0, 550.0, frac)
+		phase += TAU * freq / MIX_RATE
+		var env := sin(PI * frac)
+		var trem := 0.6 + 0.4 * sin(TAU * 18.0 * float(i) / MIX_RATE)
+		samples[i] = sin(phase) * vol * env * trem
+	return _pack_samples(samples)
+
+
+# QA-128: shield hum - two detuned sines (110 + 116.5 Hz) beating
+# softly against each other, fading in fast and out slowly.
+func _make_hum(dur: float, vol: float) -> AudioStreamWAV:
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	for i in n:
+		var t := float(i) / MIX_RATE
+		var frac := float(i) / n
+		var env := minf(frac * 8.0, 1.0) * (1.0 - frac * 0.5)
+		samples[i] = (sin(TAU * 110.0 * t) + sin(TAU * 116.5 * t)) * 0.5 * vol * env
+	return _pack_samples(samples)
+
+
+# QA-128: storm rumble - very low filtered noise swelling slowly.
+func _make_rumble(dur: float, vol: float) -> AudioStreamWAV:
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var last := 0.0
+	for i in n:
+		var frac := float(i) / n
+		var env := sin(PI * frac)
+		var white := randf() * 2.0 - 1.0
+		last += 0.03 * (white - last)
+		samples[i] = last * vol * env * 3.0
+	return _pack_samples(samples)
+
+
+# QA-128: impact thud - a 70 Hz sine decay plus a short noise
+# burst, for falling rocks landing.
+func _make_thud(dur: float, vol: float) -> AudioStreamWAV:
+	var n := int(MIX_RATE * dur)
+	var samples := PackedFloat32Array()
+	samples.resize(n)
+	var last := 0.0
+	var phase := 0.0
+	for i in n:
+		var t := float(i) / MIX_RATE
+		var frac := float(i) / n
+		phase += TAU * 70.0 / MIX_RATE
+		var thump := sin(phase) * exp(-t * 14.0)
+		var white := randf() * 2.0 - 1.0
+		last += 0.2 * (white - last)
+		var burst := last * exp(-t * 30.0) * 0.8
+		samples[i] = (thump + burst) * vol
+	return _pack_samples(samples)
 
 
 func _make_clicks(times: Array, freq: float) -> AudioStreamWAV:

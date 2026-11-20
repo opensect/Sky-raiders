@@ -71,7 +71,7 @@ const TILE_TEX: Array[Texture2D] = [
 # procedural gradient (no "bg" key), as before.
 # QA-112 (v3.9): 3 Skyfall dusk sky (pack's bg_sky_dusk.png,
 # 1920x1080 landscape — used as the far parallax layer only,
-# never stretched over the 7200 px world).
+# never stretched over the 10800 px world).
 const BG_TEX: Array[Texture2D] = [
 	preload("res://assets/skybrawl/maps/bg_ironfall.png"),
 	preload("res://assets/skybrawl/maps/bg_volcanic.png"),
@@ -101,6 +101,42 @@ const SF_TEX_ZONE_BLUE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets
 const SF_TEX_ROCK: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/hazards/falling_rock.png")
 const SF_TEX_LIGHTNING: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/hazards/summit_storm_lightning.png")
 const SF_TEX_WALL: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/wall_block.png")
+# QA-124 (v3.11): per-level backdrops — the pack's 8 level images
+# (1800x450 each; drawn at 2x = 3600x900 per half-level band).
+# Merged levels use BOTH their images (cliffs over camp, last
+# stand under summit).
+const SF_TEX_LVL_1: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_1_twin_base_camp.png")
+const SF_TEX_LVL_2: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_2_broken_cliffs.png")
+const SF_TEX_LVL_3: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_3_underground_tunnels.png")
+const SF_TEX_LVL_4: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_4_hanging_bridge.png")
+const SF_TEX_LVL_5: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_5_sniper_territory.png")
+const SF_TEX_LVL_6: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_6_mechanical_ascent.png")
+const SF_TEX_LVL_7: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_7_the_last_stand.png")
+const SF_TEX_LVL_8: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/levels/level_8_flag_summit.png")
+# QA-125/126/129 (v3.11): dynamic-effect overlays (50-pack, static
+# 512x512 PNGs, animated in-engine). Only the ones below are
+# preloaded — import only what is used (see BUGS.md QA-125).
+const FX_TEX_THUNDER_CLOUD: Texture2D = preload("res://assets/dynamic_effects/07_thunderstorm_cloud.png")
+const FX_TEX_STORM_CLOUD: Texture2D = preload("res://assets/dynamic_effects/06_storm_cloud.png")
+const FX_TEX_BOLT: Texture2D = preload("res://assets/dynamic_effects/04_lightning_bolt.png")
+const FX_TEX_FORKED: Texture2D = preload("res://assets/dynamic_effects/05_forked_lightning.png")
+const FX_TEX_RAIN: Texture2D = preload("res://assets/dynamic_effects/29_rain_streaks.png")
+const FX_TEX_SNOW: Texture2D = preload("res://assets/dynamic_effects/30_snowfall_particles.png")
+const FX_TEX_DUST: Texture2D = preload("res://assets/dynamic_effects/27_dust_cloud.png")
+const FX_TEX_SMOKE: Texture2D = preload("res://assets/dynamic_effects/26_smoke_puff.png")
+const FX_TEX_FIRE_PILLAR: Texture2D = preload("res://assets/dynamic_effects/08_fire_pillar.png")
+const FX_TEX_LAVA: Texture2D = preload("res://assets/dynamic_effects/10_lava_splash.png")
+const FX_TEX_MAGMA: Texture2D = preload("res://assets/dynamic_effects/48_magma_burst.png")
+const FX_TEX_GUST_L: Texture2D = preload("res://assets/dynamic_effects/19_wind_gust_left.png")
+const FX_TEX_GUST_R: Texture2D = preload("res://assets/dynamic_effects/20_wind_gust_right.png")
+const FX_TEX_WHIRL: Texture2D = preload("res://assets/dynamic_effects/15_wind_whirlpool.png")
+const FX_TEX_PORTAL: Texture2D = preload("res://assets/dynamic_effects/39_teleport_portal.png")
+const FX_TEX_PORTAL_SPARKS: Texture2D = preload("res://assets/dynamic_effects/40_portal_sparks.png")
+const FX_TEX_CRACK: Texture2D = preload("res://assets/dynamic_effects/33_ground_crack_energy.png")
+const FX_TEX_SHOCKWAVE: Texture2D = preload("res://assets/dynamic_effects/34_ground_shockwave.png")
+const FX_TEX_ARC: Texture2D = preload("res://assets/dynamic_effects/41_electric_arc.png")
+# QA-119 (v3.11): Thunder Strike bolt art (user's power-up effects pack).
+const FX_TEX_THUNDER: Texture2D = preload("res://assets/powerups_effects/06_thunder_strike_lightning_impact_effect.png")
 # QA-114 (v3.9): colour-coded climbing routes — WEST (left third),
 # CENTRE (middle third), EAST (right third). Same colours on the
 # map platforms, the HUD height bar, and the legend.
@@ -122,13 +158,13 @@ const SF_TEX_SLOT: Array[Texture2D] = [
 	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_3.png"),
 ]
 const SF_TEX_PU64 := {
-	7: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_1_health_pack_64.png"),
-	8: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_2_energy_shield_64.png"),
-	9: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_3_speed_boost_64.png"),
-	10: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_4_ammo_crate_64.png"),
-	11: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_5_grenade_pack_64.png"),
-	12: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_6_jetpack_boost_64.png"),
-	13: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_7_enemy_radar_64.png"),
+	7: preload("res://assets/powerups_new/03_health_potion_powerup.png"),
+	8: preload("res://assets/powerups_new/01_shield_powerup.png"),
+	9: preload("res://assets/powerups_new/02_speed_boost_powerup.png"),
+	10: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_6_jetpack_boost_64.png"),
+	11: preload("res://assets/powerups_new/05_wind_blast_powerup.png"),
+	12: preload("res://assets/powerups_new/06_thunder_strike_powerup.png"),
+	13: preload("res://assets/powerups_new/07_invisibility_powerup.png"),
 }
 const DECOR_CRATE: Texture2D = preload("res://assets/tiles/crate.png")
 const DECOR_BARRELS: Texture2D = preload("res://assets/tiles/barrels.png")
@@ -395,100 +431,110 @@ const MAPS := [
 		"decor": [["palms", 400, 1452], ["palms", 2850, 1452], ["crate", 720, 1452], ["barrels", 1020, 1452], ["column", 1320, 1452], ["crate", 1620, 1452], ["barrels", 2220, 1452], ["column", 2520, 1452], ["crate", 2820, 1452], ["crate", 210, 1452], ["crate", 340, 1280], ["crate", 600, 1280], ["column", 1800, 1452], ["crate", 590, 1110], ["crate", 840, 940], ["crate", 1240, 600], ["crate", 1540, 1110], ["crate", 2290, 1280], ["crate", 2290, 1110], ["crate", 2640, 940], ["crate", 2740, 770], ["crate", 1990, 1452]],
 	},
 	{
-		# QA-112 (v3.9): SKYFALL — The Last Ascent. Vertical
-		# battlefield, 3600x7200, 8 levels x 900 px (L1 Twin Base
-		# Camp at the bottom, L8 Flag Summit at the top). 70 static
-		# platforms in 170 px tiers (the Ironfall rise) — the full
-		# climb was BFS-validated in /tmp/skyfall_layout_check.py:
-		# every platform reachable from spawn#0 (hgap <= 340,
-		# rise <= 320), every spawn/pickup/power-up on a reachable
-		# platform. A fall drops the player to a lower platform,
-		# never a dead end: every level has 2 routes + ladders /
-		# elevators / tunnels as alternates. CTF lives ONLY here
-		# (mode 4, gated in main.gd + game.gd); the other 5 maps
-		# keep FFA/TDM/Survival/LMS. Level strips in the pack are
-		# layout references only (baked-in labels) — the levels
-		# are rebuilt from the tile sprites (see ASSET_AUDIT.md).
-		"name": "Skyfall", "size": Vector2(3600, 7200), "tile": 5,
+		# QA-123 (v3.11): SKYFALL — The Last Ascent. Vertical
+		# battlefield, 3600x10800, 6 levels x 1800 px (L1 Twin Base
+		# Camp + Broken Cliffs at the bottom, L6 The Last Stand +
+		# Flag Summit at the top). Rebuilt from the v3.9 8x900 layout:
+		# merged pairs stack directly (old L1+L2 = new L1, old L7+L8
+		# = new L6); single old levels stretch x2 inside the level.
+		# 70 mapped platforms + 28 intermediate stepping stones
+		# (23 within levels + 3 on level boundaries + 2 under the
+		# L4 side perches, appended, so the collapsing/trapdoor/
+		# storm indices 34 / 20,22 / 68,69 still point at the same
+		# platforms). Tier rise
+		# in stretched levels is 340 px — the stones cut it back to
+		# 170 px (jump 155 px + jetpack 450 px max rise, fuel 100).
+		# CTF lives ONLY here (mode 4); the other 5 maps keep
+		# FFA/TDM/Survival/LMS. Level strips in the pack are now
+		# WIRED IN as per-level backdrops (see _build_skyfall, QA-124).
+		"name": "Skyfall", "size": Vector2(3600, 10800), "tile": 5,
 		"bg": 3,
 		"sky_top": Color(0.07, 0.06, 0.16), "sky_bottom": Color(0.45, 0.30, 0.22),
 		"hill": Color(0.10, 0.12, 0.20), "sun": Color(0.92, 0.92, 0.98), "fx": "dust",
 		"platforms": [
-			Rect2(0, 7152, 3600, 48),
-			Rect2(300, 6982, 500, 48), Rect2(2800, 6982, 500, 48),
-			Rect2(900, 6812, 500, 48), Rect2(2200, 6812, 500, 48),
-			Rect2(1550, 6642, 500, 48),
-			Rect2(1200, 6472, 500, 48), Rect2(1900, 6472, 500, 48),
-			Rect2(800, 6302, 500, 48), Rect2(2300, 6302, 500, 48),
-			Rect2(1200, 6132, 500, 48), Rect2(1900, 6132, 500, 48),
-			Rect2(600, 5962, 500, 48), Rect2(2500, 5962, 500, 48),
-			Rect2(1100, 5792, 500, 48), Rect2(2100, 5792, 500, 48),
-			Rect2(1200, 5622, 500, 48), Rect2(1900, 5622, 500, 48),
-			Rect2(1550, 5452, 500, 48),
-			Rect2(200, 5282, 150, 48), Rect2(350, 5282, 300, 48),
-			Rect2(650, 5282, 2300, 48),
-			Rect2(2950, 5282, 300, 48), Rect2(3250, 5282, 150, 48),
-			Rect2(1500, 5112, 600, 48),
-			Rect2(400, 4942, 2800, 48),
-			Rect2(1500, 4772, 600, 48),
-			Rect2(1200, 4602, 500, 48), Rect2(1900, 4602, 500, 48),
-			Rect2(1200, 4432, 500, 48), Rect2(1900, 4432, 500, 48),
-			Rect2(900, 4262, 500, 48), Rect2(2200, 4262, 500, 48),
-			Rect2(600, 4092, 900, 48), Rect2(1700, 4092, 600, 48),
-			Rect2(2500, 4092, 500, 48),
-			Rect2(1000, 3922, 500, 48), Rect2(2100, 3922, 500, 48),
-			Rect2(1550, 3752, 500, 48),
-			Rect2(1200, 3582, 500, 48), Rect2(1900, 3582, 500, 48),
-			Rect2(700, 3412, 400, 48), Rect2(2500, 3412, 400, 48),
-			Rect2(1500, 3412, 600, 48),
-			Rect2(1500, 3242, 600, 48),
-			Rect2(1000, 3072, 500, 48), Rect2(2100, 3072, 500, 48),
-			Rect2(1550, 2902, 500, 48),
-			Rect2(1200, 2732, 500, 48), Rect2(1900, 2732, 500, 48),
-			Rect2(900, 2562, 500, 48), Rect2(2200, 2562, 500, 48),
-			Rect2(400, 2392, 400, 48), Rect2(2800, 2392, 400, 48),
-			Rect2(600, 2222, 400, 48), Rect2(2600, 2222, 400, 48),
-			Rect2(1200, 2052, 500, 48), Rect2(1900, 2052, 500, 48),
-			Rect2(1550, 1882, 500, 48),
-			Rect2(600, 1712, 2400, 48),
-			Rect2(900, 1542, 500, 48), Rect2(2200, 1542, 500, 48),
-			Rect2(1200, 1372, 500, 48), Rect2(1900, 1372, 500, 48),
-			Rect2(1550, 1202, 500, 48),
-			Rect2(1200, 1032, 500, 48), Rect2(1900, 1032, 500, 48),
-			Rect2(1200, 862, 1200, 48),
-			Rect2(700, 690, 400, 48), Rect2(2500, 690, 400, 48),
+			Rect2(0, 10752, 3600, 48), Rect2(300, 10582, 500, 48), Rect2(2800, 10582, 500, 48),
+			Rect2(900, 10412, 500, 48), Rect2(2200, 10412, 500, 48), Rect2(1550, 10242, 500, 48),
+			Rect2(1200, 10072, 500, 48), Rect2(1900, 10072, 500, 48), Rect2(800, 9902, 500, 48),
+			Rect2(2300, 9902, 500, 48), Rect2(1200, 9732, 500, 48), Rect2(1900, 9732, 500, 48),
+			Rect2(600, 9562, 500, 48), Rect2(2500, 9562, 500, 48), Rect2(1100, 9392, 500, 48),
+			Rect2(2100, 9392, 500, 48), Rect2(1200, 9222, 500, 48), Rect2(1900, 9222, 500, 48),
+			Rect2(1550, 9052, 500, 48), Rect2(200, 8764, 150, 48), Rect2(350, 8764, 300, 48),
+			Rect2(650, 8764, 2300, 48), Rect2(2950, 8764, 300, 48), Rect2(3250, 8764, 150, 48),
+			Rect2(1500, 8424, 600, 48), Rect2(400, 8084, 2800, 48), Rect2(1500, 7744, 600, 48),
+			Rect2(1200, 7404, 500, 48), Rect2(1900, 7404, 500, 48), Rect2(1200, 7064, 500, 48),
+			Rect2(1900, 7064, 500, 48), Rect2(900, 6724, 500, 48), Rect2(2200, 6724, 500, 48),
+			Rect2(600, 6384, 900, 48), Rect2(1700, 6384, 600, 48), Rect2(2500, 6384, 500, 48),
+			Rect2(1000, 6044, 500, 48), Rect2(2100, 6044, 500, 48), Rect2(1550, 5704, 500, 48),
+			Rect2(1200, 5364, 500, 48), Rect2(1900, 5364, 500, 48), Rect2(700, 5024, 400, 48),
+			Rect2(2500, 5024, 400, 48), Rect2(1500, 5024, 600, 48), Rect2(1500, 4684, 600, 48),
+			Rect2(1000, 4344, 500, 48), Rect2(2100, 4344, 500, 48), Rect2(1550, 4004, 500, 48),
+			Rect2(1200, 3664, 500, 48), Rect2(1900, 3664, 500, 48), Rect2(900, 3324, 500, 48),
+			Rect2(2200, 3324, 500, 48), Rect2(400, 2984, 400, 48), Rect2(2800, 2984, 400, 48),
+			Rect2(600, 2644, 400, 48), Rect2(2600, 2644, 400, 48), Rect2(1200, 2304, 500, 48),
+			Rect2(1900, 2304, 500, 48), Rect2(1550, 1964, 500, 48), Rect2(600, 1712, 2400, 48),
+			Rect2(900, 1542, 500, 48), Rect2(2200, 1542, 500, 48), Rect2(1200, 1372, 500, 48),
+			Rect2(1900, 1372, 500, 48), Rect2(1550, 1202, 500, 48), Rect2(1200, 1032, 500, 48),
+			Rect2(1900, 1032, 500, 48), Rect2(1200, 862, 1200, 48), Rect2(700, 690, 400, 48),
+			Rect2(2500, 690, 400, 48), Rect2(1620, 2134, 360, 48), Rect2(620, 2474, 360, 48),
+			Rect2(1620, 2474, 360, 48), Rect2(2620, 2474, 360, 48), Rect2(420, 2814, 360, 48),
+			Rect2(1620, 2814, 360, 48), Rect2(2820, 2814, 360, 48), Rect2(970, 3154, 360, 48),
+			Rect2(1620, 3154, 360, 48), Rect2(2270, 3154, 360, 48), Rect2(1620, 3834, 360, 48),
+			Rect2(1620, 4174, 360, 48), Rect2(1620, 4514, 360, 48), Rect2(1620, 4854, 360, 48),
+			Rect2(1620, 5194, 360, 48), Rect2(1620, 5874, 360, 48), Rect2(1686, 6214, 360, 48),
+			Rect2(1686, 6554, 360, 48), Rect2(1620, 6894, 360, 48), Rect2(1620, 7574, 360, 48),
+			Rect2(1620, 7914, 360, 48), Rect2(1620, 8254, 360, 48), Rect2(1620, 8594, 360, 48),
+			# QA-123: 3 boundary stones — the tier rows straddling a
+			# level boundary are also 340 px apart (7234 L2/L3, 5534
+			# L3/L4, 3494 L4/L5); without a stone the collision
+			# test's 320 px rise limit stalls the climb there.
+			Rect2(1620, 7234, 360, 48), Rect2(1620, 5534, 360, 48), Rect2(1620, 3494, 360, 48),
+			# QA-123: 2 side stones at y 5194 — the L4 side perches
+			# (700,5024) and (2500,5024) sit 400+ px from the centre
+			# stone and 340 px above the row below, so the 320 px
+			# rise limit strands them; a stone under each perch
+			# reconnects them.
+			Rect2(700, 5194, 360, 48), Rect2(2500, 5194, 360, 48),
 		],
-		"spawns": [Vector2(300, 7118), Vector2(700, 7118), Vector2(550, 6948), Vector2(1150, 6778), Vector2(1700, 6608), Vector2(1450, 6438), Vector2(3300, 7118), Vector2(2900, 7118), Vector2(3050, 6948), Vector2(2450, 6778), Vector2(2150, 6438), Vector2(2500, 6268)],
-		"pickups": [Vector2(400, 6948), Vector2(3200, 6948), Vector2(1800, 6608), Vector2(1800, 1678), Vector2(1800, 5248), Vector2(1800, 3208)],
-		"decor": [["crate", 1200, 7152], ["barrels", 2400, 7152], ["palms", 200, 7152], ["palms", 3400, 7152], ["sf_tower", 900, 3412], ["sf_tower", 2700, 3412], ["sf_ladder", 1448, 6472], ["sf_ladder", 1648, 4772], ["sf_ladder", 1348, 2732], ["sf_ladder", 1348, 1712], ["sf_bridge", 1050, 4092], ["sf_bridge", 2000, 4092], ["sf_bridge", 2750, 4092], ["crate", 1500, 1712], ["barrels", 2100, 1712], ["crate", 2500, 5282]],
+		"spawns": [Vector2(300, 10718), Vector2(700, 10718), Vector2(550, 10548), Vector2(1150, 10378), Vector2(1700, 10208), Vector2(1450, 10038), Vector2(3300, 10718), Vector2(2900, 10718), Vector2(3050, 10548), Vector2(2450, 10378), Vector2(2150, 10038), Vector2(2500, 9868)],
+		"pickups": [Vector2(400, 10548), Vector2(3200, 10548), Vector2(1800, 10208), Vector2(1800, 1678), Vector2(1800, 8730), Vector2(1800, 4650)],
+		"decor": [["if_rock", 500, 10582], ["if_rock", 3100, 10582], ["crate", 1600, 10242], ["barrels", 2000, 10072], ["if_spikes", 2500, 9902], ["if_lamp", 600, 8764], ["if_lamp", 3000, 8764], ["if_lamp", 1800, 8084], ["crate", 1600, 8424], ["barrels", 2000, 8084], ["jtree", 700, 6384], ["jbush", 2900, 6384], ["crate", 1000, 6724], ["barrels", 2400, 6724], ["column", 1500, 3664], ["crate", 2000, 3664], ["if_vent", 1000, 2304], ["if_vent", 2600, 2304], ["if_vent", 1800, 1964], ["column", 1250, 862], ["column", 2350, 862]],
 		"skyfall": true,
 		# Power-up spots: [x, y, kind] — one per power-up, spread
-		# across the heights (kinds 7-13, see pickup.gd).
-		"skyfall_pickups": [[1000, 6778, 7], [2600, 6778, 10], [1350, 5758, 11], [800, 5248, 8], [1800, 4058, 12], [2700, 3378, 13], [2600, 1678, 9]],
+		# across the heights (kinds 7-13, see pickup.gd — kinds
+		# UNCHANGED by the rebuild, only positions moved). QA-129:
+		# shield (8) moved to the L5 lava ledge and invisibility (13) to
+		# the L3 wind-zone grapple shortcut — better loot on the
+		# risky routes.
+		"skyfall_pickups": [[1000, 10378, 7], [2600, 10378, 10], [1350, 9358, 11], [1400, 2270, 8], [1800, 6350, 12], [1800, 6080, 13], [2600, 1678, 9]],
 		# Vertical CTF: both flags at the summit, extraction zones
 		# at the bases. Red steals the BLUE flag to the RED zone.
-		"ctf": {"flag_red": Vector2(1400, 862), "flag_blue": Vector2(2200, 862), "extract_red": Vector2(450, 7152), "extract_blue": Vector2(3150, 7152)},
+		"ctf": {"flag_red": Vector2(1400, 862), "flag_blue": Vector2(2200, 862), "extract_red": Vector2(450, 10752), "extract_blue": Vector2(3150, 10752)},
 		# Team respawn checkpoints, per level: [red, blue] positions
-		# for L1 (base), L3 (tunnel), L5 (sniper top), L7 (arena).
-		"checkpoints": [[Vector2(450, 7118), Vector2(3150, 7118)], [Vector2(800, 5248), Vector2(2800, 5248)], [Vector2(1450, 2698), Vector2(2150, 2698)], [Vector2(1000, 1678), Vector2(2600, 1678)]],
+		# for L1 (base), L2 (tunnels), L4 (sniper top), L6 (arena).
+		"checkpoints": [[Vector2(450, 10718), Vector2(3150, 10718)], [Vector2(800, 8730), Vector2(2800, 8730)], [Vector2(1450, 3630), Vector2(2150, 3630)], [Vector2(1000, 1678), Vector2(2600, 1678)]],
 		# QA-114 (v3.9): relay stations — partial scoring. Either team
-		# banks the flag here for +1 point (level 4 bridge, level 7
+		# banks the flag here for +1 point (level 3 bridge, level 6
 		# arena); the flag then returns to the summit.
-		"relay": [Vector2(1800, 4092), Vector2(1800, 1678)],
+		"relay": [Vector2(1800, 6384), Vector2(1800, 1678)],
 		# QA-114 (v3.9): movement options — grapple points and marked
-		# jetpack lines straight through the two wind zones.
-		"grapple": [Vector2(900, 6200), Vector2(2700, 6200), Vector2(900, 4400), Vector2(2700, 4400), Vector2(1200, 2400), Vector2(2400, 2400)],
-		"jetpack_lines": [{"from": Vector2(1800, 3600), "to": Vector2(1800, 2900)}, {"from": Vector2(1800, 4300), "to": Vector2(1800, 3900)}],
+		# jetpack lines straight through the two wind zones. QA-129:
+		# +2 risky grapple points: (1800,6100) in the bridge wind
+		# zone and (1800,2050) over the L5 lava — fast, exposed.
+		"grapple": [Vector2(900, 9800), Vector2(2700, 9800), Vector2(900, 7000), Vector2(2700, 7000), Vector2(1200, 3000), Vector2(2400, 3000), Vector2(1800, 6100), Vector2(1800, 2050)],
+		"jetpack_lines": [{"from": Vector2(1800, 5400), "to": Vector2(1800, 4000)}, {"from": Vector2(1800, 6800), "to": Vector2(1800, 6000)}],
 		# Emergency ladders (climb rects; visuals are sf_ladder decor).
-		"ladders": [Rect2(1400, 6088, 96, 384), Rect2(1600, 4388, 96, 384), Rect2(1300, 2518, 96, 214), Rect2(1300, 1328, 96, 384)],
-		# Moving elevators (L6): x, width, top/bottom y, phase.
-		"elevators": [{"x": 1200, "w": 512, "y_top": 2052, "y_bottom": 2392, "phase": 0.0}, {"x": 1900, "w": 512, "y_top": 2052, "y_bottom": 2392, "phase": 0.5}],
-		# Rotating platform (L6): orbits its centre.
-		"rotator": {"center": Vector2(1800, 2222), "radius": 120.0, "speed": 0.5, "w": 400},
+		"ladders": [Rect2(1400, 9688, 96, 384), Rect2(1600, 6976, 96, 384), Rect2(1300, 3236, 96, 214), Rect2(1300, 1328, 96, 384)],
+		# Moving elevators: the original L6 pair (now L5) + a pair in
+		# the tunnels (L2) and a pair on the bridge (L3). x, width,
+		# top/bottom y, phase.
+		"elevators": [{"x": 1200, "w": 512, "y_top": 2304, "y_bottom": 2984, "phase": 0.00}, {"x": 1900, "w": 512, "y_top": 2304, "y_bottom": 2984, "phase": 0.50}, {"x": 1500, "w": 600, "y_top": 8084, "y_bottom": 8424, "phase": 0.00}, {"x": 600, "w": 500, "y_top": 8424, "y_bottom": 8764, "phase": 0.50}, {"x": 1000, "w": 500, "y_top": 6724, "y_bottom": 7064, "phase": 0.25}, {"x": 2200, "w": 500, "y_top": 6724, "y_bottom": 7064, "phase": 0.75}],
+		# Rotating platform (L5): orbits its centre.
+		"rotator": {"center": Vector2(1800, 2644), "radius": 120.0, "speed": 0.5, "w": 400},
 		# Platform indices (into "platforms"): collapsing bridge
-		# middle, trapdoor segments, storm-disabled side perches.
-		"collapsing": [34],
-		"trapdoors": [20, 22],
+		# middle + 4 crumbling mid ledges, trapdoor segments,
+		# storm-disabled side perches.
+		"collapsing": [34, 70, 75, 80, 85],
+		"trapdoors": [20, 22, 24, 44],
 		"storm_platforms": [68, 69],
 		# Summit gate (blocks the middle of the summit floor until
 		# it opens 45 s into the match) + control switch on the
@@ -497,12 +543,18 @@ const MAPS := [
 		"switch": {"pos": Vector2(1800, 1712)},
 		"summit_elevator": {"x": 1650, "w": 300, "y_bottom": 1712, "y_top": 862},
 		# Destructible barricades (shoot to break, respawn in 30 s).
-		"barricades": [{"pos": Vector2(1200, 1712)}, {"pos": Vector2(2400, 1712)}],
+		"barricades": [{"pos": Vector2(1200, 1712)}, {"pos": Vector2(2400, 1712)}, {"pos": Vector2(1200, 6384)}, {"pos": Vector2(2400, 6384)}],
 		# Wind zones: push + weaken the jetpack inside the rect.
-		"wind": [{"rect": Rect2(1400, 2900, 800, 700), "dir": Vector2(-1, 0), "strength": 150.0}, {"rect": Rect2(600, 3900, 2400, 400), "dir": Vector2(1, 0), "strength": 120.0}],
-		# Falling rocks (L2 Broken Cliffs).
-		"rocks": {"x_min": 1000, "x_max": 2600, "y_top": 5450, "interval": 4.0},
+		"wind": [{"rect": Rect2(1400, 4000, 800, 1400), "dir": Vector2(-1, 0), "strength": 150.0}, {"rect": Rect2(600, 6000, 2400, 800), "dir": Vector2(1, 0), "strength": 120.0}, {"rect": Rect2(900, 9500, 1800, 400), "dir": Vector2(-1, 0), "strength": 100.0}],
+		# Falling rocks (L1 Broken Cliffs).
+		"rocks": {"x_min": 1000, "x_max": 2600, "y_top": 9050, "interval": 4.0},
+		# QA-126 hazard zones (damage on a cycle — see
+		# _sf_update_hazards): lava pool + fire jet on the
+		# Mechanical Ascent (L5). rect / kind / dmg per 1 s tick /
+		# cycle seconds (2 s hot, 2 s safe — the flame shows it).
+		"hazards": [{"rect": Rect2(1250, 2220, 300, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(2000, 2220, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}],
 	},
+
 ]
 const DECOR_TEX := {
 	"crate": DECOR_CRATE, "barrels": DECOR_BARRELS, "sandbags": DECOR_SANDBAGS,
@@ -668,9 +720,10 @@ var _pickup_timer: float = 0.0
 var _centre_kind_next: int = 3 # Sniper first, then Rocket, alternating
 var _centre_label: Label
 var _ctf_flag_labels: Array = [] # QA-112 (v3.9): RED/BLUE flag status lines (CTF only)
-var _sf_slot_icons: Array = [] # QA-112 (v3.9): 3 power-up slot icon TextureRects
+var _sf_slot_buttons: Array = [] # QA-119 (v3.11): 3 tappable power-up slot Buttons (top-right)
+var _sf_slot_panel: PanelContainer # QA-119 (v3.11): top-right slot panel (visibility toggle)
 var _sf_active_boost_label: Label # QA-112 (v3.9): active boost + time left
-var _sf_slot_row: HBoxContainer # QA-112 (v3.9): the 3-slot row (visibility toggle)
+var _sf_slot_row: HBoxContainer # QA-112 (v3.9): the 3-slot row (inside the top-right panel)
 # Phase 3B physics systems (GAP-37/45/51/64/66):
 var _pickup_spot_timers: Dictionary = {} # spot index -> seconds until respawn
 var _damage_event_seq: int = 0 # unique damage event ids (GAP-43)
@@ -734,10 +787,10 @@ var ping_button: Button # QA-114 (v3.9): PING button (Skyfall only)
 
 
 static func _sf_level_of(y: float) -> int:
-	# World y -> level 1-8 (each level is 900 px tall; y grows
+	# World y -> level 1-6 (each level is 1800 px tall; y grows
 	# downward, so level 1 is the bottom). Used by pings and the
 	# height bar labels.
-	return clampi(8 - int(y / 900.0), 1, 8)
+	return clampi(6 - int(y / 1800.0), 1, 6)
 var _sf_barricades: Array = [] # {rect, sprite, shape, hp, alive, timer}
 var _sf_rocks: Array = [] # {node, vel} falling rocks (host spawns)
 var _sf_rock_timer: float = 0.0
@@ -747,9 +800,18 @@ var _sf_storm_time_left: float = 0.0
 var _sf_storm_nodes: Array = [] # lightning sprites shown during a storm
 var _sf_disabled: Array = [] # {idx, shape, sprite, orig_sprite} storm-disabled platforms
 var _sf_pickup_timers: Dictionary = {} # skyfall power-up spot -> seconds
+# QA-126 (v3.11): hazard damage state. Host-only damage ticks;
+# visuals are pure functions of the match clock so all peers agree.
+var _sf_hazard_tick: Dictionary = {} # peer id -> seconds until next hazard tick
+var _sf_strike_timer: float = 3.0 # seconds until the next storm lightning strike
+var _sf_strike: Dictionary = {} # pending strike {peer, pos, node, ring, timer}
+var _sf_hazard_fx: Array = [] # {kind, rect, flame, lava, magma} hazard visuals
+# QA-129 (v3.11): bridge wind gusts — every 15 s the bridge wind
+# doubles for 3 s (pure function of the match clock, so every peer
+# agrees; see skyfall_wind_at).
+var _sf_gust_fx: Array = [] # sweeping gust sprites (bridge wind zone)
 var _sf_initial_powerups_done: bool = false
 var _sf_match_time: float = 0.0 # seconds since countdown ended
-var _sf_radar_markers: Array = [] # enemy markers while radar is active
 var _sf_boost_slots: Array = [] # HUD power-up slot icons (3)
 # QA-112 (v3.9): spawn counters for the FT-SF-RARITY test (power-ups
 # must spawn less often than weapons). Read by the features test
@@ -811,6 +873,7 @@ var _lava_cd: Dictionary = {} # peer id -> seconds until next lava damage tick
 var _round_wins: Dictionary = {} # v2.4 Survival: peer id -> rounds won
 # Phase 4 — kill feed, streaks, countdown, hitmarkers, spectator.
 var _kill_feed_list: VBoxContainer
+var _invis_warning_chip: PanelContainer = null # QA-121 (v3.11): red "Enemy is invisible!" chip (top of the feed)
 var _kill_feed_entries: Array = [] # {label, expiry}
 var _kill_streaks: Dictionary = {} # peer id -> current kill streak
 var _best_streaks: Dictionary = {} # peer id -> best kill streak this match
@@ -968,7 +1031,7 @@ var _map_stage: int = -1
 var _sf_shot_timer: float = 0.0 # QA-112 (v3.9): --skyfall-shots stage clock
 var _sf_shot_stage: int = -1 # QA-112 (v3.9): --skyfall-shots stage
 var _land_shots: bool = false # v3.8 QA-110: --land-shot drops the player from high and captures the landing frame + 0.15 s later to user://shot_land_*.png
-var _skyfall_shots: bool = false # QA-112 (v3.9): --skyfall-shots captures the 8 Skyfall levels to user://shot_sf_*.png
+var _skyfall_shots: bool = false # QA-112 (v3.9): --skyfall-shots captures the 6 Skyfall levels to user://shot_sf_*.png
 var _land_timer: float = 0.0
 var _land_stage: int = -1
 var _land_armed: bool = false
@@ -1029,7 +1092,7 @@ func _ready() -> void:
 	_glitch_shots = "--glitch-shots" in OS.get_cmdline_user_args()
 	_map_shots = "--map-shot" in OS.get_cmdline_user_args()
 	_land_shots = "--land-shot" in OS.get_cmdline_user_args()
-	_skyfall_shots = "--skyfall-shots" in OS.get_cmdline_user_args() # QA-112 (v3.9): --skyfall-shots captures the 8 Skyfall levels
+	_skyfall_shots = "--skyfall-shots" in OS.get_cmdline_user_args() # QA-112 (v3.9): --skyfall-shots captures the 6 Skyfall levels
 	_join_test_host = "--join-test-host" in OS.get_cmdline_user_args()
 	_join_test_client = "--join-test-client" in OS.get_cmdline_user_args() or "--join-test-client-quick" in OS.get_cmdline_user_args()
 	_repl_sim_test = "--repl-sim-test" in OS.get_cmdline_user_args()
@@ -1050,6 +1113,7 @@ func _ready() -> void:
 	add_child(audio)
 	audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
 	audio.set_music_enabled(GameData.music_enabled)
+	audio.set_sfx_enabled(GameData.sfx_enabled)
 	# Phase 6: the match plays the battle track. The menu scene owns
 	# the menu track; leaving the match stops this one (see
 	# _on_leave_pressed) so music never overlaps or plays on.
@@ -1793,6 +1857,8 @@ func _update_skyfall(delta: float) -> void:
 	# --- Summit Storm every 90 s: lightning disables the two
 	# exposed side perches for 10 s. ---
 	_sf_update_storm(delta)
+	# --- QA-126 (v3.11): lava / fire hazard damage ticks. ---
+	_sf_update_hazards(delta)
 	# --- Dynamic scenery (QA-115): clouds, waterfall, helicopter,
 	# gears, steam, storm lightning — scenery only. ---
 	_update_skyfall_scenery(delta)
@@ -1810,7 +1876,7 @@ func _update_skyfall(delta: float) -> void:
 					rpc("sf_barricade_remote", _sf_barricades.find(b), true)
 	# --- CTF checkpoints (QA-114, v3.9): a team's checkpoint is the
 	# HIGHEST level any living member currently stands at or above
-	# (levels 3, 5, 7 — user-confirmed 2026-11-20 ~18:11). It is
+	# (levels 2, 4, 6 — QA-123 rebuild). It is
 	# recomputed live every frame, so it ADVANCES as the team climbs
 	# and DROPS BACK DOWN when the team loses the level (everyone
 	# dead or fallen below it) — dying on level 7 no longer sends a
@@ -1842,7 +1908,7 @@ func _update_skyfall(delta: float) -> void:
 				# Checkpoint spots sit ~34 px above the platform
 				# top (the player's centre stands 31 px above it)
 				# — allow a 40 px tolerance or a standing player
-				# never counts as "at" the level (the L7 spot is
+				# never counts as "at" the level (the L6 spot is
 				# 1678 but a standing player is at y 1681).
 				var lvl := 0
 				if y <= float((cps[3] as Array)[team].y) + 40.0:
@@ -1881,8 +1947,6 @@ func _update_skyfall(delta: float) -> void:
 	var pulse := 0.9 + 0.1 * sin(_sf_match_time * 3.0)
 	for z in _ctf_extract_nodes:
 		(z as Sprite2D).scale = Vector2(pulse, pulse)
-	# --- Radar markers (local player only). ---
-	_sf_update_radar()
 	# --- Team pings (QA-114): 5 s lifetime, 3 s cooldown. ---
 	if _sf_ping_cooldown > 0.0:
 		_sf_ping_cooldown -= delta
@@ -1951,7 +2015,7 @@ func _sf_update_comeback(delta: float) -> void:
 	if active:
 		return
 	var kind := randi_range(7, 13)
-	var pos := Vector2(700, 6948) if trail == 0 else Vector2(2900, 6948)
+	var pos := Vector2(700, 10548) if trail == 0 else Vector2(2900, 10548)
 	var pname := "sfcomeback_" + str(Time.get_ticks_msec()) + "_" + str(trail)
 	rpc("spawn_pickup_remote", pos, pname, kind, spot)
 
@@ -2232,6 +2296,8 @@ func _sf_update_rocks(delta: float) -> void:
 				landed = true
 				break
 		if landed:
+			_sf_free_rock_marker(r)
+			_sf_play_hazard_sound("rock_impact", node.position, 1100.0)
 			continue
 		# Host-only: 25 damage + knockback on a player hit mid-fall.
 		if multiplayer.is_server() and not match_over:
@@ -2245,9 +2311,18 @@ func _sf_update_rocks(delta: float) -> void:
 						child.take_damage(25, 0)
 					elif multiplayer.get_peers().has(child.get_multiplayer_authority()):
 						child.rpc_id(child.get_multiplayer_authority(), "take_damage", 25, 0)
+					_sf_free_rock_marker(r)
+					_sf_play_hazard_sound("rock_impact", node.position, 1100.0)
 					node.queue_free()
 					_sf_rocks.remove_at(i)
 					break
+
+
+func _sf_free_rock_marker(r: Dictionary) -> void:
+	var m: Node = r.get("marker")
+	if m != null and is_instance_valid(m):
+		m.queue_free()
+	r["marker"] = null
 
 
 @rpc("any_peer", "call_local")
@@ -2256,10 +2331,30 @@ func sf_rock_remote(x: float) -> void:
 	var node := Sprite2D.new()
 	node.texture = SF_TEX_ROCK
 	node.scale = Vector2(0.6, 0.6)
-	node.position = Vector2(x, float(rocks.get("y_top", 5450)))
+	node.position = Vector2(x, float(rocks.get("y_top", 9050)))
 	node.z_index = 3
 	add_child(node)
-	_sf_rocks.append({"node": node, "vel": 0.0, "landed": false, "fade": 0.0})
+	# QA-129 (v3.11): landing warning — a ground-crack marker on
+	# the first platform below the spawn x, so the impact point is
+	# telegraphed from the moment the rock appears (0.5-1.5 s of
+	# warning depending on the drop). Freed when the rock lands.
+	var marker: Sprite2D = null
+	var land_y := -1.0
+	for p in MAPS[map_id]["platforms"]:
+		var pr: Rect2 = p
+		# Nearest platform below the spawn (smallest top y above
+		# y_top) — the array runs bottom-to-top, so take the min.
+		if x >= pr.position.x and x <= pr.end.x and pr.position.y > float(rocks.get("y_top", 9050)) and (land_y < 0.0 or pr.position.y < land_y):
+			land_y = pr.position.y
+	if land_y > 0.0:
+		marker = Sprite2D.new()
+		marker.texture = FX_TEX_CRACK
+		marker.position = Vector2(x, land_y - 6)
+		marker.scale = Vector2(0.5, 0.5)
+		marker.modulate = Color(1, 0.5, 0.3, 0.85)
+		marker.z_index = 2
+		add_child(marker)
+	_sf_rocks.append({"node": node, "vel": 0.0, "landed": false, "fade": 0.0, "marker": marker})
 
 
 func _sf_update_storm(delta: float) -> void:
@@ -2273,9 +2368,19 @@ func _sf_update_storm(delta: float) -> void:
 		# Lightning flicker while the storm runs.
 		for n in _sf_storm_nodes:
 			(n as Sprite2D).modulate.a = 0.5 + 0.5 * sin(_sf_match_time * 9.0 + float((n as Sprite2D).position.x))
+		# QA-126 (v3.11): LIGHTNING STRIKES — every 3 s a bolt is
+		# telegraphed (ground ring + bolt sprite, 0.6 s warning) at
+		# a random player in the top two levels (L5/L6, y < 3600),
+		# then hits for 15 damage if they are still within 200 px
+		# of the marker — step away and it misses. Host picks the
+		# target; the marker is local (every peer sees the same
+		# match clock, so the strike schedule agrees).
+		_sf_update_strike(delta)
 		if _sf_storm_time_left <= 0.0:
 			_sf_storm_active = false
 			_sf_storm_timer = 90.0
+			_sf_clear_strike_marker() # never leave a telegraph hanging
+			_sf_strike_timer = 3.0
 			for d in _sf_disabled:
 				if bool(d.get("disabled", false)):
 					d["disabled"] = false
@@ -2318,6 +2423,171 @@ func _sf_update_storm(delta: float) -> void:
 		for n in _sf_storm_nodes:
 			(n as Sprite2D).visible = true
 		_ctf_feed("SUMMIT STORM! Exposed platforms disabled!", Color(0.65, 0.8, 1.0))
+		# QA-126 (v3.11): storm rumble once per storm (map-wide event).
+		if audio != null:
+			audio.play("storm")
+
+
+func _sf_update_strike(delta: float) -> void:
+	# QA-126 (v3.11): one lightning strike every 3 s while the storm
+	# runs. Two phases: TELEGRAPH (0.6 s — red ground ring + bolt
+	# sprite at the target's feet) then HIT (15 damage if the target
+	# is still within 200 px, else a miss). The shield absorbs the
+	# hit (take_damage), the victim flashes + shakes, and a
+	# shockwave ring blooms at the strike point.
+	if not _sf_strike.is_empty():
+		var t := float(_sf_strike.get("timer", 0.0)) - delta
+		_sf_strike["timer"] = t
+		if t <= 0.0:
+			var pos: Vector2 = _sf_strike["pos"]
+			var peer: int = int(_sf_strike.get("peer", -1))
+			_sf_clear_strike_marker()
+			if multiplayer.is_server() and peer >= 0:
+				for child in players_node.get_children():
+					if not child.alive:
+						continue
+					if int(child.get_multiplayer_authority()) != peer:
+						continue
+					if child.position.distance_to(pos) <= 200.0:
+						_sf_damage_player(child, 15)
+					break
+			_sf_spawn_shockwave(pos)
+			_sf_play_hazard_sound("thunder", pos, 1400.0)
+			if _sf_scenery.get("flash") != null:
+				_sf_scenery["flash_alpha"] = 0.15
+		return
+	_sf_strike_timer -= delta
+	if _sf_strike_timer > 0.0:
+		return
+	_sf_strike_timer = 3.0
+	var cands: Array = []
+	for child in players_node.get_children():
+		if child.alive and child.position.y < 3600.0:
+			cands.append(child)
+	var pos := Vector2.ZERO
+	var peer := -1
+	if not cands.is_empty():
+		var target: Node = cands[randi() % cands.size()]
+		pos = target.position + Vector2(0, 31)
+		peer = int(target.get_multiplayer_authority())
+	else:
+		# Nobody up top: strike a random summit platform (visual only).
+		var plats: Array = MAPS[map_id].get("platforms", [])
+		var r: Rect2 = plats[randi() % plats.size()]
+		if r.position.y > 1800.0:
+			r = plats[67]
+		pos = r.get_center() + Vector2(0, -24)
+	var ring := Line2D.new()
+	ring.width = 5.0
+	ring.default_color = Color(1.0, 0.25, 0.2, 0.9)
+	var pts := PackedVector2Array()
+	for i in 24:
+		var a := TAU * float(i) / 24.0
+		pts.append(pos + Vector2(cos(a), sin(a)) * 60.0)
+	pts.append(pos + Vector2(60.0, 0))
+	ring.points = pts
+	ring.z_index = 4
+	add_child(ring)
+	var bolt := Sprite2D.new()
+	bolt.texture = FX_TEX_BOLT if randi() % 2 == 0 else FX_TEX_FORKED
+	bolt.position = pos + Vector2(0, -120)
+	bolt.scale = Vector2(0.7, 0.7)
+	bolt.modulate = Color(1, 1, 1, 0.9)
+	bolt.z_index = 4
+	add_child(bolt)
+	_sf_strike = {"peer": peer, "pos": pos, "ring": ring, "bolt": bolt, "timer": 0.6}
+
+
+func _sf_clear_strike_marker() -> void:
+	if _sf_strike.is_empty():
+		return
+	for k in ["ring", "bolt"]:
+		var n: Node = _sf_strike.get(k)
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_sf_strike = {}
+
+
+@rpc("any_peer", "call_local")
+func show_thunder_strike_fx(pos: Vector2) -> void:
+	# QA-119 (v3.11): Thunder Strike bolt — the host RPCs it, so
+	# every peer sees the same strike at the same spot and hears
+	# the crack once. Sender guard: only the host (id 1, or 0 in a
+	# local sim) may trigger it.
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return
+	audio.play("thunder")
+	var bolt := Sprite2D.new()
+	bolt.texture = FX_TEX_THUNDER
+	bolt.position = pos
+	bolt.scale = Vector2(0.55, 0.55)
+	bolt.z_index = 6
+	add_child(bolt)
+	var tw := create_tween()
+	tw.tween_property(bolt, "scale", Vector2(0.75, 0.75), 0.15)
+	tw.tween_property(bolt, "modulate:a", 0.0, 0.45)
+	tw.tween_callback(bolt.queue_free)
+
+
+func _sf_spawn_shockwave(pos: Vector2) -> void:
+	# One-shot expanding ring (fades in _update_skyfall_scenery).
+	var sw := Sprite2D.new()
+	sw.texture = FX_TEX_SHOCKWAVE
+	sw.position = pos
+	sw.scale = Vector2(0.3, 0.3)
+	sw.modulate = Color(1, 1, 1, 0.9)
+	sw.z_index = 4
+	add_child(sw)
+	var shots: Array = _sf_scenery.get("one_shots", [])
+	shots.append({"node": sw, "t": 0.0})
+	_sf_scenery["one_shots"] = shots
+
+
+func _sf_update_hazards(delta: float) -> void:
+	# QA-126 (v3.11): lava / fire hazard zones deal damage — 10 HP
+	# per 1 s tick while a player stands in the zone, and ONLY while
+	# the jets are HOT (2 s on / 2 s off per 4 s cycle — the flame
+	# sprite shows the phase, so the danger is always telegraphed).
+	# Fair: no one-hit kills (10 HP/tick, walk out between ticks),
+	# the shield blocks it (take_damage), and the health regen
+	# restarts from the hit. Host-only damage; visuals are pure
+	# functions of the match clock so every peer agrees.
+	for h in _sf_hazard_fx:
+		var hd: Dictionary = h
+		var cycle := float(hd.get("cycle", 4.0))
+		var hot := fmod(_sf_match_time, cycle) < cycle * 0.5
+		var flame: Sprite2D = hd["flame"]
+		if flame != null:
+			flame.visible = hot
+			if hot:
+				var pulse := 0.55 + 0.15 * sin(_sf_match_time * 9.0)
+				flame.scale.y = pulse
+		var magma: Sprite2D = hd.get("magma")
+		if magma != null:
+			magma.visible = hot
+			if hot:
+				var k := fmod(_sf_match_time, cycle) / (cycle * 0.5)
+				magma.scale = Vector2(0.5 + k * 0.7, 0.5 + k * 0.7)
+				magma.modulate.a = 0.85 * (1.0 - k * 0.6)
+		if not hot:
+			continue
+		if not multiplayer.is_server() or match_over:
+			continue
+		var r: Rect2 = hd["rect"]
+		for child in players_node.get_children():
+			if not child.alive:
+				continue
+			var box := Rect2(child.position - Vector2(20, 31), Vector2(40, 62))
+			if not box.intersects(r):
+				continue
+			var pid := int(child.get_multiplayer_authority())
+			var tick := float(_sf_hazard_tick.get(pid, 0.0)) - delta
+			_sf_hazard_tick[pid] = tick
+			if tick <= 0.0:
+				_sf_hazard_tick[pid] = 1.0
+				_sf_damage_player(child, 10)
+				_sf_play_hazard_sound("fire_burn", child.position, 900.0)
 
 
 # --- Skyfall power-ups: RARER than weapons (user rule, 2026-11-20).
@@ -2373,45 +2643,6 @@ func _spawn_skyfall_powerup(spot_idx: int) -> void:
 	rpc("spawn_pickup_remote", pos, pname, kind, 100 + spot_idx)
 
 
-func _sf_update_radar() -> void:
-	# Radar (power-up 13): while the LOCAL player has it active,
-	# every living enemy gets a diamond marker above their head
-	# (through walls — it draws at z 50). No radar, no markers.
-	var lp = _get_local_player()
-	var want := false
-	if lp != null and "radar_timer" in lp and float(lp.get("radar_timer")) > 0.0:
-		want = true
-	if not want:
-		for m in _sf_radar_markers:
-			if is_instance_valid(m):
-				m.queue_free()
-		_sf_radar_markers.clear()
-		return
-	if lp == null:
-		return
-	var my_team := int(lp.team)
-	var idx := 0
-	for child in players_node.get_children():
-		if int(child.peer_id) == int(lp.peer_id) or not child.alive or int(child.team) == my_team:
-			continue
-		var marker: Polygon2D = null
-		if idx < _sf_radar_markers.size():
-			marker = _sf_radar_markers[idx]
-		else:
-			marker = Polygon2D.new()
-			marker.polygon = PackedVector2Array([Vector2(0, -12), Vector2(10, 0), Vector2(0, 12), Vector2(-10, 0)])
-			marker.z_index = 50
-			add_child(marker)
-			_sf_radar_markers.append(marker)
-		marker.color = Color(0.95, 0.3, 0.25) if int(child.team) == 0 else Color(0.25, 0.55, 0.95)
-		marker.position = child.position + Vector2(0, -70)
-		idx += 1
-	while _sf_radar_markers.size() > idx:
-		var extra: Node = _sf_radar_markers.pop_back()
-		if is_instance_valid(extra):
-			extra.queue_free()
-
-
 func _draw_tiles(map: Dictionary, platforms: Array) -> void:
 	var tex: Texture2D = TILE_TEX[clampi(int(map["tile"]), 0, TILE_TEX.size() - 1)]
 	var tile_w := float(tex.get_width())
@@ -2455,17 +2686,17 @@ func _draw_tiles(map: Dictionary, platforms: Array) -> void:
 func _build_skyfall(map: Dictionary) -> void:
 	if not bool(map.get("skyfall", false)):
 		return
-	# L3 Underground Tunnels: a dark band over the tunnel levels so
-	# the two corridors read as tunnels, not open sky. Drawn here
-	# (behind the players, z -2) — the lamp dots are small warm
-	# circles along the tunnel floors.
+	# QA-123 (v3.11): L2 Underground Tunnels: a dark band over the
+	# tunnel level (y 7200-9000) so the corridor reads as a tunnel,
+	# not open sky. Drawn here (behind the players, z -2) — the lamp
+	# dots are small warm circles along the tunnel floors.
 	var band := Polygon2D.new()
-	band.polygon = PackedVector2Array([Vector2(0, 4500), Vector2(map_size.x, 4500), Vector2(map_size.x, 5400), Vector2(0, 5400)])
+	band.polygon = PackedVector2Array([Vector2(0, 7200), Vector2(map_size.x, 7200), Vector2(map_size.x, 9000), Vector2(0, 9000)])
 	band.color = Color(0.02, 0.02, 0.04, 0.45)
 	band.z_index = -2
 	add_child(band)
 	for lx in [400, 1000, 1600, 2200, 2800, 3200]:
-		for ly in [5240, 4900]:
+		for ly in [8680, 8000]:
 			var lamp := Polygon2D.new()
 			var pts := PackedVector2Array()
 			for i in 12:
@@ -2528,7 +2759,7 @@ func _build_skyfall(map: Dictionary) -> void:
 		ring.z_index = 1
 		add_child(ring)
 		var rlbl := Label.new()
-		rlbl.text = "RELAY L%d  •  +1 pt" % [4 if ri == 0 else 7]
+		rlbl.text = "RELAY L%d  •  +1 pt" % [3 if ri == 0 else 6]
 		# QA-114: below the ring, not above — above puts the label
 		# in the top UI band (it collided with the "Waiting for
 		# other players" message in the L4 screenshot).
@@ -2602,6 +2833,14 @@ func _build_skyfall(map: Dictionary) -> void:
 	# QA-115 (v3.9): dynamic scenery — the map must feel alive, not
 	# a still picture. Scenery only, no gameplay effect.
 	_build_skyfall_scenery(map)
+	# QA-124 (v3.11): per-level themes — backdrop image + lighting +
+	# mid silhouette + platform tint, one distinct look per level.
+	_build_skyfall_themes(map)
+	# QA-129 (v3.11): per-level weather/mood + ambient life.
+	_build_skyfall_weather(map)
+	# QA-126 (v3.11): hazard visuals (lava pool, fire jets) — the
+	# damage itself runs in _sf_update_hazards.
+	_build_skyfall_hazards(map)
 	_build_skyfall_movers(map)
 	_build_skyfall_gate(map)
 	_build_skyfall_switch(map)
@@ -2644,7 +2883,7 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 	var clouds: Array = []
 	for ci in 5:
 		var cloud := Node2D.new()
-		cloud.position = Vector2(float(ci) * 700.0 + 200.0, 300.0 + float(ci % 3) * 900.0 + 1200.0)
+		cloud.position = Vector2(float(ci) * 700.0 + 200.0, 600.0 + float(ci) * 1900.0)
 		cloud.z_index = -2
 		add_child(cloud)
 		for bi in 3:
@@ -2658,10 +2897,11 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 			blob.position = Vector2(float(bi) * 110.0 - 110.0, float(bi % 2) * 14.0)
 			cloud.add_child(blob)
 		clouds.append({"node": cloud, "speed": 12.0 + float(ci) * 4.0})
-	# Waterfall on the left cliff face (Broken Cliffs, y 2900-4500):
-	# a translucent sheet + 5 white streaks that scroll downward.
+	# Waterfall on the left cliff face (Broken Cliffs, new L1,
+	# y 9300-10500): a translucent sheet + 5 white streaks that
+	# scroll downward.
 	var fall := Polygon2D.new()
-	fall.polygon = PackedVector2Array([Vector2(250, 2900), Vector2(330, 2900), Vector2(330, 4500), Vector2(250, 4500)])
+	fall.polygon = PackedVector2Array([Vector2(250, 9300), Vector2(330, 9300), Vector2(330, 10500), Vector2(250, 10500)])
 	fall.color = Color(0.55, 0.75, 0.95, 0.30)
 	fall.z_index = -1
 	add_child(fall)
@@ -2670,7 +2910,7 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 		var st := Line2D.new()
 		st.width = 3.0
 		st.default_color = Color(1, 1, 1, 0.55)
-		st.points = PackedVector2Array([Vector2(258 + float(si) * 14.0, 2950), Vector2(258 + float(si) * 14.0, 3050)])
+		st.points = PackedVector2Array([Vector2(258 + float(si) * 14.0, 9350), Vector2(258 + float(si) * 14.0, 9450)])
 		st.z_index = -1
 		add_child(st)
 		streaks.append(st)
@@ -2692,11 +2932,12 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 	hrotor.default_color = Color(0.08, 0.08, 0.10, 0.85)
 	hrotor.points = PackedVector2Array([Vector2(-70, -18), Vector2(70, -18)])
 	heli.add_child(hrotor)
-	# Rotating gears on the Mechanical Ascent (flanking the elevators).
+	# Rotating gears on the Mechanical Ascent (flanking the elevators,
+	# new L5, y 2600).
 	var gears: Array = []
 	for gx in [1000.0, 2600.0]:
 		var gear := Node2D.new()
-		gear.position = Vector2(gx, 2200)
+		gear.position = Vector2(gx, 2600)
 		gear.z_index = -1
 		add_child(gear)
 		var teeth := Polygon2D.new()
@@ -2717,7 +2958,7 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 		hub.color = Color(0.35, 0.35, 0.40, 0.9)
 		gear.add_child(hub)
 		gears.append(gear)
-	# Steam puffs rising from the tunnel vents (y ~5200).
+	# Steam puffs rising from the tunnel vents (new L2, y ~8600).
 	var puffs: Array = []
 	for px in [800.0, 1600.0, 2400.0, 3200.0]:
 		var puff := Polygon2D.new()
@@ -2727,14 +2968,14 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 			ppts.append(Vector2(cos(a), sin(a)) * 16.0)
 		puff.polygon = ppts
 		puff.color = Color(0.75, 0.75, 0.78, 0.22)
-		puff.position = Vector2(px, 5200)
+		puff.position = Vector2(px, 8600)
 		puff.z_index = -1
 		add_child(puff)
 		puffs.append({"node": puff, "rise": 0.0})
 	# Distant lightning flash: a full-map white sheet, invisible
 	# until a storm flash fires (see _update_skyfall_scenery).
 	var flash := Polygon2D.new()
-	flash.polygon = PackedVector2Array([Vector2(0, 0), Vector2(3600, 0), Vector2(3600, 7200), Vector2(0, 7200)])
+	flash.polygon = PackedVector2Array([Vector2(0, 0), Vector2(3600, 0), Vector2(3600, 10800), Vector2(0, 10800)])
 	flash.color = Color(1, 1, 1, 0.0)
 	flash.z_index = -2
 	add_child(flash)
@@ -2757,9 +2998,9 @@ func _update_skyfall_scenery(delta: float) -> void:
 		var pts: PackedVector2Array = line.points
 		pts[0].y += 140.0 * delta
 		pts[1].y += 140.0 * delta
-		if pts[0].y > 4480.0:
-			pts[0].y = 2920.0
-			pts[1].y = 3020.0
+		if pts[0].y > 10480.0:
+			pts[0].y = 9320.0
+			pts[1].y = 9420.0
 		line.points = pts
 	var heli: Node2D = _sf_scenery.get("heli")
 	if heli != null:
@@ -2774,7 +3015,7 @@ func _update_skyfall_scenery(delta: float) -> void:
 		var pd: Dictionary = p
 		var node: Node2D = pd["node"]
 		pd["rise"] = float(pd.get("rise", 0.0)) + delta * 30.0
-		node.position.y = 5200.0 - float(pd["rise"])
+		node.position.y = 8600.0 - float(pd["rise"])
 		var col: Color = (node as Polygon2D).color
 		col.a = maxf(0.0, 0.22 - float(pd["rise"]) * 0.0009)
 		(node as Polygon2D).color = col
@@ -2801,6 +3042,469 @@ func _update_skyfall_scenery(delta: float) -> void:
 		var fcol2: Color = flash2.color
 		fcol2.a = 0.0
 		flash2.color = fcol2
+	# QA-126 (v3.11): one-shot shockwave rings (lightning strikes) —
+	# expand + fade over 0.5 s, then free.
+	var shots: Array = _sf_scenery.get("one_shots", [])
+	for i in range(shots.size() - 1, -1, -1):
+		var sd: Dictionary = shots[i]
+		var node: Sprite2D = sd["node"]
+		if node == null or not is_instance_valid(node):
+			shots.remove_at(i)
+			continue
+		var t := float(sd.get("t", 0.0)) + delta
+		sd["t"] = t
+		node.scale = Vector2(0.3 + t * 3.0, 0.3 + t * 3.0)
+		node.modulate.a = maxf(0.0, 0.9 * (1.0 - t / 0.5))
+		if t >= 0.5:
+			node.queue_free()
+			shots.remove_at(i)
+	# QA-129 (v3.11): per-level weather + ambient life animation.
+	_update_skyfall_weather(delta)
+
+
+# QA-124 (v3.11) — PER-LEVEL THEMES: each of the 6 levels gets its
+# OWN different visual theme — the ENTIRE background AND platforms
+# change per level, not just a tint. Three depth layers per level:
+# FAR = the pack's level image (z -6), MID = a level-specific
+# silhouette (z -4), NEAR = decor + tinted platform tiles (z -1/0).
+# Merged levels use BOTH their images (top half / bottom half).
+# Level bands (y grows downward): L1 9000-10800, L2 7200-9000,
+# L3 5400-7200, L4 3600-5400, L5 1800-3600, L6 0-1800.
+func _build_skyfall_themes(map: Dictionary) -> void:
+	# [top image, bottom image, platform tint, light overlay, name]
+	var themes := [
+		[SF_TEX_LVL_2, SF_TEX_LVL_1, Color(0.95, 0.85, 0.70), Color(1.0, 0.90, 0.70, 0.06), "Twin Base Camp + Broken Cliffs"],
+		[SF_TEX_LVL_3, SF_TEX_LVL_3, Color(0.55, 0.55, 0.65), Color(0.0, 0.0, 0.10, 0.30), "Underground Tunnels"],
+		[SF_TEX_LVL_4, SF_TEX_LVL_4, Color(1.0, 0.80, 0.55), Color(0.10, 0.10, 0.15, 0.08), "Hanging Bridge"],
+		[SF_TEX_LVL_5, SF_TEX_LVL_5, Color(0.70, 0.85, 0.70), Color(0.05, 0.10, 0.20, 0.10), "Sniper Territory"],
+		[SF_TEX_LVL_6, SF_TEX_LVL_6, Color(0.75, 0.80, 0.90), Color(1.0, 0.60, 0.30, 0.07), "Mechanical Ascent"],
+		[SF_TEX_LVL_8, SF_TEX_LVL_7, Color(0.90, 0.95, 1.0), Color(0.10, 0.15, 0.35, 0.16), "The Last Stand + Flag Summit"],
+	]
+	for li in 6:
+		var lvl := li + 1
+		var y_top := 10800.0 - float(lvl) * 1800.0
+		var th: Array = themes[li]
+		# FAR: one image per 900 px half-band (2x scale, uniform —
+		# the 1800x450 image covers 3600x900 with no distortion).
+		for half in 2:
+			var spr := Sprite2D.new()
+			spr.texture = th[half]
+			spr.position = Vector2(1800, y_top + 450.0 + float(half) * 900.0)
+			spr.scale = Vector2(2.0, 2.0)
+			spr.z_index = -6
+			add_child(spr)
+		# LIGHTING: a translucent mood wash over the whole level —
+		# tunnels darkest, summit storm-blue, base warm. Day-to-dusk
+		# as you climb: the wash darkens and cools with height.
+		var wash := Polygon2D.new()
+		wash.polygon = PackedVector2Array([Vector2(0, y_top), Vector2(3600, y_top), Vector2(3600, y_top + 1800), Vector2(0, y_top + 1800)])
+		wash.color = th[3]
+		wash.z_index = -5
+		add_child(wash)
+		# MID: a level-specific silhouette (z -4) + the platform
+		# tint below. Silhouettes are code-drawn, muted, and never
+		# touch the routes.
+		_sf_build_level_silhouette(lvl, y_top)
+	# NEAR: tint every platform's tile sprites in the level's colour.
+	for pr in map.get("platforms", []):
+		var prect: Rect2 = pr
+		var tint: Color = (themes[_sf_level_of(prect.position.y + 24.0) - 1] as Array)[2]
+		for s in _sf_tile_sprites_at(prect):
+			(s as Sprite2D).modulate = tint
+
+
+func _sf_build_level_silhouette(lvl: int, y_top: float) -> void:
+	# One muted mid-ground shape per level, drawn in the level band.
+	match lvl:
+		1: # Broken Cliffs: a jagged cliff ridge across the top half.
+			var ridge := Polygon2D.new()
+			var pts := PackedVector2Array([Vector2(0, y_top + 900)])
+			var seed := 777
+			var x := 0.0
+			while x < 3600.0:
+				seed = (seed * 1103515245 + 12345) & 0x7fffffff
+				var w := 200.0 + float(seed % 260)
+				seed = (seed * 1103515245 + 12345) & 0x7fffffff
+				var h := 120.0 + float(seed % 220)
+				pts.append(Vector2(x, y_top + 900.0 - h))
+				pts.append(Vector2(minf(x + w, 3600.0), y_top + 900.0 - h))
+				x += w + 60.0
+			pts.append(Vector2(3600, y_top + 900))
+			ridge.polygon = pts
+			ridge.color = Color(0.32, 0.26, 0.20, 0.55)
+			ridge.z_index = -4
+			add_child(ridge)
+		2: # Tunnels: stalactites hanging from the band top.
+			for sx in [300.0, 900.0, 1500.0, 2100.0, 2700.0, 3300.0]:
+				var st := Polygon2D.new()
+				st.polygon = PackedVector2Array([Vector2(sx - 40, y_top), Vector2(sx + 40, y_top), Vector2(sx, y_top + 150.0 + fmod(sx, 90.0))])
+				st.color = Color(0.12, 0.12, 0.16, 0.8)
+				st.z_index = -4
+				add_child(st)
+		3: # Bridge: rope curves sagging between the bridge towers.
+			for bx in [600.0, 1800.0, 3000.0]:
+				var rope := Line2D.new()
+				rope.width = 5.0
+				rope.default_color = Color(0.45, 0.35, 0.22, 0.7)
+				var rpts := PackedVector2Array()
+				for i in 17:
+					var t := float(i) / 16.0
+					rpts.append(Vector2(bx - 500.0 + t * 1000.0, y_top + 700.0 + sin(t * PI) * 130.0))
+				rope.points = rpts
+				rope.z_index = -4
+				add_child(rope)
+		4: # Sniper Territory: watchtower silhouettes.
+			for tx in [500.0, 1800.0, 3100.0]:
+				var tower := Polygon2D.new()
+				tower.polygon = PackedVector2Array([Vector2(tx - 90, y_top + 900), Vector2(tx - 90, y_top + 350), Vector2(tx - 130, y_top + 300), Vector2(tx + 130, y_top + 300), Vector2(tx + 90, y_top + 350), Vector2(tx + 90, y_top + 900)])
+				tower.color = Color(0.16, 0.20, 0.16, 0.6)
+				tower.z_index = -4
+				add_child(tower)
+		5: # Mechanical Ascent: horizontal pipes + big gear rings.
+			for py in [y_top + 500.0, y_top + 1300.0]:
+				var pipe := Polygon2D.new()
+				pipe.polygon = PackedVector2Array([Vector2(0, py), Vector2(3600, py), Vector2(3600, py + 46), Vector2(0, py + 46)])
+				pipe.color = Color(0.25, 0.27, 0.32, 0.6)
+				pipe.z_index = -4
+				add_child(pipe)
+		6: # Summit: sharp storm peaks.
+			var peaks := Polygon2D.new()
+			peaks.polygon = PackedVector2Array([Vector2(0, y_top + 900), Vector2(500, y_top + 250), Vector2(1000, y_top + 900), Vector2(1600, y_top + 120), Vector2(2200, y_top + 900), Vector2(2800, y_top + 300), Vector2(3600, y_top + 900)])
+			peaks.color = Color(0.20, 0.24, 0.38, 0.6)
+			peaks.z_index = -4
+			add_child(peaks)
+
+
+# QA-129 (v3.11) — PER-LEVEL WEATHER / MOOD + AMBIENT LIFE. All
+# sprites are cheap transforms (no particles nodes, no shaders):
+# dust in Base Camp, drips in the Tunnels, wind-blown leaves on the
+# Bridge, steam in Mechanical Ascent, snow near the summit, storm
+# clouds + lightning at the top; birds, waving flags, portal
+# markers on the risky shortcuts, a faint wind whirlpool on the
+# bridge wind zone. Storm rain lives here too (hidden until a
+# storm). Counts are capped (~40 sprites) so phones stay safe.
+func _build_skyfall_weather(map: Dictionary) -> void:
+	var w: Dictionary = {}
+	var dust: Array = []
+	for i in 4:
+		var d := Sprite2D.new()
+		d.texture = FX_TEX_DUST
+		d.position = Vector2(400.0 + float(i) * 800.0, 9900.0 + float(i % 2) * 500.0)
+		d.scale = Vector2(0.5, 0.5)
+		d.modulate = Color(1, 1, 1, 0.35)
+		d.z_index = -3
+		add_child(d)
+		dust.append({"node": d, "speed": 14.0 + float(i) * 5.0})
+	w["dust"] = dust
+	var drips: Array = []
+	for i in 4:
+		var d := Sprite2D.new()
+		d.texture = FX_TEX_RAIN
+		d.position = Vector2(500.0 + float(i) * 800.0, 7400.0 + float(i % 2) * 600.0)
+		d.scale = Vector2(0.35, 0.35)
+		d.modulate = Color(1, 1, 1, 0.4)
+		d.z_index = -3
+		add_child(d)
+		drips.append(d)
+	w["drips"] = drips
+	var leaves: Array = []
+	for i in 5:
+		var leaf := Polygon2D.new()
+		var lp := PackedVector2Array()
+		for k in 6:
+			var a := TAU * float(k) / 6.0
+			lp.append(Vector2(cos(a) * 9.0, sin(a) * 5.0))
+		leaf.polygon = lp
+		leaf.color = Color(0.35, 0.7, 0.3, 0.85)
+		leaf.position = Vector2(300.0 + float(i) * 650.0, 5800.0 + float(i % 3) * 350.0)
+		leaf.z_index = -3
+		add_child(leaf)
+		leaves.append({"node": leaf, "speed": 35.0 + float(i) * 8.0, "phase": float(i)})
+	w["leaves"] = leaves
+	var steam: Array = []
+	for i in 3:
+		var s := Sprite2D.new()
+		s.texture = FX_TEX_SMOKE
+		s.position = Vector2(900.0 + float(i) * 900.0, 2400.0)
+		s.scale = Vector2(0.6, 0.6)
+		s.modulate = Color(1.0, 0.7, 0.4, 0.25)
+		s.z_index = -3
+		add_child(s)
+		steam.append({"node": s, "rise": float(i) * 80.0})
+	w["steam"] = steam
+	var snow: Array = []
+	for i in 6:
+		var s := Sprite2D.new()
+		s.texture = FX_TEX_SNOW
+		s.position = Vector2(300.0 + float(i) * 550.0, 300.0 + float(i % 3) * 400.0)
+		s.scale = Vector2(0.5, 0.5)
+		s.modulate = Color(1, 1, 1, 0.7)
+		s.z_index = -3
+		add_child(s)
+		snow.append({"node": s, "speed": 60.0 + float(i) * 8.0, "phase": float(i)})
+	w["snow"] = snow
+	var storm_clouds: Array = []
+	for i in 3:
+		var c := Sprite2D.new()
+		c.texture = FX_TEX_THUNDER_CLOUD
+		c.position = Vector2(400.0 + float(i) * 1200.0, 220.0 + float(i % 2) * 260.0)
+		c.scale = Vector2(1.1, 1.1)
+		c.modulate = Color(1, 1, 1, 0.8)
+		c.z_index = -3
+		add_child(c)
+		storm_clouds.append({"node": c, "speed": 8.0 + float(i) * 3.0})
+	w["storm_clouds"] = storm_clouds
+	var mid_clouds: Array = []
+	for i in 2:
+		var c := Sprite2D.new()
+		c.texture = FX_TEX_STORM_CLOUD
+		c.position = Vector2(600.0 + float(i) * 1800.0, 2200.0 + float(i) * 500.0)
+		c.scale = Vector2(1.0, 1.0)
+		c.modulate = Color(1, 1, 1, 0.6)
+		c.z_index = -3
+		add_child(c)
+		mid_clouds.append({"node": c, "speed": 10.0 + float(i) * 4.0})
+	w["mid_clouds"] = mid_clouds
+	# Storm rain over the top two levels — hidden until a storm.
+	var rain: Array = []
+	for i in 8:
+		var r := Sprite2D.new()
+		r.texture = FX_TEX_RAIN
+		r.position = Vector2(200.0 + float(i) * 420.0, 200.0 + float(i % 4) * 500.0)
+		r.scale = Vector2(0.8, 0.8)
+		r.modulate = Color(1, 1, 1, 0.6)
+		r.z_index = 3
+		r.visible = false
+		add_child(r)
+		rain.append(r)
+	w["rain"] = rain
+	# Storm dark overlay over the top two levels (fades in with the storm).
+	var dark := Polygon2D.new()
+	dark.polygon = PackedVector2Array([Vector2(0, 0), Vector2(3600, 0), Vector2(3600, 3600), Vector2(0, 3600)])
+	dark.color = Color(0.05, 0.08, 0.20, 0.0)
+	dark.z_index = -5
+	add_child(dark)
+	w["storm_dark"] = dark
+	# Birds over the bridge / sniper levels (flapping "V" wings).
+	var birds: Array = []
+	for i in 3:
+		var bird := Node2D.new()
+		bird.position = Vector2(float(i) * 1200.0 + 300.0, 6000.0 - float(i) * 900.0)
+		bird.z_index = -3
+		add_child(bird)
+		var w1 := Line2D.new()
+		w1.width = 3.0
+		w1.default_color = Color(0.1, 0.1, 0.12, 0.85)
+		w1.points = PackedVector2Array([Vector2(-14, 0), Vector2(0, -8)])
+		bird.add_child(w1)
+		var w2 := Line2D.new()
+		w2.width = 3.0
+		w2.default_color = Color(0.1, 0.1, 0.12, 0.85)
+		w2.points = PackedVector2Array([Vector2(0, -8), Vector2(14, 0)])
+		bird.add_child(w2)
+		birds.append({"node": bird, "speed": 45.0 + float(i) * 12.0, "phase": float(i) * 1.3})
+	w["birds"] = birds
+	# Waving flags: base camp + sniper level (pennant skews with sin).
+	var flags: Array = []
+	for fp in [Vector2(400, 10752), Vector2(3000, 3664)]:
+		var pole := Polygon2D.new()
+		pole.polygon = PackedVector2Array([Vector2(fp.x - 2, fp.y), Vector2(fp.x + 2, fp.y), Vector2(fp.x + 2, fp.y - 90), Vector2(fp.x - 2, fp.y - 90)])
+		pole.color = Color(0.15, 0.15, 0.18)
+		pole.z_index = -1
+		add_child(pole)
+		var pen := Polygon2D.new()
+		pen.polygon = PackedVector2Array([Vector2(0, 0), Vector2(64, 10), Vector2(0, 22)])
+		pen.color = Color(0.85, 0.12, 0.12)
+		pen.position = Vector2(fp.x + 2, fp.y - 90)
+		pen.z_index = -1
+		add_child(pen)
+		flags.append(pen)
+	w["flags"] = flags
+	# Hidden-tunnel / risky-shortcut portals (visual markers only —
+	# no teleport: the shortcut is the grapple line through the
+	# hazard zone). Portal sparks orbit each portal.
+	var portals: Array = []
+	for pp in [Vector2(1800, 6100), Vector2(1800, 2050)]:
+		var p := Sprite2D.new()
+		p.texture = FX_TEX_PORTAL
+		p.position = pp
+		p.scale = Vector2(0.55, 0.55)
+		p.modulate = Color(1, 1, 1, 0.7)
+		p.z_index = 1
+		add_child(p)
+		var sparks: Array = []
+		for si in 3:
+			var sp := Sprite2D.new()
+			sp.texture = FX_TEX_PORTAL_SPARKS
+			sp.scale = Vector2(0.25, 0.25)
+			sp.modulate = Color(1, 1, 1, 0.8)
+			sp.z_index = 1
+			add_child(sp)
+			sparks.append(sp)
+		portals.append({"node": p, "sparks": sparks, "pos": pp, "phase": float(portals.size())})
+	w["portals"] = portals
+	# Faint rotating wind whirlpool at the bridge wind-zone centre.
+	# The source is a flat solid disc, so it runs at 0.22 alpha,
+	# rotating — a hint of spin, not a blue blob. If it reads flat
+	# in the screenshots it gets dropped (see BUGS.md QA-125).
+	var whirl := Sprite2D.new()
+	whirl.texture = FX_TEX_WHIRL
+	whirl.position = Vector2(1800, 6400)
+	whirl.scale = Vector2(1.6, 1.6)
+	whirl.modulate = Color(1, 1, 1, 0.22)
+	whirl.z_index = -1
+	add_child(whirl)
+	w["whirl"] = whirl
+	# Electric arcs flickering by the Mechanical Ascent gears.
+	var arcs: Array = []
+	for ap in [Vector2(1000, 2600), Vector2(2600, 2600)]:
+		var a := Sprite2D.new()
+		a.texture = FX_TEX_ARC
+		a.position = ap + Vector2(0, -70)
+		a.scale = Vector2(0.5, 0.5)
+		a.modulate = Color(1, 1, 1, 0.5)
+		a.z_index = -1
+		add_child(a)
+		arcs.append(a)
+	w["arcs"] = arcs
+	# Gust streaks for the bridge wind gusts (hidden until a gust).
+	var gusts: Array = []
+	for i in 3:
+		var g := Sprite2D.new()
+		g.texture = FX_TEX_GUST_R if i % 2 == 0 else FX_TEX_GUST_L
+		g.position = Vector2(600.0 + float(i) * 900.0, 6200.0 + float(i % 2) * 300.0)
+		g.scale = Vector2(0.9, 0.9)
+		g.modulate = Color(1, 1, 1, 0.0)
+		g.z_index = 2
+		add_child(g)
+		gusts.append(g)
+	w["gusts"] = gusts
+	_sf_scenery["weather"] = w
+
+
+func _update_skyfall_weather(delta: float) -> void:
+	# Animate the QA-129 weather + ambient life. Pure functions of
+	# the match clock + delta (no gameplay reads), so all peers agree.
+	var w: Dictionary = _sf_scenery.get("weather", {})
+	if w.is_empty():
+		return
+	for d in w.get("dust", []):
+		var n: Node2D = d["node"]
+		n.position.x += float(d["speed"]) * delta
+		if n.position.x > 3600.0:
+			n.position.x = 0.0
+	for dr in w.get("drips", []):
+		var n2: Node2D = dr
+		n2.position.y += 55.0 * delta
+		if n2.position.y > 8900.0:
+			n2.position.y = 7300.0
+	for lf in w.get("leaves", []):
+		var n3: Node2D = lf["node"]
+		n3.position.x += float(lf["speed"]) * delta
+		n3.position.y += sin(_sf_match_time * 2.0 + float(lf["phase"])) * 20.0 * delta
+		n3.rotation += 1.5 * delta
+		if n3.position.x > 3600.0:
+			n3.position.x = 0.0
+	for st in w.get("steam", []):
+		var pd: Dictionary = st
+		var n4: Node2D = pd["node"]
+		pd["rise"] = fmod(float(pd.get("rise", 0.0)) + delta * 40.0, 300.0)
+		n4.position.y = 2400.0 - float(pd["rise"])
+		(n4 as Sprite2D).modulate.a = 0.25 * (1.0 - float(pd["rise"]) / 300.0)
+	for sn in w.get("snow", []):
+		var n5: Node2D = sn["node"]
+		n5.position.y += float(sn["speed"]) * delta
+		n5.position.x += sin(_sf_match_time * 1.5 + float(sn["phase"])) * 25.0 * delta
+		if n5.position.y > 1750.0:
+			n5.position.y = 100.0
+			n5.position.x = randf_range(200.0, 3400.0)
+	for c in w.get("storm_clouds", []):
+		var n6: Node2D = c["node"]
+		n6.position.x += float(c["speed"]) * delta
+		if n6.position.x > 3700.0:
+			n6.position.x = -300.0
+	for c in w.get("mid_clouds", []):
+		var n7: Node2D = c["node"]
+		n7.position.x += float(c["speed"]) * delta
+		if n7.position.x > 3700.0:
+			n7.position.x = -300.0
+	for r in w.get("rain", []):
+		var n8: Node2D = r
+		n8.visible = _sf_storm_active
+		if _sf_storm_active:
+			n8.position.y += 700.0 * delta
+			if n8.position.y > 3500.0:
+				n8.position.y = 0.0
+	var dark: Polygon2D = w.get("storm_dark")
+	if dark != null:
+		var dc: Color = dark.color
+		dc.a = lerpf(dc.a, 0.25 if _sf_storm_active else 0.0, clampf(delta * 2.0, 0.0, 1.0))
+		dark.color = dc
+	for b in w.get("birds", []):
+		var n9: Node2D = b["node"]
+		n9.position.x += float(b["speed"]) * delta
+		n9.position.y += sin(_sf_match_time * 1.2 + float(b["phase"])) * 12.0 * delta
+		if n9.position.x > 3750.0:
+			n9.position.x = -150.0
+	for fi in (w.get("flags", []) as Array).size():
+		var pen: Polygon2D = (w.get("flags", []) as Array)[fi]
+		var skew := sin(_sf_match_time * 3.0 + float(fi) * 2.0) * 6.0
+		pen.polygon = PackedVector2Array([Vector2(0, 0), Vector2(64, 10 + skew), Vector2(0, 22)])
+	for po in w.get("portals", []):
+		var pd2: Dictionary = po
+		var pn: Sprite2D = pd2["node"]
+		pn.rotation += 0.6 * delta
+		var ppos: Vector2 = pd2["pos"]
+		var sparks: Array = pd2["sparks"]
+		for si in sparks.size():
+			var sp: Sprite2D = sparks[si]
+			var a := _sf_match_time * 1.5 + float(pd2.get("phase", 0.0)) + float(si) * TAU / 3.0
+			sp.position = ppos + Vector2(cos(a), sin(a)) * 150.0
+			sp.modulate.a = 0.5 + 0.3 * sin(a * 2.0)
+	var whirl: Sprite2D = w.get("whirl")
+	if whirl != null:
+		whirl.rotation += 0.8 * delta
+	for ai in (w.get("arcs", []) as Array).size():
+		var arc: Sprite2D = (w.get("arcs", []) as Array)[ai]
+		arc.modulate.a = 0.25 + 0.45 * absf(sin(_sf_match_time * 7.0 + float(ai) * 2.0))
+	var gust_on := _sf_gust_active()
+	for gi in (w.get("gusts", []) as Array).size():
+		var g: Sprite2D = (w.get("gusts", []) as Array)[gi]
+		if gust_on:
+			g.modulate.a = 0.7
+			g.position.x += 500.0 * delta
+			if g.position.x > 3100.0:
+				g.position.x = 500.0
+		else:
+			g.modulate.a = 0.0
+
+
+# QA-126 (v3.11) — HAZARD VISUALS: lava pool + fire jet sprites on
+# the Mechanical Ascent hazard rects. The flames are pure functions
+# of the match clock (2 s hot / 2 s safe per 4 s cycle) so every peer
+# sees the same telegraph; the damage tick itself is host-only in
+# _sf_update_hazards.
+func _build_skyfall_hazards(map: Dictionary) -> void:
+	for hz in map.get("hazards", []):
+		var r: Rect2 = hz["rect"]
+		var kind: String = str(hz.get("kind", "lava"))
+		var flame := Sprite2D.new()
+		flame.texture = FX_TEX_LAVA if kind == "lava" else FX_TEX_FIRE_PILLAR
+		flame.position = r.get_center()
+		flame.scale = Vector2(r.size.x / 512.0, 0.6)
+		flame.modulate = Color(1, 1, 1, 0.85)
+		flame.z_index = 1
+		add_child(flame)
+		var magma: Sprite2D = null
+		if kind == "lava":
+			magma = Sprite2D.new()
+			magma.texture = FX_TEX_MAGMA
+			magma.position = r.get_center() + Vector2(0, -30)
+			magma.scale = Vector2(0.5, 0.5)
+			magma.modulate = Color(1, 1, 1, 0.0)
+			magma.z_index = 1
+			add_child(magma)
+		_sf_hazard_fx.append({"kind": kind, "rect": r, "flame": flame, "magma": magma, "cycle": float(hz.get("cycle", 4.0))})
 
 
 func _build_skyfall_movers(map: Dictionary) -> void:
@@ -3122,6 +3826,63 @@ func _ctf_update_carrying_flags() -> void:
 		child.set("carrying_flag", _ctf_carrier_of(int(child.peer_id)))
 
 
+func _on_slot_pressed(idx: int) -> void:
+	# QA-119 (v3.11): tap a HUD slot button to activate the stored
+	# power-up. activate_slot() enforces the rules (timed needs no
+	# active boost and no flag carried); a refused tap just does
+	# nothing. "tap" sound only on a real activation.
+	var lp = _get_local_player()
+	if lp == null:
+		return
+	if bool(lp.call("activate_slot", idx)):
+		audio.play("tap")
+
+
+func _update_invis_warning(lp) -> void:
+	# QA-121 (v3.11): while any living ENEMY is invisible, a red
+	# chip sits at the top of the top-left message area; it clears
+	# the moment the invisibility ends. Teammates are not warned
+	# (they see the faint outline). Runs every frame from
+	# _update_hud; the chip is NOT a feed entry (no 5 s expiry, no
+	# place in the 4-entry cap).
+	if _kill_feed_list == null:
+		return
+	var warn := false
+	var my_team := int(lp.team)
+	for child in players_node.get_children():
+		if int(child.peer_id) == int(lp.peer_id) or not child.alive:
+			continue
+		var enemy := my_team < 0 or int(child.team) != my_team
+		if enemy and float(child.get("invisibility_timer")) > 0.0:
+			warn = true
+			break
+	if not warn:
+		if _invis_warning_chip != null:
+			_invis_warning_chip.visible = false
+		return
+	if _invis_warning_chip == null:
+		var lbl := Label.new()
+		lbl.text = "Enemy is invisible!"
+		lbl.add_theme_font_override("font", FONT_BODY_MEDIUM)
+		lbl.add_theme_font_size_override("font_size", 18)
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+		_outline_label(lbl)
+		var chip := PanelContainer.new()
+		var chip_bg := StyleBoxFlat.new()
+		chip_bg.bg_color = Color(0.35, 0.05, 0.08, 0.88)
+		chip_bg.set_corner_radius_all(8)
+		chip_bg.content_margin_left = 10
+		chip_bg.content_margin_right = 10
+		chip_bg.content_margin_top = 4
+		chip_bg.content_margin_bottom = 4
+		chip.add_theme_stylebox_override("panel", chip_bg)
+		chip.add_child(lbl)
+		_invis_warning_chip = chip
+		_kill_feed_list.add_child(chip)
+	_kill_feed_list.move_child(_invis_warning_chip, 0)
+	_invis_warning_chip.visible = true
+
+
 func _ctf_feed(text: String, color: Color) -> void:
 	# Plain-text line on the kill feed (same chip + 5 s expiry as
 	# a kill line — _add_kill_feed_entry is kill-shaped, so CTF
@@ -3136,12 +3897,12 @@ func _ctf_feed(text: String, color: Color) -> void:
 	_outline_label(lbl)
 	var chip := PanelContainer.new()
 	var chip_bg := StyleBoxFlat.new()
-	chip_bg.bg_color = Color(0.02, 0.05, 0.09, 0.72)
-	chip_bg.set_corner_radius_all(4)
-	chip_bg.content_margin_left = 8
-	chip_bg.content_margin_right = 8
-	chip_bg.content_margin_top = 2
-	chip_bg.content_margin_bottom = 2
+	chip_bg.bg_color = Color(0.03, 0.07, 0.13, 0.88)
+	chip_bg.set_corner_radius_all(8)
+	chip_bg.content_margin_left = 10
+	chip_bg.content_margin_right = 10
+	chip_bg.content_margin_top = 4
+	chip_bg.content_margin_bottom = 4
 	chip.add_theme_stylebox_override("panel", chip_bg)
 	chip.add_child(lbl)
 	_kill_feed_list.add_child(chip)
@@ -3314,8 +4075,46 @@ func skyfall_wind_at(pos: Vector2) -> Vector2:
 			# line wins over the wind — opposite-feature rule).
 			if _sf_event_wind_flip:
 				wind = -wind
+			# QA-129 (v3.11): bridge gusts — every 15 s the bridge
+			# wind (y 6000-6800) doubles for 3 s. The gust streaks
+			# show it coming; the jetpack line still shields.
+			if _sf_gust_active() and pos.y >= 6000.0 and pos.y < 6800.0:
+				wind *= 2.0
 			return wind
 	return Vector2.ZERO
+
+
+func _sf_gust_active() -> bool:
+	# Bridge wind gust: 3 s of doubled wind every 15 s of match
+	# time. A pure function of the match clock, so host and clients
+	# agree with no RPC.
+	return not match_over and not _countdown_active and fmod(_sf_match_time, 15.0) < 3.0
+
+
+func _sf_play_hazard_sound(sound_name: String, pos: Vector2, max_dist: float) -> void:
+	# QA-126 (v3.11): hazard SFX, only when the local player can
+	# plausibly hear it (within max_dist of the event) — a strike
+	# at the far end of the tower stays silent. The AudioStreamPlayer
+	# pool caps overlap (6 players); hazard events are already
+	# throttled (strikes 3 s, ticks 1 s, rocks 4 s), so no spam.
+	if audio == null:
+		return
+	var lp = _get_local_player()
+	if lp == null:
+		return
+	if lp.position.distance_to(pos) <= max_dist:
+		audio.play(sound_name)
+
+
+func _sf_damage_player(child: Node, amount: int) -> void:	# Host-authoritative damage to one player (same routing as the
+	# falling rocks): direct when the host owns the victim, RPC to
+	# the owning peer otherwise. The victim's take_damage applies
+	# the shield (blocks ALL damage) + hit flash + shake, and the
+	# health-regen timer restarts from the hit.
+	if child.get_multiplayer_authority() == multiplayer.get_unique_id():
+		child.take_damage(amount, 0)
+	elif multiplayer.get_peers().has(child.get_multiplayer_authority()):
+		child.rpc_id(child.get_multiplayer_authority(), "take_damage", amount, 0)
 
 
 func _build_nodes() -> void:
@@ -3624,6 +4423,29 @@ func _build_hud() -> void:
 	# the right side is a real panel (its content is ~230 px tall,
 	# far taller than a 52 px bar), and the timer must stay centred
 	# on the screen, not centred in the space left over by the sides.
+	# QA-122 (v3.11): health + jetpack bars redesigned — one clean
+	# dark panel behind both bars (same gohud pill style as the
+	# top-right), thicker bars, bigger numbers, so they read at a
+	# glance and never fight the message area.
+	var bars_panel := PanelContainer.new()
+	bars_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	bars_panel.offset_left = 12
+	bars_panel.offset_right = 300
+	bars_panel.offset_top = 8
+	bars_panel.offset_bottom = 80
+	bars_panel.theme = GoUi.theme()
+	var bars_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
+	if bars_sb != null:
+		var bars_dup := bars_sb.duplicate()
+		if bars_dup is GoStyleBoxCut:
+			(bars_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.88)
+			(bars_dup as GoStyleBoxCut).content_margin_left = 8
+			(bars_dup as GoStyleBoxCut).content_margin_right = 8
+			(bars_dup as GoStyleBoxCut).content_margin_top = 6
+			(bars_dup as GoStyleBoxCut).content_margin_bottom = 6
+		bars_panel.add_theme_stylebox_override("panel", bars_dup)
+	hud.add_child(bars_panel)
+
 	var left := VBoxContainer.new()
 	left.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	left.offset_left = 16
@@ -3644,10 +4466,10 @@ func _build_hud() -> void:
 	hp_bar = GoBar.new()
 	hp_bar.label_text = "HP"
 	hp_bar.readout = GoBar.Readout.VALUE
-	hp_bar.thickness = 26
+	hp_bar.thickness = 28
 	hp_bar.ease_seconds = 0.0
 	hp_bar.segments = 0
-	hp_bar.label_size = 16
+	hp_bar.label_size = 18
 	hp_bar.ink = UI_SUCCESS
 	hp_bar.custom_minimum_size = Vector2(220, 26)
 	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3659,12 +4481,12 @@ func _build_hud() -> void:
 	left.add_child(fuel_row)
 
 	fuel_bar = GoBar.new()
-	fuel_bar.label_text = "FUEL"
+	fuel_bar.label_text = "JETPACK"
 	fuel_bar.readout = GoBar.Readout.VALUE
-	fuel_bar.thickness = 18
+	fuel_bar.thickness = 20
 	fuel_bar.ease_seconds = 0.0
 	fuel_bar.segments = 0
-	fuel_bar.label_size = 14
+	fuel_bar.label_size = 16
 	fuel_bar.ink = UI_ACCENT
 	fuel_bar.custom_minimum_size = Vector2(220, 18)
 	fuel_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3719,38 +4541,10 @@ func _build_hud() -> void:
 		fl.visible = false
 		mid.add_child(fl)
 		_ctf_flag_labels.append(fl)
-	# QA-112 (v3.9): power-up slots (Skyfall only — hidden elsewhere).
-	# 3 slot backgrounds from the pack + the stored power-up's 64 px
-	# icon on top of each filled slot; the active boost shows below
-	# with its time left. Health/ammo/grenades apply instantly and
-	# never take a slot (user rule, 2026-11-20).
-	var slot_row := HBoxContainer.new()
-	slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	slot_row.add_theme_constant_override("separation", 6)
-	slot_row.visible = false
-	mid.add_child(slot_row)
-	for i in 3:
-		var slot := TextureRect.new()
-		slot.texture = SF_TEX_SLOT[i]
-		slot.custom_minimum_size = Vector2(44, 44)
-		slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		slot_row.add_child(slot)
-		var icon := TextureRect.new()
-		icon.custom_minimum_size = Vector2(36, 36)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.position = Vector2(4, 4)
-		slot.add_child(icon)
-		_sf_slot_icons.append(icon)
-	_sf_active_boost_label = Label.new()
-	_sf_active_boost_label.text = ""
-	_sf_active_boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_sf_active_boost_label.add_theme_font_size_override("font_size", 16)
-	_sf_active_boost_label.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
-	_outline_label(_sf_active_boost_label)
-	_sf_active_boost_label.visible = false
-	mid.add_child(_sf_active_boost_label)
+	# QA-119 (v3.11): power-up slots live in the TOP-RIGHT panel
+	# (built below, under the ammo chip) — not in the centre-top
+	# mid column any more. Tap a filled slot to activate it; the
+	# active boost + time left shows under the row.
 	# QA-114 (v3.9): comeback + random-event lines (Skyfall CTF).
 	# Both teams see the same lines, so the catch-up help is never
 	# a hidden buff and an event is never a surprise.
@@ -3770,8 +4564,6 @@ func _build_hud() -> void:
 	_outline_label(_sf_event_label)
 	_sf_event_label.visible = false
 	mid.add_child(_sf_event_label)
-	# Keep the row handle for visibility toggling.
-	_sf_slot_row = slot_row
 
 	# QA-067 (v3.6) — COMPACT TOP-RIGHT. The v3.5 QA-057 panel was
 	# 284x268 px of always-on stats and the user said it BLOCKS THE
@@ -3838,6 +4630,60 @@ func _build_hud() -> void:
 	ammo_row.alignment = BoxContainer.ALIGNMENT_END
 	ammo_row.add_theme_constant_override("separation", 8)
 	ammo_chip.add_child(ammo_row)
+
+	# QA-119 (v3.11) + QA-130: power-up slots — TOP-RIGHT, a bit
+	# down from the top edge (below the ammo chip, y114), so they
+	# clear the SCORE/pause pill, the ammo chip, the message area,
+	# the health/jetpack bars and the height bar at both
+	# resolutions. Same gohud pill style as the top-right pill:
+	# dark navy, rounded, translucent. 3 plain 56 px buttons —
+	# empty shows the numbered slot background, filled shows the
+	# power-up icon; tap to activate. The active boost + time left
+	# shows under the row.
+	_sf_slot_panel = PanelContainer.new()
+	_sf_slot_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_sf_slot_panel.offset_left = -360
+	_sf_slot_panel.offset_right = -12
+	_sf_slot_panel.offset_top = 114
+	_sf_slot_panel.offset_bottom = 206
+	_sf_slot_panel.theme = GoUi.theme()
+	var slot_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
+	if slot_sb != null:
+		var slot_dup := slot_sb.duplicate()
+		if slot_dup is GoStyleBoxCut:
+			(slot_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.88)
+			(slot_dup as GoStyleBoxCut).content_margin_left = 8
+			(slot_dup as GoStyleBoxCut).content_margin_right = 8
+			(slot_dup as GoStyleBoxCut).content_margin_top = 6
+			(slot_dup as GoStyleBoxCut).content_margin_bottom = 6
+		_sf_slot_panel.add_theme_stylebox_override("panel", slot_dup)
+	_sf_slot_panel.visible = false
+	hud.add_child(_sf_slot_panel)
+	var slot_box := VBoxContainer.new()
+	slot_box.add_theme_constant_override("separation", 4)
+	_sf_slot_panel.add_child(slot_box)
+	var slot_row := HBoxContainer.new()
+	slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	slot_row.add_theme_constant_override("separation", 8)
+	slot_box.add_child(slot_row)
+	_sf_slot_row = slot_row
+	for i in 3:
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(56, 56)
+		btn.expand_icon = true
+		btn.icon = SF_TEX_SLOT[i]
+		_style_hud_button(btn)
+		btn.pressed.connect(_on_slot_pressed.bind(i))
+		slot_row.add_child(btn)
+		_sf_slot_buttons.append(btn)
+	_sf_active_boost_label = Label.new()
+	_sf_active_boost_label.text = ""
+	_sf_active_boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sf_active_boost_label.add_theme_font_size_override("font_size", 16)
+	_sf_active_boost_label.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
+	_outline_label(_sf_active_boost_label)
+	_sf_active_boost_label.visible = false
+	slot_box.add_child(_sf_active_boost_label)
 
 	# Kills / Deaths / Players are HIDDEN behind SCORE in v3.6 —
 	# the labels stay alive (_update_hud still writes them every
@@ -3976,8 +4822,8 @@ func _build_hud() -> void:
 	# on top, 4 lines max, each line fades after 5 s.
 	_kill_feed_list = VBoxContainer.new()
 	_kill_feed_list.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_kill_feed_list.position = Vector2(16, 108)
-	_kill_feed_list.add_theme_constant_override("separation", 2)
+	_kill_feed_list.position = Vector2(16, 132)
+	_kill_feed_list.add_theme_constant_override("separation", 4)
 	hud.add_child(_kill_feed_list)
 
 	# Phase 4 — match countdown: huge centre number, with the match
@@ -4126,10 +4972,10 @@ var _sf_event_label: Label # QA-114 (v3.9): random-event / storm line under the 
 func _build_height_bar() -> void:
 	# QA-114 (v3.9): VERTICAL HUD — a live tower map on the left
 	# edge (Skyfall only, hidden elsewhere). 360 px tall for the
-	# 7200 px tower: bar y = 360 * world_y / 7200 (summit at the
-	# top, base at the bottom). Dots: white = you, red/blue = teams,
-	# gold diamonds = team pings. Level ticks L1/L3/L5/L7 + the
-	# colour-coded route legend underneath.
+	# 10800 px tower (QA-123): bar y = 360 * world_y / 10800
+	# (summit at the top, base at the bottom). Dots: white = you,
+	# red/blue = teams, gold diamonds = team pings. Level ticks
+	# L1-L6 + the colour-coded route legend underneath.
 	# Top-anchored BELOW the kill feed (the feed sits at y108 and
 	# stacks up to 4 chips, bottom ~y228) — the old centre anchor
 	# put the bar at y~100 at 720p, so feed chips drew over it.
@@ -4158,12 +5004,12 @@ func _build_height_bar() -> void:
 	bg.position = Vector2(0, 0)
 	bg.size = Vector2(34, 360)
 	_sf_height_bar.add_child(bg)
-	# Level ticks: L1/L3/L5/L7 at their checkpoint heights.
-	for lvl in [1, 3, 5, 7]:
-		var cy := 7200.0 - (float(lvl) - 0.5) * 900.0 # centre y of the level
+	# Level ticks: L1-L6 at their level centres (QA-123: 1800 px levels).
+	for lvl in [1, 2, 3, 4, 5, 6]:
+		var cy := 10800.0 - (float(lvl) - 0.5) * 1800.0 # centre y of the level
 		var tl := Label.new()
 		tl.text = "L%d" % lvl
-		tl.position = Vector2(40, 360.0 * cy / 7200.0 - 10.0)
+		tl.position = Vector2(40, 360.0 * cy / 10800.0 - 10.0)
 		tl.add_theme_font_size_override("font_size", 16)
 		tl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
 		_sf_height_bar.add_child(tl)
@@ -5505,25 +6351,38 @@ func _update_skyfall_hud() -> void:
 				fl.text = "⚑ %s: DROPPED" % team_name
 			else:
 				fl.text = "⚑ %s: at summit" % team_name
-	if _sf_slot_row != null:
-		_sf_slot_row.visible = is_sf
+	if _sf_slot_panel != null:
+		_sf_slot_panel.visible = is_sf
 	if _sf_active_boost_label != null:
 		_sf_active_boost_label.visible = false
+	if _invis_warning_chip != null:
+		_invis_warning_chip.visible = false
 	if not is_sf:
 		return
 	var lp = _get_local_player()
 	if lp == null:
 		return
-	# 3 slots: each filled slot shows the stored power-up's icon.
+	# 3 slots: a filled slot shows the stored power-up's icon,
+	# an empty one its numbered background. A slot button is
+	# tappable only when it holds a power-up the player CAN use
+	# right now: timed kinds stay greyed out while another boost
+	# is active or while carrying the flag (carrier rule wins);
+	# instant kinds (health, wind, thunder) are always tappable.
 	var stored: Array = lp.get("stored_boosts")
-	for i in _sf_slot_icons.size():
-		var icon: TextureRect = _sf_slot_icons[i]
+	var ab0 := int(lp.get("active_boost_kind"))
+	var carrying := int(lp.get("carrying_flag")) != 0
+	for i in _sf_slot_buttons.size():
+		var btn: Button = _sf_slot_buttons[i]
 		if i < stored.size():
-			icon.texture = SF_TEX_PU64.get(int(stored[i]), null)
+			var kind := int(stored[i])
+			btn.icon = SF_TEX_PU64.get(kind, SF_TEX_SLOT[i])
+			var timed := kind in [8, 9, 10, 13]
+			btn.disabled = timed and (ab0 != 0 or carrying)
 		else:
-			icon.texture = null
+			btn.icon = SF_TEX_SLOT[i]
+			btn.disabled = true
 	# Active boost: name + seconds left (one active at a time).
-	var ab := int(lp.get("active_boost_kind"))
+	var ab := ab0
 	if ab != 0:
 		var t := 0.0
 		var nm := ""
@@ -5534,15 +6393,19 @@ func _update_skyfall_hud() -> void:
 			9:
 				t = float(lp.get("speed_timer"))
 				nm = "Speed"
-			12:
+			10:
 				t = float(lp.get("jetpack_boost_timer"))
 				nm = "Jetpack Boost"
 			13:
-				t = float(lp.get("radar_timer"))
-				nm = "Radar"
+				t = float(lp.get("invisibility_timer"))
+				nm = "Invisible"
 		if t > 0.0 and _sf_active_boost_label != null:
 			_sf_active_boost_label.text = "%s %ds" % [nm, int(ceil(t))]
 			_sf_active_boost_label.visible = true
+	# QA-121 (v3.11): red invisibility warning — while ANY living
+	# enemy is invisible, a red chip sits at the top of the
+	# top-left message area; it clears the moment the 10 s ends.
+	_update_invis_warning(lp)
 	# QA-114 (v3.9): comeback + event lines (CTF, both teams see them).
 	if _sf_comeback_label != null:
 		var trail := _sf_trailing_team()
@@ -5572,7 +6435,7 @@ func _update_skyfall_hud() -> void:
 				var dot: ColorRect = _sf_height_dots[di]
 				if child.alive:
 					dot.visible = true
-					dot.position = Vector2(11, 360.0 * clampf(child.position.y, 0.0, 7200.0) / 7200.0 - 6.0)
+					dot.position = Vector2(11, 360.0 * clampf(child.position.y, 0.0, 10800.0) / 10800.0 - 6.0)
 					if int(child.peer_id) == my_id:
 						dot.color = Color(1, 1, 1)
 					elif int(child.team) == 0:
@@ -5581,6 +6444,13 @@ func _update_skyfall_hud() -> void:
 						dot.color = Color(0.25, 0.55, 0.95)
 					else:
 						dot.color = Color(0.85, 0.85, 0.85)
+					# QA-121: an invisible ENEMY's dot is faint
+					# (10% visible, like the player) — teammates
+					# keep full colour, and you always see yourself.
+					if int(child.peer_id) != my_id and float(child.get("invisibility_timer")) > 0.0 and (int(lp.team) < 0 or int(child.team) != int(lp.team)):
+						var faint: Color = dot.color
+						faint.a = 0.25
+						dot.color = faint
 				else:
 					dot.visible = false
 				di += 1
@@ -5591,7 +6461,7 @@ func _update_skyfall_hud() -> void:
 				if pi < _sf_pings.size():
 					var ppos: Vector2 = (_sf_pings[pi] as Dictionary).get("pos", Vector2.ZERO)
 					pdot.visible = true
-					pdot.position = Vector2(11, 360.0 * clampf(ppos.y, 0.0, 7200.0) / 7200.0 - 6.0)
+					pdot.position = Vector2(11, 360.0 * clampf(ppos.y, 0.0, 10800.0) / 10800.0 - 6.0)
 				else:
 					pdot.visible = false
 
@@ -5868,19 +6738,20 @@ func _add_kill_feed_entry(killer_id: int, victim_id: int, weapon_id: int) -> voi
 	lbl.add_theme_font_size_override("font_size", 18)
 	lbl.add_theme_color_override("font_color", UI_FONT)
 	_outline_label(lbl)
-	# v3.2 NEON ARENA: each feed line sits on its own dark
-	# translucent chip (THEME_SPEC.md §3) so it reads over any map.
+	# QA-130 (v3.11): feed chips restyled to the gohud pill look
+	# (same dark navy + rounded corners as the top-right pill and
+	# the slot panel) so the message area reads as one clean unit.
 	var chip := PanelContainer.new()
 	var chip_bg := StyleBoxFlat.new()
-	chip_bg.bg_color = Color(0.02, 0.05, 0.09, 0.72)
-	chip_bg.corner_radius_top_left = 4
-	chip_bg.corner_radius_top_right = 4
-	chip_bg.corner_radius_bottom_left = 4
-	chip_bg.corner_radius_bottom_right = 4
-	chip_bg.content_margin_left = 8
-	chip_bg.content_margin_right = 8
-	chip_bg.content_margin_top = 2
-	chip_bg.content_margin_bottom = 2
+	chip_bg.bg_color = Color(0.03, 0.07, 0.13, 0.88)
+	chip_bg.corner_radius_top_left = 8
+	chip_bg.corner_radius_top_right = 8
+	chip_bg.corner_radius_bottom_left = 8
+	chip_bg.corner_radius_bottom_right = 8
+	chip_bg.content_margin_left = 10
+	chip_bg.content_margin_right = 10
+	chip_bg.content_margin_top = 4
+	chip_bg.content_margin_bottom = 4
 	chip.add_theme_stylebox_override("panel", chip_bg)
 	chip.add_child(lbl)
 	_kill_feed_list.add_child(chip)
@@ -7959,8 +8830,27 @@ func _update_gameshots(delta: float) -> void:
 			_capture_shot("user://shot_countdown.png")
 		4:
 			# Countdown done — HUD + hint visible. Seed one kill-feed
-			# entry so the chip renders in the HUD shot.
+			# entry so the chip renders in the HUD shot. On Skyfall
+			# also seed the 3 slots (QA-119) + an invisible enemy
+			# (QA-121 red warning) so the HUD shot proves the new
+			# top-left / top-right design.
 			_add_kill_feed_entry(1, 1, 0)
+			var lp4 = _get_local_player()
+			if lp4 != null and map_id == GameData.SKYFALL_MAP_ID:
+				lp4.apply_powerup(8)
+				lp4.apply_powerup(10)
+				lp4.apply_powerup(7)
+				_do_spawn(201, "InvisBot", 1, 0, -1)
+				var bot4 = players_node.get_node_or_null("201")
+				if bot4 != null:
+					bot4.set("invisibility_timer", 30.0)
+			# QA-122 (v3.11): low-bar proof — the HUD capture shows
+			# health 35 (amber) + fuel 20 (amber) so the redesigned
+			# bars are verified at low values too; the level shots
+			# already prove the full (100/100) state.
+			if lp4 != null:
+				lp4.health = 35
+				lp4.fuel = 20.0
 			_capture_shot("user://shot_hud.png")
 		5:
 			if not get_tree().paused:
@@ -8195,7 +9085,13 @@ func _glitch_setup(step: Dictionary) -> void:
 		lp.helmet = int(step["h"])
 		lp._update_helmet()
 	var floor_top := float((MAPS[map_id]["platforms"] as Array)[0].position.y)
-	var px := float(step.get("pos_x", 1500.0))
+	# QA-127 (v3.11): default x1400, NOT 1500 — Ironfall has a live
+	# weapon pickup spawn at (1500, 1320) and the player teleports
+	# onto it, so a shotgun spawned mid-run once auto-switched the
+	# weapon (G3_UP captured "Shotgun 6/18" instead of the Sniper).
+	# Picking it up is correct game behaviour; the teleport spot
+	# was the bug. 1400 is 100 px clear of that spawn.
+	var px := float(step.get("pos_x", 1400.0))
 	var pos_kind := String(step.get("pos", "floor"))
 	if pos_kind == "floor":
 		lp.position = Vector2(px, floor_top - 43.0)
@@ -8301,8 +9197,8 @@ func _update_mapshots(delta: float) -> void:
 
 
 # QA-112 (v3.9) SKYFALL-SCREENSHOT MODE (--skyfall-shots): one
-# capture per level (8 levels, centre x1800), to
-# user://shot_sf_L1.png ... shot_sf_L8.png. Runs as auto-host
+# capture per level (6 levels, centre x1800), to
+# user://shot_sf_L1.png ... shot_sf_L6.png. Runs as auto-host
 # on map 5; the countdown is skipped. Odd stages move the player
 # to the level, even stages capture (1 s apart, so the camera
 # smoothing settles).
@@ -8313,12 +9209,21 @@ func _update_skyfallshots(delta: float) -> void:
 		return
 	_sf_shot_stage = stage
 	var lp = _get_local_player()
-	if stage >= 1 and stage <= 16:
-		var lvl := (stage + 1) / 2 # 1-8
+	if stage >= 1 and stage <= 12:
+		var lvl := (stage + 1) / 2 # 1-6
 		if stage % 2 == 1:
 			if lp != null:
-				var cy := 7200.0 - (float(lvl) - 0.5) * 900.0
-				lp.position = Vector2(1800, cy - 40.0)
+				var cy := 10800.0 - (float(lvl) - 0.5) * 1800.0
+				# QA-123: L6's centre x1800 is INSIDE the summit
+				# gate (box x1742-1858, y484-862) and embedded in
+				# the summit platform, so the stuck-recovery fires
+				# and moves the player to the base spawn before
+				# the capture — the L6 shot showed the base, not
+				# the summit. Stand left of the gate instead, on
+				# the same (1200, 862) summit platform, with open
+				# sky above; the gate and flag stay in frame.
+				var cx := 1400.0 if lvl == 6 else 1800.0
+				lp.position = Vector2(cx, cy - 40.0)
 				lp.sync_position = lp.position
 				lp.velocity = Vector2.ZERO
 				if lp._camera != null:
@@ -8326,9 +9231,23 @@ func _update_skyfallshots(delta: float) -> void:
 			_smoke_set_move(null)
 			_smoke_set_aim(null)
 			_smoke_set_fire(false)
+			# QA-119/121/130 (v3.11): seed the HUD proof — filled
+			# slots + an invisible enemy (red warning) at stage 1,
+			# feed messages refreshed at stage 7 (5 s expiry).
+			if stage == 1 and lp != null:
+				lp.apply_powerup(8)
+				lp.apply_powerup(10)
+				lp.apply_powerup(7)
+				_do_spawn(201, "InvisBot", 1, 0, 1)
+				var sf_bot = players_node.get_node_or_null("201")
+				if sf_bot != null:
+					sf_bot.set("invisibility_timer", 30.0)
+			if stage == 1 or stage == 7:
+				_ctf_feed("Player  ☠  TestBot   —  Rifle", UI_FONT)
+				_ctf_feed("⚑ BLUE: at summit", Color(0.25, 0.55, 0.95))
 		else:
 			_capture_shot("user://shot_sf_L%d.png" % lvl)
-	elif stage >= 17:
+	elif stage >= 13:
 		print("SKYFALLSHOTS DONE")
 		get_tree().quit()
 
@@ -8864,10 +9783,10 @@ func _jt_s_gui_press_left() -> void:
 
 
 func _jt_s_gui_press_left_mid() -> void:
-	# L4 bridge platform (top y4092, x600-1500): stand at (1000,
-	# 4061) with 400 px of clear run left. Same real-GUI press.
+	# L3 bridge platform (top y6384, x600-1500): stand at (1000,
+	# 6353) with 400 px of clear run left. Same real-GUI press.
 	var lp = _jt_lp()
-	lp.position = Vector2(1000, 4061)
+	lp.position = Vector2(1000, 6353)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
 	_jt_gui_press_left()
@@ -8910,8 +9829,8 @@ func _jt_s_press_down() -> void:
 		# Skyfall: (2100, 900) lands ON the summit platform, so the
 		# player is on the floor and vel.y stays 0. x100 is a clear
 		# shaft to the base floor (352 px of fall, no platform under
-		# it until y7152).
-		lp.position = Vector2(100, 6800)
+		# it until y10752).
+		lp.position = Vector2(100, 10400)
 	else:
 		lp.position = Vector2(2100, 900)
 	lp.sync_position = lp.position
@@ -8936,7 +9855,15 @@ func _jt_s_diag_up_right() -> void:
 		# so the up-press fires the jetpack instead of a jump and
 		# vel.y reads +81 at the check. Stand on the wide y1712
 		# platform instead (top y1712, x600-3000): centre y1681.
-		lp.position = Vector2(900, 1681)
+		# QA-123: x900 is exactly the left edge of the (900, 1542)
+		# platform above, so the jump bonks its head after only
+		# 60 px of rise and vel.y reads ~+7 (pinned under the
+		# ceiling) instead of -320 — the same failure 4 runs in a
+		# row. x700 has open sky above it (no platform overhead
+		# until the y690 summit perch), so the diagonal jump can
+		# actually rise; drifting right for 0.5 s only reaches
+		# ~x823, still clear of the (900, 1542) platform.
+		lp.position = Vector2(700, 1681)
 		lp.sync_position = lp.position
 		lp.velocity = Vector2.ZERO
 		_jt_press_move(Vector2(42, -42))
@@ -9133,10 +10060,10 @@ func _jt_s_hold_up_long() -> void:
 	var lp = _jt_lp()
 	if map_id == GameData.SKYFALL_MAP_ID:
 		# Skyfall: (300, 1350) falls ~3900 px down the L1 shaft to
-		# the y5282 walkway — 4 s is not enough to land. Use the
+		# the y8764 walkway — 4 s is not enough to land. Use the
 		# base floor with a clear shaft above (x100, no platform
 		# overhead): jump, jetpack, fall back to the floor.
-		lp.position = Vector2(100, 7118)
+		lp.position = Vector2(100, 10718)
 	else:
 		lp.position = Vector2(300, 1350)
 	lp.sync_position = lp.position
@@ -12461,10 +13388,13 @@ func _featurestest_build_steps() -> void:
 			{"name": "FT-SF-RELAY-BANK", "wait": 0.5, "setup": _ft_sf_s_relay_bank, "check": _ft_sf_c_relay_bank},
 			{"name": "FT-SF-CHECKPOINT-UP", "wait": 0.5, "setup": _ft_sf_s_cp_up, "check": _ft_sf_c_cp_up},
 			{"name": "FT-SF-CHECKPOINT-DOWN", "wait": 0.5, "setup": _ft_sf_s_cp_down, "check": _ft_sf_c_cp_down},
-			{"name": "FT-SF-DIE-L7-SETUP", "wait": 0.5, "setup": _ft_sf_s_die_l7_setup, "check": _ft_sf_c_die_l7_setup},
-			{"name": "FT-SF-DIE-L7", "wait": 4.5, "setup": _ft_sf_s_die_l7, "check": _ft_sf_c_die_l7},
+			{"name": "FT-SF-DIE-L6-SETUP", "wait": 0.5, "setup": _ft_sf_s_die_l6_setup, "check": _ft_sf_c_die_l6_setup},
+			{"name": "FT-SF-DIE-L6", "wait": 4.5, "setup": _ft_sf_s_die_l6, "check": _ft_sf_c_die_l6},
 			{"name": "FT-SF-POWERUP-SLOTS", "wait": 0.3, "setup": _ft_sf_s_slots, "check": _ft_sf_c_slots},
 			{"name": "FT-SF-POWERUP-ACTIVE", "wait": 0.3, "setup": _ft_sf_s_active, "check": _ft_sf_c_active},
+			{"name": "FT-SF-SLOT-BTNS", "wait": 0.3, "setup": _ft_sf_s_slot_btns, "check": _ft_sf_c_slot_btns},
+			{"name": "FT-SF-SLOT-GREY-ACTIVE", "wait": 0.3, "setup": _ft_sf_s_slot_grey_active, "check": _ft_sf_c_slot_grey_active},
+			{"name": "FT-SF-SLOT-GREY-CARRIER", "wait": 0.3, "setup": _ft_sf_s_slot_grey_carrier, "check": _ft_sf_c_slot_grey_carrier},
 			{"name": "FT-SF-OPP-CARRIER-CTRL", "wait": 0.3, "setup": _ft_sf_s_carrier_ctrl, "check": _ft_sf_c_carrier_ctrl},
 			{"name": "FT-SF-OPP-CARRIER", "wait": 0.3, "setup": _ft_sf_s_carrier, "check": _ft_sf_c_carrier},
 			{"name": "FT-SF-OPP-SHIELD-STORM", "wait": 1.0, "setup": _ft_sf_s_shield_storm, "check": _ft_sf_c_shield_storm},
@@ -12473,7 +13403,12 @@ func _featurestest_build_steps() -> void:
 			{"name": "FT-SF-STORM", "wait": 1.0, "setup": _ft_sf_s_storm, "check": _ft_sf_c_storm},
 			{"name": "FT-SF-COMBO-EVENT-STORM", "wait": 1.0, "setup": _ft_sf_s_combo_event_storm, "check": _ft_sf_c_combo_event_storm},
 			{"name": "FT-SF-COMBO-TRAP", "wait": 1.5, "setup": _ft_sf_s_combo_trap, "check": _ft_sf_c_combo_trap},
+			{"name": "FT-SF-LEVELS", "wait": 0.2, "setup": _ft_s_noop, "check": _ft_sf_c_levels},
+			{"name": "FT-SF-HAZARD-LAVA", "wait": 2.0, "setup": _ft_sf_s_hazard_lava, "check": _ft_sf_c_hazard_lava},
+			{"name": "FT-SF-LIGHTNING", "wait": 2.0, "setup": _ft_sf_s_lightning, "check": _ft_sf_c_lightning},
 			{"name": "FT-SF-HEIGHTBAR", "wait": 0.3, "setup": _ft_sf_s_heightbar, "check": _ft_sf_c_heightbar},
+			{"name": "FT-SF-INVIS-WARN", "wait": 0.3, "setup": _ft_sf_s_invis_warn, "check": _ft_sf_c_invis_warn},
+			{"name": "FT-SF-INVIS-CLEAR", "wait": 0.3, "setup": _ft_sf_s_invis_clear, "check": _ft_sf_c_invis_clear},
 			{"name": "FT-SF-PING", "wait": 0.3, "setup": _ft_sf_s_ping, "check": _ft_sf_c_ping},
 			{"name": "FT-SF-ROUTES", "wait": 0.2, "setup": _ft_s_noop, "check": _ft_sf_c_routes},
 			{"name": "FT-SF-SCENERY", "wait": 1.0, "setup": _ft_sf_s_scenery, "check": _ft_sf_c_scenery},
@@ -12504,10 +13439,10 @@ func _ft_sf_c_mode() -> Array:
 
 func _ft_sf_c_map() -> Array:
 	var m: Dictionary = MAPS[map_id]
-	var ok := int(m.get("size", Vector2.ZERO).x) == 3600 and int(m.get("size", Vector2.ZERO).y) == 7200
-	ok = ok and (m.get("platforms", []) as Array).size() == 70
+	var ok := int(m.get("size", Vector2.ZERO).x) == 3600 and int(m.get("size", Vector2.ZERO).y) == 10800
+	ok = ok and (m.get("platforms", []) as Array).size() == 98
 	ok = ok and (m.get("spawns", []) as Array).size() == 12
-	ok = ok and (m.get("grapple", []) as Array).size() == 6
+	ok = ok and (m.get("grapple", []) as Array).size() == 8
 	ok = ok and (m.get("jetpack_lines", []) as Array).size() == 2
 	ok = ok and (m.get("relay", []) as Array).size() == 2
 	ok = ok and (m.get("checkpoints", []) as Array).size() == 4
@@ -12527,7 +13462,7 @@ func _ft_sf_c_grab() -> Array:
 
 
 func _ft_sf_s_capture() -> void:
-	_ft_teleport(Vector2(450, 7110)) # above RED extraction (450,7152)
+	_ft_teleport(Vector2(450, 10710)) # above RED extraction (450,10752)
 
 
 func _ft_sf_c_capture() -> Array:
@@ -12548,7 +13483,7 @@ func _ft_sf_c_relay_grab() -> Array:
 
 
 func _ft_sf_s_relay_bank() -> void:
-	_ft_teleport(Vector2(1800, 4040)) # above the Level 4 relay (1800,4092)
+	_ft_teleport(Vector2(1800, 6330)) # above the Level 3 relay (1800,6384)
 
 
 func _ft_sf_c_relay_bank() -> Array:
@@ -12559,16 +13494,16 @@ func _ft_sf_c_relay_bank() -> Array:
 
 
 func _ft_sf_s_cp_up() -> void:
-	_ft_teleport(Vector2(1800, 1640)) # Level 7 arena
+	_ft_teleport(Vector2(1800, 1640)) # Level 6 arena
 
 
 func _ft_sf_c_cp_up() -> Array:
 	var ok := int(_ctf_checkpoints.get(0, -1)) == 3
-	return [ok, "RED checkpoint=%d (want 3 = Level 7)" % int(_ctf_checkpoints.get(0, -1))]
+	return [ok, "RED checkpoint=%d (want 3 = Level 6)" % int(_ctf_checkpoints.get(0, -1))]
 
 
 func _ft_sf_s_cp_down() -> void:
-	_ft_teleport(Vector2(1800, 7100)) # back to the base
+	_ft_teleport(Vector2(1800, 10700)) # back to the base (new L1 floor y 10752)
 
 
 func _ft_sf_c_cp_down() -> Array:
@@ -12576,31 +13511,34 @@ func _ft_sf_c_cp_down() -> Array:
 	return [ok, "RED checkpoint=%d (want 0 = base)" % int(_ctf_checkpoints.get(0, -1))]
 
 
-func _ft_sf_s_die_l7_setup() -> void:
-	_ft_teleport(Vector2(1800, 1640)) # Level 7 arena — checkpoint must advance first
+func _ft_sf_s_die_l6_setup() -> void:
+	_ft_teleport(Vector2(1800, 1640)) # Level 6 arena — checkpoint must advance first
 
 
-func _ft_sf_c_die_l7_setup() -> Array:
+func _ft_sf_c_die_l6_setup() -> Array:
 	var ok := int(_ctf_checkpoints.get(0, -1)) == 3
 	return [ok, "RED checkpoint=%d before dying (want 3)" % int(_ctf_checkpoints.get(0, -1))]
 
 
-func _ft_sf_s_die_l7() -> void:
+func _ft_sf_s_die_l6() -> void:
 	var lp = _ft_lp()
 	lp._apply_damage(999, 1, Vector2.ZERO, 0.0, 0) # lethal — respawn takes 3 s
 
 
-func _ft_sf_c_die_l7() -> Array:
+func _ft_sf_c_die_l6() -> Array:
 	var lp = _ft_lp()
 	var ok := bool(lp.alive) and absf(lp.position.y - 1678.0) < 300.0
-	return [ok, "alive=%s y=%.0f (want alive near L7 y=1678)" % [str(bool(lp.alive)), lp.position.y]]
+	return [ok, "alive=%s y=%.0f (want alive near L6 y=1678)" % [str(bool(lp.alive)), lp.position.y]]
 
 
 func _ft_sf_s_slots() -> void:
+	# QA-119 slot rule (user 2026-11-20 ~21:00): pickup NEVER
+	# activates — every kind goes to a free slot and waits for a
+	# tap, INCLUDING Health (7). So all three are stored, none active.
 	var lp = _ft_lp()
 	lp.apply_powerup(9) # speed (timed)
 	lp.apply_powerup(8) # shield (timed)
-	lp.apply_powerup(7) # health (instant — never takes a slot)
+	lp.apply_powerup(7) # health — takes a slot too, no instant heal
 
 
 func _ft_sf_c_slots() -> Array:
@@ -12608,64 +13546,187 @@ func _ft_sf_c_slots() -> Array:
 	var stored: Array = lp.get("stored_boosts")
 	var ab := int(lp.get("active_boost_kind"))
 	var total := stored.size() + (1 if ab != 0 else 0)
-	var ok := total == 2 and stored.size() <= 3
-	return [ok, "timed held=%d (want 2: speed+shield), slots used=%d (max 3), active=%d" % [total, stored.size(), ab]]
+	var ok := total == 3 and stored.size() == 3 and ab == 0
+	return [ok, "held=%d (want 3: speed+shield+health, all stored), slots used=%d (max 3), active=%d (want 0)" % [total, stored.size(), ab]]
 
 
 func _ft_sf_s_active() -> void:
+	# OPPOSITE: one active boost at a time, via the real tap path.
+	# Speed (9) is active; Jetpack (10) is stored, then the player
+	# taps its slot — the tap must do nothing and the boost stays
+	# stored (kind 12 is instant Thunder in the new set, not a timed
+	# boost, so the old "apply 12" setup no longer tests this rule).
 	var lp = _ft_lp()
-	lp.apply_powerup(12) # jetpack boost (timed) while speed is active
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 9)
+	lp.set("speed_timer", 30.0)
+	lp.apply_powerup(10) # jetpack boost (timed) — goes to a slot
+	lp.call("activate_slot", 0) # tap the slot: must be refused
 
 
 func _ft_sf_c_active() -> Array:
 	var lp = _ft_lp()
 	var stored: Array = lp.get("stored_boosts")
 	var ab := int(lp.get("active_boost_kind"))
-	var total := stored.size() + (1 if ab != 0 else 0)
-	var ok := total == 3 and stored.size() <= 3
-	return [ok, "timed held=%d (want 3: speed+shield+jetpack), slots used=%d, active=%d" % [total, stored.size(), ab]]
+	var ok := ab == 9 and 10 in stored
+	lp.set("active_boost_kind", 0)
+	lp.set("speed_timer", 0.0)
+	return [ok, "active=%d (want 9 speed), jetpack stored=%s (want [10])" % [ab, str(stored)]]
 
 
 func _ft_sf_s_carrier_ctrl() -> void:
-	# CONTROL: a free player (not carrying) activates a timed boost.
+	# CONTROL: a free player (not carrying) activates a timed boost
+	# by tapping its slot. Kind 10 Jetpack is timed; kind 12 is
+	# instant Thunder in the new set, so it cannot test this rule.
 	var lp = _ft_lp()
 	lp.get("stored_boosts").clear()
 	lp.set("active_boost_kind", 0)
 	lp.set("shield_timer", 0.0)
 	lp.set("speed_timer", 0.0)
 	lp.set("jetpack_boost_timer", 0.0)
-	lp.set("radar_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
 	lp.set("carrying_flag", 0)
-	lp.apply_powerup(12)
+	lp.apply_powerup(10) # jetpack boost — stored, not active yet
+	lp.call("activate_slot", 0) # tap: must activate
 
 
 func _ft_sf_c_carrier_ctrl() -> Array:
 	var lp = _ft_lp()
 	var ab := int(lp.get("active_boost_kind"))
-	var ok := ab == 12
-	return [ok, "free player jetpack boost active=%d (want 12)" % ab]
+	lp.set("active_boost_kind", 0)
+	lp.set("jetpack_boost_timer", 0.0)
+	var ok := ab == 10
+	return [ok, "free player jetpack boost active=%d (want 10)" % ab]
 
 
 func _ft_sf_s_carrier() -> void:
 	# OPPOSITE: the flag carrier must NOT activate a timed boost —
-	# it stays stored until the flag is dropped/delivered.
+	# it stays stored until the flag is dropped/delivered. Timed
+	# kind 10 Jetpack (kind 12 is instant Thunder in the new set).
 	var lp = _ft_lp()
 	lp.get("stored_boosts").clear()
 	lp.set("active_boost_kind", 0)
 	lp.set("shield_timer", 0.0)
 	lp.set("speed_timer", 0.0)
 	lp.set("jetpack_boost_timer", 0.0)
-	lp.set("radar_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
 	lp.set("carrying_flag", 1)
-	lp.apply_powerup(12)
+	lp.apply_powerup(10)
+	lp.call("activate_slot", 0) # tap: must be refused (carrier rule)
 
 
 func _ft_sf_c_carrier() -> Array:
 	var lp = _ft_lp()
 	var stored: Array = lp.get("stored_boosts")
 	var ab := int(lp.get("active_boost_kind"))
-	var ok := ab == 0 and 12 in stored
-	return [ok, "carrier jetpack boost active=%d (want 0), stored=%s (want [12])" % [ab, str(stored)]]
+	lp.set("carrying_flag", 0)
+	var ok := ab == 0 and 10 in stored
+	return [ok, "carrier jetpack boost active=%d (want 0), stored=%s (want [10])" % [ab, str(stored)]]
+
+
+func _ft_sf_s_slot_btns() -> void:
+	# QA-119 (v3.11): the 3 HUD slot buttons show the stored
+	# power-up's icon and are tappable when the player CAN use it.
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.apply_powerup(8) # shield (timed) — slot 0
+	lp.apply_powerup(10) # jetpack boost (timed) — slot 1
+
+
+func _ft_sf_c_slot_btns() -> Array:
+	var b0: Button = _sf_slot_buttons[0]
+	var b1: Button = _sf_slot_buttons[1]
+	var b2: Button = _sf_slot_buttons[2]
+	var icons_ok := b0.icon == SF_TEX_PU64[8] and b1.icon == SF_TEX_PU64[10] and b2.icon == SF_TEX_SLOT[2]
+	var ok := icons_ok and not b0.disabled and not b1.disabled and b2.disabled
+	return [ok, "icons shield/jetpack/empty=%s, disabled=%s/%s/%s (want false/false/true)" % [str(icons_ok), str(b0.disabled), str(b1.disabled), str(b2.disabled)]]
+
+
+func _ft_sf_s_slot_grey_active() -> void:
+	# Timed slots grey out while a boost is active; an instant
+	# kind stays tappable even then.
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 9)
+	lp.set("speed_timer", 30.0)
+	lp.set("shield_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.apply_powerup(8) # shield (timed) — must grey out
+	lp.apply_powerup(7) # health (instant) — must stay tappable
+
+
+func _ft_sf_c_slot_grey_active() -> Array:
+	var b0: Button = _sf_slot_buttons[0]
+	var b1: Button = _sf_slot_buttons[1]
+	var ok := b0.disabled and not b1.disabled
+	var lp = _ft_lp()
+	lp.set("active_boost_kind", 0)
+	lp.set("speed_timer", 0.0)
+	return [ok, "shield disabled=%s (want true), health disabled=%s (want false) while Speed active" % [str(b0.disabled), str(b1.disabled)]]
+
+
+func _ft_sf_s_slot_grey_carrier() -> void:
+	# Same split while carrying the flag: timed greys out
+	# (carrier rule wins), instant stays tappable.
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 1)
+	lp.apply_powerup(8) # shield (timed) — must grey out
+	lp.apply_powerup(7) # health (instant) — must stay tappable
+
+
+func _ft_sf_c_slot_grey_carrier() -> Array:
+	var b0: Button = _sf_slot_buttons[0]
+	var b1: Button = _sf_slot_buttons[1]
+	var ok := b0.disabled and not b1.disabled
+	var lp = _ft_lp()
+	lp.set("carrying_flag", 0)
+	return [ok, "shield disabled=%s (want true), health disabled=%s (want false) while carrying" % [str(b0.disabled), str(b1.disabled)]]
+
+
+func _ft_sf_s_invis_warn() -> void:
+	# QA-121 (v3.11): a living invisible ENEMY puts the red chip
+	# at the top of the top-left message area.
+	_do_spawn(201, "InvisBot", 1, 0, 1) # BLUE enemy
+	var bot = players_node.get_node_or_null("201")
+	if bot != null:
+		bot.set("invisibility_timer", 10.0)
+
+
+func _ft_sf_c_invis_warn() -> Array:
+	var chip_ok := _invis_warning_chip != null and _invis_warning_chip.visible
+	var txt := ""
+	if _invis_warning_chip != null:
+		txt = (_invis_warning_chip.get_child(0) as Label).text
+	var ok := chip_ok and txt == "Enemy is invisible!"
+	return [ok, "warning chip visible=%s text='%s' (want true / 'Enemy is invisible!')" % [str(chip_ok), txt]]
+
+
+func _ft_sf_s_invis_clear() -> void:
+	var bot = players_node.get_node_or_null("201")
+	if bot != null:
+		bot.set("invisibility_timer", 0.0)
+
+
+func _ft_sf_c_invis_clear() -> Array:
+	var ok := _invis_warning_chip == null or not _invis_warning_chip.visible
+	var bot = players_node.get_node_or_null("201")
+	if bot != null:
+		bot.queue_free()
+	return [ok, "warning chip hidden=%s after the invisibility ends" % str(ok)]
 
 
 func _ft_sf_s_shield_storm() -> void:
@@ -12677,7 +13738,7 @@ func _ft_sf_s_shield_storm() -> void:
 	lp.set("shield_timer", 0.0)
 	lp.set("speed_timer", 0.0)
 	lp.set("jetpack_boost_timer", 0.0)
-	lp.set("radar_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
 	lp.set("carrying_flag", 0)
 	_ft_sf_hp0 = float(lp.health)
 	lp.apply_powerup(8) # shield
@@ -12759,12 +13820,89 @@ func _ft_sf_c_combo_trap() -> Array:
 	return [ok, "trapdoor=%s player y=%.0f (platform y=%.0f, want player below it)" % [str(td.get("state", "")), py, rect.position.y]]
 
 
+func _ft_sf_c_levels() -> Array:
+	# QA-123: the rebuilt tower is 6 levels x 1800 px (L1 bottom,
+	# L6 summit). Check the level function at one sample per level,
+	# the relay levels (3 and 6), the checkpoint levels, and the
+	# bridge gust schedule (3 s on / 12 s off per 15 s).
+	var got := [_sf_level_of(10000.0), _sf_level_of(8000.0), _sf_level_of(6300.0), _sf_level_of(4500.0), _sf_level_of(2700.0), _sf_level_of(900.0)]
+	var ok := got == [1, 2, 3, 4, 5, 6]
+	ok = ok and _sf_level_of(6384.0) == 3 and _sf_level_of(1678.0) == 6
+	ok = ok and GameData.SF_CHECKPOINT_LEVELS == [0, 2, 4, 6]
+	_sf_match_time = 1.0
+	var gust_on := _sf_gust_active()
+	_sf_match_time = 5.0
+	var gust_off := not _sf_gust_active()
+	ok = ok and gust_on and gust_off
+	return [ok, "levels=%s (want [1,2,3,4,5,6]) relay L%d/L%d cps=%s gust 1s=%s 5s=%s" % [str(got), _sf_level_of(6384.0), _sf_level_of(1678.0), str(GameData.SF_CHECKPOINT_LEVELS), str(gust_on), str(not gust_off)]]
+
+
+func _ft_sf_s_hazard_lava() -> void:
+	# QA-126: stand in the L5 lava pool while the jets are HOT —
+	# health must drop by 10 per 1 s tick. Clear the shield first
+	# (an earlier step may have left one up) and force the hot
+	# phase (match clock 0.5 s into the 4 s cycle).
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("health", 100.0) # full health, so the -10/tick is measurable
+	_ft_sf_hp0 = float(lp.health)
+	_sf_match_time = 0.5
+	_ft_teleport(Vector2(1400, 2260)) # on the lava pool (1250,2220,300,84)
+
+
+func _ft_sf_c_hazard_lava() -> Array:
+	var lp = _ft_lp()
+	var ok := float(lp.health) <= _ft_sf_hp0 - 10.0
+	return [ok, "health=%.0f (was %.0f, want <= -10 from the lava ticks)" % [float(lp.health), _ft_sf_hp0]]
+
+
+func _ft_sf_s_lightning() -> void:
+	# QA-126: force the Summit Storm + a strike on the local player
+	# (teleported to the summit, y < 3600). The 0.6 s telegraph
+	# runs, then the bolt hits for 15 — unless the shield is up
+	# (that case is covered by FT-SF-OPP-SHIELD-STORM).
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("health", 100.0) # full health, so the -15 strike is measurable
+	_ft_sf_hp0 = float(lp.health)
+	_ft_teleport(Vector2(1800, 1000)) # summit, inside the strike zone
+	_sf_storm_active = true
+	_sf_storm_time_left = 10.0
+	# A strike may already be pending from the earlier forced storm
+	# (its 3 s cadence is longer than this step's 2 s wait, and it
+	# could be a visual-only strike on an empty platform) — clear
+	# it so a fresh strike is scheduled on the local player at once.
+	_sf_clear_strike_marker()
+	_sf_strike_timer = 0.01
+
+
+func _ft_sf_c_lightning() -> Array:
+	var lp = _ft_lp()
+	var ok := float(lp.health) <= _ft_sf_hp0 - 15.0
+	# Tidy up: end the forced storm so later steps run in clear air.
+	_sf_storm_active = false
+	_sf_storm_time_left = 0.0
+	_sf_storm_timer = 90.0
+	_sf_clear_strike_marker()
+	return [ok, "health=%.0f (was %.0f, want <= -15 from the strike)" % [float(lp.health), _ft_sf_hp0]]
+
+
 func _ft_sf_s_heightbar() -> void:
 	_ft_teleport(Vector2(1800, 2660)) # Level 5
 
 
 func _ft_sf_c_heightbar() -> Array:
-	var want_y := 360.0 * 2660.0 / 7200.0 - 6.0
+	var want_y := 360.0 * 2660.0 / 10800.0 - 6.0
 	var dot: ColorRect = _sf_height_dots[0]
 	var ok := bool(_sf_height_bar.visible) and dot.visible and absf(dot.position.y - want_y) < 15.0
 	return [ok, "height bar=%s dot0 y=%.1f (want %.1f)" % [str(bool(_sf_height_bar.visible)), dot.position.y, want_y]]

@@ -159,6 +159,7 @@ var _portrait_tex: TextureRect
 var _name_input: LineEdit
 # Phase 4 — settings screen controls.
 var _music_check: CheckButton
+var _sfx_check: CheckButton
 var _fps_check: CheckButton
 var _invert_check: CheckButton
 # Phase 4 — map vote (lobby): candidates on the ballot + vote counts.
@@ -237,6 +238,7 @@ func _ready() -> void:
 	add_child(_audio)
 	_audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
 	_audio.set_music_enabled(GameData.music_enabled)
+	_audio.set_sfx_enabled(GameData.sfx_enabled)
 	# Phase 6: the menu plays the calm track. The game scene stops
 	# it when a match starts (battle track) and restarts it on return.
 	_audio.play_menu_music()
@@ -906,6 +908,14 @@ func _build_settings() -> void:
 	_music_check.button_pressed = GameData.music_enabled
 	_music_check.toggled.connect(_on_music_enabled_toggled)
 	box.add_child(_music_check)
+	# QA-128 (v3.11): SFX on/off (separate from volume — off mutes
+	# every sound effect, music keeps playing).
+	_sfx_check = CheckButton.new()
+	_sfx_check.text = "Sound effects on"
+	_sfx_check.add_theme_font_size_override("font_size", 20)
+	_sfx_check.button_pressed = GameData.sfx_enabled
+	_sfx_check.toggled.connect(_on_sfx_enabled_toggled)
+	box.add_child(_sfx_check)
 	box.add_child(_section_label("Controls"))
 	box.add_child(_slider_row("Control sensitivity", GameData.sensitivity, _on_sensitivity_changed, 0.5, 2.0))
 	# v3.2: the FIRE button is gone — the right stick aims AND fires
@@ -1012,6 +1022,15 @@ func _on_music_enabled_toggled(on: bool) -> void:
 	GameData.save_settings()
 	if _audio != null:
 		_audio.set_music_enabled(on)
+
+
+func _on_sfx_enabled_toggled(on: bool) -> void:
+	# QA-128 (v3.11): SFX mute toggle — stops any playing SFX and
+	# makes audio.play() a no-op until turned back on.
+	GameData.sfx_enabled = on
+	GameData.save_settings()
+	if _audio != null:
+		_audio.set_sfx_enabled(on)
 
 
 func _on_fps_toggled(on: bool) -> void:

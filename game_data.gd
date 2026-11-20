@@ -17,12 +17,13 @@ static var match_minutes: int = 5
 static var sfx_volume: float = 0.8
 static var music_volume: float = 0.5
 static var music_enabled: bool = true # Phase 6: music on/off (settings)
+static var sfx_enabled: bool = true # QA-128: SFX mute toggle (settings)
 static var sensitivity: float = 1.0
 static var show_fps: bool = false # Phase 4: FPS counter in the HUD
 static var invert_aim: bool = false # Phase 4: flip the aim stick vertically
 # v3.2: the FIRE button is gone (right stick aims and shoots), so its
 # size/side settings are removed. Old save files carry the stale keys
-# harmlessly — the loader never reads them any more.
+# harmlessly - the loader never reads them any more.
 static var host_ip: String = ""
 static var portrait: int = 0
 # Room settings (v2.4): configured when creating a room, shared with
@@ -35,11 +36,11 @@ static var room_password: String = ""
 static var last_host_ip: String = "" # prefilled after a disconnect, for reconnect
 static var last_room_name: String = ""
 # QA-078 (v3.6 phase 4): the player's team pick for team modes
-# (0 RED / 1 BLUE / -1 auto). Per-room choice, not saved — a new
+# (0 RED / 1 BLUE / -1 auto). Per-room choice, not saved - a new
 # room starts on auto. The menu writes it, the game reads it when
 # spawning (see game.gd _do_spawn / _announce_ready).
 static var team_pref: int = -1
-# QA-078: lifetime stats, local only (no account, no server — they
+# QA-078: lifetime stats, local only (no account, no server - they
 # live in the same settings.cfg as the name/colour). Shown on the
 # main-menu profile card; level is 1 + kills/50.
 static var stat_matches: int = 0
@@ -72,8 +73,8 @@ const PLAYER_COLORS: Array[Color] = [
 
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
 const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"] # QA-090 (v3.7): +3 headgear, indices 1-3 unchanged
-const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volcanic Cavern", "Pirate Island", "Skyfall"] # QA-095 (v3.7): 5 maps; QA-112 (v3.9): Skyfall added as a 6th map (vertical, 3600x7200)
-# v3.5 QA-059: one info line per map for the lobby map cards —
+const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volcanic Cavern", "Pirate Island", "Skyfall"] # QA-095 (v3.7): 5 maps; QA-112 (v3.9): Skyfall added as a 6th map (vertical, 3600x10800)
+# v3.5 QA-059: one info line per map for the lobby map cards -
 # real size (from game.gd MAPS) + platform count. Kept here (not
 # in game.gd) because the menu scene builds the cards and game.gd
 # has no class_name to read its MAPS from.
@@ -82,32 +83,32 @@ const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volc
 const MAP_CARD_INFO: Array[String] = [
 	"3200 × 1400 • 23 platforms", "3200 × 1400 • 24 platforms",
 	"3400 × 1800 • 16 platforms", "3000 × 1500 • 21 platforms",
-	"3000 × 1500 • 16 platforms", "3600 × 7200 • 8 levels",
+	"3000 × 1500 • 16 platforms", "3600 × 10800 • 6 levels",
 ]
-const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"] # QA-112 (v3.9): mode 4 CTF is BACK, but ONLY on the Skyfall map (see _ctf_available in main.gd / game.gd) — it stays removed everywhere else (QA-107 v3.8)
-# Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).
+const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"] # QA-112 (v3.9): mode 4 CTF is BACK, but ONLY on the Skyfall map (see _ctf_available in main.gd / game.gd) - it stays removed everywhere else (QA-107 v3.8)
+# Music attribution (Phase 6, CC BY 4.0 - must appear in-game, settings/credits).
 # Exact text from gen_assets_v3/music/LICENCE.md.
 const MUSIC_CREDITS := "\"At Rest\" Kevin MacLeod (incompetech.com)\n\"Five Armies\" Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 4.0 License\nhttp://creativecommons.org/licenses/by/4.0/"
-const MUSIC_CREDITS_SHORT := "Music: \"At Rest\" + \"Five Armies\" — Kevin MacLeod (incompetech.com), CC BY 4.0"
+const MUSIC_CREDITS_SHORT := "Music: \"At Rest\" + \"Five Armies\" - Kevin MacLeod (incompetech.com), CC BY 4.0"
 # Role ids (Skyfall only, QA-112 v3.9): 0 Attacker, 1 Defender, 2 Sniper,
-# 3 Support. Roles are DYNAMIC labels only — no fixed classes, no
+# 3 Support. Roles are DYNAMIC labels only - no fixed classes, no
 # gameplay effect; they show as icons in the lobby/HUD/scoreboard.
 # The local player's pick lives in `role` and syncs through the
 # lobby player data dict ("role" key) like color/helmet/team.
 const ROLE_NAMES: Array[String] = ["Attacker", "Defender", "Sniper", "Support"]
 const SKYFALL_MAP_ID: int = 5 # Skyfall is map index 5 (6th map)
-const CTF_CAPTURE_LIMIT: int = 3 # QA-112 (v3.9): full flag captures to win — 3 captures x 3 pts = 9 points
+const CTF_CAPTURE_LIMIT: int = 3 # QA-112 (v3.9): full flag captures to win - 3 captures x 3 pts = 9 points
 const CTF_POINTS_LIMIT: int = 9 # QA-114 (v3.9): first to 9 points wins (full capture 3 pts, relay bank 1 pt)
 const CTF_CAPTURE_POINTS: int = 3 # QA-114 (v3.9): carrying the flag all the way to your base
 const CTF_RELAY_POINTS: int = 1 # QA-114 (v3.9): banking the flag at a relay station (levels 4 / 7)
-const SF_CHECKPOINT_LEVELS: Array[int] = [0, 3, 5, 7] # QA-114 (v3.9): respawn checkpoints by cps index (0 = base, then levels 3, 5, 7 — user-confirmed 2026-11-20 ~18:11) # first to 3 captures wins a CTF match
+const SF_CHECKPOINT_LEVELS: Array[int] = [0, 2, 4, 6] # QA-123 (v3.11): respawn checkpoints by cps index (0 = base, then levels 2, 4, 6 - rebuilt from 3, 5, 7) # first to 3 captures wins a CTF match
 static var role: int = 0 # local player's Skyfall role (0 Attacker)
 # (round-based: one life per round, last alive wins the round, first
 # to the round limit wins the match), 3 Last Man Standing (one life
 # for the whole match, last alive wins; no respawns), 4 Capture the
-# Flag — SKYFALL ONLY (QA-112 v3.9): vertical CTF, flags at the summit,
+# Flag - SKYFALL ONLY (QA-112 v3.9): vertical CTF, flags at the summit,
 # carry to your own base. On any other map mode 4 falls back to FFA.
-# (QA-107 v3.8: mode 4 was removed at the user's request — see BUGS.md.
+# (QA-107 v3.8: mode 4 was removed at the user's request - see BUGS.md.
 # It is back only for Skyfall; the ids above are unchanged.)
 
 
@@ -115,7 +116,7 @@ static func player_color() -> Color:
 	return PLAYER_COLORS[clampi(color_index, 0, PLAYER_COLORS.size() - 1)]
 
 
-# QA-078: level from lifetime kills — 1 + one level per 50 kills.
+# QA-078: level from lifetime kills - 1 + one level per 50 kills.
 # Pure function, tested by --menu-net-test.
 static func level_for_kills(kills: int) -> int:
 	return 1 + maxi(kills, 0) / 50
@@ -142,7 +143,7 @@ static func record_match(kills: int, deaths: int, won: bool) -> void:
 # the host IP + room name, so two rooms on the same Wi-Fi almost
 # never share a code and a friend can join by typing the code
 # instead of the IP (the join screen looks the code up in the
-# discovered-room list — no server, no account). Pure function,
+# discovered-room list - no server, no account). Pure function,
 # tested by --menu-net-test.
 static func room_code(ip: String, room_name: String) -> String:
 	var h := 0
@@ -160,6 +161,7 @@ static func save_settings() -> void:
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "music_enabled", music_enabled)
+	cfg.set_value("audio", "sfx_enabled", sfx_enabled)
 	cfg.set_value("controls", "sensitivity", sensitivity)
 	cfg.set_value("controls", "show_fps", show_fps)
 	cfg.set_value("controls", "invert_aim", invert_aim)
@@ -181,6 +183,7 @@ static func load_settings() -> void:
 	sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 	music_volume = float(cfg.get_value("audio", "music", music_volume))
 	music_enabled = bool(cfg.get_value("audio", "music_enabled", music_enabled))
+	sfx_enabled = bool(cfg.get_value("audio", "sfx_enabled", sfx_enabled))
 	sensitivity = float(cfg.get_value("controls", "sensitivity", sensitivity))
 	show_fps = bool(cfg.get_value("controls", "show_fps", show_fps))
 	invert_aim = bool(cfg.get_value("controls", "invert_aim", invert_aim))
@@ -190,11 +193,11 @@ static func load_settings() -> void:
 	stat_deaths = int(cfg.get_value("stats", "deaths", stat_deaths))
 
 
-# Phase 4 — map vote tally (pure function, tested by --features-test).
+# Phase 4 - map vote tally (pure function, tested by --features-test).
 # votes: peer id -> voted map id. candidates: the 2-3 maps on the
 # ballot. default_map: the host's pick, used when nobody voted or on
-# a tie (the earliest candidate wins ties, so the host's pick — always
-# candidates[0] — wins a tie).
+# a tie (the earliest candidate wins ties, so the host's pick - always
+# candidates[0] - wins a tie).
 static func tally_map_vote(votes: Dictionary, candidates: Array, default_map: int) -> int:
 	if candidates.is_empty():
 		return default_map
@@ -217,7 +220,7 @@ static func tally_map_vote(votes: Dictionary, candidates: Array, default_map: in
 	return best_map
 
 
-# Phase 4 — end-of-match stat math (pure function, tested by
+# Phase 4 - end-of-match stat math (pure function, tested by
 # --features-test). kd is kills/deaths (deaths 0 counts as kills/1 so
 # a flawless match reads as the kill count, never infinity).
 # accuracy is hits/shots as a 0-100 percentage, capped at 100.

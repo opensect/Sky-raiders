@@ -5,23 +5,27 @@ extends Area2D
 
 # kind: 1 = SMG, 2 = Shotgun, 3 = Sniper, 4 = Rocket Launcher,
 #       5 = Health (+50), 6 = Grenades (+2)
-#       7-13 = Skyfall power-ups (QA-112, v3.9, Skyfall map only):
-#       7 = Health +35%, 8 = Shield 6s, 9 = Speed 7s, 10 = Ammo refill,
-#       11 = Grenades +2, 12 = Jetpack boost, 13 = Radar 5s.
-# The effect of kinds 7-13 lives in player.gd (give_pickup) — this
+#       7-13 = Skyfall power-ups (QA-119, v3.11, Skyfall map only -
+#       the set was REPLACED, user 2026-11-20 ~20:51/20:52):
+#       7 = Health Potion, 8 = Shield 7s, 9 = Speed 7s,
+#       10 = Jetpack Boost 15s, 11 = Wind Blast, 12 = Thunder
+#       Strike, 13 = Invisibility 10s (90%). Old Ammo Crate,
+#       Grenade Pack and Radar are GONE; Double Damage was never
+#       implemented (replaced by Jetpack Boost).
+# The effect of kinds 7-13 lives in player.gd (give_pickup) - this
 # file only shows the pickup picture. Bob, radius and lifetime are
 # the same for every kind.
 var kind: int = 1
 var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 
-# QA-088 (v3.7): drawn pickup icons from assets/items/ — the three
+# QA-088 (v3.7): drawn pickup icons from assets/items/ - the three
 # files already in the folder (ammobox / grenade / healthkit) were
 # NEVER used anywhere; they are redrawn bigger/clearer and wired in
 # here, plus a new weapon glyph for the weapon kinds. The old Sky
 # Brawl icons (pickup_007 / pickup_002) are retired for pickups:
 # the new icons are bigger, match the game's cartoon style, and read
 # at combat speed. Kind system, collision, bob and lifetime are
-# unchanged — only the picture changes.
+# unchanged - only the picture changes.
 const HEALTH_TEX: Texture2D = preload("res://assets/items/healthkit.png")
 const GRENADE_TEX: Texture2D = preload("res://assets/items/grenade.png")
 const WEAPON_TEX: Texture2D = preload("res://assets/items/weapon.png")
@@ -30,25 +34,28 @@ const AMMOBOX_TEX: Texture2D = preload("res://assets/items/ammobox.png")
 # there is no shield pickup kind (kinds are 1-6 only) and adding a
 # kind would change gameplay. It waits for a future shield kind.
 
-# QA-112 (v3.9 Skyfall power-ups): the 7 Skyfall power-up pictures,
-# one file each (256x256 RGBA). The spritesheet
-# (powerups_spritesheet.png) is NOT loaded — individual files only.
-const SKY_HEALTH_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_1_health_pack.png")
-const SKY_SHIELD_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_2_energy_shield.png")
-const SKY_SPEED_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_3_speed_boost.png")
-const SKY_AMMO_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_4_ammo_crate.png")
-const SKY_GRENADE_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_5_grenade_pack.png")
+# QA-119 (v3.11 power-up set, REPLACE): the 7 power-up pictures
+# from the user's pack assets/powerups_new/ (512x512 transparent
+# RGBA, scaled to 52 px in-world by the code below - no blurry
+# compression). Double Damage (04) is NOT used (replaced by
+# Jetpack Boost). The Jetpack Boost icon reuses the Skyfall pack
+# art (powerup_6_jetpack_boost.png) - no new jetpack icon was sent.
+const SKY_HEALTH_TEX: Texture2D = preload("res://assets/powerups_new/03_health_potion_powerup.png")
+const SKY_SHIELD_TEX: Texture2D = preload("res://assets/powerups_new/01_shield_powerup.png")
+const SKY_SPEED_TEX: Texture2D = preload("res://assets/powerups_new/02_speed_boost_powerup.png")
 const SKY_JETPACK_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_6_jetpack_boost.png")
-const SKY_RADAR_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_7_enemy_radar.png")
+const SKY_WIND_TEX: Texture2D = preload("res://assets/powerups_new/05_wind_blast_powerup.png")
+const SKY_THUNDER_TEX: Texture2D = preload("res://assets/powerups_new/06_thunder_strike_powerup.png")
+const SKY_INVIS_TEX: Texture2D = preload("res://assets/powerups_new/07_invisibility_powerup.png")
 # Kind -> Skyfall picture, for kinds 7-13.
 const SKYFALL_TEX := {
 	7: SKY_HEALTH_TEX,
 	8: SKY_SHIELD_TEX,
 	9: SKY_SPEED_TEX,
-	10: SKY_AMMO_TEX,
-	11: SKY_GRENADE_TEX,
-	12: SKY_JETPACK_TEX,
-	13: SKY_RADAR_TEX,
+	10: SKY_JETPACK_TEX,
+	11: SKY_WIND_TEX,
+	12: SKY_THUNDER_TEX,
+	13: SKY_INVIS_TEX,
 }
 
 var _life: float = 20.0
@@ -56,15 +63,15 @@ var _bob_t: float = 0.0
 var _base_y: float = 0.0
 
 const KIND_LABEL := {1: "SMG", 2: "BOOM", 3: "SNIPER", 4: "ROCKET", 5: "+", 6: "G",
-	7: "HP", 8: "SHIELD", 9: "SPEED", 10: "AMMO", 11: "G", 12: "JET", 13: "RADAR"}
+	7: "HP", 8: "SHIELD", 9: "SPEED", 10: "JET", 11: "WIND", 12: "BOLT", 13: "GHOST"}
 # QA-112: full display names for HUD / logs. KIND_LABEL above is the
 # short in-world tag; this one is the readable name. Kinds 1-6 keep
 # their old meaning; 7-13 are the Skyfall power-ups.
 const KIND_NAME := {
 	1: "SMG", 2: "Shotgun", 3: "Sniper", 4: "Rocket Launcher",
 	5: "Health +50", 6: "Grenades +2",
-	7: "Health +35%", 8: "Shield", 9: "Speed", 10: "Ammo",
-	11: "Grenades +2", 12: "Jetpack Boost", 13: "Radar",
+	7: "Health Potion", 8: "Shield", 9: "Speed Boost", 10: "Jetpack Boost",
+	11: "Wind Blast", 12: "Thunder Strike", 13: "Invisibility",
 }
 
 
@@ -82,10 +89,10 @@ const KIND_COLOR := {
 	7: Color(0.3, 0.9, 0.4),
 	8: Color(0.3, 0.6, 1.0),
 	9: Color(1.0, 0.85, 0.2),
-	10: Color(1.0, 0.6, 0.2),
-	11: Color(0.8, 0.2, 0.2),
-	12: Color(0.6, 0.4, 1.0),
-	13: Color(0.2, 0.8, 0.8),
+	10: Color(0.6, 0.4, 1.0),
+	11: Color(0.4, 0.85, 1.0),
+	12: Color(1.0, 0.8, 0.2),
+	13: Color(0.65, 0.4, 1.0),
 }
 
 
@@ -104,7 +111,7 @@ func _ready() -> void:
 		# faint colour glow (same shape as the weapon boxes). The
 		# icons are ~52 px now (was a 64 px Sky Brawl sprite at
 		# 0.62x = 40 px) so they read at combat speed on a phone.
-		# QA-112: kinds 7-13 use the same shape — the Skyfall
+		# QA-112: kinds 7-13 use the same shape - the Skyfall
 		# power-up badge over the same faint glow, same size.
 		var glow := Polygon2D.new()
 		glow.polygon = PackedVector2Array([
@@ -126,7 +133,7 @@ func _ready() -> void:
 		body_entered.connect(_on_body_entered)
 		return
 	# Weapon kinds (1-4): the ammo crate, tinted with the kind
-	# colour, with the rifle glyph on it and the name label below —
+	# colour, with the rifle glyph on it and the name label below -
 	# the crate + glyph + label together read instantly at speed.
 	var crate := Sprite2D.new()
 	crate.texture = AMMOBOX_TEX
@@ -155,7 +162,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_bob_t += delta
 	position.y = _base_y + sin(_bob_t * 3.0) * 6.0
-	# Gentle sway (GAP-35, spec §15): rotation, not a full spin —
+	# Gentle sway (GAP-35, spec §15): rotation, not a full spin -
 	# a full spin would make the label unreadable.
 	rotation = 0.12 * sin(_bob_t * 1.5)
 	if multiplayer.is_server():
@@ -175,11 +182,11 @@ func _on_body_entered(body: Node2D) -> void:
 			elif multiplayer.get_peers().has(body.get_multiplayer_authority()):
 				# QA-032: the peer may have disconnected a split-second
 				# before touching the pickup (their puppet still
-				# overlaps the area on the host) — an RPC to a gone
+				# overlaps the area on the host) - an RPC to a gone
 				# peer only logs an engine error, so skip it, exactly
 				# as bullet.gd / game.gd do for damage RPCs.
 				body.rpc_id(body.get_multiplayer_authority(), "give_pickup", kind)
-			# QA-092: the grab sparkles on every peer — despawn(true)
+			# QA-092: the grab sparkles on every peer - despawn(true)
 			# carries the grab through the same RPC as the expiry.
 			rpc("despawn", true)
 
@@ -187,7 +194,7 @@ func _on_body_entered(body: Node2D) -> void:
 @rpc("any_peer", "call_local")
 func despawn(grabbed: bool = false) -> void:
 	# QA-092: a grabbed pickup sparkles where it was taken (every
-	# peer sees it — despawn runs call_local). An expired pickup
+	# peer sees it - despawn runs call_local). An expired pickup
 	# (grabbed=false) just vanishes, as before.
 	if grabbed:
 		var game_fx = get_tree().get_first_node_in_group("game")
