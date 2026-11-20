@@ -15,10 +15,12 @@ extends RefCounted
 # IDENTICAL to spec; jump -660 KEPT (spec -550 gives apex ~108 px and
 # breaks the 170 px platform gaps); max fall 1000 ADOPTED (was 950).
 # Jetpack (§24.B): force 1900 KEPT (spec 1800, current is livelier);
-# max rise 450 ADOPTED (was 430); fuel 100 IDENTICAL; drain 45/s KEPT
-# (spec 25/s = 4 s of thrust would change every map's vertical
-# balance); refill 70/s ground / 35/s air KEPT-ish (spec 15/s = 6.7 s
-# to refill is far too slow) with the new 0.6 s regen delay (GAP-05).
+# max rise 450 ADOPTED (was 430); fuel 405 (QA-132: was 100 — user
+# asked +5 s; measured tank was 2.2 s, new tank is 9.0 s of thrust
+# at drain 45/s); drain 45/s KEPT (spec 25/s = 4 s of thrust would
+# change every map's vertical balance); refill 70/s ground / 35/s
+# air KEPT-ish (spec 15/s = 6.7 s to refill is far too slow) with
+# the new 0.6 s regen delay (GAP-05).
 # QA-074 (v3.6 phase 3, §5 — user: jetpack speed excessively high):
 # max rise 450 -> 320 (-29%, the top flying speed itself); thrust
 # 1900 -> 1650 (net climb accel 500 -> 250 px/s^2, gravity still
@@ -38,6 +40,14 @@ extends RefCounted
 # comes from the lower cap; P25b proves the player is falling again
 # 0.5 s after release. The 320 px/s cap still clears the 320 px
 # map-reachability gaps (game.gd _ct_map_reachable) with fuel to spare.
+# QA-132 (v3.12, user: jetpack +5 s): FUEL_MAX 100 -> 405, drain
+# STILL 45/s — one tank is 405/45 = 9.0 s of continuous thrust, a
+# full refill takes 8.1 s on the ground (405/50) and 16.2 s in the
+# air (405/25). One tank climbs 9 x 320 = 2880 px: more than one
+# 1800 px Skyfall level, far less than the 10800 px tower, so the
+# climb still needs platforms/grapple/wall-jumps. The QA-074 note
+# above about the 4 s hold-up window still applies — the joystick
+# test seeds 90 fuel (2 s) for that step instead of a full tank.
 # Player-to-player (§14): the spec's recommended default — bodies pass
 # through each other, bullets/explosions still hit.
 
@@ -67,7 +77,7 @@ const MAX_JET_RISE := 320.0
 const JET_RAMP_MIN := 0.75 # thrust starts at 75% and spools to full
 const JET_RAMP_TIME := 0.35 # seconds to spool from JET_RAMP_MIN to 1.0
 const JET_AIR_ACCEL := 1900.0 # horizontal accel while jetpacking (air 1500)
-const FUEL_MAX := 100.0
+const FUEL_MAX := 405.0 # QA-132: was 100.0 (9.0 s of thrust at drain 45/s)
 const FUEL_DRAIN := 45.0
 const FUEL_REFILL_GROUND := 50.0
 const FUEL_REFILL_AIR := 25.0

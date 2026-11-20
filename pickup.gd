@@ -7,14 +7,16 @@ extends Area2D
 #       5 = Health (+50), 6 = Grenades (+2)
 #       7-13 = Skyfall power-ups (QA-119, v3.11, Skyfall map only -
 #       the set was REPLACED, user 2026-11-20 ~20:51/20:52):
-#       7 = Health Potion, 8 = Shield 7s, 9 = Speed 7s,
-#       10 = Jetpack Boost 15s, 11 = Wind Blast, 12 = Thunder
-#       Strike, 13 = Invisibility 10s (90%). Old Ammo Crate,
-#       Grenade Pack and Radar are GONE; Double Damage was never
-#       implemented (replaced by Jetpack Boost).
+#       7 = Health Potion, 8 = Shield 7s, 9 = Speed 8s (QA-132:
+#       was 7s, x1.5 — see player.gd), 10 = Jetpack Boost 15s,
+#       11 = Wind Blast, 12 = Thunder Strike, 13 = Invisibility
+#       10s (90%). Old Ammo Crate, Grenade Pack and Radar are
+#       GONE; Double Damage was never implemented (replaced by
+#       Jetpack Boost).
 # The effect of kinds 7-13 lives in player.gd (give_pickup) - this
-# file only shows the pickup picture. Bob, radius and lifetime are
-# the same for every kind.
+# file only shows the pickup picture. Bob and radius are the same
+# for every kind; lifetime is 20 s for kinds 1-6, 30 s for 7-13
+# (QA-132 — power-ups need longer to be reached on the tower).
 var kind: int = 1
 var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 
@@ -58,7 +60,11 @@ const SKYFALL_TEX := {
 	13: SKY_INVIS_TEX,
 }
 
-var _life: float = 20.0
+var _life: float = 20.0 # weapon/health/grenade pickups despawn after 20 s
+# QA-132: Skyfall power-ups (kinds 7-13) live 30 s instead — on a
+# 10800 px tower a 20 s lifetime usually expired before anyone
+# climbed to the spot. Set in _ready (kind is assigned before the
+# node enters the tree, see spawn_pickup_remote).
 var _bob_t: float = 0.0
 var _base_y: float = 0.0
 
@@ -101,6 +107,8 @@ func _ready() -> void:
 	collision_mask = 2
 	monitoring = true
 	monitorable = false
+	if kind >= 7:
+		_life = 30.0 # QA-132: power-ups live 30 s (weapons stay 20 s)
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = 22.0

@@ -48,6 +48,14 @@ const JUMP_VELOCITY := -660.0
 # full force. Drain 45/s KEPT (2.2 s per tank; a slower drain would
 # lengthen total flight and push the 4 s hold-up landing past its
 # joystick-test window). Regen 70/35 -> 50/25 per s, delay 0.6 -> 0.5.
+# QA-132 (v3.12, user: jetpack +5 s): FUEL_MAX 100 -> 405, drain
+# STILL 45/s, so one tank is now 405/45 = 9.0 s of continuous
+# thrust (was 2.2 s). A full tank climbs 9 x 320 = 2880 px — more
+# than one 1800 px level but far less than the 10800 px tower, so
+# the climb still needs platforms/grapple/wall-jumps with refill
+# waits (full refill 8.1 s on the ground, 16.2 s in the air).
+# The joystick hold-up test seeds 90 fuel (2 s) so its 4 s window
+# still covers thrust-out + landing (see game.gd _jt_s_hold_up_long).
 const JET_ACCEL := 1650.0
 const MAX_JET_RISE := 320.0
 const JET_RAMP_MIN := 0.75
@@ -55,7 +63,7 @@ const JET_RAMP_TIME := 0.35
 const JET_AIR_ACCEL := 1900.0 # horizontal accel while jetpacking (air 1500)
 const GRAVITY := 1400.0
 const MAX_FALL := 1000.0
-const FUEL_MAX := 100.0
+const FUEL_MAX := 405.0 # QA-132: was 100.0 (9.0 s of thrust at drain 45/s)
 const FUEL_DRAIN := 45.0
 const FUEL_REFILL := 50.0
 const FUEL_REFILL_AIR := 25.0
@@ -350,20 +358,21 @@ var _sight_line: Line2D # sniper sight line (local player only)
 # flag, 2 BLUE flag. wind_force is set by game.gd every frame on
 # Skyfall wind zones (Vector2.ZERO on every other map).
 const SHIELD_DURATION := 7.0 # QA-119: was 6.0 (user 2026-11-20 ~20:48)
-const SPEED_DURATION := 7.0
+const SPEED_DURATION := 8.0 # QA-132: was 7.0 (speed is now x1.5, see below)
 const JETPACK_BOOST_DURATION := 15.0 # QA-119: was 7.0 (user 2026-11-20 ~20:48)
 const INVISIBILITY_DURATION := 10.0 # QA-119: user corrected 4 -> 10 s (2026-11-20 ~20:49)
 const INVISIBILITY_ALPHA := 0.1 # QA-119: 90% invisible - enemies see ~10% (user 2026-11-20 ~20:52)
-const SPEED_BOOST_MULT := 1.3
+const SPEED_BOOST_MULT := 1.5 # QA-132: was 1.3 — barely noticeable
 const JETPACK_BOOST_MULT := 1.4
 const FLAG_CARRY_SPEED_MULT := 0.85
 const MAX_STORED_BOOSTS := 3
 const TIMED_BOOST_KINDS: Array[int] = [8, 9, 10, 13] # shield, speed, jetpack, invisibility
-const WIND_BLAST_RADIUS := 320.0 # QA-119: pushes enemies away, no damage
+const PU_NAMES := {7: "Health Potion", 8: "Shield", 9: "Speed Boost", 10: "Jetpack Boost", 11: "Wind Blast", 12: "Thunder Strike", 13: "Invisibility"} # QA-132: feed messages
+const WIND_BLAST_RADIUS := 520.0 # QA-132: was 320.0 — on a 10800 px tower enemies are usually >320 px away, so it fired at nothing
 const WIND_BLAST_KNOCKBACK := 650.0
-const THUNDER_RADIUS := 220.0 # QA-119: lightning damage in a small area
+const THUNDER_RADIUS := 300.0 # QA-132: was 220.0 — same reason as wind
 const THUNDER_DAMAGE := 40
-const THUNDER_RANGE := 500.0 # strike the nearest enemy inside this range, else own feet
+const THUNDER_RANGE := 800.0 # QA-132: was 500.0 — strike the nearest enemy inside this range, else own feet
 const HEALTH_REGEN_DELAY := 3.0 # QA-120: health restores slowly after 3 s without damage
 const HEALTH_REGEN_RATE := 4.0 # HP per second (slow)
 var shield_timer: float = 0.0
@@ -2690,11 +2699,23 @@ func apply_powerup(kind: int) -> void:
 	if kind < 7 or kind > 13:
 		return
 	if stored_boosts.has(kind):
+		_pu_feed("Already carrying %s" % PU_NAMES.get(kind, "power-up"))
 		return # same kind already held: consumed, no extra effect
 	if stored_boosts.size() >= MAX_STORED_BOOSTS:
+		_pu_feed("Slots full — power-up lost")
 		return # slots full: consumed, no effect
 	stored_boosts.append(kind)
 	_play_sound("pickup")
+
+
+# QA-132: power-up feedback — a lost pickup or a fired instant
+# used to fail silently (no message, no visible effect). The feed
+# goes through the game scene, into the same top-left message area
+# as every other notice. No game node (menu / unit test) = silent.
+func _pu_feed(text: String) -> void:
+	var game := get_tree().get_first_node_in_group("game")
+	if game != null and game.has_method("_ctf_feed"):
+		game._ctf_feed(text, Color(1.0, 0.8, 0.2))
 
 
 # Activate the power-up waiting in slot `idx` (HUD slot-button tap).
@@ -2720,14 +2741,17 @@ func activate_slot(idx: int) -> bool:
 	return true
 
 
-# Fire an instant power-up. Health restores 35 HP; Wind Blast pushes
+# Fire an instant power-up. Health restores 50 HP (QA-132: was
+# 35 — it competes with 4 HP/s regen now); Wind Blast pushes
 # nearby enemies away (no damage); Thunder Strike hits the nearest
 # enemy in range. Wind/thunder damage is host-authoritative: a
 # client asks the host with an RPC (in the sim the peer IS the host).
+# QA-132: wind + thunder announce themselves in the feed, so the
+# player sees the activation even when no enemy is in range.
 func _apply_instant(kind: int) -> void:
 	match kind:
 		7:
-			health = mini(100, health + 35)
+			health = mini(100, health + 50)
 			_fx_flash_kind = 7
 			_fx_flash_timer = 0.8
 			_play_sound("heal")
@@ -2735,6 +2759,7 @@ func _apply_instant(kind: int) -> void:
 			_fx_flash_kind = 11
 			_fx_flash_timer = 0.8
 			_play_sound("wind")
+			_pu_feed("Wind Blast!")
 			if multiplayer.is_server():
 				_do_wind_blast()
 			else:
@@ -2745,6 +2770,7 @@ func _apply_instant(kind: int) -> void:
 			# Sound plays inside show_thunder_strike_fx (once per
 			# peer, via the host RPC) — not here, or the activator
 			# would hear the crack twice.
+			_pu_feed("Thunder Strike!")
 			if multiplayer.is_server():
 				_do_thunder_strike()
 			else:
