@@ -368,11 +368,9 @@ const FLAG_CARRY_SPEED_MULT := 0.85
 const MAX_STORED_BOOSTS := 3
 const TIMED_BOOST_KINDS: Array[int] = [8, 9, 10, 13] # shield, speed, jetpack, invisibility
 const PU_NAMES := {7: "Health Potion", 8: "Shield", 9: "Speed Boost", 10: "Jetpack Boost", 11: "Wind Blast", 12: "Thunder Strike", 13: "Invisibility"} # QA-132: feed messages
-const WIND_BLAST_RADIUS := 520.0 # QA-132: was 320.0 — on a 10800 px tower enemies are usually >320 px away, so it fired at nothing
-const WIND_BLAST_KNOCKBACK := 650.0
-const THUNDER_RADIUS := 300.0 # QA-132: was 220.0 — same reason as wind
-const THUNDER_DAMAGE := 40
-const THUNDER_RANGE := 800.0 # QA-132: was 500.0 — strike the nearest enemy inside this range, else own feet
+const WIND_SWEEP_TIME := 0.7 # QA-135: tornado pulls the victim in for 0.7 s, then throws them down
+const WIND_THROW_DOWN := 950.0 # QA-135: throw-down velocity (falls below the platform)
+const WIND_THROW_SIDE := 700.0 # QA-135: throw sideways velocity — toward the NEAREST platform edge, so the victim actually leaves the platform (a downward velocity alone is blocked by the floor)
 const HEALTH_REGEN_DELAY := 3.0 # QA-120: health restores slowly after 3 s without damage
 const HEALTH_REGEN_RATE := 4.0 # HP per second (slow)
 var shield_timer: float = 0.0
@@ -393,6 +391,11 @@ var _fx_thunder: Sprite2D
 var _fx_invis: Sprite2D
 var _fx_flash_kind: int = 0 # instant-effect flash (health/wind/thunder), 0 = none
 var _fx_flash_timer: float = 0.0
+var _wind_sweep_timer: float = 0.0 # QA-135: Wind Blast tornado sweep — seconds left being pulled into the funnel
+var _wind_sweep_center: Vector2 = Vector2.ZERO # QA-135: tornado centre the victim is pulled toward
+var _wind_throw: Vector2 = Vector2.ZERO # QA-135: throw velocity applied when the sweep ends
+var _wind_throw_timer: float = 0.0 # QA-135: throw hold — seconds the throw velocity is forced (a one-frame impulse decays to friction before the victim reaches the edge)
+var _wind_fall_timer: float = 0.0 # QA-135: remote-copy (test bot) fall after the throw — seconds the throw + gravity keep moving the copy
 
 # QA-112 (v3.9 Skyfall ladders): the 4 emergency ladders are
 # climbable recovery routes after a fall. The game scene answers
@@ -1200,6 +1203,43 @@ func _physics_process(delta: float) -> void:
 		_snap_resync = false
 		velocity = velocity.lerp(sync_velocity, clampf(delta * 10.0, 0.0, 1.0))
 		_update_remote_anim()
+		# QA-135: Wind Blast tornado sweep for a copy with NO live
+		# peer (a test bot / fake peer in the sim — the owning peer
+		# is not here to run _apply_movement, so this copy steers
+		# itself). Real remote copies always have snapshots from
+		# the owning peer and never reach this (their
+		# _wind_sweep_timer is never set — the RPC goes to the
+		# owning peer only). sync_position is kept equal to the
+		# position so the interpolation above never fights the
+		# sweep. The throw is held 0.5 s, then the copy falls on
+		# gravity for up to 1 s (no floor collision on a remote
+		# copy — the throw is verified by the fall distance).
+		if _snapshots.is_empty() and (_wind_sweep_timer > 0.0 or _wind_throw_timer > 0.0 or _wind_fall_timer > 0.0):
+			if _wind_sweep_timer > 0.0:
+				_wind_sweep_timer -= delta
+				var to_c3: Vector2 = _wind_sweep_center - position
+				if to_c3.length() > 12.0:
+					position += to_c3.normalized() * 380.0 * delta
+				if _wind_sweep_timer <= 0.0:
+					velocity = _wind_throw
+					_wind_throw_timer = 0.5
+					_wind_sweep_timer = 0.0
+			elif _wind_throw_timer > 0.0:
+				_wind_throw_timer -= delta
+				velocity = _wind_throw
+				velocity.y += GRAVITY * delta
+				position += velocity * delta
+				if _wind_throw_timer <= 0.0:
+					_wind_throw_timer = 0.0
+					_wind_fall_timer = 1.0
+			elif _wind_fall_timer > 0.0:
+				_wind_fall_timer -= delta
+				velocity.y += GRAVITY * delta
+				position += velocity * delta
+				if _wind_fall_timer <= 0.0:
+					_wind_fall_timer = 0.0
+			sync_position = position
+			sync_velocity = velocity
 
 
 func _interp_position(now: float) -> Vector2:
@@ -2023,6 +2063,34 @@ func _apply_movement(delta: float) -> void:
 	if wind_force != Vector2.ZERO and not line_shield:
 		velocity += wind_force * delta
 		velocity.x = clampf(velocity.x, -max_speed - 100.0, max_speed + 100.0)
+	# QA-135: Wind Blast tornado sweep — while swept, the tornado
+	# owns the victim's velocity: pulled toward the funnel centre
+	# for WIND_SWEEP_TIME, then thrown down (off the platform).
+	# Set by the host's apply_wind_sweep RPC; the victim's own
+	# physics applies it, so it works for remote victims too.
+	# This runs AFTER movement/jetpack/wind, so the sweep wins
+	# over the victim's own input while it lasts. The throw is
+	# HELD for 0.5 s (not a one-frame impulse — friction would
+	# eat a single impulse before the victim reaches the edge);
+	# 700 px/s * 0.5 s = 350 px, enough to clear the nearest edge
+	# from anywhere on a 500-600 px platform.
+	if _wind_sweep_timer > 0.0:
+		_wind_sweep_timer -= delta
+		var to_c: Vector2 = _wind_sweep_center - global_position
+		if to_c.length() > 12.0:
+			velocity = to_c.normalized() * 380.0
+		else:
+			velocity = Vector2.ZERO
+		if _wind_sweep_timer <= 0.0:
+			velocity = _wind_throw
+			_wind_throw_timer = 0.5
+			_wind_sweep_timer = 0.0
+	elif _wind_throw_timer > 0.0:
+		_wind_throw_timer -= delta
+		velocity = _wind_throw
+		velocity.y += GRAVITY * delta
+		if _wind_throw_timer <= 0.0:
+			_wind_throw_timer = 0.0
 	var max_fall := MAX_FALL + (350.0 if _fast_fall else 0.0)
 	if velocity.y > max_fall:
 		velocity.y = max_fall
@@ -2724,6 +2792,9 @@ func _pu_feed(text: String) -> void:
 # wins - the tap does nothing and the power-up stays in its slot).
 # Instant kinds (7 health, 11 wind, 12 thunder) fire at once and
 # work even while a timed boost is active or the flag is carried.
+# QA-135 (v3.13): Wind (11) / Thunder (12) need a live enemy on
+# the SAME PLATFORM at the SAME HEIGHT — no target, no fire, and
+# the power-up STAYS in its slot (never wasted on thin air).
 func activate_slot(idx: int) -> bool:
 	if idx < 0 or idx >= stored_boosts.size():
 		return false
@@ -2736,19 +2807,32 @@ func activate_slot(idx: int) -> bool:
 		stored_boosts.remove_at(idx)
 		_activate_boost(kind)
 		return true
+	if kind == 11 or kind == 12:
+		var game0 := get_tree().get_first_node_in_group("game")
+		var tgt: Node2D = null
+		if game0 != null and game0.has_method("_sf_find_powerup_target"):
+			tgt = game0._sf_find_powerup_target(self)
+		if tgt == null:
+			_pu_feed("No enemy on your platform")
+			return false
+		stored_boosts.remove_at(idx)
+		_apply_instant(kind, tgt)
+		return true
 	stored_boosts.remove_at(idx)
-	_apply_instant(kind)
+	_apply_instant(kind, null)
 	return true
 
 
 # Fire an instant power-up. Health restores 50 HP (QA-132: was
-# 35 — it competes with 4 HP/s regen now); Wind Blast pushes
-# nearby enemies away (no damage); Thunder Strike hits the nearest
-# enemy in range. Wind/thunder damage is host-authoritative: a
-# client asks the host with an RPC (in the sim the peer IS the host).
+# 35 — it competes with 4 HP/s regen now); Wind Blast sweeps the
+# enemy on the activator's platform into a tornado and throws them
+# down (no damage); Thunder Strike halves that enemy's current
+# health. Wind/thunder are host-authoritative: a client asks the
+# host with an RPC, passing the target the tap already picked (in
+# the sim the peer IS the host).
 # QA-132: wind + thunder announce themselves in the feed, so the
 # player sees the activation even when no enemy is in range.
-func _apply_instant(kind: int) -> void:
+func _apply_instant(kind: int, target: Node2D = null) -> void:
 	match kind:
 		7:
 			health = mini(100, health + 50)
@@ -2761,9 +2845,9 @@ func _apply_instant(kind: int) -> void:
 			_play_sound("wind")
 			_pu_feed("Wind Blast!")
 			if multiplayer.is_server():
-				_do_wind_blast()
-			else:
-				rpc_id(1, "request_wind_blast")
+				_do_wind_blast(target)
+			elif target != null:
+				rpc_id(1, "request_wind_blast", int(target.peer_id))
 		12:
 			_fx_flash_kind = 12
 			_fx_flash_timer = 0.8
@@ -2772,88 +2856,118 @@ func _apply_instant(kind: int) -> void:
 			# would hear the crack twice.
 			_pu_feed("Thunder Strike!")
 			if multiplayer.is_server():
-				_do_thunder_strike()
-			else:
-				rpc_id(1, "request_thunder_strike")
+				_do_thunder_strike(target)
+			elif target != null:
+				rpc_id(1, "request_thunder_strike", int(target.peer_id))
 
 
 @rpc("any_peer", "call_local")
-func request_wind_blast() -> void:
+func request_wind_blast(target_peer: int) -> void:
 	# Only the host runs it, and only for the player that asked
-	# (the sender must be this node's owner).
+	# (the sender must be this node's owner). The target the tap
+	# picked is re-validated on the host (same platform + height)
+	# before anything happens.
 	if not multiplayer.is_server():
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != get_multiplayer_authority():
 		return
-	_do_wind_blast()
+	var game := get_tree().get_first_node_in_group("game")
+	if game == null:
+		return
+	var target: Node2D = game.players_node.get_node_or_null(str(target_peer))
+	_do_wind_blast(target)
 
 
 @rpc("any_peer", "call_local")
-func request_thunder_strike() -> void:
+func request_thunder_strike(target_peer: int) -> void:
 	if not multiplayer.is_server():
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != get_multiplayer_authority():
 		return
-	_do_thunder_strike()
-
-
-# Host only: push every living enemy within WIND_BLAST_RADIUS away.
-# Amount 0 = no damage; the knockback still plays (see
-# _apply_damage), and a shield does not stop the push.
-func _do_wind_blast() -> void:
 	var game := get_tree().get_first_node_in_group("game")
 	if game == null:
 		return
-	for other in game.players_node.get_children():
-		if other == self or not other.is_in_group("players") or not other.alive:
-			continue
-		if other.team == team:
-			continue
-		var o: Node2D = other
-		if o.global_position.distance_to(global_position) > WIND_BLAST_RADIUS:
-			continue
-		var dir: Vector2 = (o.global_position - global_position).normalized()
-		other.take_hit(0, peer_id, dir, WIND_BLAST_KNOCKBACK, game.next_damage_event_id())
+	var target: Node2D = game.players_node.get_node_or_null(str(target_peer))
+	_do_thunder_strike(target)
 
 
-# Host only: lightning strikes the nearest living enemy within
-# THUNDER_RANGE (else the activator's own feet - a wasted strike),
-# damaging every enemy inside THUNDER_RADIUS of the strike point.
-# Shield absorbs the damage; the bolt visual is drawn by the game
-# (show_thunder_strike_fx, added in the game.gd step).
-func _do_thunder_strike() -> void:
+# Host only: the Wind Blast tornado. The target (same platform +
+# same height as the activator, picked at tap time and re-validated
+# here) gets a tornado at their feet, is swept into it (pulled to
+# the centre for 0.7 s), then thrown DOWN off the platform. No
+# damage; a shield does not stop the push (movement, not damage).
+# The throw goes toward the NEAREST edge of the shared platform
+# (a downward velocity alone cannot leave a solid platform — the
+# floor blocks it), so the victim clears the edge and falls below.
+# The sweep itself runs on the victim's owning peer (see
+# apply_wind_sweep) so it works for remote victims too; a test bot
+# (fake peer, no live connection) is driven on the host copy.
+func _do_wind_blast(target: Node2D) -> void:
 	var game := get_tree().get_first_node_in_group("game")
-	if game == null:
+	if game == null or target == null or not is_instance_valid(target):
 		return
-	var target: Node2D = null
-	var best := THUNDER_RANGE
-	for other in game.players_node.get_children():
-		if other == self or not other.is_in_group("players") or not other.alive:
-			continue
-		if other.team == team:
-			continue
-		var o: Node2D = other
-		var d: float = o.global_position.distance_to(global_position)
-		if d < best:
-			best = d
-			target = o
-	var strike_pos := global_position
-	if target != null:
-		strike_pos = target.global_position
+	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(self, target):
+		return
+	var centre := target.global_position
+	if game.has_method("show_wind_tornado_fx"):
+		game.rpc("show_wind_tornado_fx", centre)
+	var side := 1.0
+	if game.has_method("_sf_platform_under"):
+		var plat_idx: int = int(game._sf_platform_under(global_position))
+		if plat_idx >= 0:
+			var rect: Rect2 = game.MAPS[game.map_id]["platforms"][plat_idx]
+			side = -1.0 if target.global_position.x < rect.get_center().x else 1.0
+	var throw_vec := Vector2(side * WIND_THROW_SIDE, WIND_THROW_DOWN)
+	var auth := int(target.get_multiplayer_authority())
+	if auth == multiplayer.get_unique_id() or not multiplayer.get_peers().has(auth):
+		target.apply_wind_sweep(centre, throw_vec)
+	else:
+		target.rpc_id(auth, "apply_wind_sweep", centre, throw_vec)
+
+
+@rpc("any_peer")
+func apply_wind_sweep(centre: Vector2, throw_vec: Vector2) -> void:
+	# Host-triggered tornado sweep (see _do_wind_blast). Only the
+	# host (id 1, or 0 in a local sim) may start it. The victim's
+	# own physics pulls them into the funnel for WIND_SWEEP_TIME,
+	# then throws them down (see _apply_movement).
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return
+	if not alive:
+		return
+	_wind_sweep_timer = WIND_SWEEP_TIME
+	_wind_sweep_center = centre
+	_wind_throw = throw_vec
+
+
+# Host only: Thunder Strike halves the target's CURRENT health
+# (QA-135: was flat 40 damage) — a single target, no area damage.
+# The target is the enemy on the activator's platform at the same
+# height (picked at tap time, re-validated here). Shield absorbs
+# the strike (take_hit -> _apply_damage zeroes it); the bolt
+# visual is drawn by the game (show_thunder_strike_fx).
+func _do_thunder_strike(target: Node2D) -> void:
+	var game := get_tree().get_first_node_in_group("game")
+	if game == null or target == null or not is_instance_valid(target):
+		return
+	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(self, target):
+		return
 	if game.has_method("show_thunder_strike_fx"):
-		game.rpc("show_thunder_strike_fx", strike_pos)
-	for other in game.players_node.get_children():
-		if other == self or not other.is_in_group("players") or not other.alive:
-			continue
-		if other.team == team:
-			continue
-		var o: Node2D = other
-		if o.global_position.distance_to(strike_pos) > THUNDER_RADIUS:
-			continue
-		var dir: Vector2 = (o.global_position - strike_pos).normalized()
-		other.take_hit(THUNDER_DAMAGE, peer_id, dir, 150.0, game.next_damage_event_id())
+		game.rpc("show_thunder_strike_fx", target.global_position)
+	var dmg := maxi(1, int(ceil(float(target.health) * 0.5)))
+	var dir: Vector2 = (target.global_position - global_position).normalized()
+	# Bullet routing (bullet.gd): direct when the victim is
+	# locally owned, RPC to the owning peer otherwise — and a
+	# test bot (fake peer, no live connection) is driven on the
+	# host copy, or the strike never lands in the sim.
+	var auth := int(target.get_multiplayer_authority())
+	if auth == multiplayer.get_unique_id() or not multiplayer.get_peers().has(auth):
+		target.take_hit(dmg, peer_id, dir, 150.0, game.next_damage_event_id())
+	else:
+		target.rpc_id(auth, "take_hit", dmg, peer_id, dir, 150.0, game.next_damage_event_id())
 
 
 # Start a timed boost now: set its timer (and refill the fuel for
