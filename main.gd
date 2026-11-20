@@ -965,7 +965,7 @@ func _build_settings() -> void:
 	privacy_lbl.add_theme_color_override("font_color", UI_FONT_MUTED)
 	box.add_child(privacy_lbl)
 	var version_lbl := Label.new()
-	version_lbl.text = "Frag Arena v3.6  •  LAN only — no accounts, no servers"
+	version_lbl.text = "Frag Arena v" + GameData.BUILD_VERSION + "  •  LAN only — no accounts, no servers" # v3.11: was hardcoded "v3.6" — now follows BUILD_VERSION so it can never go stale again
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)
