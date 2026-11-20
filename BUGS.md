@@ -5166,6 +5166,661 @@ user's two real phones.
   already carries the match's communication (kills, flag events).
   Recorded here rather than half-built.
 
+## QA-082 — Jetpack flame is a plain orange triangle (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Effects — jetpack flame.
+- **Before:** `player.gd` drew the flame as a plain orange
+  `Polygon2D` triangle (`_flame`, 14x29 px), flat colour, no
+  detail.
+- **Fix (v3.7):** Drawn sprite `assets/effects/jetpack_flame.png`
+  (32x64, transparent, teardrop: orange outer, yellow mid,
+  white-hot core, dark outline — `gen_v37_assets.py`). `_flame`
+  is a `Sprite2D` now, same node name (`JetFlame`), same
+  position/thrust logic: top of the flame at the old triangle's
+  top (y=22, `centered=false` so it grows DOWN), length 29 px at
+  scale 1 (base scale 14/32 x 29/64), same flicker wobble and
+  low-fuel blink (blink is alpha now — the old orange modulate
+  would have dulled the white core, so modulate stays white).
+- **Verification:** Screenshot in a match with the jetpack held
+  (see v3.7 proof shots); flow/fire/features/scale suites green,
+  0 script errors.
+
+## QA-083 — One shared muzzle flash for every weapon (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Effects — muzzle flash.
+- **Before:** One shared `assets/effects/muzzle.png` for all six
+  weapons (`MUZZLE_TEX`, `player.gd:101`), only the scale/timing
+  varied per weapon (QA-075).
+- **Fix (v3.7):** Five drawn variants (`assets/effects/`):
+  `muzzle_pistol.png` (small 3-spike), `muzzle_rifle.png`
+  (4-spike, shared by rifle + SMG), `muzzle_shotgun.png` (wide
+  6-spike), `muzzle_sniper.png` (long narrow spike),
+  `muzzle_rocket.png` (big 8-spike fireball). `MUZZLE_TEX` is a
+  per-weapon dict now; `_update_gun_texture()` sets
+  `_muzzle.texture` from the current weapon, so local and remote
+  copies both show the right flash. Scale (`flash`) and timing
+  (`flash_t`) still come from the weapon table — only the picture
+  changes, and the fire test's MUZZLE-FLASH check (rifle scale
+  1.05–1.35) is untouched.
+- **Verification:** Contact-sheet view of all five flashes;
+  fire suite MUZZLE-FLASH passes; screenshot of a match firing.
+
+## QA-084 — Bullet trail is a bare Line2D (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Effects — bullet trail.
+- **Before:** Bullets drew only a `Line2D` trail (`bullet.gd`),
+  per-weapon length/width since QA-075.
+- **Fix (v3.7):** Drawn trail sprite
+  `assets/effects/bullet_trail.png` (64x8 gradient streak,
+  bright at the head, fading to the tail) as a `Sprite2D`
+  behind the bullet head (`z_index -1`), stretched to the same
+  `_trail_len` and width as the line and tinted the bullet's
+  colour. The `Line2D` is unchanged — the fire test reads its
+  width/length (pistol 21.0 / 2.4), so those numbers still hold.
+  Speed, damage and collision are untouched.
+- **Verification:** Fire suite green (trail numbers asserted
+  there); screenshot of a match firing shows the glow trail.
+
+## QA-085 — No landing dust (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Effects — landing.
+- **Before:** A hard landing (`_fall_speed > 550`) only spawned
+  the small impact spark (`spawn_impact_fx(pos, true)`).
+- **Fix (v3.7):** Drawn dust puff `assets/effects/dust.png`
+  (64x48, soft tan puffs) and a new `game.gd spawn_dust_fx(pos)`
+  (scale-up + fade, 0.35 s, same pattern as `spawn_impact_fx`),
+  called from the same landing branch in `player.gd` alongside
+  the existing spark. Purely visual.
+- **Verification:** Screenshot of a landing (hard-landing dust
+  visible at the feet); suites green.
+
+## QA-086 — Damage flash tints the body only (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Effects — damage feedback.
+- **Before:** On a hit, `_hit_flash_timer` (0.09 s, set in
+  `_apply_damage`) tinted only the body sprite
+  (`_sprite.modulate = Color(3.0, 0.6, 0.6)`) — the gun and
+  helmet kept their normal colours through the flash.
+- **Fix (v3.7):** The flash covers the whole player — body, gun
+  and helmet. First implemented as a shared modulate tint, then
+  upgraded to the library shader in QA-092 (one shared
+  `ShaderMaterial`, `flash_amount` fading 1→0 over the 0.09 s).
+  Timer, damage path and spawn-protection blink are unchanged.
+- **Verification:** Fire/features suites green; screenshot of a
+  hit shows the full red flash.
+
+## QA-087 — CTF flag is a drawn pole + triangle + "FLAG" label (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Capture the Flag — flag + capture effect.
+- **Before:** `_ctf_flag_visual` drew a `Line2D` pole, a
+  `Polygon2D` cloth triangle and a "FLAG" `Label`.
+- **Fix (v3.7):** Drawn flag sprites `assets/effects/flag_red.png`
+  and `flag_blue.png` (72x96, transparent: pole with gold
+  finial, waving cloth with star emblem, dark outline). Same node
+  name (`Flag%d`), same `z_index` (5), same footprint (pole base
+  at the node origin, top ~96 px up). The label is gone — the
+  flag itself says what it is. Capture burst:
+  `assets/effects/capture_burst.png` (96x96 gold starburst) via
+  new `game.gd spawn_capture_burst(pos)`; it fires from `ctf_sync`
+  when a team's score rises, so EVERY peer sees the burst at the
+  scoring team's home flag — not just the host (the host-only
+  `_update_ctf` capture branch is the only place the score
+  changes, and `_ctf_send_sync` carries it to all peers). Flag
+  logic itself (pickup/drop/capture/return, host-authoritative)
+  is untouched.
+- **Verification:** Features suite CTF-PICKUP / CTF-CAPTURE /
+  CTF-DROP pass; `--ctf-shots` captures show the drawn flags at
+  home and carried.
+
+## QA-088 — Pickup icons are small / unused art (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Pickups — icons.
+- **Before:** Weapon kinds (1–4) were a coloured box + text
+  label; health (5) and grenades (6) used Sky Brawl icons
+  (`pickup_007` / `pickup_002`, 64 px at 0.62x = 40 px). The
+  three files in `assets/items/` (`ammobox.png`, `grenade.png`,
+  `healthkit.png`) were NEVER used anywhere in the code.
+- **Fix (v3.7):** All three redrawn bigger/clearer
+  (`ammobox.png` 96x56 with AMMO stencil, `grenade.png` 56x76
+  with pin + lever, `healthkit.png` 64x64) and wired in, plus two
+  new icons: `weapon.png` (72x44 rifle glyph) and `shield.png`
+  (56x64, blue shield + star). Weapon kinds now show the ammo
+  crate tinted with the kind colour + the rifle glyph + the name
+  label below (with outline, for readability at speed); health
+  shows the healthkit (~52 px), grenades the grenade (~52 px),
+  over the same faint colour glow. Kind system (1–6), collision
+  radius, bob/sway and lifetime are identical. `shield.png` is
+  drawn and ready but NOT wired: there is no shield pickup kind
+  and adding one would change gameplay.
+- **Verification:** Screenshot of a match shows the new pickups;
+  features suite (pickup steps) green.
+
+## QA-089 — Main menu background is a plain starry sky (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Main menu background.
+- **Before:** `MENU_BG` was `assets/backgrounds/arena_clean.png`
+  — a plain starry sky.
+- **Fix (v3.7):** Drawn `assets/backgrounds/menu_arena_dusk.png`
+  (1920x1080, RGB): dusk gradient (deep navy → purple → burnt
+  orange at the horizon), stars, distant mountain silhouettes,
+  arena wall with two floodlight towers at the edges, dark ground
+  with edge crates and a subtle hazard strip. The centre stays
+  dark and empty so the logo, buttons and profile card stay
+  readable. Wired as `MENU_BG` in `main.gd`.
+- **Verification:** Menu screenshot at 1280x720 (and 2400x1080)
+  — all menu text readable, no clutter behind the UI.
+
+## QA-090 — Only 3 headgear options (v3.7 visuals)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Customization / lobby appearance.
+- **Before:** Helmet indices 1–3 only (green helmet, tan cap,
+  black helmet).
+- **Fix (v3.7):** Three new variants, indices 4–6 (1–3
+  UNCHANGED, so saved choices do not shift): 4 red bandana
+  (`bandana_red.png`), 5 night-vision goggles (`nvg.png`,
+  glowing green lenses), 6 camo helmet (`helmet_camo.png`).
+  Added to `player.gd HELMET_TEX` (the same `_update_helmet`
+  scaling fits them), `main.gd HELMET_ICONS` + `HELMET_NAMES`
+  and `game_data.gd HELMET_NAMES`, so the new options appear in
+  both the Customization panel and the in-lobby appearance row
+  (both iterate `HELMET_NAMES.size()`).
+- **Verification:** Customizer screenshot shows all 7 options;
+  menu-net suite green (lobby appearance change).
+
+## QA-091 — Grenade audit vs the user-shared Godot 4 guide (v3.7)
+
+- **Severity:** Low (gameplay-feel, visual)
+- **Affected feature:** Grenades.
+- **Audit (GRENADE_SPEC.md, saved verbatim 2026-11-20):**
+  - (1) Thrower-velocity inheritance — MISSING, ADOPTED.
+    `throw_grenade()` sent only pos/dir/owner; the grenade
+    always left at `throw_dir * 620 + (0, -260)`. Now the RPC
+    carries the thrower's velocity (`spawn_grenade(..., 
+    thrower_vel = Vector2.ZERO)` — defaulted, so old callers
+    still work) and `grenade.gd` adds `thrower_vel * 0.4` in
+    `_ready`. Fuse (2.0 s), blast radius (170) and damage (55)
+    are unchanged.
+  - (2) `intersect_ray` wall check on blasts — ALREADY PRESENT,
+    SKIPPED. `request_explosion` already skips any victim behind
+    a wall (`has_line_of_sight`, mask 1, GAP-12) before damage,
+    knockback, kill credit or hitmarker — and barrels are
+    LOS-checked too. `take_explosion_damage` is only ever called
+    from `request_explosion`, so no second path exists.
+  - (3) Blast particles + shake + flash — PARTLY PRESENT,
+    COMPLETED. The short white flash already existed (GAP-24,
+    0.08 s). Added: a `GPUParticles2D` spark burst in
+    `_spawn_explosion_fx` (28 orange sparks, code-drawn soft-dot
+    texture `assets/effects/particle_dot.png`, gravity + damping)
+    and distance-scaled camera shake for the local player
+    (`add_shake(0.6 * k)`, `k = 1 - dist / (radius * 3)`, full at
+    the blast, none past 3x radius).
+- **Deliberately NOT adopted:** RigidBody2D rebuild — the
+  CharacterBody2D grenade is tested and works (gravity 1400,
+  fuse 2.0, restitution 0.45, drag 0.15, hand-rolled bounce with
+  the GAP-11 pre-slide fix); a rewrite risks regressions for no
+  gameplay gain. MultiplayerSynchronizer for grenade sync —
+  QA-053 proved on the user's real phones that synchronizer
+  packets are silently dropped; grenades stay on the proven
+  host-authoritative RPC channel (`spawn_grenade` RPC, host-only
+  physics + `request_explosion`).
+- **Verification:** Collision suite grenade-blocked check,
+  fire suite grenade steps, smoke grenade step — all green,
+  0 script errors.
+
+## QA-092 — External visual libraries (v3.7)
+
+- **Severity:** Low (visual)
+- **Affected feature:** Effects, damage feedback — libraries.
+- **Installed (all FREE, MIT, in `addons/`):**
+  - **Stylized 2D VFX Lite — REEBOO Labs, v1.0.0, MIT, Godot
+    4.4** (`addons/reeboo_fx2d/`, Asset Library asset 5564,
+    commit `0fb078c`). Shader + `GPUParticles2D` effects,
+    self-freeing, one-line `ReebooFx2D.spawn(scene, parent,
+    pos)`. USED: `hit_spark` replaces the static impact spark
+    in `spawn_impact_fx(small=true)` (bullet hits + hard
+    landings); `explosion_small` replaces the static
+    fireball/smoke sprites as the blast core in
+    `_spawn_explosion_fx` (scaled `radius / 62.5`, base ~125 px);
+    `coin_pickup` sparkles on every pickup grab
+    (`spawn_pickup_fx`, via `pickup.gd despawn(grabbed=true)`).
+    NOT used: `slash_arc` — the game has no melee attack.
+  - **Sprite Juice Kit Lite — REEBOO Labs, v1.0, MIT, Godot
+    4.4+** (`addons/sprite_juice_lite/`, GitHub
+    `reeboolabs/sprite-juice-kit-lite`). USED: only the
+    `hit_flash.gdshader` file, driven directly from
+    `_hit_flash_timer` on one shared material (body + gun +
+    helmet, QA-086) — no autoload, no per-hit tween. NOT
+    adopted: the `JuiceLite` autoload, its screen shake (the
+    game already has trauma-based shake, `add_shake`) and its
+    hit-stop (`Engine.time_scale` would freeze the shared LAN
+    sim for every peer — unsafe in multiplayer). The plugin is
+    installed but NOT enabled in `project.godot`.
+- **Researched and REJECTED (not installed):**
+  - **kodanvil Game Feel Shaders FREE** (MIT, hit flash /
+    outline / dissolve, tested on 4.7.2) — good shaders, but
+    itch.io-only with no direct download link; Juice Lite's
+    hit-flash shader covers the same need, so no second shader
+    pack was vendored.
+  - **2D FX Essentials / Sova Digital sprite shaders /
+    Willosuna 2D Shaders Lite / Kiln** — same reason: free
+    shader packs that duplicate what Juice Lite + REEBOO
+    already provide; installing a third overlapping pack adds
+    weight, not looks.
+  - **PYROLUX Lite / Free Smoke VFX / Explosion VFX Lite /
+    Saltmire Spark / VFX 2D Free** — fire/explosion particle
+    packs; mostly 3D or single-effect samplers, and the blast
+    is already covered by REEBOO `explosion_small` + the
+    code-drawn `GPUParticles2D` burst (QA-091).
+  - **Saltmire Juice / Impact Lite / Game Feel Essentials
+    sampler** — juice kits whose shake + hit-stop + flash
+    duplicate the game's own shake/flash or (hit-stop) are
+    unsafe in LAN multiplayer; Juice Lite's shader alone was
+    the useful part.
+  - **Phantom Camera** — camera follow/limits addon; the game
+    camera already follows the player with trauma shake.
+    Nothing to gain.
+  - **Parallax (any library)** — Godot 4.3+ has built-in
+    `Parallax2D`; no library is needed. The only places
+    parallax would go (map backgrounds, menu) belong to the
+    map-deletion worker and the lobby/home redesign worker, so
+    no parallax work was done here.
+  - **Asset Library API search** — confirmed broken (same as
+    v3.6: the `?search=` endpoint ignores the query and returns
+    unrelated assets). Direct asset fetch by ID works
+    (`/asset-library/api/asset/<id>` returns JSON with
+    `download_url`); that is how REEBOO was fetched.
+- **Verification:** Full suite re-run green (flow / fire /
+  features / scale + collision + smoke), 0 script errors;
+  screenshots at 1280x720 and 2400x1080.
+
+## QA-093 — Android security-compliance audit (v3.7, 20 Nov 2026)
+
+AUDIT ONLY — no gameplay, visual, map, or networking changes. Verified
+against the v3.6 APK (versionCode 14, versionName 3.6) with
+`~/workspace/android-sdk/build-tools/34.0.0/aapt2` (`dump badging` +
+`dump xmltree`), `apksigner verify --verbose`, `zipalign -c`, plus code
+greps. Files changed: PRIVACY_POLICY.md, PLAY_SUBMISSION_CHECKLIST.md
+only. export_presets.cfg untouched (nothing to fix).
+
+- targetSdk 36 / minSdk 24 / compileSdk 36 / arm64-v8a only — PASS
+  (`targetSdkVersion:'36'`, `sdkVersion:'24'`, `native-code:
+  'arm64-v8a'`).
+- Permissions — PASS: exactly INTERNET, ACCESS_NETWORK_STATE,
+  ACCESS_WIFI_STATE; no dangerous permissions.
+- Exported components — PASS with note: only the launcher
+  activity-alias (GodotAppLauncher, MAIN/LAUNCHER) is exported;
+  GodotApp / ProcessPhoenix / FileProvider / InitializationProvider
+  all exported=false, android:exported explicit everywhere. One
+  exception from the stock 4.7.2 template: AndroidX
+  ProfileInstallReceiver is exported=true but guarded by
+  android:permission="android.permission.DUMP" (signature-level, not
+  holdable by third-party apps) — not a real exposure.
+- Network security — PASS in practice: no HTTPRequest/HTTPClient/
+  WebSocket anywhere; only ENet + PacketPeerUDP (ports 7777 game,
+  7778 discovery). Only http:// strings are the CC-BY licence URL in
+  music-credits text, not network calls. No usesCleartextTraffic in
+  the manifest → defaults to false at targetSdk 36. LIMITATION: no
+  explicit networkSecurityConfig — not settable via Godot export
+  presets (needs a custom Gradle build); not needed here.
+- Secrets — PASS: no API keys/tokens/passwords in code or files
+  (grep over *.gd/*.cfg/*.godot/*.json/*.py/*.sh/*.gradle/
+  *.properties; only gohud theme-token false positives). room_password
+  is user-typed, memory-only, never persisted. No keystore/pem/env in
+  the repo.
+- Trackers/analytics/ads — PASS: none in code or Gradle deps.
+- Storage — PASS: only user://settings.cfg (ConfigFile, app-private
+  internal storage): name, cosmetics, volumes, sensitivity, local
+  match stats — no sensitive data. allowBackup=false,
+  requestLegacyExternalStorage=false in the APK manifest.
+- WebView / deep links / pending intents / foreground services —
+  PASS: none in code or manifest.
+- Debuggable — PASS (surprise): the v3.6 APK has NO
+  android:debuggable attribute (defaults false) and no testOnly,
+  confirmed by badging + xmltree — the stock 4.7.2 debug template
+  DOES have application-debuggable, so Godot's exporter strips it.
+  The "debug build = debuggable" assumption does not hold for this
+  artifact. Caveat: preset is still is_debug=true and the APK is
+  signed with the Godot debug keystore (cert SHA-256
+  f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11);
+  a hardened Play release still needs the user's release keystore.
+- Signing/alignment — PASS: apksigner v2+v3 verified, 1 signer (same
+  debug cert as v3.1); zipalign verification successful.
+
+FIXES in this QA:
+- PRIVACY_POLICY.md: renamed LAN Arena Shooter → Frag Arena; version
+  3.2 → 3.7 (20 Nov 2026); added "Match stats only" bullet — stats
+  in settings.cfg were stored locally but not mentioned (real
+  mismatch vs code).
+- PLAY_SUBMISSION_CHECKLIST.md: title → Frag Arena; v3.6
+  re-verification noted; app-listing title → Frag Arena; WARNING
+  added: the repo's android/ Gradle project is a stale Godot 4.3
+  template (targetSdk 34) — do NOT use it as-is for an AAB build;
+  regenerate from the 4.7.2 template first.
+
+DELIBERATELY NOT DONE: no networkSecurityConfig (see above); no
+custom Gradle build; is_debug=true left as-is (flipping it without a
+release keystore would break export/signing); no release keystore
+created (blocked on the user's keystore password). No APK built —
+coordinator must re-verify everything below on the v3.7 export.
+
+## QA-094 — The helmet floats above the head while jetpacking (v3.7 visuals)
+
+- **Found on:** the v37 proof screenshots
+  (`match_flame_muzzle_1280x720.png` and `_2400x1080.png`) —
+  the green helmet hovers ~20px above the player's head while
+  the jetpack flame burns. On the ground (idle frame) it sits
+  correctly. **Pre-existing, not a v3.7 regression:** the
+  helmet offset `(1, -25)` and the child-of-sprite structure
+  are untouched v3.6 code; v3.7 only added headgear indices
+  4–6. The screenshots just made it visible for the first time.
+- **Cause:** the helmet is a child of the body sprite at one
+  fixed offset, but the art frames do not share one head
+  height. Measured hair-top per animation (frame px, 64px
+  frame): idle 8, run 10, jump 7, shoot 10, aim 10, fall 14,
+  jetpack 25, die 36. Every jetpack frame draws the body low
+  (flying pose + flame in the frame), so the head sits
+  ~17px lower than in the idle frame.
+- **Fix (cosmetic only):** per-animation helmet height in
+  `player.gd` — `HELMET_Y_BY_ANIM` (helmet centre =
+  hair_top − 33 in sprite-local units): idle −25, run −23,
+  jump −25, shoot −23, aim −23, fall −19, jetpack −8,
+  die +3. Applied in `_play_anim` (the one choke point for
+  local + remote animation changes) and honoured by
+  `_update_helmet`, so a helmet change mid-flight keeps the
+  right height. **Plus per-frame tracking for jetpack:**
+  the first fix left the helmet drifting sideways, because
+  the flying pose sways the head side-to-side (face centre
+  x 21..47 across the 11 frames) — verified by overlaying
+  the helmet on every frame. `HELMET_JETPACK_FRAMES` holds
+  the measured centre per frame, applied every frame in
+  `_update_visuals` while the jetpack animation plays; the
+  negative parent scale mirrors it when the player faces
+  left. No physics, sync or gameplay touched. Re-verified
+  with fresh v37 flame screenshots at both resolutions.
+- **Note:** QA-093 is reserved by the concurrent
+  Android-security worker (referenced in
+  `PLAY_SUBMISSION_CHECKLIST.md`); this entry is QA-094 to
+  avoid colliding with it.
+
+## QA-095 — Map cut: 13 maps → 5 (v3.7, user 2026-11-20 ~12:17)
+
+- **Kept, in this order:** Ironfall (new, QA-096), Jungle Ruins,
+  Neon City, Volcanic Cavern, Pirate Island.
+- **Deleted completely:** Military Base, Catacombs, Desert
+  Outpost, Industrial Factory, Frozen Fortress, Space Station,
+  City Underground, Ancient Temple, Airship Fleet — map data,
+  tiles, thumbs, backgrounds, lobby entries, map-vote options,
+  quick-match pool entries, spawn data.
+- **Code (`game.gd`):** `MAPS` rebuilt as exactly 5 entries
+  (survivors copied verbatim, only `tile`/`bg` re-indexed);
+  `TILE_TEX` 12 → 5 (0 Ironfall, 1 Jungle, 2 Neon, 3 Volcanic,
+  4 Pirate); `BG_TEX` 7 → 3 (0 Ironfall, 1 Volcanic, 2 Neon).
+  Jungle Ruins and Pirate Island keep the procedural gradient
+  (no `bg` key), as before.
+- **Code (`game_data.gd`):** `MAP_NAMES` 5 entries;
+  `MAP_CARD_INFO` 5 entries — with the REAL platform counts
+  (the old list undercounted: Jungle is 24 not 20, Neon 16 not
+  14, Volcanic 21 not 18, Pirate 16 not 12).
+- **Code (`main.gd`):** `MAP_THUMBS` 10 → 5, `MAP_CARD_ART`
+  13 → 5 (Ironfall/Neon/Volcanic use the parallax background,
+  Jungle/Pirate use their thumb); scroll-test last-map index
+  12 → 4. Lobby map-vote ballot and Quick Match both derive
+  from `MAP_NAMES.size()`, so they follow automatically.
+- **Ice is gone with the old ice map:** `is_on_ice()` now always
+  answers false, `_build_ice_zone()` returns, the P18b ice-slide
+  step and `_phys_c_ice_slide` are deleted, P18a now passes on
+  the constants only, and the 10 `skip_map: 4` entries are
+  removed (new map 4 is Pirate Island, a normal map — the
+  Catacombs-tuned setups run on it). The `_phys_s_fall` and
+  `_phys_s_jetpack_cap` old-ice-map branches are gone too.
+  `physics_config.gd` keeps the ICE_* constants for reference.
+- **Files deleted (20, each grepped 0 references first):**
+  tiles `tile_catacombs/military/desert/factory/frozen/space/
+  city/temple`, thumbs `thumb_catacombs/city/desert/factory/
+  frozen/military/space`, backgrounds `bg_catacombs/industrial/
+  space/city/temple` (+ their `.import` files).
+- **Tests:** `run_phase5_final.sh` now runs collision + smoke
+  on maps 0–4 and physics on maps 0–4 (was 0–12 / 0,4,6,10,12).
+- **Grep check:** 0 hits for the 9 deleted map names in all
+  `*.gd` / `*.sh` / `*.py` / `*.tscn` files. The names survive
+  only in history: BUGS.md (this log) and the dated v3.0–v3.6
+  audit/version notes in MAP_AUDIT.md, PHYSICS_AUDIT.md,
+  RESEARCH_v3.md, V3_PLAN.md, SKY_BRAWL_USE.md, SCROLL_BUG.md
+  and the README's old-version sections — those are version
+  history, not live references, and were left untouched.
+- **Verification:** first full run (`run_phase5_final.sh`,
+  `/tmp/v37_suite.log`): collision 8/8 on all 5 maps, fire 32/32,
+  scale 70/70, menu-net 8/8, flow OK, smoke 5/5, physics 34/34 on
+  Neon City only — Ironfall/Jungle 31/34, Volcanic 29/34, Pirate
+  33/34 (all test-setup artefacts, fixed under QA-099, re-run
+  34/34 on every map). Joystick 25/26, features 14/15, multiplayer
+  14/15 in the first run (same story — QA-099). 0 script errors in
+  every log. Final clean full-suite re-run: [tally below, QA-099].
+
+## QA-096 — Ironfall map + Neon City thumbnail (v3.7, user 2026-11-20 ~12:58)
+
+- **Design:** `OPERATION_IRONFALL.md` (user-shared) — 5 zones,
+  medium map. Built 3200×1400, 23 platforms, jump rise 170 px
+  between levels (same as the other maps), 12 spawns (TDM:
+  first 6 left half, last 6 right half), 6 pickups, CTF flag
+  spots from spawn#0 / spawn#6 (the shared `_build_ctf_flags`
+  rule — no per-map flag data to leave behind).
+- **Zones:** A Northern Watchtower — sniper perches y500/y670 +
+  `if_tower` on the y670 perch, `if_comms` on the right floor;
+  B Broken Bridges — `if_bridge_metal` on the tunnel roof,
+  `if_bridge` / `if_plank` on the y1180/y1010 platforms, gaps
+  between levels; C Underground Tunnels — the tunnel is the
+  floor under the y1180 roof platform x1150–1850, cave-arch
+  entrances (`if_cave` / `if_cave2`) at both ends, lamps inside,
+  concealed pickup at (1500, 1320); D Ironfall Central Base —
+  `if_bunker` HQ on the centre floor, perches y500/y670/y840;
+  E Waterfall Cavern — `if_fall` + `if_water` pool + `if_spikes`
+  on the right floor. Multiple routes between levels (every
+  level connects up/down within the 340 px / 320 px reachability
+  rule — proven by the collision suite's reachability check);
+  jetpack-accessible top perches; hidden shortcut is the tunnel.
+- **Assets (`gen_ironfall_assets.py`, Python/PIL only, no
+  Gemini):** 26 sprites sliced from the user's 10-sheet pack
+  into `assets/ironfall_sliced/` — hand-boxed from visual
+  inspection + component analysis. Background removal is a
+  flood-fill from the crop border (colour distance < 14 from
+  the border-median background), NOT the Jungle brightness
+  ramp: the sheets sit on dark blue-grey (~25–41 brightness)
+  and the sprite stone is nearly as dark, so a ramp would eat
+  the stone. Pure-black pixels (brightness < 10) are restored
+  to opaque near-black afterwards, so cave mouths stay dark
+  instead of showing the sky. 0.7 px feather, 3 px corner
+  discs cleared. Every sprite: all 4 corners transparent,
+  25–59% transparent overall, verified on magenta AND dark
+  green contact sheets — no dark box on any sprite. Two crops
+  were wrong on the first pass (vent/door/lamp boxes were read
+  off a scaled-up view and caught neighbouring sprites) —
+  caught on the contact sheet, re-boxed from a 50 px grid
+  overlay, re-verified. Sliced but NOT placed on the map:
+  `if_cavern` (would have clashed with the bunker), `if_vines`,
+  `if_palm` is placed, `if_tree` / `if_arch` (kept for later use).
+- **Code-drawn to match:** `tile_ironfall.png` (128×48, iron
+  plates + rivets + rust-orange top edge; left-vs-right edge
+  column mean difference 4.0/255 — the joint line is the tile's
+  own outline, like the other tiles), `bg_ironfall.png`
+  (960×540, dusk factory skyline, smokestacks + crane,
+  mirrored at 1286 like the other parallax backgrounds),
+  `thumb_ironfall.png` (96×64, no text). All three verified by
+  viewing (tile pasted 4×, background + thumbs at 3×).
+- **Solid Ironfall props:** `if_crate` / `if_barrel` /
+  `if_sandbags` are SOLID cover (added to `SOLID_DECOR_KINDS`
+  + `DECOR_INSETS`); the other 23 slices are visual dressing.
+  The map keeps a `barrels` on the floor (P22) and a `column`
+  as the tall solid (grenade test).
+- **Neon City thumbnail:** Neon had tile + background but no
+  thumb — `thumb_neon.png` drawn (96×64, no text, purple/pink
+  neon cue, same style as the Part 2 thumbs).
+- **No-stuck audit:** `audit_gaps_v37.py` (rewrite of the
+  QA-063 `/tmp/audit_gaps.py`, which is gone — same trap
+  definition, capsule 34×86, apex ~137 px) — **0 TRAP / 0 TIGHT
+  on all 5 maps, Ironfall included.** Negative control: two
+  columns 50 px apart on a mutated copy are caught (1 TIGHT).
+- **Verification:** collision 8/8 on Ironfall (spawn capsules,
+  pickups, reachability — the tunnel, the bridges and all 6
+  pickups are reachable from spawn#0), smoke on map 0 (23 shots,
+  160 bullets, player alive, 0 script errors), no-stuck audit
+  0 TRAP / 0 TIGHT. Ironfall has now been seen in-game only
+  through the smoke run (no rendered screenshot yet — the
+  `--shot-all` set covers menus/lobby only; see QA-099).
+
+## QA-097 — Lobby redesign: CONGESTED → clean and spacious (v3.7, user 2026-11-20 ~12:18)
+
+- **Complaint:** the lobby page is congested. Same controls,
+  same handlers, same scroll containers — only air. Box
+  separation 10 → 16, columns 14 → 20, left column 10 → 16,
+  player list 6 → 10, stat-strip tiles padded 12/8 → 16/12,
+  strip rows 10 → 14, map grid 10 → 16, map inner 8 → 16,
+  bottom button row 10 → 14.
+- **Freed space used:** map cards 228 → 252 px tall with
+  164 px art (was 140) — 5 maps fill the 2-column grid in 3
+  rows instead of 13 maps in 7 rows, so each card can be
+  bigger. Player cards (HOST/YOU/READY chips), map cards,
+  host controls, ready/start, room code, team pick — all
+  unchanged in behaviour.
+- **Verification:** screenshots at 1280×720 and 2400×1080 (see
+  QA-099) + scroll test 9/9 at BOTH resolutions (see QA-099).
+  Honest blemish, kept visible: on first view the lobby's Match
+  setup mode buttons are half-clipped at the bottom of the
+  scrolling left column at both resolutions (the redesign's extra
+  air pushed the first mode row ~21 px below the fold), and the
+  map card names sit below the fold too — only the card art shows
+  until you scroll. Everything is reachable by scrolling
+  (scroll test 9/9), nothing overlaps and nothing is cramped;
+  but the mode buttons are not visible at a glance. Left as is
+  for the coordinator to judge — tightening it further would
+  mean shrinking the player card or the tiles, not just spacing.
+
+## QA-098 — Create Room + Home redesign, same clean style (v3.7, user 2026-11-20 ~12:19)
+
+- **Create Room:** card margins 20/16 → 24/20, box separation
+  14 → 18. NEW: the form now picks the **mode** (5 buttons,
+  3 + 2 rows like the lobby) and the **map** (5 buttons, one
+  row) up front — it was lobby-only before. Both write the
+  same `GameData.game_mode` / `GameData.map_id` the lobby,
+  room card and match start already read, so nothing else
+  changes; selected buttons get the ✓ + accent style like the
+  max-players row. Room name, max players, Private switch,
+  password, create button — unchanged.
+- **Home:** box separation 14 → 20, buttons 64 → 68 px tall,
+  profile-card margins 14/10 → 18/14. Logo, profile card,
+  LOCAL MULTIPLAYER / CUSTOMIZATION / SETTINGS, hints,
+  music credit — all unchanged.
+- **Verification:** screenshots at 1280×720 and 2400×1080
+  (see QA-099).
+
+## QA-099 — UI screenshot verification at both resolutions (v3.7)
+
+- **Method:** menu-side `--shot-all` (menu / multiplayer /
+  lobby shots to `user://shot_*.png`) at 1280×720 and at
+  genuine 2400×1080, copied to
+  `~/workspace/mini-militia-lan-v37-proof/` as
+  `v37_menu_*.png`, `v37_create_*.png`, `v37_lobby_*.png`.
+  Checked by viewing: nothing overlaps, nothing cramped,
+  lobby scrolling still works (scroll test, see QA-097).
+- **First full run — 15 steps failed, all test-setup artefacts,
+  no physics/gameplay bug:** joystick PRESS-RIGHT (Ironfall's
+  floor crate at (500, 1352) pinned the right-run after ~175 px),
+  features KILLFEED-HITMARKER + multiplayer DOUBLE-CREDIT-SHOT1
+  (the same crate sits on the 300→600 shot line), physics P07a /
+  P07b / P25a on Ironfall, Jungle and Volcanic (the fixed x=800
+  jump/jetpack column sits under a y1180/y1280 platform — only
+  124 px of sky, so the jump bonked at ~65 px and the jetpack
+  never reached its cap), physics P02 on Volcanic (the fixed
+  (2100, 700) air-run drop lands the player against the solid
+  crate at (2140, 770)), physics P23 on Volcanic (the 0.3 pad
+  sits under the y1280 platform, so the launch bonked after
+  ~53 px and the endpoint check read a falling player), physics
+  P05b on Pirate Island (the fixed (1000, 200) air-slide drop
+  lands on the y600 platform at ~0.76 s, so ground friction had
+  killed vel.x by the 1.0 s check). The old "x=800 has >=294 px
+  of sky on all five maps" comment was wrong — it only counted
+  the y1110 row and missed the lower y1180/y1280 row. (These
+  same setups would have failed on the same maps in v3.6 — the
+  v3.6 logs are gone, so that cannot be checked; the physics
+  itself is proven fine by Neon City passing 34/34 unchanged.)
+- **Fixes (test harness + one map-data cover move, no physics,
+  gameplay, balance, networking or combat touched):**
+  (1) Ironfall's floor crate (500, 1352) → (750, 1352) — clears
+  the 360 px run-up right of spawn#0 and both shot lines, and
+  still sits in front of the vent's right edge; no-stuck audit
+  re-run 0 TRAP / 0 TIGHT. (2) `_phys_clear_sky_x()` — scans
+  every floor column and returns the one with the most open sky
+  (skipping columns blocked by solid decor at floor level);
+  used by the jump hold/tap (200 px) and the jetpack cap
+  (300 px). Volcanic's best column is only 294 px of sky, which
+  is still enough for the cap. (3) `_phys_clear_fall_x()` —
+  a column with a >=750 px clear fall from y=200 (no platform
+  top in the 200..950 band on the drift path); used by the air
+  run (P02) and the air slide (P05b). (4) The pad check now
+  also accepts the launch tracked at physics rate
+  (`pad_min_vy < -600` — the only upward force in the pad step
+  is the pad). (5) Joystick RELEASE-STOPS wait 0.5 → 1.5 s:
+  after the crate move the step's old 0.5 s check caught the
+  player still airborne from the preceding PRESS-UP-JUMP
+  (jump air time ~1.0 s, vel.x 91 from air drag) — it had only
+  passed before because the player was pinned against the
+  crate (a vacuous pass).
+- **Re-run after the fixes (`/tmp/v37_rerun.sh` + a separate
+  joystick run):** collision map 0 8/8, joystick 26/26, features
+  15/15, multiplayer 15/15, physics 34/34 on ALL FIVE maps,
+  0 script errors everywhere.
+- **Final clean full-suite re-run (`run_phase5_final.sh`,
+  `/tmp/v37_suite3.log`): collision 8/8 on all 5 maps, joystick
+  26/26, fire 32/32, scale 70/70, physics 34/34 on all 5 maps,
+  features 15/15, multiplayer 15/15, menu-net 8/8, flow OK,
+  smoke 5/5, 0 script errors. FULL SUITE GREEN in one run.
+- **Two more load flakes found in that run and fixed the same
+  way (test-only, same QA-099):** (6) joystick PRESS-UP-JUMP
+  read fuel 99 (want < 98) with jetpacking=true and 128 px of
+  rise — load-starved physics frames drained less fuel in the
+  0.4 s window; the check now takes fuel < 100, since any drain
+  proves the thrust ran (fuel only drains while thrusting).
+  (7) physics P07b on Neon City read tap apex 32 px (want
+  50-120) — the 0.12 s wall-clock release timer fired after
+  fewer physics frames under load, the mirror of QA-047's
+  late-firing 124 px. The tap release is now counted in physics
+  frames (7 frames via `_phys_release_move_after_frames`),
+  exact whatever the wall clock does. Both re-verified
+  standalone (joystick 26/26, physics map 2 34/34) and then
+  green in the final clean run above.
+- **Scroll test 9/9 at both resolutions** (`--scroll-test`,
+  1280×720 and genuine 2400×1080): drag-on-button, drag-on-label,
+  tap-selects, drag-release-no-select, last-map-visible,
+  tap-last-map, room-drag, settings-drag, left-column-drag.
+  TAP-LAST-MAP failed at first (8/9): the taller v3.7 map cards
+  (252 px) put the last card's centre 8 px below the scroll
+  viewport at that scroll position, so the tap landed outside
+  the container. Test-only fix: the step now taps the VISIBLE
+  part of the card (button/viewport intersection centre) — what
+  a real player taps. 9/9 after the fix, both resolutions.
+- **Screenshots (`--shot-all`, `~/workspace/
+  mini-militia-lan-v37-proof/`):** `v37_home_1280.png` /
+  `v37_home_2400.png` (home — clean, spacious, nothing
+  overlaps), `v37_create_1280.png` / `v37_create_2400.png`
+  (Create Room — room name, max players ✓ 8, new mode pick
+  3 + 2, map pick row + create button below the fold in the
+  scrolling form), `v37_lobby_1280.png` / `v37_lobby_2400.png`
+  (lobby — header, 7 info tiles, IP strip, player list with
+  HOST/NOT READY chips, Ironfall + Jungle map cards, all clean
+  and spacious). Verdict: nothing overlaps, nothing is cramped,
+  scrolling works — with the one blemish in QA-097 (mode buttons
+  half-clipped below the fold on first view at both
+  resolutions; map card names below the fold too).
+
 ## v3.6 Phase 4 regression — fix-worker results (2026-11-19)
 
 Full suite re-run on the phase-4 tree (`/tmp/run_q76_suite.sh`;
@@ -6123,3 +6778,44 @@ No paid library or asset was used.
 - Map 7 physics (finding 4 above) and the two 2400 cosmetic nits
   (finding 5) are the known open blemishes; neither blocks the
   release, both are recorded here, not hidden.
+
+## QA-100 — Lobby / Create Room first view still half-clips the mode buttons (v3.7, coordinator fix)
+
+- **Found on:** the map worker's proof screenshots
+  (`v37_lobby_1280.png`, `v37_create_1280.png`): the lobby's
+  "Match setup" mode row was half-clipped at the bottom of the
+  left column (~21 px below the fold at both resolutions), the
+  map card names sat below the fold, and Create Room's second
+  mode row was half-clipped. Nothing overlapped and scrolling
+  worked (9/9), but the first view looked unfinished — the
+  user asked for the lobby to look good, so this was fixed
+  rather than shipped as a known blemish.
+- **Fix (main.gd only, layout numbers, no behaviour change):**
+  lobby box separation 16→12; stat-strip tile content margins
+  12→8 top/bottom; left-column inner separation 16→12; Create
+  Room card content margins 20→16, form separation 18→14, max
+  players buttons 64→56 px. Button heights and touch targets
+  unchanged (56 px mode buttons kept). No handler, no node,
+  no functionality touched.
+- **Verification:** `--shot-all` re-run at 1280x720 and
+  2400x1080, 0 script errors; new proof shots
+  `v37b_lobby_1280.png`, `v37b_lobby_2400.png`,
+  `v37b_create_1280.png`, `v37b_create_2400.png` (all viewed):
+  lobby first mode row fully visible with names, map cards
+  show their names (Ironfall SELECTED, Jungle Ruins); Create
+  Room shows BOTH mode rows fully. A thin sliver of the
+  lobby's second mode row still peeks at the bottom of the
+  left column — that is the scroll hint (more below), not a
+  clipped control; the full second row is one scroll away.
+  Create Room's map-pick row + CREATE ROOM button still sit
+  below the fold in the scrolling form — expected for a long
+  form, reachable by scrolling (scroll test 9/9).
+- **Ironfall rendered in a match (closes the map worker's
+  blemish 3):** `--v37-shots` re-run on map 0 (Ironfall),
+  `v37b_ironfall_flame_1280.png` + `v37b_ironfall_pickup_1280.png`
+  viewed — dark industrial sky, smokestack silhouette, iron
+  tiles with orange hazard striping, sliced crate / bridge /
+  bunker + cave arch / barrels / rocks / waterfall, no dark
+  box on any sprite, player + jetpack flame + muzzle flash
+  visible, HUD and plain RELOAD / GRENADE / WEAPON buttons
+  clean, no overlaps.

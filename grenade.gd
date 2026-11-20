@@ -13,6 +13,7 @@ const RESTITUTION := 0.45 # bounce: v_n' = -e*v_n (spec §13)
 const REST_SPEED := 40.0 # below this, the grenade rests (GAP-33)
 
 var throw_dir: Vector2 = Vector2.RIGHT
+var thrower_vel: Vector2 = Vector2.ZERO # QA-091: thrower's velocity at throw time (GRENADE_SPEC §2)
 var owner_id: int = 0
 
 var _fuse: float = FUSE
@@ -25,7 +26,10 @@ var bounced: bool = false # set on the first real bounce (physics-test reads thi
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 1
-	velocity = throw_dir * 620.0 + Vector2(0, -260.0)
+	# QA-091 (v3.7, GRENADE_SPEC §2): ~40% of the thrower's velocity
+	# is inherited, so jetpack / running throws feel natural. The
+	# base throw (620 px/s + -260 up) is unchanged.
+	velocity = throw_dir * 620.0 + Vector2(0, -260.0) + thrower_vel * 0.4
 	# Collision shape: without this the grenade falls through the world.
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()

@@ -8,39 +8,29 @@ const PORT := 7777
 const JOIN_TIMEOUT := 8.0
 const AUDIO_SCRIPT: Script = preload("res://audio.gd")
 
+# QA-095 (v3.7): 5 maps only — 0 Ironfall (new), 1 Jungle Ruins,
+# 2 Neon City (new thumb, drawn for v3.7), 3 Volcanic Cavern,
+# 4 Pirate Island. The 8 deleted maps' thumbs are gone.
 const MAP_THUMBS := {
-	0: preload("res://assets/thumbs/thumb_catacombs.png"),
-	1: preload("res://assets/thumbs/thumb_military.png"),
-	2: preload("res://assets/thumbs/thumb_desert.png"),
-	3: preload("res://assets/thumbs/thumb_factory.png"),
-	4: preload("res://assets/thumbs/thumb_frozen.png"),
-	5: preload("res://assets/thumbs/thumb_jungle.png"),
-	6: preload("res://assets/thumbs/thumb_space.png"),
-	7: preload("res://assets/thumbs/thumb_city.png"),
-	8: preload("res://assets/thumbs/thumb_volcanic.png"),
-	9: preload("res://assets/thumbs/thumb_pirate.png"),
+	0: preload("res://assets/thumbs/thumb_ironfall.png"),
+	1: preload("res://assets/thumbs/thumb_jungle.png"),
+	2: preload("res://assets/thumbs/thumb_neon.png"),
+	3: preload("res://assets/thumbs/thumb_volcanic.png"),
+	4: preload("res://assets/thumbs/thumb_pirate.png"),
 }
-# v3.5 QA-059: the lobby map cards show the map's REAL art — the
-# in-game Sky Brawl background for the 7 dark maps that have one
-# (same files game.gd uses as the far parallax layer), the existing
-# thumb for the 5 day maps that have none, bg_temple for Airship
-# Fleet (it shares the Temple deck tile, SKY_BRAWL_USE.md). The
-# 960×540 backgrounds are cropped to the card thumbnail (COVERED),
-# never stretched.
+# QA-095 (v3.7): the lobby map cards show the map's REAL art —
+# the in-game far-parallax background for the 3 maps that have
+# one (Ironfall, Neon City, Volcanic Cavern — same files game.gd
+# uses as the far parallax layer), the existing thumb for the 2
+# maps that keep the procedural gradient (Jungle Ruins, Pirate
+# Island). The 960×540 backgrounds are cropped to the card
+# thumbnail (COVERED), never stretched.
 const MAP_CARD_ART := {
-	0: preload("res://assets/skybrawl/maps/bg_catacombs.png"),
-	1: preload("res://assets/thumbs/thumb_military.png"),
-	2: preload("res://assets/thumbs/thumb_desert.png"),
-	3: preload("res://assets/skybrawl/maps/bg_industrial.png"),
-	4: preload("res://assets/thumbs/thumb_frozen.png"),
-	5: preload("res://assets/thumbs/thumb_jungle.png"),
-	6: preload("res://assets/skybrawl/maps/bg_space.png"),
-	7: preload("res://assets/skybrawl/maps/bg_city.png"),
-	8: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
-	9: preload("res://assets/thumbs/thumb_pirate.png"),
-	10: preload("res://assets/skybrawl/maps/bg_neon.png"),
-	11: preload("res://assets/skybrawl/maps/bg_temple.png"),
-	12: preload("res://assets/skybrawl/maps/bg_temple.png"),
+	0: preload("res://assets/skybrawl/maps/bg_ironfall.png"),
+	1: preload("res://assets/thumbs/thumb_jungle.png"),
+	2: preload("res://assets/skybrawl/maps/bg_neon.png"),
+	3: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
+	4: preload("res://assets/thumbs/thumb_pirate.png"),
 }
 # v3.5 QA-059: the menu background is arena_clean.png — a plain
 # starry navy sky with mountain silhouettes and NO panel shapes.
@@ -49,7 +39,10 @@ const MAP_CARD_ART := {
 # through the semi-transparent panels on every page as empty
 # "ghost boxes" (the v3.4 lobby's floating outlines). The old file
 # stays in the repo unused; nothing references it any more.
-const MENU_BG: Texture2D = preload("res://assets/backgrounds/arena_clean.png")
+# QA-089 (v3.7): richer military-arena-at-dusk menu background
+# (was the plain starry sky arena_clean.png). Dark and uncluttered
+# behind the menu UI — the detail lives at the edges and horizon.
+const MENU_BG: Texture2D = preload("res://assets/backgrounds/menu_arena_dusk.png")
 const FRAG_LOGO: Texture2D = preload("res://assets/logo/frag_arena_logo.png") # v3.5: Frag Arena logo (crosshair + Orbitron wordmark, drawn in code/PIL)
 # v3.2 NEON ARENA fonts (SIL OFL 1.1 — see THEME_SPEC.md §1b).
 const FONT_TITLE: Font = preload("res://assets/fonts/orbitron/Orbitron-Variable.ttf")
@@ -61,8 +54,13 @@ const HELMET_ICONS := {
 	1: preload("res://assets/headgear/helmet_green.png"),
 	2: preload("res://assets/headgear/cap_tan.png"),
 	3: preload("res://assets/headgear/helmet_black.png"),
+	# QA-090 (v3.7): 4 red bandana, 5 night-vision goggles, 6 camo
+	# helmet. Indices 1-3 unchanged, so saved choices do not shift.
+	4: preload("res://assets/headgear/bandana_red.png"),
+	5: preload("res://assets/headgear/nvg.png"),
+	6: preload("res://assets/headgear/helmet_camo.png"),
 }
-const HELMET_NAMES := ["No helmet", "Helmet", "Cap", "Black helmet"]
+const HELMET_NAMES := ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"]
 
 var _audio
 var _peer: ENetMultiplayerPeer
@@ -127,6 +125,8 @@ var _mode_buttons: Array = []
 var _limit_buttons: Array = []
 var _time_buttons: Array = []
 var _max_buttons: Array = []
+var _create_mode_buttons: Array = [] # QA-098: mode pick on the create page
+var _create_map_buttons: Array = [] # QA-098: map pick on the create page (5 maps)
 var _color_buttons: Array = []
 var _helmet_buttons: Array = []
 var _portrait_tex: TextureRect
@@ -588,8 +588,12 @@ func _click() -> void:
 
 
 func _build_menu() -> void:
+	# QA-097 (v3.7): home redesign — same controls, more air.
+	# The menu was a tight stack (14 px gaps, 64 px buttons);
+	# it now breathes at 20 px gaps with 68 px buttons and a
+	# roomier profile card, matching the lobby/create spacing.
 	_menu_panel = _panel(Color(0.07, 0.11, 0.18, 0.96), true)
-	var box := _vbox(_menu_panel, 14)
+	var box := _vbox(_menu_panel, 20)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	# v3.5 Frag Arena: the logo (crosshair emblem + Orbitron
 	# wordmark) is the menu heading now — the old "LAN ARENA
@@ -619,10 +623,10 @@ func _build_menu() -> void:
 	pc_sb.set_corner_radius_all(10)
 	pc_sb.border_color = Color(0.25, 0.38, 0.52)
 	pc_sb.set_border_width_all(1)
-	pc_sb.content_margin_left = 14
-	pc_sb.content_margin_right = 14
-	pc_sb.content_margin_top = 10
-	pc_sb.content_margin_bottom = 10
+	pc_sb.content_margin_left = 18
+	pc_sb.content_margin_right = 18
+	pc_sb.content_margin_top = 14
+	pc_sb.content_margin_bottom = 14
 	profile_card.add_theme_stylebox_override("panel", pc_sb)
 	profile_card.custom_minimum_size = Vector2(460, 0)
 	profile_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -664,7 +668,7 @@ func _build_menu() -> void:
 	mp_btn.text = "LOCAL MULTIPLAYER"
 	mp_btn.icon = _gohud_icon("play")
 	mp_btn.expand_icon = true
-	mp_btn.custom_minimum_size = Vector2(460, 64)
+	mp_btn.custom_minimum_size = Vector2(460, 68)
 	mp_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(mp_btn, 26, 64, true)
 	mp_btn.pressed.connect(func() -> void: _click(); _show_only(_mp_panel))
@@ -673,7 +677,7 @@ func _build_menu() -> void:
 	cust_btn.text = "CUSTOMIZATION"
 	cust_btn.icon = _gohud_icon("user")
 	cust_btn.expand_icon = true
-	cust_btn.custom_minimum_size = Vector2(460, 64)
+	cust_btn.custom_minimum_size = Vector2(460, 68)
 	cust_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(cust_btn, 26, 64)
 	cust_btn.pressed.connect(func() -> void: _click(); _show_only(_custom_panel))
@@ -682,7 +686,7 @@ func _build_menu() -> void:
 	set_btn.text = "SETTINGS"
 	set_btn.icon = _gohud_icon("settings")
 	set_btn.expand_icon = true
-	set_btn.custom_minimum_size = Vector2(460, 64)
+	set_btn.custom_minimum_size = Vector2(460, 68)
 	set_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_style_button(set_btn, 26, 64)
 	set_btn.pressed.connect(func() -> void: _click(); _show_only(_settings_panel))
@@ -1052,8 +1056,8 @@ func _build_multiplayer() -> void:
 		var create_dup := create_sb.duplicate()
 		if create_dup is GoStyleBoxCut:
 			(create_dup as GoStyleBoxCut).bg_color = Color(0.09, 0.14, 0.22, 0.96)
-			(create_dup as GoStyleBoxCut).content_margin_left = 20
-			(create_dup as GoStyleBoxCut).content_margin_right = 20
+			(create_dup as GoStyleBoxCut).content_margin_left = 24
+			(create_dup as GoStyleBoxCut).content_margin_right = 24
 			(create_dup as GoStyleBoxCut).content_margin_top = 16
 			(create_dup as GoStyleBoxCut).content_margin_bottom = 16
 		create_card.add_theme_stylebox_override("panel", create_dup)
@@ -1106,12 +1110,63 @@ func _build_multiplayer() -> void:
 	for n in [2, 4, 6, 8, 10, 12]:
 		var b := Button.new()
 		b.text = str(n)
-		b.custom_minimum_size = Vector2(64, 64)
-		_style_button(b, 22, 64)
+		b.custom_minimum_size = Vector2(64, 56)
+		_style_button(b, 22, 56)
 		b.pressed.connect(_on_max_pressed.bind(n))
 		max_row.add_child(b)
 		_max_buttons.append(b)
 		_connect_scroll_button(b, _mp_scroll)
+	# QA-098 (v3.7): the create form now picks the mode and the
+	# map up front (was lobby-only). Same values the lobby uses
+	# (GameData.game_mode / GameData.map_id) — the room card, the
+	# lobby display and the match start all read them from there,
+	# so nothing else changes. Two rows of mode buttons (3 + 2)
+	# like the lobby, one row of 5 map buttons.
+	var create_mode_cap := Label.new()
+	create_mode_cap.text = "Game mode"
+	create_mode_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	create_mode_cap.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	create_mode_cap.add_theme_font_size_override("font_size", 20)
+	create_mode_cap.add_theme_color_override("font_color", UI_FONT)
+	create_box.add_child(create_mode_cap)
+	var create_mode_row := HBoxContainer.new()
+	create_mode_row.add_theme_constant_override("separation", 8)
+	create_box.add_child(create_mode_row)
+	var create_mode_row2 := HBoxContainer.new()
+	create_mode_row2.add_theme_constant_override("separation", 8)
+	create_box.add_child(create_mode_row2)
+	for i in GameData.MODE_NAMES.size():
+		var mb := Button.new()
+		mb.text = GameData.MODE_NAMES[i]
+		mb.custom_minimum_size = Vector2(0, 56)
+		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(mb, 20, 56)
+		mb.pressed.connect(_on_create_mode_pressed.bind(i))
+		(create_mode_row if i < 3 else create_mode_row2).add_child(mb)
+		_create_mode_buttons.append(mb)
+		_connect_scroll_button(mb, _mp_scroll)
+	var create_map_cap := Label.new()
+	create_map_cap.text = "Map — 5 battlefields"
+	create_map_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	create_map_cap.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
+	create_map_cap.add_theme_font_size_override("font_size", 20)
+	create_map_cap.add_theme_color_override("font_color", UI_FONT)
+	create_box.add_child(create_map_cap)
+	var create_map_row := HBoxContainer.new()
+	create_map_row.add_theme_constant_override("separation", 8)
+	create_box.add_child(create_map_row)
+	for i in GameData.MAP_NAMES.size():
+		var cb := Button.new()
+		cb.text = GameData.MAP_NAMES[i]
+		cb.custom_minimum_size = Vector2(0, 56)
+		cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(cb, 18, 56)
+		cb.pressed.connect(_on_create_map_pressed.bind(i))
+		create_map_row.add_child(cb)
+		_create_map_buttons.append(cb)
+		_connect_scroll_button(cb, _mp_scroll)
+	_refresh_create_mode_buttons()
+	_refresh_create_map_buttons()
 	# The password input is created BEFORE the Private switch:
 	# flipping the switch calls _on_private_toggled, which greys
 	# the password field out when Private is off — and the field
@@ -1257,6 +1312,34 @@ func _build_multiplayer() -> void:
 	box.add_child(back_btn)
 	_connect_scroll_button(back_btn, _mp_scroll)
 	_refresh_max_buttons()
+	_refresh_create_mode_buttons()
+	_refresh_create_map_buttons()
+
+
+func _refresh_create_mode_buttons() -> void:
+	for i in _create_mode_buttons.size():
+		var b: Button = _create_mode_buttons[i]
+		b.text = ("✓ " if i == GameData.game_mode else "") + GameData.MODE_NAMES[i]
+		_style_selected(b, i == GameData.game_mode, 20)
+
+
+func _refresh_create_map_buttons() -> void:
+	for i in _create_map_buttons.size():
+		var b: Button = _create_map_buttons[i]
+		b.text = ("✓ " if i == GameData.map_id else "") + GameData.MAP_NAMES[i]
+		_style_selected(b, i == GameData.map_id, 18)
+
+
+func _on_create_mode_pressed(i: int) -> void:
+	_click()
+	GameData.game_mode = i
+	_refresh_create_mode_buttons()
+
+
+func _on_create_map_pressed(i: int) -> void:
+	_click()
+	GameData.map_id = i
+	_refresh_create_map_buttons()
 
 
 func _build_lobby() -> void:
@@ -1288,8 +1371,13 @@ func _build_lobby() -> void:
 	# pressed handlers, same refresh paths, same scroll
 	# containers and drag-forwarding); only the arrangement
 	# and the presentation changed.
+	# QA-097 (v3.7): lobby redesign — the user said the page is
+	# CONGESTED. Same controls, same handlers, same scroll
+	# containers — only air: 16 px gaps (was 10), 20 px between
+	# the columns (was 14), bigger map cards (252 px, 164 px art,
+	# was 228/140) now that 5 maps fill the grid instead of 13.
 	_lobby_panel = _panel()
-	var box := _vbox(_lobby_panel, 10)
+	var box := _vbox(_lobby_panel, 12)
 	# ---- Header: title left, players pill right ----
 	var head_row := HBoxContainer.new()
 	head_row.add_theme_constant_override("separation", 12)
@@ -1321,14 +1409,14 @@ func _build_lobby() -> void:
 	# HBox rows with stretch ratios give the long values room:
 	# Room gets double width, so nothing wraps any more.
 	var strip := VBoxContainer.new()
-	strip.add_theme_constant_override("separation", 10)
+	strip.add_theme_constant_override("separation", 14)
 	strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(strip)
 	var strip_row1 := HBoxContainer.new()
-	strip_row1.add_theme_constant_override("separation", 10)
+	strip_row1.add_theme_constant_override("separation", 14)
 	strip.add_child(strip_row1)
 	var strip_row2 := HBoxContainer.new()
-	strip_row2.add_theme_constant_override("separation", 10)
+	strip_row2.add_theme_constant_override("separation", 14)
 	strip.add_child(strip_row2)
 	var strip_rows := {"Room": strip_row1, "Players": strip_row1, "Map": strip_row1, "Mode": strip_row2, "Kill limit": strip_row2, "Time": strip_row2, "Friendly fire": strip_row2}
 	var strip_ratios := {"Room": 2.0, "Players": 1.0, "Map": 1.2, "Mode": 1.2, "Kill limit": 0.8, "Time": 0.8, "Friendly fire": 1.0}
@@ -1342,8 +1430,8 @@ func _build_lobby() -> void:
 		tile_sb.set_corner_radius_all(10)
 		tile_sb.border_color = Color(0.25, 0.38, 0.52)
 		tile_sb.set_border_width_all(1)
-		tile_sb.content_margin_left = 12
-		tile_sb.content_margin_right = 12
+		tile_sb.content_margin_left = 16
+		tile_sb.content_margin_right = 16
 		tile_sb.content_margin_top = 8
 		tile_sb.content_margin_bottom = 8
 		tile.add_theme_stylebox_override("panel", tile_sb)
@@ -1398,7 +1486,7 @@ func _build_lobby() -> void:
 	_host_ip_label.add_theme_color_override("font_color", UI_ACCENT)
 	_host_ip_chip.add_child(_host_ip_label)
 	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 14)
+	cols.add_theme_constant_override("separation", 20)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(cols)
 	# ---- LEFT column: players + setup + vote (scrolls) ----
@@ -1412,13 +1500,13 @@ func _build_lobby() -> void:
 	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	left_col.add_child(left_scroll)
 	var left_inner := VBoxContainer.new()
-	left_inner.add_theme_constant_override("separation", 10)
+	left_inner.add_theme_constant_override("separation", 12)
 	left_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.add_child(left_inner)
 	_players_section_label = _section_label("Players in the room:")
 	left_inner.add_child(_players_section_label)
 	_lobby_list = VBoxContainer.new()
-	_lobby_list.add_theme_constant_override("separation", 6)
+	_lobby_list.add_theme_constant_override("separation", 10)
 	left_inner.add_child(_lobby_list)
 	# Match setup sits directly under the players now (it used
 	# to sit below the room panel + IP chip + hints, under the
@@ -1604,15 +1692,15 @@ func _build_lobby() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	right_col.add_child(scroll)
 	var map_inner := VBoxContainer.new()
-	map_inner.add_theme_constant_override("separation", 8)
+	map_inner.add_theme_constant_override("separation", 16)
 	map_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(map_inner)
 	_map_section_label = _section_label("Maps — tap a card to select:")
 	map_inner.add_child(_map_section_label)
 	var map_grid := GridContainer.new()
 	map_grid.columns = 2
-	map_grid.add_theme_constant_override("h_separation", 10)
-	map_grid.add_theme_constant_override("v_separation", 10)
+	map_grid.add_theme_constant_override("h_separation", 16)
+	map_grid.add_theme_constant_override("v_separation", 16)
 	map_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	map_inner.add_child(map_grid)
 	for i in GameData.MAP_NAMES.size():
@@ -1631,7 +1719,7 @@ func _build_lobby() -> void:
 	var top_sep := HSeparator.new()
 	box.add_child(top_sep)
 	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
+	btn_row.add_theme_constant_override("separation", 14)
 	box.add_child(btn_row)
 	_ready_btn = Button.new()
 	_ready_btn.text = "I'M READY"
@@ -1681,7 +1769,7 @@ func _map_card_stylebox(selected: bool) -> StyleBoxFlat:
 
 func _build_map_card(i: int) -> Control:
 	var root := Control.new()
-	root.custom_minimum_size = Vector2(0, 228)
+	root.custom_minimum_size = Vector2(0, 252)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1693,7 +1781,7 @@ func _build_map_card(i: int) -> Control:
 	panel.add_child(vb)
 	var thumb := TextureRect.new()
 	thumb.texture = MAP_CARD_ART[i]
-	thumb.custom_minimum_size = Vector2(0, 140)
+	thumb.custom_minimum_size = Vector2(0, 164)
 	thumb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
@@ -2849,13 +2937,13 @@ func _sct_s_scroll_max() -> void:
 	# Scroll just enough to bring the last map row into view (max
 	# scroll shows the mode/limit rows at the bottom — the last map
 	# row has scrolled past the top by then).
-	var b: Button = _map_buttons[12]
+	var b: Button = _map_buttons[4]
 	var btop: float = b.get_global_rect().position.y - _lobby_scroll.get_global_rect().position.y + _lobby_scroll.scroll_vertical
 	_lobby_scroll.scroll_vertical = btop - 100.0
 
 
 func _sct_c_last_visible() -> Array:
-	var b: Button = _map_buttons[12]
+	var b: Button = _map_buttons[4]
 	var brect := Rect2(_sc_vp_pos(b, Vector2.ZERO), b.size)
 	var srect := Rect2(_sc_vp_pos(_lobby_scroll, Vector2.ZERO), _lobby_scroll.size)
 	var inter := brect.intersection(srect)
@@ -2865,12 +2953,22 @@ func _sct_c_last_visible() -> Array:
 
 func _sct_s_tap_last() -> void:
 	await get_tree().process_frame
-	_sc_tap(804, _sc_vp_pos(_map_buttons[12], _map_buttons[12].size * 0.5))
+	# QA-099 (v3.7): tap the VISIBLE part of the last map card, not
+	# its centre — the taller v3.7 cards (252 px) put the centre 8 px
+	# below the scroll viewport at this scroll position, so the tap
+	# landed outside the scroll container and selected nothing. A
+	# real player taps the part they can see; the card is reachable
+	# and tappable, the old tap point just wasn't on it any more.
+	var b: Button = _map_buttons[4]
+	var brect := b.get_global_rect()
+	var inter := brect.intersection(_lobby_scroll.get_global_rect())
+	var tap_local := inter.get_center() - brect.position
+	_sc_tap(804, _sc_vp_pos(b, tap_local))
 
 
 func _sct_c_tap_last() -> Array:
-	var ok: bool = GameData.map_id == 12
-	return [ok, "map_id=%d (want 12 — every map reachable and tappable)" % GameData.map_id]
+	var ok: bool = GameData.map_id == 4
+	return [ok, "map_id=%d (want 4 — every map reachable and tappable)" % GameData.map_id]
 
 
 func _sct_s_mp_drag() -> void:

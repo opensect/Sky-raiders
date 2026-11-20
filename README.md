@@ -1,10 +1,115 @@
-# Frag Arena — v3.6
+# Frag Arena — v3.7
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi. (Renamed from "LAN Arena Shooter" in v3.5 —
 see QA-065 in BUGS.md; the package name `com.lanarena.shooter` is unchanged,
-so v3.6 installs over v3.5.)
+so v3.7 installs over v3.6.)
+
+## What's new in v3.7 (map-independent visuals — no gameplay changes)
+
+Visuals only: new effects, clearer pickups, a richer menu background,
+more headgear, two free external visual libraries, and a grenade
+audit. No balance, networking, movement, combat, sync or map changes.
+Full detail in BUGS.md (QA-082…QA-092); art generator
+`gen_v37_assets.py` (Python/PIL, code-drawn only).
+
+- **Jetpack flame (QA-082).** Was a plain orange triangle; now a
+  drawn teardrop flame (orange → yellow → white-hot core) with the
+  same thrust/length/flicker behaviour.
+- **Muzzle flash per weapon (QA-083).** Was one shared flash for
+  all six guns; now five drawn variants — small pistol, rifle
+  (shared with SMG), wide shotgun, long sniper, big rocket.
+- **Bullet trails (QA-084).** A gradient glow streak behind every
+  bullet, matched to the round's colour and length; the old
+  `Line2D` trail is unchanged underneath.
+- **Landing dust (QA-085).** A soft dust puff at the feet on hard
+  landings, next to the existing spark.
+- **Damage flash (QA-086 + QA-092).** The hit flash now covers the
+  whole player (body + gun + helmet) and is driven by a library
+  shader instead of a plain tint.
+- **CTF flag + capture burst (QA-087).** The flag is now a drawn
+  sprite (pole + waving cloth + star, red and blue) instead of a
+  pole + triangle + "FLAG" label, and a capture bursts a gold
+  starburst on every phone.
+- **Pickup icons (QA-088).** The three icons in `assets/items/`
+  were never used — they are redrawn bigger/clearer and wired in
+  (health kit, grenade, ammo crate with a rifle glyph and label),
+  plus a new weapon glyph; a shield icon is drawn and ready for a
+  future shield pickup (no shield kind exists yet).
+- **Menu background (QA-089).** The plain starry sky is now a
+  military arena at dusk — stars, mountains, floodlight towers —
+  kept dark and empty in the middle so the menu stays readable.
+- **Headgear (QA-090, QA-094).** Three new options: red bandana,
+  night-vision goggles, camo helmet. The old three (helmet, cap,
+  black helmet) keep their places, so saved choices do not shift.
+  QA-094 also fixed a pre-existing glitch the proof screenshots
+  caught: the helmet floated ~20px above the head while
+  jetpacking, because the jetpack art frames draw the body low;
+  the helmet now rides at a per-animation height (idle, run,
+  jump, shoot, aim, fall, jetpack, die).
+- **Grenade audit (QA-091).** Throws now carry ~40% of the
+  thrower's velocity (jetpack throws feel natural); the wall
+  ray-check for blasts was verified already present (GAP-12) and
+  left alone; blasts now have a `GPUParticles2D` spark burst and
+  distance-scaled camera shake (the white flash already existed).
+  NOT rebuilt as RigidBody2D, and no MultiplayerSynchronizer —
+  see BUGS.md for why.
+- **External visual libraries (QA-092, all free MIT).**
+  Stylized 2D VFX Lite (REEBOO Labs, v1.0.0) — hit spark for
+  bullet impacts, a shader-driven explosion for blasts, a gold
+  sparkle on pickup grabs. Sprite Juice Kit Lite (REEBOO Labs,
+  v1.0) — its hit-flash shader drives the damage flash; its
+  shake and hit-stop were NOT adopted (the game already has
+  trauma shake; hit-stop would freeze the shared LAN sim).
+  No parallax library: Godot 4.3+ has built-in `Parallax2D`,
+  and map/menu parallax belongs to the map and UI workers.
+
+## What's new in v3.7 — 5 maps, Ironfall, cleaner lobby/home/create
+
+- **Map cut: 13 → 5 (QA-095).** Kept, in order: Ironfall (new),
+  Jungle Ruins, Neon City, Volcanic Cavern, Pirate Island. Deleted
+  completely (map data, tiles, thumbs, backgrounds, lobby entries,
+  vote options, quick-match pool): the other 8 maps. No dangling
+  references — the full suite runs with exactly 5 maps.
+- **Ironfall (QA-096, Operation Ironfall).** New medium map
+  (3200×1400, 23 platforms) with all 5 zones from the user's
+  design: Northern Watchtower sniper perches, Broken Bridges,
+  Underground Tunnels (a real tunnel under the mid roof platform,
+  cave-arch entrances, lamps, concealed pickup), Central Base
+  (bunker HQ), Waterfall Cavern (water pool + waterfall + spikes).
+  Built from the user's 10-sheet asset pack — 26 sprites sliced
+  and background-removed (flood-fill from the crop border, cave
+  mouths kept dark, verified on magenta/dark-green, no dark box),
+  plus a code-drawn iron-plate tile, a dusk factory-skyline
+  parallax background (960×540) and a thumbnail. Art generator
+  `gen_ironfall_assets.py` (Python/PIL, code-drawn + slices only,
+  no Gemini). No-stuck audit: 0 TRAP / 0 TIGHT on all 5 maps
+  (audit script `audit_gaps_v37.py`, negative control verified).
+- **Neon City thumbnail (QA-096).** Neon City had a tile and a
+  background but no thumbnail — drawn (96×64, no text). Jungle
+  Ruins and Pirate Island keep the procedural gradient (no
+  background added — they never needed one).
+- **Lobby / Home / Create Room redesign (QA-097/QA-098/QA-099).**
+  One consistent clean style, generous spacing (16 px gaps, 20 px
+  between columns, bigger 252 px map cards with 164 px art).
+  Create Room now picks the mode and the map up front (was
+  lobby-only); the lobby keeps every control (player cards with
+  HOST/YOU/READY chips, map cards, host controls, ready/start,
+  room code, team pick). No gameplay, balance, networking,
+  movement, combat or sync changes. Ice is gone with the old ice
+  map: `is_on_ice()` now always answers false and the physics
+  ice-slide step is removed (QA-095).
+- **First-view fold fix (QA-100).** The redesigned lobby and Create
+  Room still half-clipped the mode buttons at first glance (~21 px
+  below the fold). Tightened the spacing (lobby box/strip/column
+  separations, Create Room card margins and form separation, max
+  players buttons 64→56 px) so the lobby's first mode row and the
+  map card names show fully, and Create Room shows both mode rows
+  fully — verified by screenshots at 1280x720 and 2400x1080. The
+  map-pick row and CREATE ROOM button still sit below the fold in
+  the scrolling form, as expected; Ironfall was also eyeballed in
+  a rendered match for the first time (flame + muzzle + pickups).
 
 ## What's new in v3.6
 
@@ -1004,26 +1109,22 @@ the right half.
 
 | # | Map | Size | Layout signature — what makes it different |
 |---|---|---|---|
-| 1 | **Catacombs** | 3200×1400 | Symmetric 3-3-3 stack with a wide central bridge; dark underground palette. |
-| 2 | **Military Base** | 2880×1440 | Tallest stack (7 levels) with a centred sniper perch — the highest platform in the game; smallest width. |
-| 3 | **Desert Outpost** | 3000×1500 | Classic staggered arena, sand palette, palms. The original template, kept as-is. |
-| 4 | **Industrial Factory** | 3200×1600 | Tallest map (1600); bridge decor; dusk grey-brown palette. |
-| 5 | **Frozen Fortress** | 2800×1500 | Smallest map, densest floor cover; snow effects and a low-friction ice zone on the floor. |
-| 6 | **Jungle Ruins** | 3200×1400 | The hand-designed map: dense overlapping centre (68% cover at mid height), 6 zones, watchtower and statues. |
-| 7 | **Space Station** | 3000×1500 | **Rebuilt in v3.0:** vertical station, no full-width floor — 3 disconnected deck segments, a central vertical shaft (fast, exposed) and side maintenance tunnels (slow, covered). Dark palette. |
-| 8 | **City Underground** | 3200×1600 | **Rebuilt in v3.0:** subway map — two stacked tunnel tubes (upper fast/exposed, lower slow/covered with pillars) joined by 3 stair shafts; hot zone on the centre platform between the tubes. |
-| 9 | **Volcanic Cavern** | 3000×1500 | Split floor: two lava pools (they hurt — use the safe routes around them). |
-| 10 | **Pirate Island** | 3000×1500 | **Rebuilt in v3.0:** asymmetric beached-ship map — stepped hull rising to a crow's-nest perch on the LEFT, open sand mid, and a below-deck tunnel on the RIGHT. |
-| 11 | **Neon City** | 3400×1800 | **New in v3.0:** vertical figure-eight — two rooftop tower routes, a street-level alley, and a centre skybridge (no cover — crossing it is the risk). Rain-slick cyberpunk night, purple-brick tiles. |
-| 12 | **Ancient Temple** | 3000×1750 | **New in v3.0:** stepped ziggurat in the centre (3 tiers to an altar top) flanked by colonnades, with a crypt tunnel running BELOW the floor. |
-| 13 | **Airship Fleet** | 3200×1500 | **New in v3.0:** the only map with no full-width floor — three separate ship decks with gaps crossed by jump + jetpack, a safety net below, and the Sniper/Rocket pinned to the centre ship's crow's nest. Falling through a gap respawns you on your own deck (no death, no kill credited). |
+| # | Map | Size | Layout signature — what makes it different |
+|---|---|---|---|
+| 1 | **Ironfall** | 3200×1400 | **New in v3.7 (Operation Ironfall):** 5 zones — Northern Watchtower sniper perches (left), Broken Bridges (gaps + bridge decor), Underground Tunnels (a real tunnel under the mid roof platform, cave-arch entrances, concealed pickup), Ironfall Central Base (bunker HQ, perches), Waterfall Cavern (water pool + waterfall, spikes). Dusk factory skyline. |
+| 2 | **Jungle Ruins** | 3200×1400 | The hand-designed map: dense overlapping centre (68% cover at mid height), 6 zones, watchtower and statues. |
+| 3 | **Neon City** | 3400×1800 | Vertical figure-eight — two rooftop tower routes, a street-level alley, and a centre skybridge (no cover — crossing it is the risk). Rain-slick cyberpunk night, purple-brick tiles. |
+| 4 | **Volcanic Cavern** | 3000×1500 | Split floor: two lava pools (they hurt — use the safe routes around them). |
+| 5 | **Pirate Island** | 3000×1500 | Asymmetric beached-ship map — stepped hull rising to a crow's-nest perch on the LEFT, open sand mid, and a below-deck tunnel on the RIGHT. |
 
-Seven maps (Catacombs, Industrial Factory, Space Station, City
-Underground, Volcanic Cavern, Neon City, Ancient Temple) also draw a
-Sky Brawl arena image as a far parallax background behind the
-procedural sky; the five day maps (Military Base, Desert Outpost,
-Frozen Fortress, Jungle Ruins, Pirate Island) keep the procedural
-gradient, and Airship Fleet uses a warm sunset gradient.
+Three maps (Ironfall, Volcanic Cavern, Neon City) also draw an arena
+image as a far parallax background behind the procedural sky;
+Jungle Ruins and Pirate Island keep the procedural gradient.
+
+> **v3.7 map cut:** the game used to ship 13 maps. Eight were cut
+> (they were near-duplicates of each other — see the old map audit),
+> leaving these 5. The lobby, map vote and Quick Match all use the
+> same 5.
 
 ## Controls
 

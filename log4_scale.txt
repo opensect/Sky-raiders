@@ -1,0 +1,94 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:372)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.4 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1342:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5731:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:97)
+WARNING: All audio drivers failed, falling back to the dummy driver.
+     at: initialize (servers/audio/audio_server.cpp:258)
+
+SPAWN: spawning peer 1 (Player) on server players_before=0
+SCALETEST 1280x720-RESIZE: PASS — win=(1280, 720)
+SCALETEST DIAG win=(1280, 720) vis=(1280.0, 720.0) canvas_t origin=(0.0, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 555.0)
+SCALETEST 1280x720-DIAG: PASS — see DIAG line above
+SCALETEST 1280x720-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
+SCALETEST 1280x720-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
+SCALETEST 1280x720-MOVE-DOWN: PASS — vec=(0.0, 1.0) knob=(0.0, 60.0)
+SCALETEST 1280x720-MOVE-LEFT: PASS — vec=(-1.0, 0.0)
+SCALETEST 1280x720-MOVE-RIGHT: PASS — vec=(1.0, 0.0)
+SCALETEST 1280x720-MOVE-DIAG: PASS — vec=(0.698223, -0.698223) knob=(42.0, -42.0)
+SCALETEST 1280x720-MOVE-RELEASE: PASS — vec=(0.0, 0.0)
+SCALETEST 1280x720-AIM-CENTRE: PASS — aim=(0.0, 0.0)
+SCALETEST 1280x720-AIM-UP: PASS — aim=(0.0, -1.0)
+SCALETEST 1280x720-AIM-RELEASE: PASS — aim=(0.0, 0.0)
+SCALETEST 1280x720-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
+SCALETEST 1280x720-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
+SCALETEST 2400x1080-RESIZE: PASS — win=(2400, 1080)
+SCALETEST DIAG win=(2400, 1080) vis=(1600.0, 720.0) canvas_t origin=(0.0, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(800.0, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 555.0)
+SCALETEST 2400x1080-DIAG: PASS — see DIAG line above
+SCALETEST 2400x1080-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
+SCALETEST 2400x1080-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
+SCALETEST 2400x1080-MOVE-DOWN: PASS — vec=(0.0, 1.0) knob=(0.0, 60.0)
+SCALETEST 2400x1080-MOVE-LEFT: PASS — vec=(-1.0, 0.0)
+SCALETEST 2400x1080-MOVE-RIGHT: PASS — vec=(1.0, 0.0)
+SCALETEST 2400x1080-MOVE-DIAG: PASS — vec=(0.698223, -0.698223) knob=(42.0, -42.0)
+SCALETEST 2400x1080-MOVE-RELEASE: PASS — vec=(0.0, 0.0)
+SCALETEST 2400x1080-AIM-CENTRE: PASS — aim=(0.0, 0.0)
+SCALETEST 2400x1080-AIM-UP: PASS — aim=(0.0, -1.0)
+SCALETEST 2400x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
+SCALETEST 2400x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
+SCALETEST 2400x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
+SCALETEST 1920x1080-RESIZE: PASS — win=(1920, 1080)
+SCALETEST DIAG win=(1920, 1080) vis=(1280.0, 720.0) canvas_t origin=(0.0, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 555.0)
+SCALETEST 1920x1080-DIAG: PASS — see DIAG line above
+SCALETEST 1920x1080-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
+SCALETEST 1920x1080-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
+SCALETEST 1920x1080-MOVE-DOWN: PASS — vec=(0.0, 1.0) knob=(0.0, 60.0)
+SCALETEST 1920x1080-MOVE-LEFT: PASS — vec=(-1.0, 0.0)
+SCALETEST 1920x1080-MOVE-RIGHT: PASS — vec=(1.0, 0.0)
+SCALETEST 1920x1080-MOVE-DIAG: PASS — vec=(0.698223, -0.698223) knob=(42.0, -42.0)
+SCALETEST 1920x1080-MOVE-RELEASE: PASS — vec=(0.0, 0.0)
+SCALETEST 1920x1080-AIM-CENTRE: PASS — aim=(0.0, 0.0)
+SCALETEST 1920x1080-AIM-UP: PASS — aim=(0.0, -1.0)
+SCALETEST 1920x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
+SCALETEST 1920x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
+SCALETEST 1920x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
+SCALETEST 800x480-RESIZE: PASS — win=(800, 480)
+SCALETEST DIAG win=(800, 480) vis=(1280.0, 768.0) canvas_t origin=(0.0, -632.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1016.0) move_rect=[P: (90.0, 528.0), S: (150.0, 150.0)] move_gt origin=(90.0, 528.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 603.0) converted=(165.0, 603.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 603.0)
+SCALETEST 800x480-DIAG: PASS — see DIAG line above
+SCALETEST 800x480-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
+SCALETEST 800x480-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
+SCALETEST 800x480-MOVE-DOWN: PASS — vec=(0.0, 1.0) knob=(0.0, 60.0)
+SCALETEST 800x480-MOVE-LEFT: PASS — vec=(-1.0, 0.0)
+SCALETEST 800x480-MOVE-RIGHT: PASS — vec=(1.0, 0.0)
+SCALETEST 800x480-MOVE-DIAG: PASS — vec=(0.698223, -0.698223) knob=(42.0, -42.0)
+SCALETEST 800x480-MOVE-RELEASE: PASS — vec=(0.0, 0.0)
+SCALETEST 800x480-AIM-CENTRE: PASS — aim=(0.0, 0.0)
+SCALETEST 800x480-AIM-UP: PASS — aim=(0.0, -1.0)
+SCALETEST 800x480-AIM-RELEASE: PASS — aim=(0.0, 0.0)
+SCALETEST 800x480-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
+SCALETEST 800x480-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
+SCALETEST 2340x1080-RESIZE: PASS — win=(2340, 1080)
+SCALETEST DIAG win=(2340, 1080) vis=(1560.0, 720.0) canvas_t origin=(0.0, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(780.0, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 555.0)
+SCALETEST 2340x1080-DIAG: PASS — see DIAG line above
+SCALETEST 2340x1080-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
+SCALETEST 2340x1080-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
+SCALETEST 2340x1080-MOVE-DOWN: PASS — vec=(0.0, 1.0) knob=(0.0, 60.0)
+SCALETEST 2340x1080-MOVE-LEFT: PASS — vec=(-1.0, 0.0)
+SCALETEST 2340x1080-MOVE-RIGHT: PASS — vec=(1.0, 0.0)
+SCALETEST 2340x1080-MOVE-DIAG: PASS — vec=(0.698223, -0.698223) knob=(42.0, -42.0)
+SCALETEST 2340x1080-MOVE-RELEASE: PASS — vec=(0.0, 0.0)
+SCALETEST 2340x1080-AIM-CENTRE: PASS — aim=(0.0, 0.0)
+SCALETEST 2340x1080-AIM-UP: PASS — aim=(0.0, -1.0)
+SCALETEST 2340x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
+SCALETEST 2340x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
+SCALETEST 2340x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
+SCALETEST DONE: 70/70 passed

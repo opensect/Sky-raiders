@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "3.6" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "3.7" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
@@ -71,20 +71,18 @@ const PLAYER_COLORS: Array[Color] = [
 ]
 
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
-const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet"]
-const MAP_NAMES: Array[String] = ["Catacombs", "Military Base", "Desert Outpost", "Industrial Factory", "Frozen Fortress", "Jungle Ruins", "Space Station", "City Underground", "Volcanic Cavern", "Pirate Island", "Neon City", "Ancient Temple", "Airship Fleet"] # Phase 5: 13 maps; the vote ballot in main.gd already uses MAP_NAMES.size() for its mod arithmetic
+const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"] # QA-090 (v3.7): +3 headgear, indices 1-3 unchanged
+const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volcanic Cavern", "Pirate Island"] # QA-095 (v3.7): 5 maps; the vote ballot in main.gd already uses MAP_NAMES.size() for its mod arithmetic
 # v3.5 QA-059: one info line per map for the lobby map cards —
 # real size (from game.gd MAPS) + platform count. Kept here (not
 # in game.gd) because the menu scene builds the cards and game.gd
 # has no class_name to read its MAPS from.
+# QA-095 (v3.7): counts are the REAL platform counts (the old
+# list undercounted Jungle/Neon/Volcanic/Pirate).
 const MAP_CARD_INFO: Array[String] = [
-	"3200 × 1400 • 17 platforms", "2880 × 1440 • 16 platforms",
-	"3000 × 1500 • 16 platforms", "3200 × 1600 • 17 platforms",
-	"2200 × 1400 • 15 platforms", "3200 × 1400 • 20 platforms",
-	"3000 × 1500 • 16 platforms", "3200 × 1600 • 11 platforms",
-	"3000 × 1500 • 18 platforms", "3000 × 1500 • 12 platforms",
-	"3400 × 1800 • 14 platforms", "3000 × 1750 • 14 platforms",
-	"3200 × 1500 • 10 platforms",
+	"3200 × 1400 • 23 platforms", "3200 × 1400 • 24 platforms",
+	"3400 × 1800 • 16 platforms", "3000 × 1500 • 21 platforms",
+	"3000 × 1500 • 16 platforms",
 ]
 const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"]
 # Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).

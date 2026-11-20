@@ -1,0 +1,36 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:372)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.4 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1342:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5731:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:97)
+WARNING: All audio drivers failed, falling back to the dummy driver.
+     at: initialize (servers/audio/audio_server.cpp:258)
+
+SPAWN: spawning peer 1 (Player) on server players_before=0
+FEATTEST COUNTDOWN-FREEZE: PASS — frozen=true label=3/true sub=First to 10 kills  •  Ironfall
+FEATTEST COUNTDOWN-END: PASS — countdown_active=false label=FIGHT!
+SPAWN: spawning peer 99 (TestBot) on server players_before=1
+FEATTEST KILLFEED-HITMARKER: PASS — feed='Player  ☠  TestBot   —  Pistol|' hitmark_seq=1 shots_hit=1 kills=1 best_streak=1
+FEATTEST END-STATS-MVP: PASS — end_visible=true mvp=true row=true stats=true
+FEATTEST SETTINGS-PERSIST: PASS — persist_ok=true fps_label_visible=true (restored real settings)
+FEATTEST MAP-VOTE: PASS — tally 2-1=1 tie=0 none=2 off-ballot=0 voted_map=Jungle Ruins spawns=12
+FEATTEST PICKUPS-HEALTH-GRENADE: PASS — health 40->90 grenades 0->2 pickup_node=true icon=true
+FEATTEST MUSIC: PASS — battle=true stream=true menu_loop=true menu=true off=true back=true credits=true stop=true
+SPAWN: spawning peer 98 (TestBot2) on server players_before=2
+FEATTEST SPECTATOR: PASS — spectating=true cam=true target=TestBot label=true
+FEATTEST SCOREBOARD: PASS — kd_col=true self=true tdm_totals=true
+FEATTEST FIRE-LAYOUT: PASS — move_stick=true aim_stick=true (fixed layout, no FIRE button)
+FEATTEST HUD-READOUTS: PASS — kd='K 1 • D 0' ammo='Assault Rifle 30/90' hp_ink_green=true
+FEATTEST CTF-PICKUP: PASS — blue flag carrier=1 (want 1, the local RED player)
+FEATTEST CTF-CAPTURE: PASS — blue carrier=-1 red_score=1 local_captures=1 (want -1/1/1)
+FEATTEST CTF-DROP: PASS — blue carrier=-1 dropped=true after the carrier died (want -1/true)
+FEATTEST DONE: 15/15 passed

@@ -8,12 +8,21 @@ extends Area2D
 var kind: int = 1
 var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 
-# Phase 4 — Sky Brawl pickup icons (SKY_BRAWL_USE.md): the green
-# cross for health, the blue ammo bars for grenades. Weapon kinds
-# keep their text labels — the pack has no distinguishable weapon
-# icons, and one rifle glyph on all four would be worse than labels.
-const SB_HEALTH_TEX: Texture2D = preload("res://assets/skybrawl/pickups/pickup_007.png")
-const SB_AMMO_TEX: Texture2D = preload("res://assets/skybrawl/pickups/pickup_002.png")
+# QA-088 (v3.7): drawn pickup icons from assets/items/ — the three
+# files already in the folder (ammobox / grenade / healthkit) were
+# NEVER used anywhere; they are redrawn bigger/clearer and wired in
+# here, plus a new weapon glyph for the weapon kinds. The old Sky
+# Brawl icons (pickup_007 / pickup_002) are retired for pickups:
+# the new icons are bigger, match the game's cartoon style, and read
+# at combat speed. Kind system, collision, bob and lifetime are
+# unchanged — only the picture changes.
+const HEALTH_TEX: Texture2D = preload("res://assets/items/healthkit.png")
+const GRENADE_TEX: Texture2D = preload("res://assets/items/grenade.png")
+const WEAPON_TEX: Texture2D = preload("res://assets/items/weapon.png")
+const AMMOBOX_TEX: Texture2D = preload("res://assets/items/ammobox.png")
+# assets/items/shield.png is drawn and ready (QA-088) but NOT wired:
+# there is no shield pickup kind (kinds are 1-6 only) and adding a
+# kind would change gameplay. It waits for a future shield kind.
 
 var _life: float = 20.0
 var _bob_t: float = 0.0
@@ -41,33 +50,46 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 	if kind == 5 or kind == 6:
-		# Phase 4: Sky Brawl icon sprite for health / grenades, over
-		# a faint colour glow (same shape as the weapon boxes).
+		# QA-088: drawn icon sprite for health / grenades, over a
+		# faint colour glow (same shape as the weapon boxes). The
+		# icons are ~52 px now (was a 64 px Sky Brawl sprite at
+		# 0.62x = 40 px) so they read at combat speed on a phone.
 		var glow := Polygon2D.new()
 		glow.polygon = PackedVector2Array([
-			Vector2(-20, -14), Vector2(20, -14), Vector2(20, 14), Vector2(-20, 14),
+			Vector2(-26, -18), Vector2(26, -18), Vector2(26, 18), Vector2(-26, 18),
 		])
 		glow.color = Color(KIND_COLOR.get(kind, Color(0.5, 0.9, 1.0)), 0.35)
 		add_child(glow)
 		var icon := Sprite2D.new()
-		icon.texture = SB_HEALTH_TEX if kind == 5 else SB_AMMO_TEX
-		icon.scale = Vector2(0.62, 0.62)
+		icon.texture = HEALTH_TEX if kind == 5 else GRENADE_TEX
+		var target := 52.0
+		icon.scale = Vector2(target / icon.texture.get_width(), target / icon.texture.get_width())
 		add_child(icon)
 		_base_y = position.y
 		body_entered.connect(_on_body_entered)
 		return
-	var box := Polygon2D.new()
-	box.polygon = PackedVector2Array([
-		Vector2(-20, -14), Vector2(20, -14), Vector2(20, 14), Vector2(-20, 14),
-	])
-	box.color = KIND_COLOR.get(kind, Color(0.5, 0.9, 1.0))
-	add_child(box)
+	# Weapon kinds (1-4): the ammo crate, tinted with the kind
+	# colour, with the rifle glyph on it and the name label below —
+	# the crate + glyph + label together read instantly at speed.
+	var crate := Sprite2D.new()
+	crate.texture = AMMOBOX_TEX
+	crate.scale = Vector2(58.0 / AMMOBOX_TEX.get_width(), 58.0 / AMMOBOX_TEX.get_width())
+	crate.modulate = KIND_COLOR.get(kind, Color(0.5, 0.9, 1.0))
+	add_child(crate)
+	var glyph := Sprite2D.new()
+	glyph.texture = WEAPON_TEX
+	glyph.scale = Vector2(38.0 / WEAPON_TEX.get_width(), 38.0 / WEAPON_TEX.get_width())
+	glyph.position = Vector2(0, -2)
+	add_child(glyph)
 	var label := Label.new()
 	label.text = KIND_LABEL.get(kind, "?")
-	label.position = Vector2(-20, -12)
+	label.position = Vector2(-29, 24)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.size = Vector2(40, 24)
+	label.size = Vector2(58, 22)
 	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label.add_theme_constant_override("outline_size", 4)
 	add_child(label)
 	_base_y = position.y
 	body_entered.connect(_on_body_entered)
@@ -100,11 +122,20 @@ func _on_body_entered(body: Node2D) -> void:
 				# peer only logs an engine error, so skip it, exactly
 				# as bullet.gd / game.gd do for damage RPCs.
 				body.rpc_id(body.get_multiplayer_authority(), "give_pickup", kind)
-			rpc("despawn")
+			# QA-092: the grab sparkles on every peer — despawn(true)
+			# carries the grab through the same RPC as the expiry.
+			rpc("despawn", true)
 
 
 @rpc("any_peer", "call_local")
-func despawn() -> void:
+func despawn(grabbed: bool = false) -> void:
+	# QA-092: a grabbed pickup sparkles where it was taken (every
+	# peer sees it — despawn runs call_local). An expired pickup
+	# (grabbed=false) just vanishes, as before.
+	if grabbed:
+		var game_fx = get_tree().get_first_node_in_group("game")
+		if game_fx != null:
+			game_fx.spawn_pickup_fx(global_position)
 	# Tell the host the spot is free so its per-spot timer restarts
 	# (GAP-37). Only the server tracks respawn timers.
 	if multiplayer.is_server() and spot_index >= 0:

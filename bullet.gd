@@ -39,6 +39,12 @@ var _travelled: float = 0.0
 var _life: float = 1.4
 var _trail: Line2D
 var _visual: Polygon2D
+# QA-084 (v3.7): a drawn trail sprite behind the bullet (gradient
+# streak, bright at the head, fading to the tail), on top of the
+# existing Line2D trail — the line stays exactly as it was (the
+# fire test reads its width / length), the sprite is a glow on top.
+const TRAIL_SPRITE_TEX: Texture2D = preload("res://assets/effects/bullet_trail.png")
+var _trail_sprite: Sprite2D
 var _dead: bool = false
 # QA-075: bullet trail length / width by weapon (was a fixed 21 px
 # tail, 2.4 wide, on every gun). The pistol keeps exactly 21.0 /
@@ -60,6 +66,10 @@ func _ready() -> void:
 	monitorable = false
 	_visual = Polygon2D.new()
 	add_child(_visual)
+	_trail_sprite = Sprite2D.new()
+	_trail_sprite.texture = TRAIL_SPRITE_TEX
+	_trail_sprite.z_index = -1 # behind the bullet head
+	add_child(_trail_sprite)
 	_trail = Line2D.new()
 	_trail.width = 2.4 # QA-056: 80% of 3.0, matching the smaller bullet
 	_trail.add_point(Vector2.ZERO)
@@ -125,6 +135,15 @@ func _apply_visual() -> void:
 		_trail.default_color = Color(col.r, col.g, col.b, 0.5)
 		_trail.width = float(TRAIL_WIDTH.get(kind, 2.4))
 		_trail_len = float(TRAIL_LEN.get(kind, 21.0))
+	# QA-084: the trail sprite stretches from the bullet's tail back
+	# _trail_len px (same length as the line) and takes the bullet's
+	# colour as a tint, so the glow matches the round. The bullet
+	# node itself rotates to the velocity, so the sprite (a child)
+	# always points along the flight path.
+	if _trail_sprite != null:
+		_trail_sprite.scale = Vector2(_trail_len / 64.0, float(TRAIL_WIDTH.get(kind, 2.4)) / 8.0)
+		_trail_sprite.position = Vector2(-_trail_len / 2.0, 0)
+		_trail_sprite.modulate = Color(col.r, col.g, col.b, 0.85)
 
 
 func _despawn() -> void:

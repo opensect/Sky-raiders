@@ -97,7 +97,9 @@ const EXPLOSION_KNOCKBACK := 550.0 # J in J = K * (1-u)^2
 const EXPLOSION_VERTICAL_MULT := 0.4 # Ky: upward blast multiplier
 const MASS := 1.0 # player mass for dV = J/m
 
-# --- Ice zone, Frozen Fortress only (spec §18.A prototype values) ---
+# --- Ice zone (spec §18.A prototype values) — no map uses
+# ice in v3.7 (QA-095: the old ice map is deleted); the
+# constants stay so is_on_ice / the physics check keep working ---
 const ICE_FRICTION := 100.0
 const ICE_ACCEL := 500.0
 const ICE_MAX_SPEED := 350.0

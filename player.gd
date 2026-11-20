@@ -97,8 +97,39 @@ const HELMET_TEX := {
 	1: preload("res://assets/headgear/helmet_green.png"),
 	2: preload("res://assets/headgear/cap_tan.png"),
 	3: preload("res://assets/headgear/helmet_black.png"),
+	# QA-090 (v3.7): 4 red bandana, 5 night-vision goggles, 6 camo
+	# helmet. Indices 1-3 are UNCHANGED — existing players' saved
+	# helmet choices must not shift.
+	4: preload("res://assets/headgear/bandana_red.png"),
+	5: preload("res://assets/headgear/nvg.png"),
+	6: preload("res://assets/headgear/helmet_camo.png"),
 }
-const MUZZLE_TEX: Texture2D = preload("res://assets/effects/muzzle.png")
+# QA-083 (v3.7): one muzzle-flash sprite per weapon class (was one
+# shared muzzle.png for every gun). Rifle and SMG share the rifle
+# flash; the flash texture follows the current weapon in
+# _update_gun_texture. Scale / timing still come from the weapon
+# table (flash / flash_t, QA-075) — only the picture changes.
+const MUZZLE_TEX := {
+	0: preload("res://assets/effects/muzzle_rifle.png"),
+	1: preload("res://assets/effects/muzzle_rifle.png"),
+	2: preload("res://assets/effects/muzzle_shotgun.png"),
+	3: preload("res://assets/effects/muzzle_sniper.png"),
+	4: preload("res://assets/effects/muzzle_rocket.png"),
+	5: preload("res://assets/effects/muzzle_pistol.png"),
+}
+# QA-092 (v3.7): hit-flash shader from Sprite Juice Kit Lite
+# (REEBOO Labs, MIT, v1.0) — blends the sprite toward solid red.
+# Only the SHADER file is used, driven directly from
+# _hit_flash_timer (no autoload, no per-hit tween). The kit's
+# screen shake and hit-stop are NOT adopted: the game already has
+# trauma-based shake (add_shake), and hit-stop (Engine.time_scale)
+# would freeze the shared LAN sim for every peer.
+const HIT_FLASH_SHADER: Shader = preload("res://addons/sprite_juice_lite/shaders/hit_flash.gdshader")
+# QA-082 (v3.7): jetpack flame sprite (was a plain orange Polygon2D
+# triangle). Drawn pointing DOWN from its top edge, 32x64 px, so
+# with centered=false the sprite's top sits at the old triangle's
+# top (y=22) and its length matches the old 29 px at scale 1.
+const FLAME_TEX: Texture2D = preload("res://assets/effects/jetpack_flame.png")
 
 const GUN_LENGTH := 55.0 # QA-071b: 46 * 1.20 — gun scales with the player
 
@@ -107,7 +138,7 @@ var player_index: int = 1
 var player_name: String = "Player"
 var color_index: int = 0
 var player_color: Color = Color(0.95, 0.3, 0.25)
-var helmet: int = 0 # 0 none, 1 green helmet, 2 cap, 3 black helmet
+var helmet: int = 0 # 0 none, 1 green helmet, 2 cap, 3 black helmet, 4 bandana, 5 night vision, 6 camo helmet (QA-090)
 var team: int = -1 # -1 FFA, 0 red, 1 blue
 var aim_angle: float = 0.0
 var facing: int = 1
@@ -208,6 +239,7 @@ var _respawn_timer: float = 0.0
 var _spawn_protect_timer: float = 0.0
 var _grenade_cooldown: float = 0.0
 var _hit_flash_timer: float = 0.0
+var _hit_flash_mat: ShaderMaterial # QA-092: shared hit-flash material (body + gun + helmet)
 var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var _was_on_floor: bool = false
@@ -275,7 +307,7 @@ var _wedge_ref_pos: Vector2 = Vector2.INF # QA-063: wedged-between-obstacles rec
 var _wedge_still: float = 0.0 # seconds of move input with no movement
 var _wedge_tried_left: bool = false
 var _wedge_tried_right: bool = false
-var _flame: Polygon2D # jetpack flame, driven by real thrust state (GAP-06)
+var _flame: Sprite2D # jetpack flame sprite, driven by real thrust state (GAP-06)
 
 var _collision_shape: CollisionShape2D
 var _sprite: AnimatedSprite2D
@@ -379,18 +411,25 @@ func _build_sprite() -> void:
 	_gun.z_index = 3
 	add_child(_gun)
 
-	_flame = Polygon2D.new()
+	# QA-082: the flame is a drawn sprite now (was a plain orange
+	# triangle). Same position / visibility / thrust behaviour as
+	# before: top of the flame at the old triangle's top (y=22),
+	# length 29 px at scale 1 (sprite is 32x64, so base scale is
+	# 14/32 wide, 29/64 long); centered=false so the sprite grows
+	# DOWN from y=22 exactly like the triangle did.
+	_flame = Sprite2D.new()
 	_flame.name = "JetFlame"
-	_flame.polygon = PackedVector2Array([Vector2(-7, 0), Vector2(7, 0), Vector2(0, 29)])
-	_flame.color = Color(1.0, 0.55, 0.15, 0.95)
-	_flame.position = Vector2(0, 22) # QA-071b: (0, 18) * 1.20
+	_flame.texture = FLAME_TEX
+	_flame.centered = false
+	_flame.position = Vector2(-7, 22) # QA-071b: (0, 18) * 1.20, x centred on the 14 px wide flame
+	_flame.scale = Vector2(14.0 / 32.0, 29.0 / 64.0)
 	_flame.z_index = 1
 	_flame.visible = false
 	add_child(_flame)
 
 	_muzzle = Sprite2D.new()
 	_muzzle.name = "Muzzle"
-	_muzzle.texture = MUZZLE_TEX
+	_muzzle.texture = MUZZLE_TEX[weapon]
 	_muzzle.visible = false
 	_muzzle.z_index = 4
 	_gun.add_child(_muzzle)
@@ -425,6 +464,18 @@ func _build_sprite() -> void:
 	_hp_fg.size = Vector2(53, 7)
 	add_child(_hp_fg)
 
+	# QA-092: one shared hit-flash shader material for the body, the
+	# gun and the helmet — one flash_amount drives all three, so the
+	# whole player flashes red together (QA-086). Spawn-protection
+	# blink still uses modulate, which composes with the shader.
+	_hit_flash_mat = ShaderMaterial.new()
+	_hit_flash_mat.shader = HIT_FLASH_SHADER
+	_hit_flash_mat.set_shader_parameter("flash_color", Color(1.0, 0.15, 0.15, 1.0))
+	_hit_flash_mat.set_shader_parameter("flash_amount", 0.0)
+	_sprite.material = _hit_flash_mat
+	_gun.material = _hit_flash_mat
+	_helmet_sprite.material = _hit_flash_mat
+
 
 func _make_sprite_frames() -> SpriteFrames:
 	var sf := SpriteFrames.new()
@@ -457,6 +508,23 @@ func _make_sprite_frames() -> SpriteFrames:
 	return sf
 
 
+# QA-094: per-animation helmet height. The helmet rides the body
+# sprite at a fixed offset, but the art frames do not share one
+# head height (measured hair-top, 64px frame: idle 8, run 10,
+# jump 7, shoot 10, aim 10, fall 14, jetpack 25, die 36). Without
+# this the helmet floats ~20px above the head while jetpacking.
+# Helmet centre = hair_top - 33 in sprite-local units.
+const HELMET_Y_BY_ANIM := {"idle": -25.0, "run": -23.0, "jump": -25.0, "shoot": -23.0, "aim": -23.0, "fall": -19.0, "jetpack": -8.0, "die": 3.0}
+# QA-094: per-frame helmet centre (sprite-local) for the jetpack
+# animation — the flying pose sways the head side-to-side (face
+# centre x 21..47 across frames 00..10), so a fixed offset floats
+# off the head at the extremes. Measured from the art (helmet
+# centre = face centre, y = face top - 13); verified by overlaying
+# the helmet on all 11 frames. The negative parent scale mirrors
+# these automatically when the player faces left.
+const HELMET_JETPACK_FRAMES := [Vector2(-11, -22), Vector2(0, -9), Vector2(3, -7), Vector2(1, -6), Vector2(-3, -9), Vector2(-1, -9), Vector2(11, -10), Vector2(9, -11), Vector2(2, -11), Vector2(13, -11), Vector2(15, -9)]
+var _helmet_y: float = -25.0 # QA-094: current per-animation helmet height
+
 func _update_helmet() -> void:
 	if _helmet_sprite == null:
 		return
@@ -468,7 +536,7 @@ func _update_helmet() -> void:
 	# Head is ~20px wide in the 64px frame; scale helmet to fit.
 	var target_w := 26.0
 	_helmet_sprite.scale = Vector2(target_w / tex.get_width(), target_w / tex.get_width())
-	_helmet_sprite.position = Vector2(1, -25)
+	_helmet_sprite.position = Vector2(1, _helmet_y) # QA-094: was a fixed -25
 
 
 func _update_gun_texture() -> void:
@@ -481,6 +549,8 @@ func _update_gun_texture() -> void:
 	# Muzzle flash sits at the barrel tip in the gun's local space.
 	if _muzzle != null:
 		_muzzle.position = Vector2(tex.get_width(), 0)
+		# QA-083: the flash picture follows the weapon class.
+		_muzzle.texture = MUZZLE_TEX[weapon]
 
 
 # QA-053 — movement / state replication over the PROVEN RPC channel.
@@ -1307,6 +1377,9 @@ func _apply_movement(delta: float) -> void:
 		var game2 = get_tree().get_first_node_in_group("game")
 		if game2 != null:
 			game2.spawn_impact_fx(global_position + Vector2(0, 31), true)
+			# QA-085 (v3.7): landing dust — a soft dust-puff sprite
+			# at the feet, alongside the existing spark.
+			game2.spawn_dust_fx(global_position + Vector2(0, 31))
 	var game3 = get_tree().get_first_node_in_group("game")
 	if game3 != null and position.y > game3.map_size.y + 200.0:
 		_respawn()
@@ -1442,6 +1515,16 @@ func _play_anim(anim_name: String) -> void:
 			return
 	_current_anim = anim_name
 	_sprite.play(anim_name)
+	# QA-094: the helmet rides at a fixed offset from the sprite,
+	# but each animation draws the head at a different height in
+	# the frame (jetpack frames sit ~17px low) — move the helmet
+	# with the animation. _play_anim is the one choke point for
+	# local + remote animation changes. Guarded: _ready calls
+	# _play_anim("idle") before the helmet sprite exists.
+	if HELMET_Y_BY_ANIM.has(anim_name):
+		_helmet_y = float(HELMET_Y_BY_ANIM[anim_name])
+		if _helmet_sprite != null:
+			_helmet_sprite.position.y = _helmet_y
 
 
 func _fire() -> void:
@@ -1638,7 +1721,10 @@ func throw_grenade() -> void:
 	var dir := Vector2(cos(aim_angle), sin(aim_angle))
 	if not _aiming:
 		dir = Vector2(facing, -0.4).normalized()
-	rpc("spawn_grenade", global_position + Vector2(0, -7), dir, peer_id)
+	# QA-091 (v3.7, GRENADE_SPEC §2): the throw carries ~40% of the
+	# thrower's velocity, so a jetpack throw keeps its momentum
+	# instead of always leaving at the same flat arc.
+	rpc("spawn_grenade", global_position + Vector2(0, -7), dir, peer_id, velocity)
 	_play_sound("click")
 
 
@@ -1671,7 +1757,7 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 
 
 @rpc("any_peer", "call_local")
-func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int) -> void:
+func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vector2 = Vector2.ZERO) -> void:
 	var node = get_tree().get_first_node_in_group("game")
 	if node == null:
 		return
@@ -1679,6 +1765,7 @@ func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int) -> void:
 	g.name = "g_%d_%d" % [owner_id, Time.get_ticks_msec()]
 	g.position = pos
 	g.throw_dir = dir
+	g.thrower_vel = thrower_vel # QA-091: 40% inherited in grenade.gd
 	g.owner_id = owner_id
 	node.grenades_node.add_child(g)
 
@@ -1980,6 +2067,13 @@ func _update_visuals(delta: float) -> void:
 		_muzzle.visible = alive and _muzzle_timer > 0.0
 	# QA-071b: keep the 1.20x sprite scale; only flip x for facing.
 	_sprite.scale = Vector2(PLAYER_SCALE * float(facing), PLAYER_SCALE)
+	# QA-094: while jetpacking, track the head per frame — the
+	# flying pose sways side-to-side (see HELMET_JETPACK_FRAMES).
+	# Other animations use the per-animation height set in
+	# _play_anim. Runs for local and remote copies alike.
+	if _current_anim == "jetpack" and _helmet_sprite != null:
+		var f := clampi(_sprite.frame, 0, HELMET_JETPACK_FRAMES.size() - 1)
+		_helmet_sprite.position = HELMET_JETPACK_FRAMES[f]
 	# Gun follows the aim angle exactly; flips upright when aiming left.
 	# (Rotation is set below together with the reload/switch dip.)
 	_gun.scale = Vector2(_gun_base_scale, _gun_base_scale * (-1.0 if cos(aim_angle) < 0.0 else 1.0))
@@ -2008,11 +2102,17 @@ func _update_visuals(delta: float) -> void:
 		_flame.visible = thrusting and alive
 		if thrusting:
 			var frac := (0.6 + 0.6 * clampf(absf(velocity.y) / MAX_JET_RISE, 0.0, 1.0)) * (0.7 + 0.3 * _jet_thrust_factor)
-			_flame.scale = Vector2(1.0 + 0.15 * sin(Time.get_ticks_msec() / 40.0), frac)
+			# QA-082: base scale (14/32, 29/64) reproduces the old
+			# triangle's 14x29 px at frac 1.0; the wobble is the
+			# same flicker as before. The sprite carries its own
+			# colours, so modulate stays white (the old orange
+			# tint would have dulled the white-hot core).
+			_flame.scale = Vector2((14.0 / 32.0) * (1.0 + 0.15 * sin(Time.get_ticks_msec() / 40.0)), (29.0 / 64.0) * frac)
+			_flame.position = Vector2(-16.0 * _flame.scale.x, 22.0)
 			if fuel < PhysicsConfig.FUEL_LOW_WARN:
-				_flame.modulate = Color(1.0, 0.4, 0.1, 0.5 + 0.5 * sin(Time.get_ticks_msec() / 60.0))
+				_flame.modulate = Color(1.0, 1.0, 1.0, 0.5 + 0.5 * sin(Time.get_ticks_msec() / 60.0))
 			else:
-				_flame.modulate = Color(1.0, 0.55, 0.15, 0.95)
+				_flame.modulate = Color.WHITE
 	_gun.visible = alive
 	# Camera shake: trauma decays in _physics_process; the offset is
 	# trauma squared so small shakes stay subtle and big ones punch.
@@ -2033,14 +2133,25 @@ func _update_visuals(delta: float) -> void:
 	_hp_fg.visible = alive
 	if _hit_flash_timer > 0.0:
 		_hit_flash_timer -= delta
-		_sprite.modulate = Color(3.0, 0.6, 0.6)
-		if _hit_flash_timer <= 0.0:
-			_sprite.modulate = Color.WHITE
+		# QA-086 + QA-092 (v3.7): the hit flash is a shader-driven
+		# red flash over the WHOLE player — body, gun and helmet
+		# share one flash material, amount fading 1 -> 0 over the
+		# 0.09 s timer (was a modulate tint on the body sprite only,
+		# then on all three). Purely visual; the timer and the
+		# damage path are unchanged.
+		if _hit_flash_mat != null:
+			_hit_flash_mat.set_shader_parameter("flash_amount", clampf(_hit_flash_timer / 0.09, 0.0, 1.0))
+		if _hit_flash_timer <= 0.0 and _hit_flash_mat != null:
+			_hit_flash_mat.set_shader_parameter("flash_amount", 0.0)
 	elif _spawn_protect_timer > 0.0:
 		# Spawn protection: blink so other players can see it.
 		_sprite.modulate = Color(1, 1, 1, 0.55 + 0.35 * sin(Time.get_ticks_msec() / 90.0))
+		_gun.modulate = _sprite.modulate
+		_helmet_sprite.modulate = _sprite.modulate
 	else:
 		_sprite.modulate = Color.WHITE
+		_gun.modulate = Color.WHITE
+		_helmet_sprite.modulate = Color.WHITE
 	_hp_fg.size.x = 53.0 * clampf(float(health) / 100.0, 0.0, 1.0)
 	_hp_fg.color = Color(0.3, 0.9, 0.3) if health > 30 else Color(0.9, 0.25, 0.2)
 	# Team colour ring tint.

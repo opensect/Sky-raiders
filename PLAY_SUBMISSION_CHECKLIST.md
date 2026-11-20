@@ -1,9 +1,16 @@
-# Google Play submission checklist — LAN Arena Shooter
+# Google Play submission checklist — Frag Arena
 
 **Status (19 Nov 2026, v3.2): the app is Play-ready in code and
 policy. NOTHING has been published or submitted — there is no Play
 Console account connected here, and publishing needs the user's own
 account. This file is the handoff for that step.**
+
+**Re-verified 20 Nov 2026 on the v3.6 APK (versionCode 14) — see
+BUGS.md QA-093:** targetSdk 36, minSdk 24, compileSdk 36, arm64-v8a
+only, exactly the three permissions, `allowBackup=false`,
+`requestLegacyExternalStorage=false`, not debuggable, not testOnly,
+apksigner v2+v3 verified (debug keystore cert SHA-256
+`f65f2fa3…e02d11`), zipalign OK.
 
 ## Already done in v3.2 (verify again at export time)
 
@@ -47,10 +54,16 @@ account. This file is the handoff for that step.**
 ## Still to do at export time (final export worker)
 
 - [ ] **Build the AAB, not just the APK.** In Godot: enable the
-  Gradle build for the Android preset (or use the `android/` Gradle
-  project in this repo) and export **Android App Bundle**. Play
-  requires AAB for new apps; the direct-install APK stays as the
-  sideload build.
+  Gradle build for the Android preset and export **Android App
+  Bundle**. Play requires AAB for new apps; the direct-install APK
+  stays as the sideload build.
+  - **WARNING — do NOT use the `android/` Gradle project in this
+    repo as-is.** It is a stale Godot **4.3** build template
+    (`config.gradle`: targetSdk 34, compileSdk 34, AGP 8.2.0,
+    NDK 23.2). Using it would ship a targetSdk-34 AAB. Before any
+    Gradle/AAB build, regenerate it from the **4.7.2** template
+    (Project → Install Android Build Template, with the 4.7.2
+    editor) and confirm `targetSdk 36` in the new `config.gradle`.
   - **v3.2 export outcome (19 Nov 2026): BLOCKED — no release
     keystore exists.** Worker 3 searched the whole home directory
     for `*.keystore`: only the Godot debug keystore exists. A
@@ -90,7 +103,7 @@ account. This file is the handoff for that step.**
   account ($25 one-time fee, user's own Google account). No account
   is connected here; nobody here can publish.
 - [ ] **App listing:** create the app (package `com.lanarena.shooter`,
-  title "LAN Arena Shooter"), upload the signed AAB, fill the store
+  title "Frag Arena"), upload the signed AAB, fill the store
   listing: short + full description, screenshots (phone + 7" tablet
   minimum), feature graphic 1024×500, app icon 512×512.
 - [ ] **Content rating:** complete the rating questionnaire

@@ -1,8 +1,8 @@
-# Privacy Policy — LAN Arena Shooter
+# Privacy Policy — Frag Arena
 
-**Last updated: 19 November 2026 — version 3.2**
+**Last updated: 20 November 2026 — version 3.7**
 
-LAN Arena Shooter is a local-multiplayer arena game. It is played
+Frag Arena is a local-multiplayer arena game. It is played
 entirely on your own Wi-Fi network (LAN). This policy explains what
 the app does and does not do with your information.
 
@@ -26,6 +26,9 @@ the app does and does not do with your information.
   control sensitivity, volume, and music settings. These are stored
   locally on your own phone (Godot user settings) and are never
   uploaded anywhere.
+- **Match stats only:** matches played, wins, kills, and deaths are
+  also stored locally on your phone for the in-game stats screen.
+  They are never uploaded anywhere.
 - **Your display name** is shown to the other players in the same
   room so they can tell players apart. It is sent only to the phones
   in that room, over your local Wi-Fi, and only while you are playing.

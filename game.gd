@@ -48,35 +48,26 @@ const MAX_PLAYERS := 12 # absolute cap; the room setting is max_players (GameDat
 const JOIN_TIMEOUT := 8.0
 
 const TILE_TEX: Array[Texture2D] = [
-	preload("res://assets/tiles/tile_catacombs.png"),
-	preload("res://assets/tiles/tile_military.png"),
-	preload("res://assets/tiles/tile_desert.png"),
-	preload("res://assets/tiles/tile_factory.png"),
-	preload("res://assets/tiles/tile_frozen.png"),
+	# QA-095 (v3.7): 5 maps only — 0 Ironfall (new, code-drawn iron
+	# plate), 1 Jungle Ruins, 2 Neon City (Sky Brawl), 3 Volcanic
+	# Cavern, 4 Pirate Island. The 8 deleted maps' tiles are gone
+	# (their tile files are deleted — nothing references them).
+	preload("res://assets/tiles/tile_ironfall.png"),
 	preload("res://assets/tiles/tile_jungle.png"),
-	preload("res://assets/tiles/tile_space.png"),
-	preload("res://assets/tiles/tile_city.png"),
+	preload("res://assets/skybrawl/tiles/tile_neon.png"),
 	preload("res://assets/tiles/tile_volcanic.png"),
 	preload("res://assets/tiles/tile_pirate.png"),
-	# Phase 5 — Sky Brawl tiles, alpha-flattened + resized to 128x48
-	# (SKY_BRAWL_USE.md): 10 Neon City (purple brick), 11 Ancient
-	# Temple (tan stone; Airship Fleet reuses it as its deck tile).
-	preload("res://assets/skybrawl/tiles/tile_neon.png"),
-	preload("res://assets/skybrawl/tiles/tile_temple.png"),
 ]
 # Phase 5 — Sky Brawl arena backgrounds as a FAR parallax layer
 # (viewport scale ~1.3x, parallax 0.25, never stretched over a map).
-# Index matches the map's "bg" key: 0 Catacombs, 1 Industrial,
-# 2 Space Station, 3 City Underground, 4 Volcanic Cavern,
-# 5 Neon City, 6 Ancient Temple.
+# QA-095 (v3.7): 3 left — Index matches the map's "bg" key:
+# 0 Ironfall (new, code-drawn dusk factory skyline), 1 Volcanic
+# Cavern, 2 Neon City. Jungle Ruins and Pirate Island keep the
+# procedural gradient (no "bg" key), as before.
 const BG_TEX: Array[Texture2D] = [
-	preload("res://assets/skybrawl/maps/bg_catacombs.png"),
-	preload("res://assets/skybrawl/maps/bg_industrial.png"),
-	preload("res://assets/skybrawl/maps/bg_space.png"),
-	preload("res://assets/skybrawl/maps/bg_city.png"),
+	preload("res://assets/skybrawl/maps/bg_ironfall.png"),
 	preload("res://assets/skybrawl/maps/bg_volcanic.png"),
 	preload("res://assets/skybrawl/maps/bg_neon.png"),
-	preload("res://assets/skybrawl/maps/bg_temple.png"),
 ]
 const DECOR_CRATE: Texture2D = preload("res://assets/tiles/crate.png")
 const DECOR_BARRELS: Texture2D = preload("res://assets/tiles/barrels.png")
@@ -98,6 +89,36 @@ const DECOR_JBUSH: Texture2D = preload("res://assets/jungle/jungle_bush.png")
 const DECOR_JBRIDGE: Texture2D = preload("res://assets/jungle/jungle_bridge.png")
 const DECOR_JARCH: Texture2D = preload("res://assets/jungle/jungle_arch.png")
 const DECOR_JPLATFORM: Texture2D = preload("res://assets/jungle/jungle_platform.png")
+# QA-096 (v3.7) — Operation Ironfall slices (assets/ironfall_sliced/):
+# the user's 10-sheet pack, hand-boxed, background flood-filled
+# from the crop border, verified on magenta/dark-green (no dark
+# box in-game). See assets/ASSET_MANIFEST.md Part 5.
+const DECOR_IF_TOWER: Texture2D = preload("res://assets/ironfall_sliced/if_tower.png")
+const DECOR_IF_GANTRY: Texture2D = preload("res://assets/ironfall_sliced/if_gantry.png")
+const DECOR_IF_DERRICK: Texture2D = preload("res://assets/ironfall_sliced/if_derrick.png")
+const DECOR_IF_BRIDGE: Texture2D = preload("res://assets/ironfall_sliced/if_bridge.png")
+const DECOR_IF_BRIDGE_METAL: Texture2D = preload("res://assets/ironfall_sliced/if_bridge_metal.png")
+const DECOR_IF_PLANK: Texture2D = preload("res://assets/ironfall_sliced/if_plank.png")
+const DECOR_IF_CAVE: Texture2D = preload("res://assets/ironfall_sliced/if_cave.png")
+const DECOR_IF_CAVE2: Texture2D = preload("res://assets/ironfall_sliced/if_cave2.png")
+const DECOR_IF_CAVERN: Texture2D = preload("res://assets/ironfall_sliced/if_cavern.png")
+const DECOR_IF_ROCKLEDGE: Texture2D = preload("res://assets/ironfall_sliced/if_rockledge.png")
+const DECOR_IF_WATER: Texture2D = preload("res://assets/ironfall_sliced/if_water.png")
+const DECOR_IF_FALL: Texture2D = preload("res://assets/ironfall_sliced/if_fall.png")
+const DECOR_IF_SPIKES: Texture2D = preload("res://assets/ironfall_sliced/if_spikes.png")
+const DECOR_IF_VENT: Texture2D = preload("res://assets/ironfall_sliced/if_vent.png")
+const DECOR_IF_DOOR: Texture2D = preload("res://assets/ironfall_sliced/if_door.png")
+const DECOR_IF_CRATE: Texture2D = preload("res://assets/ironfall_sliced/if_crate.png")
+const DECOR_IF_BARREL: Texture2D = preload("res://assets/ironfall_sliced/if_barrel.png")
+const DECOR_IF_SANDBAGS: Texture2D = preload("res://assets/ironfall_sliced/if_sandbags.png")
+const DECOR_IF_LAMP: Texture2D = preload("res://assets/ironfall_sliced/if_lamp.png")
+const DECOR_IF_PALM: Texture2D = preload("res://assets/ironfall_sliced/if_palm.png")
+const DECOR_IF_VINES: Texture2D = preload("res://assets/ironfall_sliced/if_vines.png")
+const DECOR_IF_ROCK: Texture2D = preload("res://assets/ironfall_sliced/if_rock.png")
+const DECOR_IF_TREE: Texture2D = preload("res://assets/ironfall_sliced/if_tree.png")
+const DECOR_IF_BUNKER: Texture2D = preload("res://assets/ironfall_sliced/if_bunker.png")
+const DECOR_IF_ARCH: Texture2D = preload("res://assets/ironfall_sliced/if_arch.png")
+const DECOR_IF_COMMS: Texture2D = preload("res://assets/ironfall_sliced/if_comms.png")
 # Phase 5 — Sky Brawl structures (SKY_BRAWL_USE.md). Huts/blocks/
 # vents/crates are SOLID cover (see SOLID_DECOR_KINDS); slabs,
 # trapezoids and the altar stone are visual dressing only.
@@ -115,170 +136,58 @@ const DECOR_SB_CRATE: Texture2D = preload("res://assets/skybrawl/structures/sb_c
 const DECOR_SB_VENT_ORANGE: Texture2D = preload("res://assets/skybrawl/structures/sb_vent_orange.png")
 
 const MAPS := [
+# QA-095 (v3.7): 5 maps only, in this order — Ironfall,
+# Jungle Ruins, Neon City, Volcanic Cavern, Pirate Island.
+# The other 8 maps are deleted (map data, tiles, thumbs,
+# backgrounds, lobby entries — nothing references them).
 	{
-		"name": "Catacombs", "size": Vector2(3200, 1400), "tile": 0,
+		# QA-096 (v3.7) — Operation Ironfall (user-shared design,
+		# OPERATION_IRONFALL.md). Medium 3200x1400, 5 zones:
+		# A Northern Watchtower (left, sniper perches y500/y670 +
+		# if_tower on the y670 perch, if_comms on the right floor),
+		# B Broken Bridges (bridge decor on the y1180/y1010
+		# platforms, gaps between levels), C Underground Tunnels
+		# (tunnel = floor under the y1180 roof platform x1150-1850,
+		# cave-arch entrances at both ends, lamps + concealed
+		# pickup inside), D Ironfall Central Base (if_bunker on the
+		# floor at the centre, perches y500/y670/y840), E Waterfall
+		# Cavern (right, if_fall + if_water pool, if_spikes).
+		# Jump rise 170 px between levels, like the other maps.
+		"name": "Ironfall", "size": Vector2(3200, 1400), "tile": 0,
 		"bg": 0,
-		"sky_top": Color(0.07, 0.08, 0.15), "sky_bottom": Color(0.14, 0.16, 0.26),
-		"hill": Color(0.04, 0.05, 0.09), "sun": Color(0.95, 0.70, 0.35), "fx": "dust",
+		"sky_top": Color(0.13, 0.16, 0.28), "sky_bottom": Color(0.45, 0.30, 0.22),
+		"hill": Color(0.10, 0.12, 0.20), "sun": Color(1.00, 0.55, 0.25), "fx": "dust",
 		"platforms": [
 			Rect2(0, 1352, 3200, 48),
-			Rect2(300, 1180, 420, 48),
-			Rect2(1350, 1180, 500, 48),
-			Rect2(2480, 1180, 420, 48),
-			Rect2(1850, 1180, 630, 48),
-			Rect2(850, 1090, 100, 48),
+			Rect2(150, 1180, 300, 48),
+			Rect2(700, 1180, 350, 48),
+			Rect2(1150, 1180, 700, 48),
+			Rect2(2000, 1180, 300, 48),
+			Rect2(2550, 1180, 350, 48),
 			Rect2(100, 1010, 240, 48),
-			Rect2(950, 1010, 900, 48),
-			Rect2(2300, 1010, 300, 48),
-			Rect2(2860, 1010, 240, 48),
+			Rect2(450, 1010, 600, 48),
+			Rect2(1350, 1010, 500, 48),
+			Rect2(2150, 1010, 400, 48),
+			Rect2(2750, 1010, 260, 48),
 			Rect2(650, 840, 340, 48),
-			Rect2(1450, 840, 300, 48),
+			Rect2(1150, 840, 260, 48),
+			Rect2(1500, 840, 260, 48),
 			Rect2(2150, 840, 340, 48),
-			Rect2(990, 840, 460, 48),
-			Rect2(1750, 840, 400, 48),
+			Rect2(2800, 840, 376, 48),
 			Rect2(350, 670, 320, 48),
-			Rect2(1500, 670, 260, 48),
+			Rect2(1350, 670, 260, 48),
 			Rect2(2200, 670, 360, 48),
+			Rect2(2900, 670, 260, 48),
 			Rect2(200, 500, 320, 48),
 			Rect2(1450, 500, 300, 48),
-			Rect2(2680, 500, 320, 48),
+			Rect2(2100, 500, 300, 48),
 		],
-		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(500, 1146), Vector2(1200, 976), Vector2(800, 806), Vector2(500, 636), Vector2(2300, 1318), Vector2(2800, 1318), Vector2(2650, 1146), Vector2(2450, 976), Vector2(2300, 806), Vector2(2350, 636)],
-		"pickups": [Vector2(500, 1150), Vector2(2700, 1150), Vector2(1400, 1150), Vector2(1600, 810), Vector2(400, 640), Vector2(1600, 470)],
-		"decor": [["column", 650, 1352], ["crate", 1600, 1010], ["crate", 1320, 1352], ["barrels", 1920, 1352], ["column", 2580, 1352], ["sandbags", 3120, 1352], ["crate", 210, 1352], ["crate", 810, 1352], ["crate", 590, 1180], ["crate", 1500, 1180], ["column", 1100, 1352], ["barrels", 2150, 1352], ["crate", 1290, 1010], ["crate", 890, 840], ["crate", 590, 670], ["crate", 2390, 1352], ["crate", 2890, 1352], ["crate", 2540, 1010], ["crate", 2390, 840], ["crate", 2440, 670]],
+		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1300, 1146), Vector2(850, 976), Vector2(800, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2350, 636)],
+		"pickups": [Vector2(300, 1150), Vector2(2700, 1150), Vector2(1500, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
+		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["if_sandbags", 800, 1180], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1180], ["if_bunker", 1600, 1352], ["crate", 1500, 1010], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1180], ["if_tower", 500, 670], ["if_gantry", 900, 1180], ["if_rockledge", 600, 1010], ["if_bridge", 2300, 1010], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 2780, 1352], ["if_water", 2950, 1352], ["if_comms", 3100, 1352]],
 	},
 	{
-		"name": "Military Base", "size": Vector2(2880, 1440), "tile": 1,
-		"sky_top": Color(0.45, 0.70, 0.95), "sky_bottom": Color(0.85, 0.92, 0.95),
-		"hill": Color(0.35, 0.50, 0.35), "sun": Color(1.00, 0.95, 0.60), "fx": "none",
-		"platforms": [
-			Rect2(0, 1392, 2880, 48),
-			Rect2(200, 1220, 400, 48),
-			Rect2(1150, 1220, 400, 48),
-			Rect2(2150, 1220, 400, 48),
-			Rect2(600, 1220, 550, 48),
-			Rect2(1550, 1220, 600, 48),
-			Rect2(700, 1050, 360, 48),
-			Rect2(1650, 1050, 360, 48),
-			Rect2(2500, 1050, 356, 48),
-			Rect2(400, 880, 320, 48),
-			Rect2(1600, 880, 320, 48),
-			Rect2(2200, 880, 360, 48),
-			Rect2(720, 880, 880, 48),
-			Rect2(1920, 880, 280, 48),
-			Rect2(1000, 710, 420, 48),
-			Rect2(200, 710, 260, 48),
-			Rect2(2400, 710, 260, 48),
-			Rect2(850, 540, 300, 48),
-			Rect2(1450, 540, 300, 48),
-			Rect2(1250, 370, 380, 48),
-		],
-		"spawns": [Vector2(300, 1358), Vector2(900, 1358), Vector2(1350, 1186), Vector2(850, 1016), Vector2(550, 846), Vector2(1150, 676), Vector2(2100, 1358), Vector2(2600, 1358), Vector2(2350, 1186), Vector2(1800, 1016), Vector2(2350, 846), Vector2(1750, 506)],
-		"pickups": [Vector2(400, 1190), Vector2(2400, 1190), Vector2(1350, 1190), Vector2(1440, 340), Vector2(1600, 510), Vector2(1000, 510)],
-		"decor": [["column", 250, 710], ["sandbags", 720, 1392], ["crate", 1020, 1392], ["barrels", 1320, 1392], ["column", 1620, 1392], ["sandbags", 2220, 1392], ["crate", 210, 1392], ["crate", 1440, 1220], ["sandbags", 1900, 1392], ["crate", 500, 1220], ["barrels", 2400, 1392], ["crate", 940, 1050], ["crate", 640, 880], ["crate", 1240, 710], ["crate", 2690, 1392], ["crate", 2440, 1220], ["crate", 1890, 1050], ["crate", 2440, 880], ["crate", 1660, 540]],
-	},
-	{
-		"name": "Desert Outpost", "size": Vector2(3000, 1500), "tile": 2,
-		"sky_top": Color(0.95, 0.75, 0.45), "sky_bottom": Color(0.99, 0.90, 0.65),
-		"hill": Color(0.65, 0.45, 0.25), "sun": Color(1.00, 0.85, 0.50), "fx": "dust",
-		"platforms": [
-			Rect2(0, 1452, 3000, 48),
-			Rect2(250, 1280, 420, 48),
-			Rect2(1300, 1280, 460, 48),
-			Rect2(2350, 1280, 420, 48),
-			Rect2(670, 1280, 630, 48),
-			Rect2(1760, 1280, 590, 48),
-			Rect2(100, 1110, 240, 48),
-			Rect2(700, 1110, 360, 48),
-			Rect2(1800, 1110, 360, 48),
-			Rect2(2700, 1110, 276, 48),
-			Rect2(340, 1110, 360, 48),
-			Rect2(1060, 1110, 740, 48),
-			Rect2(2160, 1110, 540, 48),
-			Rect2(450, 940, 320, 48),
-			Rect2(1250, 940, 400, 48),
-			Rect2(2050, 940, 320, 48),
-			Rect2(800, 770, 320, 48),
-			Rect2(1900, 770, 320, 48),
-			Rect2(300, 600, 260, 48),
-			Rect2(1200, 600, 360, 48),
-			Rect2(2500, 600, 260, 48),
-		],
-		"spawns": [Vector2(300, 1418), Vector2(900, 1418), Vector2(450, 1246), Vector2(850, 1076), Vector2(600, 906), Vector2(950, 736), Vector2(2100, 1418), Vector2(2600, 1418), Vector2(2500, 1246), Vector2(2000, 1076), Vector2(2200, 906), Vector2(2050, 736)],
-		"pickups": [Vector2(450, 1250), Vector2(2720, 1250), Vector2(1500, 1250), Vector2(1500, 910), Vector2(950, 740), Vector2(1400, 570)],
-		"decor": [["palms", 400, 1452], ["palms", 2850, 1452], ["crate", 720, 1452], ["sandbags", 1020, 1452], ["column", 1320, 1452], ["barrels", 1620, 1452], ["crate", 1920, 1452], ["sandbags", 2220, 1452], ["column", 2850, 1452], ["crate", 210, 1452], ["crate", 540, 1280], ["rock", 1780, 1452], ["crate", 1450, 1110], ["crate", 940, 1110], ["crate", 690, 940], ["crate", 1040, 770], ["crate", 2690, 1452], ["crate", 2590, 1280], ["crate", 2090, 1110], ["crate", 2290, 940], ["crate", 2140, 770]],
-	},
-	{
-		"name": "Industrial Factory", "size": Vector2(3200, 1600), "tile": 3,
-		"bg": 1,
-		"sky_top": Color(0.25, 0.28, 0.35), "sky_bottom": Color(0.55, 0.50, 0.45),
-		"hill": Color(0.20, 0.18, 0.20), "sun": Color(1.00, 0.80, 0.40), "fx": "sparks",
-		"platforms": [
-			Rect2(0, 1552, 3200, 48),
-			Rect2(300, 1380, 420, 48),
-			Rect2(1400, 1380, 460, 48),
-			Rect2(2500, 1380, 420, 48),
-			Rect2(720, 1380, 680, 48),
-			Rect2(1860, 1380, 640, 48),
-			Rect2(100, 1210, 240, 48),
-			Rect2(750, 1210, 380, 48),
-			Rect2(1950, 1210, 380, 48),
-			Rect2(2900, 1210, 276, 48),
-			Rect2(1130, 1210, 820, 48),
-			Rect2(500, 1040, 340, 48),
-			Rect2(1300, 1040, 420, 48),
-			Rect2(2100, 1040, 340, 48),
-			Rect2(900, 870, 340, 48),
-			Rect2(2000, 870, 340, 48),
-			Rect2(1240, 870, 760, 48),
-			Rect2(400, 700, 280, 48),
-			Rect2(1300, 700, 400, 48),
-			Rect2(2600, 700, 280, 48),
-			Rect2(1500, 530, 320, 48),
-		],
-		"spawns": [Vector2(300, 1518), Vector2(900, 1518), Vector2(1500, 1346), Vector2(950, 1176), Vector2(650, 1006), Vector2(1050, 836), Vector2(2100, 1518), Vector2(2700, 1518), Vector2(2650, 1346), Vector2(2150, 1176), Vector2(2250, 1006), Vector2(2150, 836)],
-		"pickups": [Vector2(500, 1350), Vector2(2700, 1350), Vector2(1600, 1350), Vector2(1600, 1010), Vector2(1050, 840), Vector2(1650, 500)],
-		"decor": [["bridge", 1300, 1040], ["barrels", 660, 1552], ["crate", 1320, 1552], ["column", 1620, 1552], ["sandbags", 1920, 1552], ["barrels", 2520, 1552], ["crate", 2820, 1552], ["column", 3040, 1552], ["crate", 210, 1552], ["crate", 830, 1552], ["column", 1760, 1552], ["crate", 1600, 1210], ["crate", 1040, 1210], ["crate", 740, 1040], ["crate", 1140, 870], ["crate", 2740, 1380], ["crate", 2240, 1210], ["crate", 2340, 1040], ["crate", 2240, 870]],
-	},
-	{
-		# QA-033 (MAP_AUDIT §Similarity-3): rebuilt as the game's small
-		# duel map (~2200x1400, 2-4 players) instead of a Template A
-		# clone shifted to 2800. New layout: open ice-slide centre
-		# (floor x450-1750 is the low-friction zone, kept clear of
-		# floor decor so the slide run is unobstructed), hot zone on
-		# the frozen lake platform (850-1350 @1180, centre pickup at
-		# spot 3), dense cover on the flanks + platforms (the old
-		# map's signature), snow fx kept. Jump rises 170-172 px.
-		# TDM: spawns[0:6] left half, spawns[6:12] right half.
-		"name": "Frozen Fortress", "size": Vector2(2200, 1400), "tile": 4,
-		"sky_top": Color(0.55, 0.70, 0.90), "sky_bottom": Color(0.85, 0.90, 0.97),
-		"hill": Color(0.60, 0.70, 0.85), "sun": Color(0.95, 0.95, 1.00), "fx": "snow",
-		"platforms": [
-			Rect2(0, 1352, 2200, 48),
-			Rect2(150, 1180, 340, 48),
-			Rect2(850, 1180, 500, 48),
-			Rect2(1710, 1180, 340, 48),
-			Rect2(490, 1180, 360, 48),
-			Rect2(1350, 1180, 360, 48),
-			Rect2(24, 1010, 276, 48),
-			Rect2(550, 1010, 300, 48),
-			Rect2(1350, 1010, 300, 48),
-			Rect2(850, 1010, 500, 48),
-			Rect2(1850, 1010, 220, 48),
-			Rect2(350, 840, 300, 48),
-			Rect2(950, 840, 300, 48),
-			Rect2(1550, 840, 300, 48),
-			Rect2(250, 670, 260, 48),
-			Rect2(950, 670, 300, 48),
-			Rect2(1690, 670, 260, 48),
-			Rect2(950, 500, 300, 48),
-		],
-		"spawns": [Vector2(250, 1318), Vector2(700, 1318), Vector2(320, 1146), Vector2(700, 976), Vector2(500, 806), Vector2(380, 636), Vector2(1950, 1318), Vector2(1500, 1318), Vector2(1880, 1146), Vector2(1500, 976), Vector2(1700, 806), Vector2(1820, 636)],
-		"pickups": [Vector2(320, 1150), Vector2(1880, 1150), Vector2(380, 640), Vector2(1100, 1150), Vector2(1100, 810), Vector2(1820, 640)],
-		"decor": [["sandbags", 170, 1352], ["barrels", 1800, 1352], ["crate", 700, 1180], ["sandbags", 2040, 1352], ["column", 150, 1010], ["crate", 300, 1010], ["crate", 450, 1180], ["crate", 1980, 1180], ["crate", 800, 1010], ["crate", 1400, 1010], ["crate", 600, 840], ["crate", 1600, 840], ["crate", 450, 670], ["crate", 1750, 670]],
-	},
-	{
-		"name": "Jungle Ruins", "size": Vector2(3200, 1400), "tile": 5,
+		"name": "Jungle Ruins", "size": Vector2(3200, 1400), "tile": 1,
 		"sky_top": Color(0.35, 0.65, 0.85), "sky_bottom": Color(0.80, 0.92, 0.75),
 		"hill": Color(0.20, 0.40, 0.20), "sun": Color(1.00, 0.95, 0.60), "fx": "leaves",
 		"platforms": [
@@ -312,63 +221,35 @@ const MAPS := [
 		"decor": [["jtree", 130, 1352], ["jpalm", 3000, 1352], ["jstatue", 1400, 1010], ["jpillar", 1100, 1010], ["jpillar", 1700, 1010], ["jtower", 2400, 840], ["jbridge", 1875, 1010], ["jarch", 2100, 1010], ["jtree", 2300, 840], ["jbush", 600, 1352], ["jcrate", 720, 1352], ["jpillar", 1320, 1352], ["jcrate", 1620, 1352], ["jcrate", 1860, 1352], ["jpillar", 2520, 1352], ["jcrate", 3040, 1352], ["jcrate", 210, 1352], ["jcrate", 1260, 1352], ["jpillar", 950, 1352], ["jcrate", 1500, 1180], ["jcrate", 1040, 840], ["jcrate", 360, 670], ["jcrate", 2030, 1352], ["jcrate", 2990, 1352], ["jcrate", 2290, 1180], ["jcrate", 2290, 1010], ["jcrate", 2690, 670], ["barrels", 1100, 1352]],
 	},
 	{
-		"name": "Space Station", "size": Vector2(3000, 1500), "tile": 6,
+		"name": "Neon City", "size": Vector2(3400, 1800), "tile": 2,
 		"bg": 2,
-		"sky_top": Color(0.02, 0.03, 0.08), "sky_bottom": Color(0.08, 0.10, 0.22),
-		"hill": Color(0.05, 0.07, 0.16), "sun": Color(0.90, 0.95, 1.00), "fx": "none",
+		"sky_top": Color(0.05, 0.04, 0.16), "sky_bottom": Color(0.16, 0.10, 0.32),
+		"hill": Color(0.08, 0.06, 0.20), "sun": Color(1.00, 0.45, 0.75), "fx": "rain",
 		"platforms": [
-			Rect2(0, 1452, 950, 48),
-			Rect2(1250, 1452, 950, 48),
-			Rect2(2500, 1452, 500, 48),
-			Rect2(1300, 1280, 400, 48),
-			Rect2(1700, 1280, 780, 48),
-			Rect2(1350, 1110, 300, 48),
-			Rect2(1300, 940, 400, 48),
-			Rect2(1400, 770, 260, 48),
-			Rect2(1350, 600, 300, 48),
-			Rect2(100, 1280, 420, 48),
-			Rect2(2480, 1280, 420, 48),
-			Rect2(350, 1110, 320, 48),
-			Rect2(670, 1110, 680, 48),
-			Rect2(2330, 1110, 320, 48),
-			Rect2(200, 940, 300, 48),
-			Rect2(2500, 940, 300, 48),
-			Rect2(450, 770, 280, 48),
-			Rect2(2270, 770, 280, 48),
+			Rect2(0, 1752, 1450, 48),
+			Rect2(1950, 1752, 1450, 48),
+			Rect2(150, 1580, 420, 48),
+			Rect2(850, 1580, 650, 48),
+			Rect2(2830, 1580, 420, 48),
+			Rect2(1500, 1580, 400, 48),
+			Rect2(1900, 1580, 930, 48),
+			Rect2(1300, 1400, 800, 48),
+			Rect2(250, 1100, 520, 48),
+			Rect2(2630, 1100, 520, 48),
+			Rect2(850, 1280, 320, 48),
+			Rect2(2180, 1250, 320, 48),
+			Rect2(1050, 950, 300, 48),
+			Rect2(2050, 950, 300, 48),
+			Rect2(400, 800, 380, 48),
+			Rect2(2620, 800, 380, 48),
 		],
-		"spawns": [Vector2(250, 1418), Vector2(1400, 1418), Vector2(300, 1246), Vector2(500, 1076), Vector2(350, 906), Vector2(580, 736), Vector2(2650, 1418), Vector2(2850, 1418), Vector2(2680, 1246), Vector2(2480, 1076), Vector2(2650, 906), Vector2(2400, 736)],
-		"pickups": [Vector2(400, 1422), Vector2(2700, 1422), Vector2(300, 1250), Vector2(1500, 570), Vector2(2700, 1250), Vector2(1500, 1080)],
-		"decor": [["sb_hut", 720, 1452], ["crate", 1670, 1452], ["column", 2020, 1452], ["crate", 160, 1452], ["crate", 1490, 1452], ["crate", 390, 1280], ["crate", 590, 1110], ["crate", 440, 940], ["crate", 670, 770], ["crate", 2740, 1452], ["crate", 2770, 1280], ["barrels", 2600, 1452], ["crate", 2100, 1280], ["crate", 2570, 1110], ["crate", 2740, 940], ["crate", 2490, 770], ["barrels", 1840, 1452]],
+		"spawns": [Vector2(300, 1718), Vector2(900, 1718), Vector2(350, 1546), Vector2(1000, 1246), Vector2(500, 1066), Vector2(580, 766), Vector2(2550, 1718), Vector2(3100, 1718), Vector2(3000, 1546), Vector2(2330, 1216), Vector2(2900, 1066), Vector2(2800, 766)],
+		"pickups": [Vector2(600, 1722), Vector2(2800, 1722), Vector2(500, 1550), Vector2(1700, 1370), Vector2(3000, 1550), Vector2(1700, 1550)],
+		"decor": [["sb_vent", 720, 1752], ["crate", 1320, 1752], ["barrels", 2070, 1752], ["sb_vent", 2670, 1752], ["crate", 2970, 1752], ["barrels", 3220, 1752], ["sb_vent", 210, 1752], ["sb_vent", 1090, 1280], ["crate", 1200, 1580], ["barrels", 2400, 1752], ["sb_vent", 590, 1100], ["sb_vent", 670, 800], ["sb_vent", 3090, 1580], ["sb_vent", 2420, 1250], ["sb_vent", 2990, 1100], ["sb_vent", 2890, 800]],
 	},
 	{
-		"name": "City Underground", "size": Vector2(3200, 1600), "tile": 7,
-		"bg": 3,
-		"sky_top": Color(0.03, 0.04, 0.10), "sky_bottom": Color(0.10, 0.12, 0.25),
-		"hill": Color(0.08, 0.08, 0.14), "sun": Color(0.95, 0.95, 0.90), "fx": "rain",
-		"platforms": [
-			Rect2(0, 1552, 3200, 48),
-			Rect2(600, 1400, 300, 48),
-			Rect2(1450, 1400, 400, 48),
-			Rect2(900, 1400, 550, 48),
-			Rect2(2300, 1400, 300, 48),
-			Rect2(1850, 1400, 450, 48),
-			Rect2(0, 1240, 3200, 48),
-			Rect2(300, 1065, 400, 48),
-			Rect2(700, 1065, 700, 48),
-			Rect2(1400, 1065, 400, 48),
-			Rect2(1800, 1065, 700, 48),
-			Rect2(2500, 1065, 400, 48),
-			Rect2(700, 885, 320, 48),
-			Rect2(2200, 885, 320, 48),
-			Rect2(1300, 720, 400, 48),
-		],
-		"spawns": [Vector2(300, 1518), Vector2(750, 1366), Vector2(500, 1206), Vector2(500, 1031), Vector2(860, 851), Vector2(1400, 686), Vector2(2900, 1518), Vector2(2450, 1366), Vector2(2700, 1206), Vector2(2700, 1031), Vector2(2340, 851), Vector2(1700, 1366)],
-		"pickups": [Vector2(600, 1522), Vector2(2600, 1522), Vector2(900, 1210), Vector2(1600, 1370), Vector2(2300, 1210), Vector2(1620, 690)],
-		"decor": [["column", 720, 1552], ["crate", 1320, 1552], ["barrels", 1620, 1552], ["sandbags", 1920, 1552], ["column", 2520, 1552], ["crate", 3000, 1240], ["crate", 210, 1552], ["crate", 590, 1240], ["column", 1000, 1552], ["crate", 1200, 1400], ["crate", 590, 1065], ["crate", 950, 885], ["crate", 1490, 720], ["crate", 2945, 1552], ["crate", 2790, 1240], ["crate", 2790, 1065], ["crate", 2430, 885], ["crate", 1790, 1400]],
-	},
-	{
-		"name": "Volcanic Cavern", "size": Vector2(3000, 1500), "tile": 8,
-		"bg": 4,
+		"name": "Volcanic Cavern", "size": Vector2(3000, 1500), "tile": 3,
+		"bg": 1,
 		"sky_top": Color(0.12, 0.05, 0.05), "sky_bottom": Color(0.30, 0.10, 0.08),
 		"hill": Color(0.15, 0.06, 0.06), "sun": Color(1.00, 0.55, 0.20), "fx": "embers",
 		"lava": [Rect2(1000, 1400, 250, 100), Rect2(1750, 1400, 250, 100)],
@@ -400,7 +281,7 @@ const MAPS := [
 		"decor": [["crate", 200, 1452], ["column", 1540, 1452], ["barrels", 2200, 1452], ["crate", 1450, 1110], ["crate", 2860, 1452], ["crate", 720, 1452], ["barrels", 2420, 1452], ["crate", 1390, 1452], ["crate", 940, 1110], ["crate", 690, 940], ["crate", 1040, 770], ["crate", 2690, 1452], ["crate", 2590, 1280], ["crate", 2090, 1110], ["crate", 2290, 940], ["crate", 2140, 770]],
 	},
 	{
-		"name": "Pirate Island", "size": Vector2(3000, 1500), "tile": 9,
+		"name": "Pirate Island", "size": Vector2(3000, 1500), "tile": 4,
 		"sky_top": Color(0.45, 0.75, 0.95), "sky_bottom": Color(0.85, 0.93, 0.97),
 		"hill": Color(0.30, 0.50, 0.35), "sun": Color(1.00, 0.95, 0.60), "fx": "none",
 		"platforms": [
@@ -425,84 +306,6 @@ const MAPS := [
 		"pickups": [Vector2(600, 1422), Vector2(2910, 1422), Vector2(2420, 1250), Vector2(1500, 1080), Vector2(2550, 910), Vector2(1150, 570)],
 		"decor": [["palms", 400, 1452], ["palms", 2850, 1452], ["crate", 720, 1452], ["barrels", 1020, 1452], ["column", 1320, 1452], ["crate", 1620, 1452], ["barrels", 2220, 1452], ["column", 2520, 1452], ["crate", 2820, 1452], ["crate", 210, 1452], ["crate", 340, 1280], ["crate", 600, 1280], ["column", 1800, 1452], ["crate", 590, 1110], ["crate", 840, 940], ["crate", 1240, 600], ["crate", 1540, 1110], ["crate", 2290, 1280], ["crate", 2290, 1110], ["crate", 2640, 940], ["crate", 2740, 770], ["crate", 1990, 1452]],
 	},
-	{
-		"name": "Neon City", "size": Vector2(3400, 1800), "tile": 10,
-		"bg": 5,
-		"sky_top": Color(0.05, 0.04, 0.16), "sky_bottom": Color(0.16, 0.10, 0.32),
-		"hill": Color(0.08, 0.06, 0.20), "sun": Color(1.00, 0.45, 0.75), "fx": "rain",
-		"platforms": [
-			Rect2(0, 1752, 1450, 48),
-			Rect2(1950, 1752, 1450, 48),
-			Rect2(150, 1580, 420, 48),
-			Rect2(850, 1580, 650, 48),
-			Rect2(2830, 1580, 420, 48),
-			Rect2(1500, 1580, 400, 48),
-			Rect2(1900, 1580, 930, 48),
-			Rect2(1300, 1400, 800, 48),
-			Rect2(250, 1100, 520, 48),
-			Rect2(2630, 1100, 520, 48),
-			Rect2(850, 1280, 320, 48),
-			Rect2(2180, 1250, 320, 48),
-			Rect2(1050, 950, 300, 48),
-			Rect2(2050, 950, 300, 48),
-			Rect2(400, 800, 380, 48),
-			Rect2(2620, 800, 380, 48),
-		],
-		"spawns": [Vector2(300, 1718), Vector2(900, 1718), Vector2(350, 1546), Vector2(1000, 1246), Vector2(500, 1066), Vector2(580, 766), Vector2(2550, 1718), Vector2(3100, 1718), Vector2(3000, 1546), Vector2(2330, 1216), Vector2(2900, 1066), Vector2(2800, 766)],
-		"pickups": [Vector2(600, 1722), Vector2(2800, 1722), Vector2(500, 1550), Vector2(1700, 1370), Vector2(3000, 1550), Vector2(1700, 1550)],
-		"decor": [["sb_vent", 720, 1752], ["crate", 1320, 1752], ["barrels", 2070, 1752], ["sb_vent", 2670, 1752], ["crate", 2970, 1752], ["barrels", 3220, 1752], ["sb_vent", 210, 1752], ["sb_vent", 1090, 1280], ["crate", 1200, 1580], ["barrels", 2400, 1752], ["sb_vent", 590, 1100], ["sb_vent", 670, 800], ["sb_vent", 3090, 1580], ["sb_vent", 2420, 1250], ["sb_vent", 2990, 1100], ["sb_vent", 2890, 800]],
-	},
-	{
-		"name": "Ancient Temple", "size": Vector2(3000, 1750), "tile": 11,
-		"bg": 6,
-		"sky_top": Color(0.10, 0.16, 0.12), "sky_bottom": Color(0.45, 0.55, 0.35),
-		"hill": Color(0.25, 0.35, 0.20), "sun": Color(1.00, 0.80, 0.35), "fx": "dust",
-		"platforms": [
-			Rect2(0, 1552, 1200, 48),
-			Rect2(1800, 1552, 1200, 48),
-			Rect2(1350, 1552, 300, 48),
-			Rect2(1150, 1702, 700, 48),
-			Rect2(1200, 1620, 200, 48),
-			Rect2(1600, 1620, 200, 48),
-			Rect2(250, 1380, 420, 48),
-			Rect2(2330, 1380, 420, 48),
-			Rect2(1050, 1210, 900, 48),
-			Rect2(1950, 1210, 300, 48),
-			Rect2(1200, 1040, 600, 48),
-			Rect2(1350, 870, 300, 48),
-			Rect2(450, 1210, 300, 48),
-			Rect2(750, 1210, 300, 48),
-			Rect2(2250, 1210, 300, 48),
-			Rect2(600, 1040, 300, 48),
-			Rect2(2100, 1040, 300, 48),
-		],
-		"spawns": [Vector2(300, 1518), Vector2(900, 1518), Vector2(450, 1346), Vector2(600, 1176), Vector2(1300, 1586), Vector2(1200, 1176), Vector2(2100, 1518), Vector2(2700, 1518), Vector2(2500, 1346), Vector2(2400, 1176), Vector2(1700, 1586), Vector2(1800, 1176)],
-		"pickups": [Vector2(600, 1522), Vector2(2400, 1522), Vector2(450, 1350), Vector2(1500, 840), Vector2(2500, 1350), Vector2(1500, 1672)],
-		"decor": [["sb_block", 1200, 1702], ["sb_block", 1800, 1702], ["sb_shrine", 1500, 1552], ["column", 900, 1210], ["sb_shrine", 720, 1552], ["sb_block", 1020, 1552], ["column", 1920, 1552], ["sb_shrine", 2220, 1552], ["sb_block", 2520, 1552], ["column", 2820, 1552], ["column", 210, 1552], ["column", 540, 1380], ["column", 1290, 1210], ["column", 2490, 1210], ["column", 1890, 1210], ["barrels", 1230, 1552]],
-	},
-	{
-		"name": "Airship Fleet", "size": Vector2(3200, 1500), "tile": 11,
-		"sky_top": Color(0.55, 0.30, 0.45), "sky_bottom": Color(0.98, 0.70, 0.45),
-		"hill": Color(0.45, 0.30, 0.35), "sun": Color(1.00, 0.75, 0.40), "fx": "dust",
-		"platforms": [
-			Rect2(0, 1380, 1000, 48),
-			Rect2(1000, 1290, 250, 48),
-			Rect2(1250, 1210, 700, 48),
-			Rect2(1950, 1290, 250, 48),
-			Rect2(2200, 1380, 1000, 48),
-			Rect2(1000, 1452, 1200, 48),
-			Rect2(350, 1210, 300, 48),
-			Rect2(400, 1040, 260, 48),
-			Rect2(660, 1040, 890, 48),
-			Rect2(1550, 1040, 300, 48),
-			Rect2(1600, 870, 260, 48),
-			Rect2(2600, 1210, 300, 48),
-			Rect2(2650, 1040, 260, 48),
-		],
-		"spawns": [Vector2(200, 1346), Vector2(1400, 1176), Vector2(500, 1176), Vector2(530, 1006), Vector2(1150, 1418), Vector2(1450, 1418), Vector2(2500, 1346), Vector2(3000, 1346), Vector2(2750, 1176), Vector2(2780, 1006), Vector2(1750, 1418), Vector2(2050, 1418)],
-		"pickups": [Vector2(450, 1350), Vector2(2750, 1350), Vector2(1300, 1422), Vector2(1600, 840), Vector2(1700, 1010), Vector2(500, 1180)],
-		"decor": [["column", 1600, 1452], ["sb_block", 720, 1380], ["crate", 1400, 1452], ["sb_block", 1700, 1210], ["crate", 2620, 1380], ["crate", 140, 1380], ["crate", 1490, 1210], ["crate", 590, 1210], ["crate", 620, 1040], ["crate", 1240, 1452], ["crate", 3050, 1380], ["crate", 2840, 1210], ["crate", 2870, 1040], ["crate", 2140, 1452], ["barrels", 900, 1380]],
-	},
 ]
 const DECOR_TEX := {
 	"crate": DECOR_CRATE, "barrels": DECOR_BARRELS, "sandbags": DECOR_SANDBAGS,
@@ -516,8 +319,22 @@ const DECOR_TEX := {
 	"sb_hut_blue": DECOR_SB_HUT_BLUE, "sb_vent": DECOR_SB_VENT,
 	"sb_slab": DECOR_SB_SLAB, "sb_trap": DECOR_SB_TRAP,
 	"sb_shrine": DECOR_SB_SHRINE, "sb_block": DECOR_SB_BLOCK,
-	"sb_altar": DECOR_SB_ALTAR, "sb_hut_green": DECOR_SB_HUT_GREEN,
-	"sb_crate": DECOR_SB_CRATE, "sb_vent_orange": DECOR_SB_VENT_ORANGE,
+	"sb_hut_green": DECOR_SB_HUT_GREEN, "sb_crate": DECOR_SB_CRATE, "sb_vent_orange": DECOR_SB_VENT_ORANGE,
+	# QA-096: Ironfall slices (visual dressing, except if_crate /
+	# if_barrel / if_sandbags which are SOLID cover — see below).
+	"if_tower": DECOR_IF_TOWER, "if_gantry": DECOR_IF_GANTRY,
+	"if_derrick": DECOR_IF_DERRICK, "if_bridge": DECOR_IF_BRIDGE,
+	"if_bridge_metal": DECOR_IF_BRIDGE_METAL, "if_plank": DECOR_IF_PLANK,
+	"if_cave": DECOR_IF_CAVE, "if_cave2": DECOR_IF_CAVE2,
+	"if_cavern": DECOR_IF_CAVERN, "if_rockledge": DECOR_IF_ROCKLEDGE,
+	"if_water": DECOR_IF_WATER, "if_fall": DECOR_IF_FALL,
+	"if_spikes": DECOR_IF_SPIKES, "if_vent": DECOR_IF_VENT,
+	"if_door": DECOR_IF_DOOR, "if_crate": DECOR_IF_CRATE,
+	"if_barrel": DECOR_IF_BARREL, "if_sandbags": DECOR_IF_SANDBAGS,
+	"if_lamp": DECOR_IF_LAMP, "if_palm": DECOR_IF_PALM,
+	"if_vines": DECOR_IF_VINES, "if_rock": DECOR_IF_ROCK,
+	"if_tree": DECOR_IF_TREE, "if_bunker": DECOR_IF_BUNKER,
+	"if_arch": DECOR_IF_ARCH, "if_comms": DECOR_IF_COMMS,
 }
 const PLAYER_COLORS := [
 	Color(0.95, 0.3, 0.25), Color(0.25, 0.55, 0.95), Color(0.3, 0.85, 0.4),
@@ -540,6 +357,25 @@ const SMOKE_TEX: Texture2D = preload("res://assets/effects/smoke.png")
 const SB_HIT_TEX: Texture2D = preload("res://assets/skybrawl/effects/effect_006.png")
 const SB_EXPLOSION_TEX: Texture2D = preload("res://assets/skybrawl/effects/effect_001.png")
 const SB_SMOKE_TEX: Texture2D = preload("res://assets/skybrawl/effects/effect_004.png")
+# QA-085 / QA-087 (v3.7): drawn dust puff + per-team flag sprites +
+# capture burst. The flags carry their own pole + waving cloth, so
+# _ctf_flag_visual no longer draws a Line2D pole + Polygon2D cloth.
+const DUST_TEX: Texture2D = preload("res://assets/effects/dust.png")
+# QA-091 (v3.7): soft dot for the GPUParticles2D blast burst.
+const PARTICLE_DOT_TEX: Texture2D = preload("res://assets/effects/particle_dot.png")
+# QA-092 (v3.7): Stylized 2D VFX Lite (REEBOO Labs, MIT, v1.0.0,
+# Godot 4.4) — shader + GPUParticles2D effects, self-freeing.
+# hit_spark = bullet impacts, explosion_small = blast core,
+# coin_pickup = pickup grab. slash_arc is NOT used: the game has
+# no melee attack, so there is nothing to slash.
+const HIT_SPARK_SCENE: PackedScene = preload("res://addons/reeboo_fx2d/effects/hit_spark.tscn")
+const EXPLOSION_SMALL_SCENE: PackedScene = preload("res://addons/reeboo_fx2d/effects/explosion_small.tscn")
+const COIN_PICKUP_SCENE: PackedScene = preload("res://addons/reeboo_fx2d/effects/coin_pickup.tscn")
+const FLAG_TEX := {
+	0: preload("res://assets/effects/flag_red.png"),
+	1: preload("res://assets/effects/flag_blue.png"),
+}
+const CAPTURE_BURST_TEX: Texture2D = preload("res://assets/effects/capture_burst.png")
 
 var players_node: Node2D
 var bullets_node: Node2D
@@ -850,6 +686,9 @@ var _nt_dc_second: bool = false
 var _flow_test: bool = false
 var _game_shots: bool = false # v3.2: --game-shots captures HUD/countdown/pause/scoreboard/end to user://shot_*.png
 var _ctf_shots: bool = false # v3.6 QA-080: --ctf-shots captures the CTF flag at home + being carried to user://shot_ctf_*.png
+var _v37_shots: bool = false # v3.7: --v37-shots captures jetpack flame + muzzle flash, pickups, hit flash to user://shot_v37_*.png
+var _v37_timer: float = 0.0
+var _v37_stage: int = -1
 var _cs_timer: float = 0.0
 var _cs_stage: int = -1
 var _gs_timer: float = 0.0
@@ -897,6 +736,7 @@ func _ready() -> void:
 	_features_test = "--features-test" in OS.get_cmdline_user_args()
 	_game_shots = "--game-shots" in OS.get_cmdline_user_args()
 	_ctf_shots = "--ctf-shots" in OS.get_cmdline_user_args()
+	_v37_shots = "--v37-shots" in OS.get_cmdline_user_args()
 	_join_test_host = "--join-test-host" in OS.get_cmdline_user_args()
 	_join_test_client = "--join-test-client" in OS.get_cmdline_user_args() or "--join-test-client-quick" in OS.get_cmdline_user_args()
 	_repl_sim_test = "--repl-sim-test" in OS.get_cmdline_user_args()
@@ -930,7 +770,7 @@ func _ready() -> void:
 	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
 	# scripted harness (they move/shoot from frame one) and in the
 	# features test, which drives the countdown itself in step 1.
-	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test or _restart_test or _ctf_shots
+	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test or _restart_test or _ctf_shots or _v37_shots
 	if not _is_test_mode:
 		_countdown_active = true
 		_countdown_t = 3.0
@@ -1069,17 +909,12 @@ func get_valid_spawn_point(player_index: int, exclude_peer: int, avoid_pos: Vect
 
 
 func is_on_ice(pos: Vector2) -> bool:
-	# Ice zone (GAP-51, spec §18.A): Frozen Fortress (map 4) only.
-	# A floor-level zone; the player reads it in _apply_movement.
-	# The zone is a separate system (game-side query), not code
-	# inside the player controller.
-	# QA-033: the duel rebuild shrank the map to 2200x1400 (floor
-	# 1352) — the zone is the open slide lane x450-1750, kept clear
-	# of floor decor so the slide run is unobstructed.
-	if map_id != 4:
-		return false
-	var floor_top := 1352.0
-	return pos.y > floor_top - 60.0 and pos.x > 450.0 and pos.x < 1750.0
+	# Ice zone (GAP-51, spec §18.A): the old ice map only — that
+	# map is deleted in v3.7 (QA-095), so no map has ice any more.
+	# Kept as a query (player.gd calls it) that always answers
+	# false; the friction/accel constants in physics_config.gd
+	# stay for reference. Do NOT re-add a map-id check here.
+	return false
 
 
 func has_line_of_sight(from: Vector2, to: Vector2) -> bool:
@@ -1194,7 +1029,9 @@ const SOLID_DECOR_KINDS := ["crate", "barrels", "sandbags", "rock", "column",
 	"jpillar", "jstatue", "jtower", "jcrate", "jrock",
 	# Phase 5 — Sky Brawl solid structures (huts/blocks/vents/crate).
 	"sb_hut", "sb_hut_pink", "sb_hut_blue", "sb_vent", "sb_vent_orange",
-	"sb_shrine", "sb_block", "sb_hut_green", "sb_crate"]
+	"sb_shrine", "sb_block", "sb_hut_green", "sb_crate",
+	# QA-096: Ironfall solid props (crate / barrel / sandbags).
+	"if_crate", "if_barrel", "if_sandbags"]
 # GAP-13: bridges/arches look walkable — they now get a thin top plank
 # (24 px at the sprite's top edge), not the full texture.
 const BRIDGE_DECOR_KINDS := ["bridge", "jbridge", "jarch"]
@@ -1204,7 +1041,7 @@ const DECOR_INSETS := {"crate": 6, "barrels": 8, "sandbags": 6, "rock": 10,
 	"column": 10, "jpillar": 10, "jstatue": 8, "jtower": 10, "jcrate": 6, "jrock": 10,
 	"sb_hut": 10, "sb_hut_pink": 10, "sb_hut_blue": 10, "sb_vent": 10,
 	"sb_vent_orange": 10, "sb_shrine": 10, "sb_block": 10, "sb_hut_green": 10,
-	"sb_crate": 10}
+	"sb_crate": 10, "if_crate": 6, "if_barrel": 8, "if_sandbags": 6}
 
 
 func _build_arena(map: Dictionary) -> void:
@@ -1279,10 +1116,9 @@ func _build_arena(map: Dictionary) -> void:
 
 
 func _build_ice_zone(map: Dictionary) -> void:
-	# Ice zone visual (GAP-51): a pale-blue sheen over the frozen
-	# floor so the low-friction area is readable in play.
-	if map_id != 4:
-		return
+	# Ice zone visual (GAP-51): the old ice map is deleted in v3.7
+	# (QA-095), so there is no ice floor to draw a sheen on.
+	return
 	var sheen := Polygon2D.new()
 	sheen.polygon = PackedVector2Array([
 		Vector2(450, 1352), Vector2(1750, 1352),
@@ -1836,7 +1672,7 @@ func _on_server_disconnected() -> void:
 
 
 # v2.5: dark outline for HUD text so it stays readable over bright
-# map skies (Desert, Pirate) as well as dark ones (Catacombs, Space).
+# map skies (bright day ones as well as dark ones).
 func _outline_label(l: Label) -> void:
 	# v3.2 NEON ARENA: HUD numbers in Rajdhani Bold ice, with a dark
 	# outline so they stay readable over bright and dark maps alike.
@@ -2996,6 +2832,13 @@ func _physics_process(_delta: float) -> void:
 		var lp3 = _get_local_player()
 		if lp3 != null and lp3._jetpacking:
 			_phys_data["min_vy_jet"] = minf(float(_phys_data.get("min_vy_jet", 0.0)), lp3.velocity.y)
+	# QA-099 (v3.7): pad launch, ungated — the only upward force in
+	# the pad step is the pad (no jump input), so a min vy below
+	# -600 can only mean the pad fired.
+	if bool(_phys_data.get("track_min_vy_pad", false)):
+		var lp4 = _get_local_player()
+		if lp4 != null:
+			_phys_data["pad_min_vy"] = minf(float(_phys_data.get("pad_min_vy", 0.0)), lp4.velocity.y)
 
 
 func _process(delta: float) -> void:
@@ -3060,6 +2903,9 @@ func _process(delta: float) -> void:
 	elif _ctf_shots:
 		_update_touch_state()
 		_update_ctfshots(delta)
+	elif _v37_shots:
+		_update_touch_state()
+		_update_v37shots(delta)
 	else:
 		_update_touch_state()
 	# The flow test (or a button) may have started leaving mid-frame
@@ -5031,28 +4877,17 @@ func _ctf_team_color(team: int) -> Color:
 
 
 func _ctf_flag_visual(team: int) -> Node2D:
+	# QA-087 (v3.7): a drawn flag sprite — pole + waving cloth with
+	# a star emblem, one per team. Same node name ("Flag%d") and
+	# z_index as the old Line2D + Polygon2D + "FLAG" label version,
+	# same footprint (pole base at the node origin, top ~96 px up).
 	var node := Node2D.new()
 	node.name = "Flag%d" % team
 	node.z_index = 5
-	var pole := Line2D.new()
-	pole.points = PackedVector2Array([Vector2(0, 0), Vector2(0, -70)])
-	pole.width = 4.0
-	pole.default_color = Color(0.15, 0.15, 0.18)
-	node.add_child(pole)
-	var cloth := Polygon2D.new()
-	cloth.polygon = PackedVector2Array([Vector2(0, -70), Vector2(46, -57), Vector2(0, -44)])
-	cloth.color = _ctf_team_color(team)
-	node.add_child(cloth)
-	var tag := Label.new()
-	tag.text = "FLAG"
-	tag.position = Vector2(-24, -98)
-	tag.size = Vector2(48, 20)
-	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tag.add_theme_font_size_override("font_size", 16)
-	tag.add_theme_color_override("font_color", _ctf_team_color(team))
-	tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	tag.add_theme_constant_override("outline_size", 4)
-	node.add_child(tag)
+	var spr := Sprite2D.new()
+	spr.texture = FLAG_TEX[team]
+	spr.position = Vector2(0, -48)
+	node.add_child(spr)
 	return node
 
 
@@ -5115,7 +4950,19 @@ func ctf_sync(state: Array, scores: Dictionary) -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != 1:
 		return
+	# QA-087 (v3.7): a capture shows a burst on EVERY peer, not
+	# just the host — ctf_sync is the one channel every peer gets,
+	# so a score that rose since the last sync bursts at the
+	# scoring team's home flag (where the capture happens). The
+	# heartbeat syncs (no score change) burst nothing.
+	var old_scores: Dictionary = _ctf_scores.duplicate()
 	_ctf_scores = scores.duplicate()
+	if not match_over:
+		for team in [0, 1]:
+			if int(scores.get(team, 0)) > int(old_scores.get(team, 0)):
+				if team < _ctf_flags.size():
+					var home: Vector2 = (_ctf_flags[team] as Dictionary).get("home", Vector2.ZERO)
+					spawn_capture_burst(home + Vector2(0, -50))
 	for i in mini(state.size(), _ctf_flags.size()):
 		var s: Dictionary = state[i]
 		var f: Dictionary = _ctf_flags[i]
@@ -5517,20 +5364,65 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 # --- FX (impact / explosion) ---
 
 func spawn_impact_fx(pos: Vector2, small: bool = false) -> void:
+	if small:
+		# QA-092 (v3.7): bullet impacts + hard landings use the
+		# library hit spark (white-gold flash + twinkle + ring +
+		# fast sparks) instead of the old static Sky Brawl spark
+		# sprite. Same call sites, same timing, better look.
+		ReebooFx2D.spawn(HIT_SPARK_SCENE, fx_node, pos)
+		return
 	var spr := Sprite2D.new()
 	# Phase 4: Sky Brawl hit spark (small) / explosion sunburst
 	# (large) instead of the old smoke/explosion sprites.
-	spr.texture = SB_HIT_TEX if small else SB_EXPLOSION_TEX
+	spr.texture = SB_EXPLOSION_TEX
 	spr.position = pos
-	spr.scale = Vector2(0.5, 0.5) if small else Vector2(0.7, 0.7)
+	spr.scale = Vector2(0.7, 0.7)
 	spr.modulate = Color(1, 1, 1, 0.9)
 	fx_node.add_child(spr)
 	var tw := create_tween()
 	tw.tween_property(spr, "scale", spr.scale * 1.6, 0.25)
 	tw.parallel().tween_property(spr, "modulate:a", 0.0, 0.25)
 	tw.tween_callback(spr.queue_free)
-	if not small:
-		audio.play("hit")
+	audio.play("hit")
+
+
+# QA-092 (v3.7): pickup grab sparkle — the library coin-pickup
+# effect (gold ring + twinkle + rising glints) at the spot where a
+# pickup was taken. Called from pickup.gd despawn(grabbed=true),
+# which runs on every peer, so everyone sees the grab.
+func spawn_pickup_fx(pos: Vector2) -> void:
+	ReebooFx2D.spawn(COIN_PICKUP_SCENE, fx_node, pos)
+
+
+# QA-085 (v3.7): landing dust — a soft tan dust puff at the feet.
+# Purely visual, same tween-and-free pattern as spawn_impact_fx.
+func spawn_dust_fx(pos: Vector2) -> void:
+	var spr := Sprite2D.new()
+	spr.texture = DUST_TEX
+	spr.position = pos
+	spr.scale = Vector2(0.8, 0.8)
+	spr.rotation = randf() * TAU
+	spr.modulate = Color(1, 1, 1, 0.85)
+	fx_node.add_child(spr)
+	var tw := create_tween()
+	tw.tween_property(spr, "scale", spr.scale * 1.6, 0.35)
+	tw.parallel().tween_property(spr, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(spr.queue_free)
+
+
+# QA-087 (v3.7): capture burst — a gold starburst at a flag capture.
+# Purely visual; the host-authoritative capture logic is untouched.
+func spawn_capture_burst(pos: Vector2) -> void:
+	var spr := Sprite2D.new()
+	spr.texture = CAPTURE_BURST_TEX
+	spr.position = pos
+	spr.scale = Vector2(0.7, 0.7)
+	spr.modulate = Color(1, 1, 1, 0.95)
+	fx_node.add_child(spr)
+	var tw := create_tween()
+	tw.tween_property(spr, "scale", spr.scale * 1.8, 0.45)
+	tw.parallel().tween_property(spr, "modulate:a", 0.0, 0.45)
+	tw.tween_callback(spr.queue_free)
 
 
 func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int, weapon_id: int = -1) -> void:
@@ -5596,28 +5488,17 @@ func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int, w
 
 
 func _spawn_explosion_fx(pos: Vector2, radius: float) -> void:
-	var spr := Sprite2D.new()
-	spr.texture = FIREBALL_TEX
-	spr.position = pos
-	var target := radius * 2.0 / 70.0
-	spr.scale = Vector2(0.4, 0.4)
-	fx_node.add_child(spr)
-	var tw := create_tween()
-	tw.tween_property(spr, "scale", Vector2(target, target), 0.3)
-	tw.parallel().tween_property(spr, "modulate:a", 0.0, 0.45)
-	tw.tween_callback(spr.queue_free)
-	var spr2 := Sprite2D.new()
-	spr2.texture = SMOKE_TEX
-	spr2.position = pos + Vector2(0, -20)
-	spr2.scale = Vector2(1.2, 1.2)
-	spr2.modulate = Color(1, 1, 1, 0.7)
-	fx_node.add_child(spr2)
-	var tw2 := create_tween()
-	tw2.tween_property(spr2, "position:y", spr2.position.y - 60.0, 0.8)
-	tw2.parallel().tween_property(spr2, "modulate:a", 0.0, 0.8)
-	tw2.tween_callback(spr2.queue_free)
-	# GAP-24: white flash + expanding shockwave ring + debris.
-	# Visual-only; no damage code anywhere in this FX.
+	# QA-092 (v3.7): the blast core is the library explosion_small
+	# (toon fireball + smoke + shockwave + embers, shader-driven)
+	# instead of the old static fireball/smoke sprites. The base
+	# effect is ~125 px wide, so it scales by radius / 62.5.
+	# The white flash, debris, GPUParticles2D burst (QA-091) and
+	# distance-scaled shake stay — the library's own shockwave ring
+	# replaces the old Line2D ring, so the ring is not drawn twice.
+	var boom := ReebooFx2D.spawn(EXPLOSION_SMALL_SCENE, fx_node, pos)
+	boom.scale = Vector2(radius / 62.5, radius / 62.5)
+	# GAP-24: white flash + debris. Visual-only; no damage code
+	# anywhere in this FX.
 	var flash := Polygon2D.new()
 	var fpts := PackedVector2Array()
 	for i in 16:
@@ -5630,20 +5511,6 @@ func _spawn_explosion_fx(pos: Vector2, radius: float) -> void:
 	var twf := create_tween()
 	twf.tween_property(flash, "modulate:a", 0.0, 0.08)
 	twf.tween_callback(flash.queue_free)
-	var ring := Line2D.new()
-	var rpts := PackedVector2Array()
-	for i in 33:
-		var a := TAU * float(i) / 32.0
-		rpts.append(Vector2(cos(a), sin(a)) * 10.0)
-	ring.points = rpts
-	ring.width = 5.0
-	ring.default_color = Color(1.0, 0.8, 0.3, 0.9)
-	ring.position = pos
-	fx_node.add_child(ring)
-	var twr := create_tween()
-	twr.tween_property(ring, "scale", Vector2(radius / 10.0, radius / 10.0), 0.35)
-	twr.parallel().tween_property(ring, "modulate:a", 0.0, 0.35)
-	twr.tween_callback(ring.queue_free)
 	for i in 8:
 		var deb := Polygon2D.new()
 		deb.polygon = PackedVector2Array([Vector2(-3, -3), Vector2(3, -3), Vector2(3, 3), Vector2(-3, 3)])
@@ -5656,6 +5523,43 @@ func _spawn_explosion_fx(pos: Vector2, radius: float) -> void:
 		twd.tween_property(deb, "position", pos + Vector2(cos(ang), sin(ang)) * dst, 0.4)
 		twd.parallel().tween_property(deb, "modulate:a", 0.0, 0.4)
 		twd.tween_callback(deb.queue_free)
+	# QA-091 (v3.7, GRENADE_SPEC §4): GPUParticles2D blast burst —
+	# orange sparks that fly out, slow under gravity and fade — plus
+	# camera shake for the LOCAL player scaled by distance (full at
+	# the blast, none past 3x the blast radius). The short white
+	# flash on detonation already existed (GAP-24, above), and the
+	# wall ray-check already existed in request_explosion (GAP-12),
+	# so neither is added here. Purely visual: no damage code.
+	var parts := GPUParticles2D.new()
+	parts.texture = PARTICLE_DOT_TEX
+	parts.amount = 28
+	parts.lifetime = 0.55
+	parts.one_shot = true
+	parts.explosiveness = 0.9
+	parts.position = pos
+	var pmat := ParticleProcessMaterial.new()
+	pmat.direction = Vector3(0, -1, 0)
+	pmat.spread = 180.0
+	pmat.initial_velocity_min = 120.0
+	pmat.initial_velocity_max = 420.0
+	pmat.gravity = Vector3(0, 500, 0)
+	pmat.damping_min = 50.0
+	pmat.damping_max = 120.0
+	pmat.scale_min = 0.5
+	pmat.scale_max = 1.2
+	pmat.color = Color(1.0, 0.6, 0.2)
+	parts.process_material = pmat
+	fx_node.add_child(parts)
+	parts.emitting = true
+	var twp := create_tween()
+	twp.tween_interval(1.2)
+	twp.tween_callback(parts.queue_free)
+	var lp = _get_local_player()
+	if lp != null:
+		var d: float = lp.global_position.distance_to(pos)
+		var k := clampf(1.0 - d / (radius * 3.0), 0.0, 1.0)
+		if k > 0.0:
+			lp.add_shake(0.6 * k)
 	audio.play("explosion")
 
 
@@ -5876,6 +5780,51 @@ func _update_ctfshots(delta: float) -> void:
 			get_tree().quit()
 
 
+# v3.7 VISUALS-SCREENSHOT MODE (--v37-shots): staged captures of
+# the new v3.7 visuals for the proof shots. Runs as auto-host; the
+# countdown is skipped (this flag is in _is_test_mode). The sticks
+# are driven through the same real touch handlers as the smoke
+# test. Stage 1 holds the move stick up (jetpack) and the aim
+# stick up-right (firing the rifle); stage 2 captures the flame +
+# muzzle flash; stage 3 stops, spawns a health + a weapon pickup
+# in front of the player and captures them; stage 4 forces the
+# shader hit flash and captures it; stage 5 quits.
+func _update_v37shots(delta: float) -> void:
+	_v37_timer += delta
+	var stage := int(_v37_timer / 1.0)
+	if stage == _v37_stage:
+		return
+	_v37_stage = stage
+	var lp = _get_local_player()
+	match stage:
+		1:
+			if lp != null:
+				lp.fuel = 100.0
+				lp.position = Vector2(2100, 1350)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+			_smoke_set_move(Vector2(0, -60))
+			_smoke_set_aim(Vector2(42, -42))
+			_smoke_set_fire(true)
+		2:
+			_capture_shot("user://shot_v37_flame.png")
+		3:
+			_smoke_set_move(null)
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+			if lp != null:
+				spawn_pickup_remote(lp.position + Vector2(150, -20), "v37_health", 5)
+				spawn_pickup_remote(lp.position + Vector2(280, -20), "v37_smg", 1)
+			_capture_shot("user://shot_v37_pickup.png")
+		4:
+			if lp != null:
+				lp._hit_flash_timer = 0.09
+			_capture_shot("user://shot_v37_hitflash.png")
+		5:
+			print("V37SHOTS DONE")
+			get_tree().quit()
+
+
 func _log_smoke_phase(phase: int) -> void:
 	var lp = _get_local_player()
 	if lp == null:
@@ -5946,7 +5895,15 @@ func _joytest_build_steps() -> void:
 		{"name": "PRESS-LEFT", "wait": 0.6, "setup": _jt_s_press_left, "check": _jt_c_press_left},
 		{"name": "PRESS-RIGHT", "wait": 0.6, "setup": _jt_s_press_right, "check": _jt_c_press_right},
 		{"name": "PRESS-UP-JUMP", "wait": 0.4, "setup": _jt_s_press_up, "check": _jt_c_press_up},
-		{"name": "RELEASE-STOPS", "wait": 0.5, "setup": _jt_s_release_move, "check": _jt_c_release_stops},
+		# QA-099 (v3.7): wait 1.5 s, not 0.5 s. This step follows
+		# PRESS-UP-JUMP, and the jump's air time is ~1.0 s (155 px apex
+		# + brief jetpack thrust) — at 0.5 s the player is still
+		# airborne, so the check measured air-drag decay (vel.x 91),
+		# not the ground stop. It only passed before because the player
+		# was pinned against Ironfall's floor crate (vel.x 0 from the
+		# start — a vacuous pass). 1.5 s lands the player (~1.05 s) and
+		# stops it (~0.1 s of ground friction) before the check.
+		{"name": "RELEASE-STOPS", "wait": 1.5, "setup": _jt_s_release_move, "check": _jt_c_release_stops},
 		{"name": "MOVE-RELEASE-NO-LEFT", "wait": 0.8, "setup": _jt_s_move_right_mouse, "check": _jt_c_move_release_no_left},
 		{"name": "AIM-RELEASE-NO-LEFT", "wait": 0.8, "setup": _jt_s_aim_right_mouse, "check": _jt_c_aim_release_no_left},
 		{"name": "FUEL-STABLE", "wait": 0.5, "setup": _jt_s_noop, "check": _jt_c_fuel_stable},
@@ -6093,7 +6050,11 @@ func _jt_c_press_up() -> Array:
 	var v := touch_move_vec
 	# Up past the threshold: jumped off the floor and is thrusting
 	# (fuel drains only while the jetpack is actually thrusting).
-	var ok: bool = v.y < -0.5 and not lp.is_on_floor() and lp.position.y < _joy_pos_before.y - 20.0 and lp.fuel < 98.0
+	# QA-099 (v3.7): fuel < 100, not < 98 — any drain proves the
+	# thrust ran; < 98 needs >= 2 units in 0.4 s, which
+	# load-starved physics frames don't deliver (one suite run read
+	# fuel 99 with jetpacking=true and 128 px of rise).
+	var ok: bool = v.y < -0.5 and not lp.is_on_floor() and lp.position.y < _joy_pos_before.y - 20.0 and lp.fuel < 100.0
 	return [ok, "vec=%s on_floor=%s y=%d (was %d) fuel=%d jetpacking=%s" % [v, lp.is_on_floor(), round(lp.position.y), round(_joy_pos_before.y), round(lp.fuel), lp._jetpacking]]
 
 
@@ -7078,7 +7039,7 @@ func _ct_c_bullet_stops() -> Array:
 		return [true, "no low solid cover on this map — nothing to stop"]
 	var cy := cover.get_center().y
 	# QA-033: clamp the ray start inside the map — a cover near the
-	# left edge (e.g. Frozen Fortress sandbags at x=120) puts
+	# left edge (e.g. sandbags at x=120) puts
 	# cover.x - 120 outside the arena, and the ray then hits the
 	# boundary wall at x=0 instead of the cover face.
 	var from := Vector2(maxf(cover.position.x - 120.0, 5.0), cy)
@@ -7922,7 +7883,7 @@ func _ft_s_bullet_inside() -> void:
 	# of the player centre, so standing at x=72 aiming left puts
 	# it at x=12 — 12 px inside the 24 px left boundary wall.
 	# The left wall is used because the right wall has sandbags at
-	# x=3120 on the fire-test map (Catacombs).
+	# x=3120 on the fire-test map (map 0).
 	var lp = _ft_lp()
 	if not lp.alive:
 		lp._respawn()
@@ -8708,7 +8669,7 @@ func _rs_s_rematch() -> void:
 # {name, wait, setup, check}; check returns [passed, detail]. Run:
 #   xvfb-run -a godot --path . -- --auto-host --physics-test
 #   xvfb-run -a godot --path . -- --auto-host --map=4 --physics-test
-# (map 4 = Frozen Fortress, for the live ice-slide step).
+# (map ids are 0-4 in v3.7; the old ice-slide step is gone).
 # =====================================================================
 
 func _phys_lp():
@@ -8757,8 +8718,8 @@ func _update_physicstest(delta: float) -> void:
 		_phys_in_step = false
 		_phys_timer = 0.0
 		return
-	# Phase 5: "only_map" — a step that only applies on one map
-	# (P18b ice slide needs Frozen Fortress's ice).
+	# Phase 5: "only_map" — a step that only applies on one map.
+	# (No step uses it in v3.7 — kept for future map-specific steps.)
 	if step.has("only_map") and int(step["only_map"]) != map_id:
 		print("PHYSICSTEST %s: SKIP — only applicable on map %d (%s)" % [String(step["name"]), int(step["only_map"]), String(step.get("skip_reason", ""))])
 		_phys_step += 1
@@ -8786,16 +8747,16 @@ func _update_physicstest(delta: float) -> void:
 func _physicstest_build_steps() -> void:
 	_phys_steps = [
 		{"name": "P00-pickups-at-start", "wait": 0.5, "setup": _phys_s_noop, "check": _phys_c_pickups_start},
-		{"name": "P01-ground-accel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 2.0, "setup": _phys_s_ground_run, "check": _phys_c_ground_accel},
-		{"name": "P02-air-accel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 2.0, "setup": _phys_s_air_run, "check": _phys_c_air_accel},
+		{"name": "P01-ground-accel", "wait": 2.0, "setup": _phys_s_ground_run, "check": _phys_c_ground_accel},
+		{"name": "P02-air-accel", "wait": 2.0, "setup": _phys_s_air_run, "check": _phys_c_air_accel},
 		{"name": "P03-analog-half", "wait": 0.8, "setup": _phys_s_analog, "check": _phys_c_analog},
-		{"name": "P04a-ground-run", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.6, "setup": _phys_s_ground_stop_run, "check": _phys_c_ground_run},
-		{"name": "P04b-ground-stop", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.5, "setup": _phys_s_ground_stop_release, "check": _phys_c_ground_stop},
-		{"name": "P05a-air-run", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_air_slide, "check": _phys_c_air_run},
-		{"name": "P05b-air-slide", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.9, "setup": _phys_s_air_slide_release, "check": _phys_c_air_slide},
+		{"name": "P04a-ground-run", "wait": 0.6, "setup": _phys_s_ground_stop_run, "check": _phys_c_ground_run},
+		{"name": "P04b-ground-stop", "wait": 0.5, "setup": _phys_s_ground_stop_release, "check": _phys_c_ground_stop},
+		{"name": "P05a-air-run", "wait": 0.1, "setup": _phys_s_air_slide, "check": _phys_c_air_run},
+		{"name": "P05b-air-slide", "wait": 0.9, "setup": _phys_s_air_slide_release, "check": _phys_c_air_slide},
 		{"name": "P06-terminal-velocity", "wait": 2.0, "setup": _phys_s_fall, "check": _phys_c_terminal},
-		{"name": "P07a-jump-hold-apex", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.7, "setup": _phys_s_jump_hold, "check": _phys_c_jump_hold},
-		{"name": "P07b-jump-tap-apex", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.7, "setup": _phys_s_jump_tap, "check": _phys_c_jump_tap},
+		{"name": "P07a-jump-hold-apex", "wait": 0.7, "setup": _phys_s_jump_hold, "check": _phys_c_jump_hold},
+		{"name": "P07b-jump-tap-apex", "wait": 0.7, "setup": _phys_s_jump_tap, "check": _phys_c_jump_tap},
 		{"name": "P08-fuel-regen-delay", "wait": 0.3, "setup": _phys_s_fuel_drain, "check": _phys_c_fuel_delay},
 		{"name": "P08b-fuel-regen-after", "wait": 1.2, "setup": _phys_s_noop, "check": _phys_c_fuel_after},
 		{"name": "P09a-aim-hold-setup", "wait": 0.5, "setup": _phys_s_aim_hold, "check": _phys_c_aim_hold_setup},
@@ -8804,17 +8765,16 @@ func _physicstest_build_steps() -> void:
 		{"name": "P11-shotgun-table", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_shotgun_table},
 		{"name": "P12-damage-calc", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_damage_calc},
 		{"name": "P13-explosion-falloff", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_explosion_falloff},
-		{"name": "P14-respawn-validation", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_respawn_valid},
+		{"name": "P14-respawn-validation", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_respawn_valid},
 		{"name": "P15-grenade-bounce", "wait": 1.8, "setup": _phys_s_grenade, "check": _phys_c_grenade},
 		{"name": "P16-velocity-inheritance", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_inheritance},
 		{"name": "P17-recoil-accum", "wait": 0.1, "setup": _phys_s_recoil_fire, "check": _phys_c_recoil},
 		{"name": "P17b-recoil-decay", "wait": 2.0, "setup": _phys_s_noop, "check": _phys_c_recoil_decay},
 		{"name": "P18a-ice-run", "wait": 0.5, "setup": _phys_s_ice, "check": _phys_c_ice},
-		{"name": "P18b-ice-slide", "wait": 1.5, "setup": _phys_s_noop, "check": _phys_c_ice_slide, "only_map": 4, "skip_reason": "ice slide needs Frozen Fortress"},
 		{"name": "P19-camera", "wait": 0.4, "setup": _phys_s_camera, "check": _phys_c_camera},
 		{"name": "P20-pool-budget", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_pool},
 		{"name": "P21-version-handshake", "wait": 0.1, "setup": _phys_s_noop, "check": _phys_c_version},
-		{"name": "P22-barrel", "skip_map": 4, "skip_reason": "placement tuned for Catacombs (map 0)", "wait": 0.1, "setup": _phys_s_barrel, "check": _phys_c_barrel},
+		{"name": "P22-barrel", "wait": 0.1, "setup": _phys_s_barrel, "check": _phys_c_barrel},
 		{"name": "P23-bounce-pad", "wait": 1.5, "setup": _phys_s_pad, "check": _phys_c_pad}, # QA-071b: was 0.12 — under xvfb load ~1 physics frame elapses in 0.2 s wall, so the launch may not have fired yet; 1.5 s gives it frames on any load, and the check accepts a fast rise OR having risen
 		{"name": "P24-stuck-recovery", "wait": 0.1, "setup": _phys_s_stuck, "check": _phys_c_stuck},
 		{"name": "P24b-wedge-recovery", "wait": 3.5, "setup": _phys_s_wedge, "check": _phys_c_wedge},
@@ -8857,7 +8817,12 @@ func _phys_c_ground_accel() -> Array:
 
 
 func _phys_s_air_run() -> void:
-	_phys_teleport(Vector2(2100, 700))
+	# QA-099 (v3.7): drop from a column with a long clear fall (see
+	# _phys_clear_fall_x) — the old fixed (2100, 700) lands the
+	# player against Volcanic's solid crate at (2140, 770) on the
+	# platform below, so the player pinned after ~5 px and never
+	# reached 300 px/s in the air. Air accel itself is unchanged.
+	_phys_teleport(Vector2(_phys_clear_fall_x(), 200))
 	_phys_data["t0"] = Time.get_ticks_msec() / 1000.0
 	_phys_data["t0_phys"] = float(_phys_data.get("phys_clock", 0.0))
 	_phys_data.erase("t300")
@@ -8915,13 +8880,16 @@ func _phys_c_ground_stop() -> Array:
 
 func _phys_s_air_slide() -> void:
 	# Air slide, drag-only model (GAP-03): start airborne at 350 px/s
-	# with no input. Open sky at x=1000 (no platform below until the
-	# floor) so the player stays airborne for the whole second.
-	_phys_teleport(Vector2(1000, 200))
+	# with no input. QA-099 (v3.7): drop from a column with a long
+	# clear fall (see _phys_clear_fall_x) — the old fixed x=1000
+	# drops the player onto Pirate Island's y600 platform at ~0.76 s,
+	# so ground friction had already killed vel.x by the 1.0 s check.
+	var _slide_x := _phys_clear_fall_x()
+	_phys_teleport(Vector2(_slide_x, 200))
 	_jt_release_move()
 	var lp = _phys_lp()
 	lp.velocity = Vector2(350, 0)
-	_phys_data["slide_x0"] = 1000.0
+	_phys_data["slide_x0"] = _slide_x
 
 
 func _phys_c_air_run() -> Array:
@@ -8946,14 +8914,9 @@ func _phys_c_air_slide() -> Array:
 func _phys_s_fall() -> void:
 	# x=1000 falls to the y=1010 platform; max vy is tracked so the
 	# check does not depend on sampling the exact landing frame.
-	# QA-033: on the rebuilt Frozen Fortress (map 4) the Perch at
-	# (950,500) cuts the x=1000 fall to 182 px (max vy 677, want
-	# 950-1050). Use x=400 instead: a clear fall to the Top L
-	# platform (670), 452 px — enough to hit the 1000 cap.
-	if map_id == 4:
-		_phys_teleport(Vector2(400, 200))
-	else:
-		_phys_teleport(Vector2(1000, 300))
+	# QA-095 (v3.7): the old ice map's x=400 branch is gone
+	# with that map — every kept map has a clear fall at x=1000.
+	_phys_teleport(Vector2(1000, 300))
 	_phys_data["max_vy"] = 0.0
 	_phys_data["track_max_vy"] = true
 
@@ -8965,9 +8928,78 @@ func _phys_c_terminal() -> Array:
 	return [ok, "max fall vel.y=%.0f (want 950-1050, cap 1000)" % m]
 
 
+# QA-099 (v3.7): the fixed x=800 jump/jetpack column sits under a
+# y1180/y1280 platform on Ironfall, Jungle and Volcanic (only 124 px
+# of sky) — the jump bonked at ~65 px instead of ~155 and the jetpack
+# never reached its cap there, on three different maps with the same
+# numbers. The old "x=800 has >=294 px of sky on all five maps"
+# comment was wrong: it only counted the y1110 row and missed the
+# lower y1180/y1280 row. Scan every column and return the one with
+# the most open sky above the floor; a column blocked at floor level
+# by solid decor is skipped. The best column wins even if no column
+# reaches clear_px (Volcanic's best is 294 px — still enough for the
+# cap, which needs ~40 px of free rise at full thrust).
+func _phys_clear_sky_x(clear_px: float) -> float:
+	var floor_top := float((MAPS[map_id]["platforms"] as Array)[0].position.y)
+	var solids: Array = _ct_solid_rects(MAPS[map_id])
+	var best_x := 800.0
+	var best_clear := -1.0
+	var x := 100.0
+	while x <= map_size.x - 100.0:
+		var lowest_bottom := 0.0
+		for p in (MAPS[map_id]["platforms"] as Array):
+			var r: Rect2 = p
+			if r.end.x < x - 20.0 or r.position.x > x + 20.0:
+				continue
+			if r.position.y >= floor_top:
+				continue
+			lowest_bottom = maxf(lowest_bottom, r.end.y)
+		var clear := floor_top - lowest_bottom
+		var blocked := false
+		for sr in solids:
+			var srr: Rect2 = sr
+			if srr.end.x < x - 45.0 or srr.position.x > x + 45.0:
+				continue
+			if srr.position.y < floor_top and srr.end.y > floor_top - 60.0:
+				blocked = true
+				break
+		if not blocked and clear > best_clear:
+			best_clear = clear
+			best_x = x
+		x += 50.0
+	return best_x
+
+
+# QA-099 (v3.7): a column with a long clear fall from y=200 — no
+# platform top in the 200..950 band anywhere on the player's drift
+# path (x-20 .. x+230, ~204 px at 350 px/s with drag 1.2), so the
+# player stays airborne for the whole 1.0 s step (a 750 px fall takes
+# ~1.03 s). The old fixed (1000, 200) drops the player onto Pirate
+# Island's y600 platform at ~0.76 s (P05b landed early, vel.x killed
+# by ground friction) and the old fixed (2100, 700) air-run drop
+# lands the player against Volcanic's solid crate at (2140, 770)
+# after ~5 px (P02 never reached 300 px/s). Physics untouched.
+func _phys_clear_fall_x() -> float:
+	var plats: Array = MAPS[map_id]["platforms"]
+	var x := 200.0
+	while x <= map_size.x - 300.0:
+		var ok := true
+		for i in range(1, plats.size()):
+			var r: Rect2 = plats[i]
+			if r.end.x < x - 20.0 or r.position.x > x + 230.0:
+				continue
+			if r.position.y >= 200.0 and r.position.y <= 950.0:
+				ok = false
+				break
+		if ok:
+			return x
+		x += 50.0
+	return 1000.0
+
+
 # Phase 5 — physics harness helper: the ground (lowest platform top)
 # at map x, so jump/grenade/respawn setups land on a floor on every
-# map instead of a Catacombs-tuned coordinate.
+# map instead of a map-0-tuned coordinate.
 func _phys_ground_at(x: float) -> Vector2:
 	var best_top := -1.0
 	for p in (MAPS[map_id]["platforms"] as Array):
@@ -8980,21 +9012,18 @@ func _phys_ground_at(x: float) -> Vector2:
 
 
 func _phys_s_jump_hold() -> void:
-	# Open sky at x=800 (the old x=2100 spot sits exactly on Space
-	# Station's bounce pad at 0.7 * 3000 = 2100, so P07 measured the
-	# pad launch ~200 px instead of the jump ~155 px; x=300 has a
-	# platform at y=1180 directly overhead — the player bonked it
-	# at 66 px, not 155). x=800 has >=294 px of sky and no ground
-	# decor within 70 px on all five physics-test maps, and is clear
-	# of every map's pad (0.7 * W). Physics untouched.
+	# QA-099 (v3.7): stand on the ground at the clearest-sky column
+	# (see _phys_clear_sky_x) — the old x=800 sits under a y1180
+	# platform on Ironfall/Jungle and a y1280 platform on Volcanic,
+	# so the jump bonked at ~65 px instead of ~155. (The even older
+	# x=2100 spot sat exactly on a bounce pad at 0.7 * W and x=300 has a
+	# platform at y=1180 directly overhead — same bonk.) Physics
+	# untouched.
 	# fuel=0: holding stick-up must NOT jetpack, or the "hold" apex
 	# measures jump+jetpack (~300 px) instead of the jump (~155 px).
 	# The 999 s regen delay stops air regen re-enabling the jetpack
 	# mid-rise (which also used to clamp the jump via the rise cap).
-	# Phase 5: stand on the ground at x=2100 (the fixed (2100, 1320)
-	# is mid-air on taller maps, so the tap's 0.15 s release fired
-	# before the player had even landed).
-	var gp := _phys_ground_at(800.0)
+	var gp := _phys_ground_at(_phys_clear_sky_x(200.0))
 	_phys_teleport(gp)
 	var lp = _phys_lp()
 	lp.fuel = 0.0
@@ -9015,10 +9044,19 @@ func _phys_c_jump_hold() -> Array:
 	return [apex > 130.0 and apex < 185.0, "hold jump apex: %d px (want ~155)" % round(apex)]
 
 
+# QA-099 (v3.7): fire-and-forget release after N physics frames
+# (see _phys_s_jump_tap) — calling a coroutine without awaiting it
+# runs it until the first await, then resumes it on later frames.
+func _phys_release_move_after_frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+	_jt_release_move()
+
+
 func _phys_s_jump_tap() -> void:
-	# Phase 5: same ground-at-x fix as _phys_s_jump_hold — the fixed
-	# (2100, 1320) is mid-air on taller maps.
-	var gp := _phys_ground_at(800.0)
+	# QA-099 (v3.7): same clear-sky column as _phys_s_jump_hold, so
+	# the tap apex is measured against the same sky as the hold apex.
+	var gp := _phys_ground_at(_phys_clear_sky_x(200.0))
 	_phys_teleport(gp)
 	var lp = _phys_lp()
 	lp.fuel = 0.0
@@ -9027,12 +9065,15 @@ func _phys_s_jump_tap() -> void:
 	_phys_data["min_y"] = gp.y + 6.0
 	_phys_data["jump_y0"] = gp.y + 6.0
 	_jt_press_move(Vector2(0, -60))
-	# Tap: release after a short hold via a timer.
-	# QA-047: 0.15 s was the load-flake — under a loaded machine
-	# the timer fires late in physics time and the tap apex crept
-	# to 124 px (cap 120). 0.12 s leaves the same margin on a fast
-	# machine (apex still >50 px) with less exposure to late firing.
-	get_tree().create_timer(0.12).timeout.connect(_jt_release_move)
+	# Tap: release after a short hold counted in physics frames.
+	# QA-099 (v3.7): the old 0.12 s wall-clock timer was load-flaky
+	# both ways — QA-047 fixed its late firing (apex crept to
+	# 124 px, cap 120), but under a loaded machine it can also fire
+	# after fewer physics frames and the tap apex fell to 32 px
+	# (want 50-120). 7 physics frames is the same ~0.12 s in
+	# physics time, whatever the wall clock does (same lesson as
+	# the pad fix: awaiting the physics frame is exact).
+	_phys_release_move_after_frames(7)
 
 
 func _phys_c_jump_tap() -> Array:
@@ -9151,7 +9192,7 @@ func _phys_s_grenade() -> void:
 	var floor_top := float((MAPS[map_id]["platforms"] as Array)[0].position.y)
 	g.position = Vector2(2100, floor_top - 250.0)
 	# Phase 5: straight down — the old (0.2, 0.3) drift rolled the
-	# grenade off Space Station's deck B and Airship Fleet's net
+	# grenade off a segmented deck
 	# before it could rest (want a bounce + rest on the platform
 	# below the throw point, on every map).
 	g.throw_dir = Vector2(0, 1)
@@ -9202,42 +9243,25 @@ func _phys_c_recoil_decay() -> Array:
 
 
 func _phys_s_ice() -> void:
-	_phys_data["ice_map"] = map_id == 4
-	if map_id == 4:
-		# QA-033: the duel rebuild moved the floor to 1352 and the
-		# slide lane to x450-1750. Start the run at x=900: clear
-		# floor to the 0.7-width bounce pad at x1540 (640 px of
-		# clean ice — the old x=500 start would hit the 0.3-width
-		# pad at x660 after 160 px).
-		_phys_teleport(Vector2(900, 1318))
-		_jt_press_move(Vector2(60, 0))
+	# QA-095 (v3.7): the old ice map is deleted, so there is no
+	# live ice slide any more — the step records that and the
+	# check below passes on the constants only.
+	_phys_data["ice_map"] = false
 
 
 func _phys_c_ice() -> Array:
 	_jt_release_move()
-	if map_id != 4:
-		var ok: bool = not is_on_ice(Vector2(1400, 1420)) and absf(PhysicsConfig.ICE_FRICTION - 100.0) < 0.01 and absf(PhysicsConfig.ICE_ACCEL - 500.0) < 0.01
-		return [ok, "not Frozen Fortress (map %d): is_on_ice=false, ice friction=100 accel=500 — rerun with --map=4 for the live slide" % map_id]
-	var lp = _phys_lp()
-	_phys_data["ice_slide_x0"] = lp.position.x
-	_phys_data["ice_slide_vx0"] = lp.velocity.x
-	var ok: bool = lp.velocity.x > 150.0
-	return [ok, "ice run vel.x=%d (want >150 with ice accel 500)" % round(lp.velocity.x)]
-
-
-func _phys_c_ice_slide() -> Array:
-	# T-58: stop distance on ice >= 3x the ground stop (~46 px).
-	var lp = _phys_lp()
-	var dist: float = lp.position.x - float(_phys_data.get("ice_slide_x0", 0.0))
-	var ok: bool = dist > 135.0 and absf(lp.velocity.x) > 40.0
-	return [ok, "ice slide: dist=%.0f px in 1.5 s, vel.x=%d (want >135 px, >40 — vs 46 px ground stop)" % [dist, round(lp.velocity.x)]]
+	# QA-095 (v3.7): no map has ice now — the check proves the
+	# query is off everywhere and the constants are intact.
+	var ok: bool = not is_on_ice(Vector2(1400, 1420)) and absf(PhysicsConfig.ICE_FRICTION - 100.0) < 0.01 and absf(PhysicsConfig.ICE_ACCEL - 500.0) < 0.01
+	return [ok, "no ice map in v3.7 (map %d): is_on_ice=false, ice friction=100 accel=500" % map_id]
 
 
 func _phys_s_camera() -> void:
 	var lp = _phys_lp()
 	_phys_data["cam_anchor0"] = lp._cam_anchor
 	# Phase 5: stand on the highest platform at x=1600 — the fixed
-	# (1600, 1320) is INSIDE a platform on Space Station
+	# (1600, 1320) is INSIDE a platform on some maps
 	# ((1450,1280,300,48)), so the player wedged and look-ahead read 0.
 	_phys_teleport(_phys_top_at(1600.0))
 	_jt_press_move(Vector2(60, 0))
@@ -9311,12 +9335,20 @@ func _phys_s_pad() -> void:
 	# late under xvfb load); awaiting the physics frame is exact.
 	for entry in _bounce_pads:
 		(entry["cooldowns"] as Dictionary).clear()
+	# QA-099 (v3.7): track the launch itself — the pad sets vel.y
+	# -750 on entry, so the fastest upward velocity proves the pad
+	# fired even when a platform overhead caps the rise (Volcanic's
+	# 0.3 pad sits under its y1280 platform: the launch bonks after
+	# ~53 px and the old endpoint check read a falling player).
+	_phys_data["pad_min_vy"] = 0.0
+	_phys_data["track_min_vy_pad"] = true
 	_phys_teleport(Vector2(map_size.x * 0.1, floor_top - 40.0))
 	await get_tree().physics_frame
 	_phys_teleport(Vector2(pad_x, floor_top - 40.0))
 
 
 func _phys_c_pad() -> Array:
+	_phys_data["track_min_vy_pad"] = false
 	var lp = _phys_lp()
 	var floor_top := 1352.0
 	var plats: Array = MAPS[map_id]["platforms"]
@@ -9328,8 +9360,13 @@ func _phys_c_pad() -> Array:
 	# A player who never launched stands at floor_top - 34 with vel.y = 0,
 	# so neither condition can pass by accident — the only upward force here
 	# is the pad (no jump input in this step).
-	var ok: bool = lp.velocity.y < -400.0 or lp.position.y < floor_top - 60.0
-	return [ok, "bounce pad launch vel.y=%d pos.y=%.0f (want vel.y < -400 or risen above %.0f, pad sets -750)" % [round(lp.velocity.y), lp.position.y, floor_top - 60.0]]
+	# QA-099 (v3.7): or the launch was tracked at physics rate
+	# (pad_min_vy < -600) — on Volcanic the pad sits under the y1280
+	# platform, so the launch bonks after ~53 px and the endpoint
+	# state alone reads as "never launched".
+	var pad_min_vy: float = float(_phys_data.get("pad_min_vy", 0.0))
+	var ok: bool = lp.velocity.y < -400.0 or lp.position.y < floor_top - 60.0 or pad_min_vy < -600.0
+	return [ok, "bounce pad launch vel.y=%d pos.y=%.0f pad_min_vy=%d (want vel.y < -400 or risen above %.0f or pad_min_vy < -600, pad sets -750)" % [round(lp.velocity.y), lp.position.y, round(pad_min_vy), floor_top - 60.0]]
 
 
 func _phys_s_stuck() -> void:
@@ -9404,15 +9441,11 @@ func _phys_c_wedge() -> Array:
 # x=800 there. P25b's setup runs right after P25a's check, while
 # the stick is still held up — it only releases it.
 func _phys_s_jetpack_cap() -> void:
-	# QA-074b: on map 4 (Frozen Fortress) the 1180 level spans
-	# nearly the whole width, so at x=800 the player bonks it after
-	# 59 px of rise — the climb never reaches the cap and the
-	# tracker reads ~0 while the player thrusts against the ceiling
-	# (the first full-suite run failed P25a on map 4 exactly this
-	# way: fastest vy -23, fuel 61). x=2100 has clear sky to the
-	# top of the map (no platform covers it above the floor), so
-	# map 4 uses it; other maps keep x=800.
-	var x := 2100.0 if map_id == 4 else 800.0
+	# QA-099 (v3.7): the clearest-sky column (see
+	# _phys_clear_sky_x) — the old x=800 sits under a y1180/y1280
+	# platform on Ironfall/Jungle/Volcanic, so the climb bonked
+	# after ~53 px and never reached the 320 cap (fastest vy -23).
+	var x := _phys_clear_sky_x(300.0)
 	var gp := _phys_ground_at(x)
 	_phys_teleport(gp)
 	var lp = _phys_lp()
