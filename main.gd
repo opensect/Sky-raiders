@@ -114,7 +114,7 @@ var _team_buttons: Array = [] # QA-078: RED / BLUE / AUTO team pick (team modes 
 var _team_section_label: Label # QA-078: hidden with the team row in FFA modes
 var _lobby_color_buttons: Array = [] # QA-078: in-lobby appearance
 var _lobby_helmet_buttons: Array = []
-var _limit_label: Label # QA-080: "Kill limit:" / "Capture limit:" by mode
+var _limit_label: Label # "Kill limit:" label in the lobby room strip
 var _strip_limit_cap: Label # QA-080: stat-strip caption, same switch
 var _room_code_input: LineEdit # QA-078: join by room code
 var _my_team: int = -1 # QA-078: my team pick in this room (-1 auto)
@@ -126,7 +126,6 @@ var _limit_buttons: Array = []
 var _time_buttons: Array = []
 var _max_buttons: Array = []
 var _create_mode_buttons: Array = [] # QA-098: mode pick on the create page
-var _create_map_buttons: Array = [] # QA-098: map pick on the create page (5 maps)
 var _color_buttons: Array = []
 var _helmet_buttons: Array = []
 var _portrait_tex: TextureRect
@@ -1116,12 +1115,13 @@ func _build_multiplayer() -> void:
 		max_row.add_child(b)
 		_max_buttons.append(b)
 		_connect_scroll_button(b, _mp_scroll)
-	# QA-098 (v3.7): the create form now picks the mode and the
-	# map up front (was lobby-only). Same values the lobby uses
-	# (GameData.game_mode / GameData.map_id) — the room card, the
-	# lobby display and the match start all read them from there,
-	# so nothing else changes. Two rows of mode buttons (3 + 2)
-	# like the lobby, one row of 5 map buttons.
+	# QA-098 (v3.7): the create form now picks the mode up front
+	# (was lobby-only). Same value the lobby uses (GameData.game_mode)
+	# — the room card, the lobby display and the match start all read
+	# it from there, so nothing else changes. Two rows of mode buttons
+	# (3 + 2) like the lobby. The map pick that was added here in
+	# v3.7 was removed in v3.8 (QA-102): the host picks the map in
+	# the lobby instead.
 	var create_mode_cap := Label.new()
 	create_mode_cap.text = "Game mode"
 	create_mode_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1145,28 +1145,13 @@ func _build_multiplayer() -> void:
 		(create_mode_row if i < 3 else create_mode_row2).add_child(mb)
 		_create_mode_buttons.append(mb)
 		_connect_scroll_button(mb, _mp_scroll)
-	var create_map_cap := Label.new()
-	create_map_cap.text = "Map — 5 battlefields"
-	create_map_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	create_map_cap.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
-	create_map_cap.add_theme_font_size_override("font_size", 20)
-	create_map_cap.add_theme_color_override("font_color", UI_FONT)
-	create_box.add_child(create_map_cap)
-	var create_map_row := HBoxContainer.new()
-	create_map_row.add_theme_constant_override("separation", 8)
-	create_box.add_child(create_map_row)
-	for i in GameData.MAP_NAMES.size():
-		var cb := Button.new()
-		cb.text = GameData.MAP_NAMES[i]
-		cb.custom_minimum_size = Vector2(0, 56)
-		cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_style_button(cb, 18, 56)
-		cb.pressed.connect(_on_create_map_pressed.bind(i))
-		create_map_row.add_child(cb)
-		_create_map_buttons.append(cb)
-		_connect_scroll_button(cb, _mp_scroll)
+	# QA-102 (v3.8): the map pick was REMOVED from the create form
+	# (user: "remove map selection while creating room") — the host
+	# picks the map in the lobby instead. The mode pick stays here.
+	# GameData.map_id keeps its default (0 = Ironfall) until the
+	# host changes it on a lobby map card; the room card, lobby
+	# display and match start all read it from there.
 	_refresh_create_mode_buttons()
-	_refresh_create_map_buttons()
 	# The password input is created BEFORE the Private switch:
 	# flipping the switch calls _on_private_toggled, which greys
 	# the password field out when Private is off — and the field
@@ -1208,11 +1193,29 @@ func _build_multiplayer() -> void:
 	_connect_scroll_button(create_btn, _mp_scroll)
 	_on_private_toggled(GameData.room_private) # grey the password field out when Private starts off
 
-	# --- Join a room ---
-	box.add_child(_section_label("Join a room:"))
+	# --- Join area: TWO COLUMNS (QA-103, v3.8) ---
+	# User: "have the rooms on the right like available room and
+	# quick join also on the right like bottom of the right when the
+	# rooms available". Left column = join by IP / room code.
+	# Right column = available rooms list, with QUICK LAN MATCH at
+	# the bottom of the right column, below the rooms. REFRESH moves
+	# into the right column header (it refreshes the room list).
+	# Both columns share the width 50/50; the whole page still
+	# scrolls in _mp_scroll, so nothing is cut off.
+	var join_columns := HBoxContainer.new()
+	join_columns.add_theme_constant_override("separation", 16)
+	join_columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(join_columns)
+	var left_col := _vbox(join_columns, 12)
+	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var right_col := _vbox(join_columns, 12)
+	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	# --- Left column: join a room ---
+	left_col.add_child(_section_label("Join a room:"))
 	var join_row := HBoxContainer.new()
 	join_row.add_theme_constant_override("separation", 10)
-	box.add_child(join_row)
+	left_col.add_child(join_row)
 	_ip_input = LineEdit.new()
 	_ip_input.placeholder_text = "Host IP, e.g. 192.168.1.5"
 	_ip_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1220,7 +1223,7 @@ func _build_multiplayer() -> void:
 	_ip_input.add_theme_font_size_override("font_size", 22)
 	# v3.6 QA-068: the join IP gets a real label too (GoField),
 	# like the create form above — same node, same JOIN flow.
-	var ip_field := GoField.make("Host IP", _ip_input, "Or tap a room below — same Wi-Fi only")
+	var ip_field := GoField.make("Host IP", _ip_input, "Or tap a room on the right — same Wi-Fi only")
 	ip_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ip_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ip_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1242,32 +1245,14 @@ func _build_multiplayer() -> void:
 	var join_pw_field := GoField.make("Password", _join_password_input, "Only for private rooms")
 	join_pw_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	join_pw_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(join_pw_field)
-	var quick_row := HBoxContainer.new()
-	quick_row.add_theme_constant_override("separation", 10)
-	box.add_child(quick_row)
-	var quick_btn := Button.new()
-	quick_btn.text = "QUICK LAN MATCH"
-	quick_btn.custom_minimum_size = Vector2(0, 60)
-	quick_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_style_button(quick_btn, 22, 60, true)
-	quick_btn.pressed.connect(_on_quick_match_pressed)
-	quick_row.add_child(quick_btn)
-	_connect_scroll_button(quick_btn, _mp_scroll)
-	var refresh_btn := Button.new()
-	refresh_btn.text = "REFRESH"
-	refresh_btn.custom_minimum_size = Vector2(160, 60)
-	_style_button(refresh_btn, 22, 60)
-	refresh_btn.pressed.connect(_on_refresh_pressed)
-	quick_row.add_child(refresh_btn)
-	_connect_scroll_button(refresh_btn, _mp_scroll)
+	left_col.add_child(join_pw_field)
 	# QA-078: join by room code — the host reads the code out
 	# (it is on the lobby's host-IP chip) and a friend types it
 	# here instead of the IP. LAN-local only: the code is looked
 	# up in the discovered-room list on this Wi-Fi, no server.
 	var code_row := HBoxContainer.new()
 	code_row.add_theme_constant_override("separation", 10)
-	box.add_child(code_row)
+	left_col.add_child(code_row)
 	_room_code_input = LineEdit.new()
 	_room_code_input.placeholder_text = "Room code, e.g. FRAG-1234"
 	_room_code_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1287,17 +1272,43 @@ func _build_multiplayer() -> void:
 	code_row.add_child(code_btn)
 	_connect_scroll_button(code_btn, _mp_scroll)
 
-	box.add_child(_section_label("Games found on this Wi-Fi:"))
-	var rooms_hint := _body_label("Tap a room to join it. If nothing appears, type the host IP above.", 18)
+	# --- Right column: available rooms + Quick Join at the bottom ---
+	var rooms_head := HBoxContainer.new()
+	rooms_head.add_theme_constant_override("separation", 10)
+	right_col.add_child(rooms_head)
+	var rooms_cap := _section_label("Games found on this Wi-Fi:")
+	rooms_cap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	rooms_cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rooms_head.add_child(rooms_cap)
+	var refresh_btn := Button.new()
+	refresh_btn.text = "REFRESH"
+	refresh_btn.custom_minimum_size = Vector2(140, 56)
+	refresh_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_button(refresh_btn, 20, 56)
+	refresh_btn.pressed.connect(_on_refresh_pressed)
+	rooms_head.add_child(refresh_btn)
+	_connect_scroll_button(refresh_btn, _mp_scroll)
+	var rooms_hint := _body_label("Tap a room to join it. If nothing appears, type the host IP on the left.", 18)
 	rooms_hint.add_theme_color_override("font_color", UI_FONT_MUTED)
-	box.add_child(rooms_hint)
+	right_col.add_child(rooms_hint)
 	# Room list: plain VBox inside the outer scroll (the v3.1 inner
 	# ScrollContainer got zero height — see the note at the top of
 	# this function). Room buttons forward drags to _mp_scroll.
 	_host_buttons = VBoxContainer.new()
 	_host_buttons.add_theme_constant_override("separation", 8)
 	_host_buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(_host_buttons)
+	right_col.add_child(_host_buttons)
+	# QUICK LAN MATCH sits at the bottom of the right column,
+	# below the rooms list — reachable without scrolling when the
+	# list is short, one scroll away when it is long.
+	var quick_btn := Button.new()
+	quick_btn.text = "QUICK LAN MATCH"
+	quick_btn.custom_minimum_size = Vector2(0, 60)
+	quick_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(quick_btn, 22, 60, true)
+	quick_btn.pressed.connect(_on_quick_match_pressed)
+	right_col.add_child(quick_btn)
+	_connect_scroll_button(quick_btn, _mp_scroll)
 	_status = Label.new()
 	_status.text = ""
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1313,7 +1324,6 @@ func _build_multiplayer() -> void:
 	_connect_scroll_button(back_btn, _mp_scroll)
 	_refresh_max_buttons()
 	_refresh_create_mode_buttons()
-	_refresh_create_map_buttons()
 
 
 func _refresh_create_mode_buttons() -> void:
@@ -1323,23 +1333,10 @@ func _refresh_create_mode_buttons() -> void:
 		_style_selected(b, i == GameData.game_mode, 20)
 
 
-func _refresh_create_map_buttons() -> void:
-	for i in _create_map_buttons.size():
-		var b: Button = _create_map_buttons[i]
-		b.text = ("✓ " if i == GameData.map_id else "") + GameData.MAP_NAMES[i]
-		_style_selected(b, i == GameData.map_id, 18)
-
-
 func _on_create_mode_pressed(i: int) -> void:
 	_click()
 	GameData.game_mode = i
 	_refresh_create_mode_buttons()
-
-
-func _on_create_map_pressed(i: int) -> void:
-	_click()
-	GameData.map_id = i
-	_refresh_create_map_buttons()
 
 
 func _build_lobby() -> void:
@@ -1442,7 +1439,7 @@ func _build_lobby() -> void:
 		var cap := Label.new()
 		cap.text = field.to_upper()
 		if field == "Kill limit":
-			_strip_limit_cap = cap # QA-080: caption switches in CTF
+			_strip_limit_cap = cap
 		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cap.add_theme_font_override("font", FONT_BODY_SEMIBOLD)
 		cap.add_theme_font_size_override("font_size", 15)
@@ -2090,14 +2087,15 @@ func _refresh_lobby_buttons() -> void:
 		_room_info_values["Friendly fire"].text = "On" if GameData.friendly_fire else "Off"
 	if _lobby_players_badge != null:
 		_lobby_players_badge.label_text = "%d/%d PLAYERS" % [_lobby_players.size(), GameData.max_players]
-	# QA-080: in Capture the Flag the limit is captures, not kills.
+	# QA-107 (v3.8): the limit is always kills now — Capture the
+	# Flag (whose limit was captures) was removed.
 	if _limit_label != null:
-		_limit_label.text = "Capture limit:" if GameData.game_mode == 4 else "Kill limit:"
+		_limit_label.text = "Kill limit:"
 	if _strip_limit_cap != null:
-		_strip_limit_cap.text = "CAPTURE LIMIT" if GameData.game_mode == 4 else "KILL LIMIT"
+		_strip_limit_cap.text = "KILL LIMIT"
 	# QA-078: team pick row only exists for team modes; the
 	# appearance rows always show the current saved choice.
-	var team_mode := GameData.game_mode == 1 or GameData.game_mode == 4
+	var team_mode := GameData.game_mode == 1
 	if _team_section_label != null:
 		_team_section_label.visible = team_mode
 	for i in _team_buttons.size():
@@ -2183,7 +2181,7 @@ func _refresh_lobby_list() -> void:
 		else:
 			row.add_child(_lobby_chip("NOT READY", UI_FONT_MUTED))
 		# QA-078: team chip in team modes (RED / BLUE / AUTO).
-		if GameData.game_mode == 1 or GameData.game_mode == 4:
+		if GameData.game_mode == 1:
 			var pt: int = int(info.get("team", -1))
 			if pt == 0:
 				row.add_child(_lobby_chip("RED", UI_DANGER))
@@ -2533,7 +2531,10 @@ func _broadcast_lobby() -> void:
 func lobby_update(players: Dictionary, settings: Dictionary) -> void:
 	_lobby_players = players
 	GameData.map_id = int(settings.get("map", GameData.map_id))
-	GameData.game_mode = int(settings.get("mode", GameData.game_mode))
+	# QA-107 (v3.8): clamp the mode — a lobby hosted on v3.7 could
+	# still send mode 4 (Capture the Flag, removed), and a stale
+	# saved value would break MODE_NAMES[4].
+	GameData.game_mode = clampi(int(settings.get("mode", GameData.game_mode)), 0, GameData.MODE_NAMES.size() - 1)
 	GameData.kill_limit = int(settings.get("limit", GameData.kill_limit))
 	GameData.match_minutes = int(settings.get("minutes", GameData.match_minutes))
 	GameData.max_players = int(settings.get("max", GameData.max_players))
@@ -2591,7 +2592,9 @@ func start_match(map_id: int, mode: int, kill_limit: int, minutes: int) -> void:
 		return
 	_match_started = true
 	GameData.map_id = map_id
-	GameData.game_mode = mode
+	# QA-107 (v3.8): clamp — a v3.7 host could still send mode 4
+	# (Capture the Flag, removed); it falls back to FFA (0).
+	GameData.game_mode = clampi(mode, 0, GameData.MODE_NAMES.size() - 1)
 	GameData.kill_limit = kill_limit
 	GameData.match_minutes = minutes
 	_room_status = "playing"
@@ -3065,6 +3068,7 @@ func _shotall_begin() -> void:
 		{"name": "customize", "wait": 0.5, "setup": _shot_s_customize, "file": "user://shot_customize.png"},
 		{"name": "settings", "wait": 0.5, "setup": _shot_s_settings, "file": "user://shot_settings.png"},
 		{"name": "multiplayer", "wait": 0.5, "setup": _shot_s_multiplayer, "file": "user://shot_multiplayer.png"},
+		{"name": "join", "wait": 0.5, "setup": _shot_s_join, "file": "user://shot_join.png"},
 		{"name": "lobby", "wait": 0.5, "setup": _shot_s_lobby, "file": "user://shot_lobby.png"},
 	]
 	_shot_step = 0
@@ -3104,6 +3108,15 @@ func _shot_s_settings() -> void:
 
 func _shot_s_multiplayer() -> void:
 	_show_only(_mp_panel)
+
+
+# QA-103 (v3.8): the join area is below the Create Room card in the
+# same scroll — scroll to the bottom so the two-column join layout
+# (rooms list on the right, QUICK LAN MATCH at the bottom of the
+# right column) is in frame for the capture.
+func _shot_s_join() -> void:
+	_show_only(_mp_panel)
+	_mp_scroll.scroll_vertical = 100000
 
 
 func _shot_s_lobby() -> void:

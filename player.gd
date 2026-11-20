@@ -320,6 +320,14 @@ var _hp_bg: ColorRect
 var _hp_fg: ColorRect
 var _audio # GameAudio node (set by game)
 var _camera: Camera2D # kept so respawn can reset smoothing (see below)
+# QA-105 (v3.8): scopes + sniper line of sight. Sniper zooms 2.0x,
+# rifle 1.5x; SMG / shotgun / pistol / rocket have no scope. The
+# sight line is the sniper bullet's true range (1600 px/s * 1.6 s).
+const SCOPE_ZOOM_SNIPER := 2.0
+const SCOPE_ZOOM_RIFLE := 1.5
+const SIGHT_LINE_RANGE := 2560.0
+var scoped: bool = false # scope toggle (HUD SCOPE button, sniper/rifle only)
+var _sight_line: Line2D # sniper sight line (local player only)
 
 
 func _enter_tree() -> void:
@@ -356,6 +364,15 @@ func _ready() -> void:
 		# Deferred so the camera is fully inside the tree when it activates.
 		cam.call_deferred("make_current")
 		cam.call_deferred("reset_smoothing")
+		# QA-105: the sniper sight line — a thin line from the muzzle
+		# along the aim direction, green while the path is clear to
+		# full sniper range, red where a wall blocks it. Local
+		# player only; _update_sight_line drives it every frame.
+		_sight_line = Line2D.new()
+		_sight_line.width = 3.0
+		_sight_line.visible = false
+		_sight_line.z_index = 5
+		add_child(_sight_line)
 	_spawn_protect_timer = SPAWN_PROTECTION
 	_play_anim("idle")
 
@@ -547,8 +564,13 @@ func _update_gun_texture() -> void:
 	_gun_base_scale = GUN_LENGTH / tex.get_width()
 	_gun.scale = Vector2(_gun_base_scale, _gun_base_scale)
 	# Muzzle flash sits at the barrel tip in the gun's local space.
+	# QA-108: was tex.get_width() — the gun sprite is CENTRED on the
+	# node and scaled so its full width is GUN_LENGTH, so the barrel
+	# tip is at half the texture width (27.5 px ahead after scaling),
+	# not the far edge (55 px). The flash used to float 27.5 px past
+	# the barrel in mid-air.
 	if _muzzle != null:
-		_muzzle.position = Vector2(tex.get_width(), 0)
+		_muzzle.position = Vector2(tex.get_width() * 0.5, 0)
 		# QA-083: the flash picture follows the weapon class.
 		_muzzle.texture = MUZZLE_TEX[weapon]
 
@@ -816,6 +838,7 @@ func _process(delta: float) -> void:
 	_update_visuals(delta)
 	if is_local_player() and _camera != null:
 		_update_camera(delta)
+		_update_sight_line()
 
 
 func _physics_process(delta: float) -> void:
@@ -1148,14 +1171,53 @@ func _update_camera(delta: float) -> void:
 		look_target = signf(velocity.x) * PhysicsConfig.CAMERA_LOOKAHEAD * 0.5
 	_cam_look = move_toward(_cam_look, look_target, delta * 240.0)
 	var target := _cam_anchor + Vector2(_cam_look, 0)
+	# QA-105 (v3.8): while scoped, the view shifts toward the aim
+	# direction so the player sees further that way.
+	if scoped and _aiming:
+		target += _aim_dir * 150.0
 	# Clamp the view inside the map (hard limits, spec §19).
-	var vp := get_viewport().get_visible_rect().size
+	# QA-105: the clamp uses the EFFECTIVE view size (viewport /
+	# zoom) so a scoped (zoomed-in) camera still stays inside.
+	var vp := get_viewport().get_visible_rect().size / _camera.zoom
 	var ms: Vector2 = game.map_size
 	var hx := minf(vp.x * 0.5, ms.x * 0.5)
 	var hy := minf(vp.y * 0.5, ms.y * 0.5)
 	target.x = clampf(target.x, hx, maxf(hx, ms.x - hx))
 	target.y = clampf(target.y, hy, maxf(hy, ms.y - hy))
 	_camera.position = target - global_position
+	# QA-105: scope zoom — sniper 2.0x, rifle 1.5x, everything else
+	# 1.0x. Eases at 3x/s so the zoom feels smooth, not a snap.
+	var zoom_target := 1.0
+	if scoped:
+		zoom_target = SCOPE_ZOOM_SNIPER if weapon == 3 else (SCOPE_ZOOM_RIFLE if weapon == 0 else 1.0)
+	var zoom_now := move_toward(_camera.zoom.x, zoom_target, delta * 3.0)
+	_camera.zoom = Vector2(zoom_now, zoom_now)
+
+
+func _update_sight_line() -> void:
+	# QA-105 (v3.8): the sniper sight line — local player only,
+	# sniper equipped, while aiming (right stick deflected). One
+	# raycast along the true bullet path (mask 1 = world, same as
+	# game.gd has_line_of_sight): green while clear to full sniper
+	# range, red where a wall blocks it, ending at the wall.
+	if _sight_line == null:
+		return
+	if not alive or weapon != 3 or not _aiming:
+		_sight_line.visible = false
+		return
+	var dir := Vector2(cos(aim_angle), sin(aim_angle))
+	var muzzle := global_position + Vector2(10 * facing, 6) + dir * (GUN_LENGTH + 6.0)
+	var end := muzzle + dir * SIGHT_LINE_RANGE
+	var space := get_world_2d().direct_space_state
+	var query := PhysicsRayQueryParameters2D.create(muzzle, end, 1)
+	var hit: Dictionary = space.intersect_ray(query)
+	var blocked := false
+	if not hit.is_empty():
+		end = hit["position"]
+		blocked = true
+	_sight_line.points = PackedVector2Array([muzzle - global_position, end - global_position])
+	_sight_line.default_color = Color(1.0, 0.3, 0.25) if blocked else Color(0.35, 1.0, 0.45)
+	_sight_line.visible = true
 
 
 func _read_input() -> void:
@@ -1373,12 +1435,13 @@ func _apply_movement(delta: float) -> void:
 	if is_on_floor():
 		_jump_cut_armed = false
 	if is_on_floor() and not _was_on_floor and _fall_speed > 550.0:
-		# Hard landing: small dust puff.
+		# Hard landing: small dust puff only.
 		var game2 = get_tree().get_first_node_in_group("game")
 		if game2 != null:
-			game2.spawn_impact_fx(global_position + Vector2(0, 31), true)
-			# QA-085 (v3.7): landing dust — a soft dust-puff sprite
-			# at the feet, alongside the existing spark.
+			# QA-110 (v3.8): the hit-spark call is REMOVED — after a
+			# fall from a high area it flashed a white-gold sparkle
+			# at the legs, which the user asked to remove. The soft
+			# landing dust (QA-085) stays as the only landing effect.
 			game2.spawn_dust_fx(global_position + Vector2(0, 31))
 	var game3 = get_tree().get_first_node_in_group("game")
 	if game3 != null and position.y > game3.map_size.y + 200.0:
@@ -1524,7 +1587,13 @@ func _play_anim(anim_name: String) -> void:
 	if HELMET_Y_BY_ANIM.has(anim_name):
 		_helmet_y = float(HELMET_Y_BY_ANIM[anim_name])
 		if _helmet_sprite != null:
-			_helmet_sprite.position.y = _helmet_y
+			# QA-108: reset X as well as Y. The jetpack frames track
+			# the helmet side-to-side (HELMET_JETPACK_FRAMES, x -11..+15)
+			# and _update_visuals stops overriding it once jetpack ends;
+			# only setting .y here left the last jetpack X stuck, so the
+			# cap/helmet floated 11-15 px sideways off the head after
+			# every landing until the next jetpack.
+			_helmet_sprite.position = Vector2(1, _helmet_y)
 
 
 func _fire() -> void:
@@ -1567,7 +1636,12 @@ func _fire() -> void:
 		# Velocity inheritance (GAP-55, spec §20.C): the bullet keeps
 		# 0.15 of the shooter's velocity. spawn_bullet carries the
 		# full velocity vector; bullet.gd integrates it.
-		var bvel: Vector2 = d * float(w["speed"]) + velocity * PhysicsConfig.VELOCITY_INHERITANCE
+		# QA-106 (v3.8): explosive weapons (the rocket) get NO
+		# inheritance — the rocket must leave exactly along the aim
+		# direction, straight, even when the shooter is moving.
+		var bvel: Vector2 = d * float(w["speed"])
+		if not bool(w["explosive"]):
+			bvel += velocity * PhysicsConfig.VELOCITY_INHERITANCE
 		rpc("spawn_bullet", muzzle, d, float(w["speed"]), int(w["damage"]), weapon, peer_id, _shots_fired * 10 + i, bvel)
 	_play_sound(str(w["sound"]))
 	_show_muzzle()
@@ -1650,6 +1724,7 @@ func ammo_reserve() -> int:
 func switch_weapon() -> void:
 	if not alive or owned_weapons().size() <= 1:
 		return
+	scoped = false # QA-105: scoping ends when the weapon changes
 	var owned: Array = owned_weapons()
 	var idx := owned.find(weapon)
 	var next_w: int = owned[(idx + 1) % owned.size()]
@@ -1749,7 +1824,13 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 	var vel: Vector2 = bvel if bvel != Vector2.INF else dir * speed
 	b.setup(pos, dir, speed, damage, kind, owner_id,
 		bool(WEAPONS[kind]["explosive"]),
-		170.0 if bool(WEAPONS[kind]["explosive"]) else 0.0,
+		# QA-109 (v3.8): rocket blast 170 -> 120, same ~29% cut as the
+		# grenade (QA-101) — the user said the missile blast is huge
+		# too. Damage 70, speed 450, life 2.5, gravity 0 unchanged.
+		# The explosion FX scale with the radius, so the fireball,
+		# flash, debris, particles and shake all shrink to match.
+		# Barrels keep their own 170 (PhysicsConfig.BARREL_BLAST_RADIUS).
+		120.0 if bool(WEAPONS[kind]["explosive"]) else 0.0,
 		float(WEAPONS[kind].get("life", 1.4)),
 		shot_no, vel, float(WEAPONS[kind].get("gravity", 0.0)))
 	if b.get_parent() == null:
@@ -2023,6 +2104,7 @@ func _respawn() -> void:
 	_reload_timer = 0.0
 	_recoil_accum = 0.0
 	_jet_ramp_t = 0.0 # QA-074: no thrust carries over a respawn
+	scoped = false # QA-105: no scope carries over a respawn
 	_jet_thrust_factor = 0.0
 	_muzzle_timer = 0.0 # QA-075: no flash carries over a respawn
 	_switch_dip_timer = 0.0
@@ -2083,7 +2165,15 @@ func _update_visuals(delta: float) -> void:
 	# after a weapon switch (6 px, fading over 0.15 s) — visual
 	# only, it never blocks firing or aiming. The dip tilts the gun
 	# down a touch so the lower-raise reads as a motion, not a snap.
-	var kick := Vector2(cos(aim_angle), sin(aim_angle)) * _gun_kick * 8.4
+	# QA-108: cap the visual kick at 6 px. _recoil_accum only decays
+	# while NOT firing, so during a long trigger hold it grows without
+	# bound and every shot re-assigns _gun_kick = recoil/220 + accum —
+	# after ~100 rounds the gun sat 60+ px behind the hands, floating
+	# detached in the air (a second rifle visibly floating behind the
+	# player while running + firing). The kick is visual only and never
+	# moves the aim (QA-061); 6 px reads as recoil and keeps the gun
+	# in the hands. The spread model (_recoil_accum) is untouched.
+	var kick := Vector2(cos(aim_angle), sin(aim_angle)) * minf(_gun_kick * 8.4, 6.0)
 	var dip := 0.0
 	if reloading:
 		dip = 5.0

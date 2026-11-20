@@ -5,7 +5,7 @@ extends CharacterBody2D
 
 const GRAVITY := 1400.0
 const FUSE := 2.0
-const BLAST_RADIUS := 170.0
+const BLAST_RADIUS := 120.0 # QA-101 (v3.8): user said the blast is huge — 170 -> 120 (~29% smaller)
 const BLAST_DAMAGE := 55
 const MAX_FALL := 950.0 # terminal velocity (GAP-27)
 const DRAG := 0.15 # air drag (GAP-32, spec §13: Fd = -k*v)

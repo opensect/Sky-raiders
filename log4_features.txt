@@ -30,7 +30,8 @@ FEATTEST SPECTATOR: PASS — spectating=true cam=true target=TestBot label=true
 FEATTEST SCOREBOARD: PASS — kd_col=true self=true tdm_totals=true
 FEATTEST FIRE-LAYOUT: PASS — move_stick=true aim_stick=true (fixed layout, no FIRE button)
 FEATTEST HUD-READOUTS: PASS — kd='K 1 • D 0' ammo='Assault Rifle 30/90' hp_ink_green=true
-FEATTEST CTF-PICKUP: PASS — blue flag carrier=1 (want 1, the local RED player)
-FEATTEST CTF-CAPTURE: PASS — blue carrier=-1 red_score=1 local_captures=1 (want -1/1/1)
-FEATTEST CTF-DROP: PASS — blue carrier=-1 dropped=true after the carrier died (want -1/true)
-FEATTEST DONE: 15/15 passed
+FEATTEST DONE: 12/12 passed
+WARNING: 4 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 2 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

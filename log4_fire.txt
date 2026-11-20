@@ -16,40 +16,43 @@ WARNING: All audio drivers failed, falling back to the dummy driver.
      at: initialize (servers/audio/audio_server.cpp:258)
 
 SPAWN: spawning peer 1 (Player) on server players_before=0
-FIRETEST MOVE-ALONE-NO-FIRE: PASS — shots=0 (was 0) firing=false x=571 (was 300)
-FIRETEST AIM-ALONE-FIRES: PASS — shots=7 (was 0) firing=true aim_angle=-0.79
+FIRETEST MOVE-ALONE-NO-FIRE: PASS — shots=0 (was 0) firing=false x=577 (was 300)
+FIRETEST AIM-ALONE-FIRES: PASS — shots=8 (was 0) firing=true aim_angle=-0.79
 FIRETEST GRENADE-ALONE-NO-FIRE: PASS — shots=8 (was 8) firing=false sticks_active=false/false grenades=1 (was 2)
 FIRETEST WEAPON-ALONE-NO-FIRE: PASS — shots=8 (was 8) firing=false weapon=0 (was 1)
 FIRETEST PISTOL-TAP-ONE-SHOT: PASS — shots=9 (was 8, want +1)
 FIRETEST PISTOL-TEN-RAPID-TAPS: PASS — shots fired for 10 rapid taps: 10 (want 10)
 FIRETEST FIRE-HOLD-CONTINUOUS: PASS — shots fired in 2.5 s hold: 19 (want 14-22)
-FIRETEST FIRE-WHILE-MOVING: PASS — shots=45 (was 38) x=597 (was 300)
-FIRETEST FIRE-DIAGONAL-AIM: PASS — shots=53 (was 46) aim_angle=-0.79 (want ~-0.79)
-FIRETEST FIRE-WHILE-JETPACK: PASS — shots=60 (was 53) fuel=63 jetpacking=true
-FIRETEST FIRE-WHILE-JUMPING: PASS — shots=65 (was 61) on_floor=false y=1260
-FIRETEST SWITCH-SETUP: PASS — shots=66 (was 65) firing while held
-FIRETEST SWITCH-WHILE-FIRING: PASS — shots=74 (was 66) weapon=1 (was 5)
-FIRETEST EMPTY-MAG-BLOCKED: PASS — shots=74 (was 74) reloading=true mag=0
+FIRETEST FIRE-WHILE-MOVING: PASS — shots=46 (was 38) x=626 (was 300)
+FIRETEST FIRE-DIAGONAL-AIM: PASS — shots=54 (was 46) aim_angle=-0.79 (want ~-0.79)
+FIRETEST FIRE-WHILE-JETPACK: PASS — shots=62 (was 54) fuel=63 jetpacking=true
+FIRETEST FIRE-WHILE-JUMPING: PASS — shots=66 (was 62) on_floor=false y=1259
+FIRETEST SWITCH-SETUP: PASS — shots=67 (was 66) firing while held
+FIRETEST SWITCH-WHILE-FIRING: PASS — shots=74 (was 67) weapon=1 (was 5)
+FIRETEST EMPTY-MAG-BLOCKED: PASS — shots=75 (was 75) reloading=true mag=0
 FIRETEST RELOAD-COMPLETES: PASS — reloading=false mag=32 (want 32)
-FIRETEST RELOAD-WHILE-MOVING: PASS — x=2203 (was 2037) reloading=true progress=60%
-FIRETEST THREE-FINGERS: PASS — shots=81 (was 74) x=587 (was 300) aim=-0.79
-FIRETEST GRENADE-WHILE-FIRING-SETUP: PASS — shots=85 (was 82) firing=true
-FIRETEST GRENADE-WHILE-FIRING: PASS — grenades=0 (was 1) shots=90 (was 86) still firing=true
-FIRETEST SLIDE-OFF-SETUP: PASS — shots=94 (was 91) firing=true
-FIRETEST SLIDE-OFF-STOPS-FIRE: PASS — firing=true aim_active=false shots=98 (was 94)
+FIRETEST RELOAD-WHILE-MOVING: PASS — x=2186 (was 2037) reloading=true progress=51%
+FIRETEST THREE-FINGERS: PASS — shots=83 (was 75) x=602 (was 300) aim=-0.79
+FIRETEST GRENADE-WHILE-FIRING-SETUP: PASS — shots=87 (was 83) firing=true
+FIRETEST GRENADE-WHILE-FIRING: PASS — grenades=0 (was 1) shots=92 (was 87) still firing=true
+FIRETEST SLIDE-OFF-SETUP: PASS — shots=96 (was 92) firing=true
+FIRETEST SLIDE-OFF-STOPS-FIRE: PASS — firing=true aim_active=false shots=100 (was 97)
 FIRETEST LAYOUT-1280: PASS — 7 controls, no overlaps, all inside (1280.0, 720.0)
 FIRETEST LAYOUT-1920-AND-TRANSFORM: PASS — layout ok at 1920x1080; physical grenade tap: sticks=false/false fire=false shots stable — 7 controls, no overlaps, all inside (1280.0, 720.0)
 FIRETEST MP-SYNC-VALIDATION: PASS — validate: first=true second-too-fast=false empty-mag=false
-FIRETEST MP-SINGLE-SHOT-ONE-BULLET: PASS — active pistol bullets: 1 (want 1), any-kind active: 1, shots=99 mag=11 reloading=false
+FIRETEST MP-SINGLE-SHOT-ONE-BULLET: PASS — active pistol bullets: 1 (want 1), any-kind active: 1, shots=102 mag=11 reloading=false
 FIRETEST MP-SHOTGUN-SEVEN-PELLETS: PASS — active shotgun pellets from one shot: 7 (want 7, GAP-20 spec §9)
-FIRETEST RIFLE-STRAIGHT-2S-HOLD: PASS — rifle shots in hold=14 max deviation=0.00° (want >=10 shots, <0.5°)
+FIRETEST RIFLE-STRAIGHT-2S-HOLD: PASS — rifle shots in hold=19 max deviation=0.00° (want >=10 shots, <0.5°)
+FIRETEST SMG-SPREAD-TIGHT: PASS — smg burst shots=9 max deviation=0.101 rad (want >=5 shots, <0.15 rad)
+FIRETEST ROCKET-STRAIGHT: PASS — rocket angle=0.000 rad vy=0.0 grav=0 (want ~0 / ~0 / 0)
+FIRETEST SNIPER-SCOPE-ZOOM: PASS — sniper scoped zoom=2.00 sight line visible=true (want >1.8 / true)
 FIRETEST BULLET-INSIDE-GEOMETRY: PASS — fired=1 (want 1), new active bullets=0 (want 0), past wall=false
 FIRETEST BULLET-SIZE-80PCT: PASS — pistol bullet half-length=11.20 (want 11.2), half-width=2.40 (want 2.4), trail=2.40 (want 2.4)
 FIRETEST MAG-MEMORY: PASS — weapon=0 mag=17 after cycling back to the rifle (want weapon 0, mag 17 — the remembered mag, not a refill to 30)
 FIRETEST RELOAD-REFUND: PASS — weapon=5 reloading=false rifle reserve=90 (want 90, refunded) rifle remembered mag=10 (want 10)
-FIRETEST MUZZLE-FLASH: PASS — muzzle flashes=118 (was 116) scale=1.17 (want rifle 1.2x, 1.05-1.35 with jitter)
-FIRETEST DONE: 32/32 passed
-WARNING: 6 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+FIRETEST MUZZLE-FLASH: PASS — muzzle flashes=138 (was 135) scale=1.08 (want rifle 1.2x, 1.05-1.35 with jitter)
+FIRETEST DONE: 35/35 passed
+WARNING: 4 ObjectDB instances were leaked at exit (run with `--verbose` for details).
    at: cleanup (core/object/object.cpp:2536)
 ERROR: 2 resources still in use at exit (run with --verbose for details).
    at: clear (core/io/resource.cpp:822)

@@ -1,10 +1,54 @@
-# Frag Arena — v3.7
+# Frag Arena — v3.8
 
 A Mini Militia-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi. (Renamed from "LAN Arena Shooter" in v3.5 —
 see QA-065 in BUGS.md; the package name `com.lanarena.shooter` is unchanged,
-so v3.7 installs over v3.6.)
+so v3.8 installs over v3.7.)
+
+## What's new in v3.8 (user's v3.7 test feedback — fixes only)
+
+The user tested v3.7 ("It is good") and sent eleven fixes. Full detail in
+BUGS.md (QA-101…QA-111).
+
+- **Grenade blast smaller (QA-101).** Blast radius 170 → 120; damage 55,
+  fuse 2.0 s, wall ray-check and falloff unchanged; burst/flash/shake
+  scale down to match.
+- **Rocket/missile blast smaller too (QA-109).** Rocket blast 170 → 120,
+  same ~29% cut; damage 70, speed 450, straight flight unchanged.
+  Barrels still blast at 170.
+- **SMG spread fixed (QA-104).** Spread 0.09 → 0.035 rad, recoil
+  0.04 → 0.015 — a full-mag hold used to spray ~42°, now ~16° worst
+  case, ~2° for the first shots. Damage 8, rate 0.07 s, mag 32 unchanged.
+- **No map picker in Create Room (QA-102).** The host picks the map on
+  a lobby map card instead; the room defaults to Ironfall.
+- **Join layout (QA-103).** Available rooms on the RIGHT, QUICK LAN MATCH
+  at the bottom of the right side, below the rooms; join-by-IP / password /
+  room code on the left.
+- **Sniper sight line + scopes (QA-105).** Sniper: visible sight line
+  (green = clear to full 2560 px range, red = blocked by a wall) + 2.0x
+  scope; rifle: 1.5x scope; SMG / shotgun / pistol / rocket: no scope.
+  A plain SCOPE button above RELOAD toggles it — the right stick still
+  aims + fires (QA-049).
+- **Rocket flies straight (QA-106).** Rocket gravity 500 → 0, and no
+  velocity inheritance on explosive weapons, so the rocket leaves exactly
+  along the aim direction.
+- **Capture the Flag REMOVED (QA-107).** Mode 4 is gone everywhere — mode
+  selection, flag logic/spots, HUD, scoreboard and end-screen entries,
+  flag assets. Four modes remain: Free-for-All, Team Deathmatch, Survival,
+  Last Man Standing. A v3.7 host sending mode 4 falls back to FFA.
+- **Gun + cap glitch fixed (QA-108).** The cap no longer floats sideways
+  after jetpacking (helmet X reset to 1 in every animation state); the
+  muzzle flash now sits exactly at the barrel tip (was 27.5 px past it);
+  the recoil kick is capped at 6 px so the gun no longer slides back
+  behind the hands during sustained fire.
+- **Ironfall matches the concept art (QA-111).** New peak platform with
+  the bunker + satellite-dish tower + red flag on top, second watchtower
+  on the right, rope bridges on the upper tiers, waterfall moved to
+  bottom centre, pale full moon (was orange sun), helicopter silhouette
+  in the dusk sky. 24 platforms (was 23).
+- **High-fall leg sparkle removed (QA-110).** The white-gold spark on
+  hard landings is gone; the soft landing dust stays.
 
 ## What's new in v3.7 (map-independent visuals — no gameplay changes)
 

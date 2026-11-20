@@ -21,7 +21,7 @@ FLOW SHOT NOW: user://shot_lobby.png err=0 size=(1280, 720)
 FLOWTEST CREATE-ROOM: PASS — lobby visible=true host=true host-ip label ok=true (lan_ip='198.19.0.2')
 SPAWN: spawning peer 1 (Player) on server players_before=0
 FLOWTEST MATCH-LOADED: PASS — local player alive=true match_over=false
-FLOWTEST PLAY-FIRE: PASS — shots fired in the match: 3
+FLOWTEST PLAY-FIRE: PASS — shots fired in the match: 4
 FLOW SHOT NOW: user://shot_pause.png err=0 size=(1280, 720)
 FLOWTEST PAUSE: PASS — paused=true pause panel visible=true
 FLOWTEST RESUME: PASS — paused=false pause panel visible=false

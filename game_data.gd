@@ -84,7 +84,7 @@ const MAP_CARD_INFO: Array[String] = [
 	"3400 × 1800 • 16 platforms", "3000 × 1500 • 21 platforms",
 	"3000 × 1500 • 16 platforms",
 ]
-const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"]
+const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing"]
 # Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).
 # Exact text from gen_assets_v3/music/LICENCE.md.
 const MUSIC_CREDITS := "\"At Rest\" Kevin MacLeod (incompetech.com)\n\"Five Armies\" Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 4.0 License\nhttp://creativecommons.org/licenses/by/4.0/"
@@ -92,9 +92,9 @@ const MUSIC_CREDITS_SHORT := "Music: \"At Rest\" + \"Five Armies\" — Kevin Mac
 # Mode ids: 0 FFA (first to kill limit), 1 TDM (team kills), 2 Survival
 # (round-based: one life per round, last alive wins the round, first
 # to the round limit wins the match), 3 Last Man Standing (one life
-# for the whole match, last alive wins; no respawns), 4 Capture the
-# Flag (QA-080: team mode — carry the enemy flag to your base,
-# first to the capture limit wins; kill_limit is the capture limit).
+# for the whole match, last alive wins; no respawns).
+# (QA-107 v3.8: mode 4 Capture the Flag was removed at the user's
+# request — see BUGS.md. The ids above are unchanged.)
 
 
 static func player_color() -> Color:

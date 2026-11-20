@@ -62,7 +62,7 @@ SCALETEST 1920x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
 SCALETEST 1920x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
 SCALETEST 1920x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
 SCALETEST 800x480-RESIZE: PASS — win=(800, 480)
-SCALETEST DIAG win=(800, 480) vis=(1280.0, 768.0) canvas_t origin=(0.0, -632.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1016.0) move_rect=[P: (90.0, 528.0), S: (150.0, 150.0)] move_gt origin=(90.0, 528.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 603.0) converted=(165.0, 603.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 603.0)
+SCALETEST DIAG win=(800, 480) vis=(1280.0, 768.0) canvas_t origin=(0.0, -632.0001) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1016.0) move_rect=[P: (90.0, 528.0), S: (150.0, 150.0)] move_gt origin=(90.0, 528.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 603.0) converted=(165.0, 603.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 603.0)
 SCALETEST 800x480-DIAG: PASS — see DIAG line above
 SCALETEST 800x480-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
 SCALETEST 800x480-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
@@ -92,3 +92,7 @@ SCALETEST 2340x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
 SCALETEST 2340x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
 SCALETEST 2340x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
 SCALETEST DONE: 70/70 passed
+WARNING: 4 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 2 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

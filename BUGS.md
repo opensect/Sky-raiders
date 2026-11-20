@@ -6819,3 +6819,451 @@ No paid library or asset was used.
   box on any sprite, player + jetpack flame + muzzle flash
   visible, HUD and plain RELOAD / GRENADE / WEAPON buttons
   clean, no overlaps.
+
+## QA-101 — Grenade blast is huge, reduce it (v3.8, user 2026-11-20 ~16:20)
+
+- **Report:** user tested v3.7: "It is good" — but the grenade
+  blast is huge, reduce it.
+- **Fix:** `grenade.gd` BLAST_RADIUS 170 → 120 (~29% smaller).
+  Damage stays 55 with the same smooth falloff, fuse stays 2.0 s,
+  wall ray-check (`has_line_of_sight`, GAP-12) untouched. The
+  blast visuals scale with the radius in `game.gd`
+  `_spawn_explosion_fx`: boom core (radius / 62.5), white flash
+  (radius * 0.5) and debris (up to radius) already scaled; the
+  GPUParticles2D burst speeds now scale too (120→85, 420→297 at
+  radius 120), so the smaller burst reads smaller. Rockets and
+  barrels still explode at 170 — only the grenade shrank.
+  Physics test `_phys_c_explosion_falloff` updated to the new
+  radius (edge check 115/120, was 165/170).
+- **Verification:** full suite green 2026-11-20 ~17:35 IST
+  (run_phase5_final.sh, after QA-108…QA-111): physics 34/34 on
+  all 5 maps (includes the updated `_phys_c_explosion_falloff`
+  edge check 115/120), fire 35/35, 0 script errors. The smaller
+  blast is the new radius the tests assert.
+
+## QA-102 — Remove map selection from Create Room (v3.8, user 2026-11-20 ~16:20)
+
+- **Report:** user: "remove map selection while creating room" —
+  the host picks the map in the lobby instead.
+- **Fix (main.gd only):** the 5 map buttons + "Map — 5
+  battlefields" label are deleted from the Create Room form;
+  `_create_map_buttons`, `_refresh_create_map_buttons()` and
+  `_on_create_map_pressed()` are deleted (0 references left).
+  The mode picker stays. `GameData.map_id` keeps its default
+  (0 = Ironfall) until the host changes it on a lobby map card;
+  the room card, lobby display and match start all read it from
+  there, so the create → lobby → match flow is unchanged. The
+  shorter form also pulls the CREATE ROOM button further up the
+  page (it used to sit below the fold with the map row).
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  flow DONE (menu → create room → lobby → start match → play →
+  pause → scoreboard → end screen → back), menu-net 8/8. The
+  Create Room screenshot (`shot_multiplayer_1280.png`,
+  `--shot-all`, 1280x720) shows Room name, Max players and the
+  4-mode picker — no map buttons, no "Map — 5 battlefields"
+  label. Lobby map cards still offer the map choice.
+
+## QA-103 — Join layout: rooms on the right, Quick Join bottom-right (v3.8, user 2026-11-20 ~16:20)
+
+- **Report:** user: "change layout have the rooms on the right
+  like available room and quick join also on the right like
+  bottom of the right when the rooms available".
+- **Fix (main.gd `_build_multiplayer` only):** the join area is
+  now two columns, 50/50. Left column = join by IP (field +
+  JOIN), password, room code (field + JOIN CODE). Right column
+  = "Games found on this Wi-Fi:" header + REFRESH, the room
+  list, and QUICK LAN MATCH at the bottom of the right column,
+  below the rooms. REFRESH moved into the right-column header
+  (it refreshes the room list). Hints reworded for the new
+  layout ("tap a room on the right", "type the host IP on the
+  left"). No handler, no flow, no node behaviour changed —
+  room tap to join and Quick Join still join the same way; the
+  whole page still scrolls in `_mp_scroll`.
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  menu-net 8/8, flow DONE. Screenshot-verified with a new
+  `--shot-all` "join" step (scrolls `_mp_scroll` to the
+  bottom): `shot_join_1280.png` shows the left column (Host IP
+  + JOIN, Password, Room code + JOIN CODE) and the right
+  column ("Games found on this Wi-Fi:" + REFRESH, the room
+  list, QUICK LAN MATCH at the bottom of the right column,
+  below the rooms) — nothing overlapping, Quick Join reachable
+  without scrolling past the rooms. The rooms list is empty
+  here because no host is on this Wi-Fi in the sandbox; the
+  list area sits between the hint and Quick Join.
+
+## QA-104 — SMG bullets spray everywhere (v3.8, user 2026-11-20 ~16:24)
+
+- **Report:** user answered the SMG question: "Bullets spray
+  everywhere (too much spread)".
+- **Fix (weapons.gd only):** SMG spread 0.09 → 0.035 rad and
+  recoil_k 0.04 → 0.015. The table spread alone was not the
+  whole story: the recoil accumulation (`sp += _recoil_accum *
+  0.5`, GAP-40) grows every shot, so a full-mag hold with the
+  old values reached ~0.73 rad (~42°) of deviation — that is
+  the spray the user saw. New worst case over a full 32-round
+  mag: 0.035 + (32 * 0.015) * 0.5 = 0.275 rad (~16°), and the
+  first shots group at ~0.035 rad (~2°). Damage 8, rate 0.07 s,
+  mag 32, auto unchanged. New fire-test step
+  SMG-SPREAD-TIGHT fires a ~0.7 s burst from a reset recoil
+  state and requires max deviation < 0.15 rad.
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  fire 35/35 (includes SMG-SPREAD-TIGHT; the step measured
+  0.082 rad max deviation in its first solo run, under the
+  0.15 rad limit).
+
+## QA-105 — Sniper line of sight + scopes for guns (v3.8, user 2026-11-20 ~16:25)
+
+- **Report:** user: "And add line of sight for sniper and also
+  scopes for guns."
+- **Fix:** sniper gets a visible sight line + full scope, rifle
+  gets a medium scope, short-range guns get no scope.
+  - **Sight line (player.gd `_update_sight_line`):** only the
+    local player, only with the sniper equipped, only while
+    aiming (right stick deflected). One raycast along the true
+    bullet path (mask 1 = world, same as `has_line_of_sight`):
+    green while clear to full sniper range (1600 px/s * 1.6 s
+    = 2560 px), red where a wall blocks it, ending at the wall.
+    Thin 3 px Line2D from the muzzle.
+  - **Scopes (player.gd `_update_camera`):** sniper zooms 2.0x,
+    rifle 1.5x, everything else 1.0x. Zoom eases at 3x/s (no
+    snap), the view shifts ~150 px toward the aim direction
+    while scoped, and the map clamp uses the effective view
+    size (viewport / zoom) so a zoomed camera stays inside
+    the map. Scope ends on weapon switch and on respawn.
+  - **Scope input (game.gd):** a plain simple SCOPE button
+    (72 px, same column as RELOAD / GRENADE / WEAPON, directly
+    above RELOAD) — same plain style as the other buttons, no
+    decoration. It only toggles `scoped` on the local player;
+    it never touches the right stick, so aim + fire (QA-049)
+    is unaffected. The button hides for SMG / shotgun /
+    pistol / rocket and shows "✓ SCOPE" while scoped.
+  - New fire-test step SNIPER-SCOPE-ZOOM (scoped sniper must
+    reach zoom > 1.8 with the sight line visible) and a
+    `--v38-shots` screenshot mode (scoped sniper clear/green
+    line, blocked/red line, rifle scope, SMG no-scope).
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  fire 35/35 (includes SNIPER-SCOPE-ZOOM — scoped sniper
+  reached 2.00x zoom with the line visible). `--v38-shots`
+  re-run at 1280x720 after the stage-1 fix (see QA-111):
+  `shot_v38_scope_clear.png` shows the GREEN sight line
+  extending left from the scoped sniper (✓ SCOPE button,
+  Sniper 4/10), `shot_v38_scope_blocked.png` shows the RED
+  line down to the crate below; rifle scope (1.5x) and SMG
+  no-SCOPE-button shots are in the same set.
+
+## QA-106 — Rocket must fly straight in the shooting direction (v3.8, user 2026-11-20 ~16:26)
+
+- **Report:** user: "And lancher should go straight in the
+  shooting direction when shot." The rocket arced and dropped.
+- **Fix:** `weapons.gd` rocket gravity 500 → 0 (damage 70,
+  explosive, speed 450, life 2.5 s unchanged). Two supporting
+  changes so the direction is exactly the aim direction even
+  when the shooter is moving: `player.gd` no longer adds
+  velocity inheritance (GAP-55) to explosive weapons — a
+  moving shooter used to bend the rocket off the aim ray by
+  up to ~7°. Physics test `_phys_c_shotgun_table` now expects
+  rocket gravity 0 (was 500). New fire-test step
+  ROCKET-STRAIGHT fires horizontally and requires the rocket's
+  velocity angle ~0, vy ~0 and grav == 0 after 0.5 s (with the
+  old gravity 500, vy would be +250 by then).
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  fire 35/35 (includes ROCKET-STRAIGHT — angle 0.000, vy 0.0,
+  grav 0 after 0.5 s), physics 34/34 on all 5 maps (includes
+  the updated `_phys_c_shotgun_table` expecting rocket
+  gravity 0).
+
+## QA-107 — Remove Capture the Flag completely (v3.8, user 2026-11-20 ~16:45)
+
+- **Report:** user: "Remove capture the flag."
+- **Fix:** mode 4 (Capture the Flag, added v3.6 QA-080) is gone
+  everywhere. `game_data.gd` MODE_NAMES is now exactly 4 —
+  Free-for-All, Team Deathmatch, Survival, Last Man Standing;
+  the mode-id comment notes the removal. `main.gd`: the limit
+  label is always "Kill limit:" / "KILL LIMIT" (no more capture
+  limit), team modes are TDM only (lobby team pick + team chips),
+  and the mode is clamped on the lobby-settings path and on
+  `start_match` so a v3.7 host sending mode 4 (or a stale saved
+  value) falls back to FFA instead of breaking MODE_NAMES[4].
+  `game.gd`: the whole CTF section is deleted (flag state,
+  `_build_ctf_flags`, `ctf_sync` RPC, `_update_ctf` pickup /
+  drop / capture / return, `_ctf_feed`, flag visuals,
+  `spawn_capture_burst`), the HUD captures score, the carrier
+  message line, the scoreboard/end-screen captures columns and
+  the "caps" stat, the match-end-on-captures branch, the
+  `--ctf-shots` screenshot mode, and the three features-test
+  steps (CTF-PICKUP / CTF-CAPTURE / CTF-DROP) with their setup
+  functions — the features test is 12 steps now, not 15. The
+  flag assets are deleted too (`assets/effects/flag_red.png`,
+  `flag_blue.png`, `capture_burst.png` + their .import files).
+  TDM keeps its team spawns, team pick and team scores
+  (game_mode == 1); FFA / Survival / LMS are untouched. No
+  `ctf` / `Capture the Flag` / `game_mode == 4` reference
+  remains in any .gd file (only the QA-107 history notes in
+  BUGS.md, game_data.gd and the two clamp comments). README.md
+  is deliberately untouched for now: its v3.6/v3.7 sections are
+  accurate history of those shipped versions — the v3.8 README
+  section (title bump + removal note) belongs with the build
+  when the user says to compile.
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  features 12/12 (was 15 — the 3 CTF steps are gone),
+  menu-net 8/8, flow DONE. Zero `ctf` / `Capture the Flag` /
+  `game_mode == 4` references remain in any .gd file (grep).
+  The Create Room screenshot (`shot_multiplayer_1280.png`)
+  shows exactly 4 mode buttons: Free-for-All, Team
+  Deathmatch, Survival, Last Man Standing.
+
+## QA-108 — Gun + cap glitch: the character's gun and cap sit wrong (v3.8, user 2026-11-20 ~16:51)
+
+- **Report:** user: "There is a glitch of character holding the
+  gun and cap he has fix that." The character's GUN and CAP
+  (headgear) were glitched — wrong position/attachment.
+- **Reproduction:** built a `--glitch-shots` probe mode in
+  `game.gd` (same staged pattern as `--v38-shots`): 44 steps —
+  gun: all 6 weapons x aim right / aim up / firing-flash, plus
+  rifle+sniper aim down, rifle running; headgear: all 7 (0 none,
+  1 green helmet, 2 cap_tan, 3 black helmet, 4 red bandana,
+  5 NVG, 6 camo helmet) x idle / mid-jetpack / landed-after-
+  jetpack, plus cap running and cap falling. Each step is two
+  1 s stages (setup, capture); the capture stage prints the
+  helmet sprite position and the gun barrel-tip vs muzzle-flash
+  positions. Ran at `--resolution 2400x1080`: 44 shots captured,
+  "GLITCHSHOTS DONE", 44 GLITCH log lines, files in
+  `~/.local/share/godot/app_userdata/Frag Arena/shot_glitch_*.png`,
+  copied to `~/workspace/mini-militia-lan-v38-proof/` (plus 2x
+  centre crops in `.../v38-proof/crop/`).
+- **The cap glitch (the user's glitch) — CONFIRMED:** every
+  `H*_LAND` log line showed the helmet X stuck at a jetpack-frame
+  value instead of +1: H0_LAND +13, H1_LAND -11, H2_LAND +15,
+  H3_LAND -11, H4_LAND -11, H5_LAND +15, H6_LAND -11
+  (sprite-local units; x1.20 on screen = 12-19 px). Pictures:
+  `cap2_idle` showed the tan cap centred on the head (correct);
+  `cap2_land` showed the cap floating detached to the right of
+  the head, the head bare. Root cause: `_play_anim` in
+  `player.gd` only set `_helmet_sprite.position.y = _helmet_y`
+  (per-animation height, QA-094) and never reset `.position.x`
+  — after jetpacking, `_update_visuals` stops overriding the
+  position from `HELMET_JETPACK_FRAMES` and the last frame's X
+  (+-11...+-15) sticks in every later state. Note: QA-094
+  (v3.7) fixed the helmet FLOAT (~20 px above the head while
+  jetpacking) with per-animation heights + per-frame jetpack
+  tracking — this is a DIFFERENT, leftover bug (sideways shift
+  after jetpack, not the float).
+- **Fix (player.gd `_play_anim`):** `_helmet_sprite.position =
+  Vector2(1, _helmet_y)` — reset X to 1 as well as Y, so the
+  helmet is centred in every animation state.
+- **Gun issues found in the same probe (pictures + log):**
+  1. Muzzle flash sat 27.5 px beyond the barrel tip: the gun
+     sprite is centred on the gun node (position (10,6), scaled
+     so its width = GUN_LENGTH 55), so the drawn barrel tip is
+     at 37.5 px ahead while the muzzle flash child (local x =
+     tex width) rendered at 65 px ahead and bullets spawn at
+     61 px ahead. Visible in `gun0_fire` as the bullet trail
+     starting past the barrel tip. Same for all 6 weapons
+     (tip 37.5 vs flash 65.0 in every RIGHT log line).
+     **Fix (`_update_gun_texture`):** `_muzzle.position =
+     Vector2(tex.get_width() * 0.5, 0)` — half the texture
+     width, the true barrel tip (was `tex.get_width(), 0`).
+  2. Recoil kick pushed the gun far back while firing
+     continuously: `_gun.position = (10*facing, 6) - kick`,
+     kick = `_gun_kick * 8.4` along the aim direction. Log
+     values while firing: G0_FIRE gun at (-7.3, 6),
+     G1_RIGHT (-10.8, 6), G0_RUN (-52.1, 6) — the rifle sat
+     62 px behind the hands while running + firing.
+     `gun0_run` showed the rifle kicked back behind the
+     player. Root cause: `_recoil_accum` only decays when NOT
+     firing, so it grows unboundedly during sustained fire,
+     and each shot re-assigns `_gun_kick = recoil/220 +
+     _recoil_accum`. **Fix:** visual kick capped —
+     `minf(_gun_kick * 8.4, 6.0)` in `player.gd`; the spread
+     model (`_recoil_accum`) is untouched.
+  3. Aim-up/down pivots the gun around its centre: `gun0_up` /
+     `gun3_up` show the gun vertical with the butt swinging
+     below the grip (log: rot +-1.57, tip 27.5 px above grip,
+     flash 55 px above). No separate fix — the flash/kick
+     fixes address the visible detachment.
+- **Root cause of the "two guns" look:** every character frame
+  (82 frames: 11 aim, 5 die, 11 fall, 11 idle, 11 jetpack,
+  11 jump, 11 run, 11 shoot, 64x64 px,
+  `assets/characters/soldier_<anim>_<nn>.png`) has a rifle
+  baked into the hands. The game overlays a second, separate
+  gun sprite — so there are always two guns; they only look
+  like one when they happen to overlap. The baked-in gun
+  cannot be erased by colour (gun and uniform share the same
+  dark colours, and it overlaps the torso). The kick cap fixes
+  the visible floating second rifle.
+- **Verification:** re-ran `--glitch-shots` at 2400x1080 via
+  `xvfb-run -a` (direct run fails: X11/Wayland display
+  unavailable — must use xvfb-run). First run still showed
+  `flash=65.0` because the probe computed flash as hardcoded
+  `gp + dir * 55.0`, never reading the real muzzle node. Probe
+  fixed in `game.gd` to read `lp._muzzle.global_position` via
+  `lp.to_local(...)`. Second run: `G0_RIGHT tip=(37.5, 6.0)
+  flash=(37.5, 6.0)`, `G0_FIRE gun_pos=(4.0, 6.0) tip=(31.5,
+  6.0) flash=(31.5, 6.0)`, `G0_RUN gun_pos=(4.0, 6.0)`, every
+  `H*_LAND helmet_pos=(1.0, -23.0)`. Visual: `cap2_land` cap
+  now centred on the head, matching `cap2_idle`; `gun0_run`
+  shows one rifle in the hands, cave empty; `gun0_fire` shows
+  the orange starburst exactly at the muzzle. Re-ran at
+  1280x720: same — `G0_FIRE (4.0, 6.0) flash=(31.5, 6.0)`,
+  `H0_LAND/H2_LAND/H5_LAND helmet_pos=(1.0, -23.0)`,
+  `G0_RUN (4.0, 6.0)`.
+
+## QA-109 — Rocket/missile blast also reduce (v3.8, user 2026-11-20 ~17:15)
+
+- **Report:** user: "Also blasts from missile also reduce."
+  Same cut as the grenade blast (QA-101).
+- **Fix:** the rocket blast was hardcoded `170.0` in
+  `player.gd` `spawn_bullet`: `170.0 if
+  bool(WEAPONS[kind]["explosive"]) else 0.0` — explosive
+  weapons only = the rocket (weapon 4). `bullet.gd` carries
+  it as `blast_radius` and calls
+  `game.request_explosion(hit_pos, blast_radius, damage,
+  owner_id)`. **170.0 -> 120.0** in that line, the same ~29%
+  cut as the grenade. Damage 70, speed 450, life 2.5 s,
+  gravity 0 (QA-106 straight flight) unchanged. Explosion FX
+  in `game.gd` `_spawn_explosion_fx` already scale with the
+  passed radius (boom core radius/62.5, flash radius*0.5,
+  debris up to radius, GPUParticles2D speeds radius/170,
+  shake distance-scaled by radius*3.0), so the fireball /
+  flash / debris / particles / shake all shrink to match
+  automatically. Barrels keep their own 170
+  (`PhysicsConfig.BARREL_BLAST_RADIUS` in
+  `physics_config.gd:113`). Comment in `_spawn_explosion_fx`
+  updated (was "rockets and barrels (still 170)" -> "rockets
+  are 120 too now; only barrels (still 170)"). No test
+  expected rocket 170 — `_phys_c_explosion_falloff` tests the
+  grenade (55 dmg, radius 120).
+- **Verification:** full suite green 2026-11-20 ~17:35 IST:
+  fire 35/35, physics 34/34 on all 5 maps, 0 script errors.
+  The rocket blast radius is the hardcoded 120.0 in
+  `player.gd` `spawn_bullet`; the FX scale with it because
+  `_spawn_explosion_fx` takes the radius as its argument.
+
+## QA-110 — High-fall leg sparkle — REMOVE (v3.8, user 2026-11-20 ~17:16)
+
+- **Report:** user: "And after falling from high areas there a
+  sparkle at the legs remove that."
+- **Fix:** found in `player.gd` hard-landing block (~line 1438):
+  `if is_on_floor() and not _was_on_floor and _fall_speed >
+  550.0:` spawned BOTH
+  `game2.spawn_impact_fx(global_position + Vector2(0, 31),
+  true)` — the white-gold hit spark (QA-092 library
+  `HIT_SPARK_SCENE`, "white-gold flash + twinkle + ring + fast
+  sparks") at the feet — AND `game2.spawn_dust_fx(...)`
+  (QA-085 soft tan dust puff). `spawn_impact_fx` is also called
+  from `bullet.gd:264,274` for bullet impacts — those are kept.
+  **Removed the `spawn_impact_fx` call from the hard-landing
+  block only; `spawn_dust_fx` stays as the only landing
+  effect.**
+- **Verification:** added `--land-shot` mode in `game.gd`
+  (`_land_shots`, `_land_timer`, `_land_stage`, `_land_armed`,
+  `_land_t0`, `_land_maxfall`; wired into `_ready`,
+  `_is_test_mode`, `_process` dispatch; function
+  `_update_landshots`): drops the player 600 px at x1100
+  (clean gap through every tier to the floor), captures the
+  exact landing frame (`shot_land_at.png`) plus one 0.15 s
+  later (`shot_land_after.png`), quits a full stage later
+  (0.5 s) because `_capture_shot` awaits 2 frames before
+  saving — quitting in the same stage lost
+  `shot_land_after.png` once. First run logged
+  impact_speed=23 (race: `_fall_speed` read one frame after
+  landing resets to one frame of gravity); fixed by sampling
+  `_land_maxfall` while airborne. Second run: `LAND
+  impact_speed=1000` (true hard landing, >550 threshold),
+  both shots saved to
+  `~/workspace/mini-militia-lan-v38-proof/shot_land_at.png` /
+  `shot_land_after.png`. Tight crops + pixel check: 0 bright
+  white-gold pixels (R>220, G>190, B>120) at the legs
+  (x680-760, y620-652, above the hint text) in both frames;
+  tan dust pixels 54 at landing -> 31 after (fading dust,
+  kept). The identical 130 bright pixels in the wider box in
+  both frames are static hint text, not a sparkle.
+
+## QA-111 — Ironfall must look like the concept art (v3.8, user 2026-11-20 ~17:01)
+
+- **Report:** user re-sent the Ironfall concept image and
+  confirmed: "Yes I want a map like that" — the Ironfall map
+  must look like the TOP part of the concept art (tiers,
+  watchtowers, rope bridges, central bunker with satellite
+  dish + red flag, caves, waterfall, dusk sky with mountains /
+  moon / helicopter).
+- **Concept:** `assets/ironfall/concept.jpg`, layout reference
+  `assets/ironfall/00_map_layout_reference.png` (1536x520).
+  Current Ironfall before rework (v3.7): 3200x1400, 23
+  platforms, 5 zones (Northern Watchtower, Broken Bridges,
+  Underground Tunnels, Ironfall Central Base, Waterfall
+  Cavern); art from
+  `~/workspace/user/files/Operation_Ironfall_Map_Assets.zip`
+  (10 PNG sheets, sliced into 26 sprites in
+  `assets/ironfall_sliced/` with background removal); design
+  saved at `OPERATION_IRONFALL.md`. Platforms are full-solid
+  (not one-way) in `_build_arena`; big Ironfall structures
+  (`if_bunker`, `if_tower`, `if_comms`, `if_fall`, `if_water`)
+  are visual-only — only `if_crate`/`if_barrel`/`if_sandbags`
+  are solid (`SOLID_DECOR_KINDS`), so structures can move
+  freely. No dish/flag/helicopter sprite exists in the sliced
+  set — `if_comms` (94x175) serves as the dish tower; flag and
+  helicopter are code-drawn.
+- **Fix (game.gd MAPS[0] + `_build_arena` + `_build_background`):**
+  - New peak platform `Rect2(1400, 330, 400, 48)` — platforms
+    23 -> 24, highest point on the map. No tier heights
+    changed (still 170 px rises), no spawns/pickups moved.
+  - Bunker moved off the floor onto the peak: decor
+    `["if_bunker", 1500, 330]` (was 1600, 1352); comms/dish
+    beside it `["if_comms", 1680, 330]` (was 3100, 1352).
+  - Waterfall moved from the right side to bottom centre:
+    `["if_fall", 1600, 1352]` (was 2780, 1352) +
+    `["if_water", 1600, 1352]` (was 2950, 1352), flowing from
+    under the y1180 tunnel roof into its pool.
+  - Second watchtower on the right y670 perch:
+    `["if_tower", 3030, 670]`, mirroring the left
+    `["if_tower", 500, 670]`.
+  - Rope bridges at upper tiers: `["if_bridge", 1070, 840]`
+    over the y840 gap, `["if_bridge_metal", 2730, 670]` over
+    the y670 gap.
+  - Palms on the tiers `["if_palm", 600, 670]` and
+    `["if_palm", 2800, 1010]`; third cave arch
+    `["if_cave", 450, 1352]` under the left tier.
+  - Sun colour changed to pale full moon: `"sun":
+    Color(1.00, 0.95, 0.80)` (was `Color(1.00, 0.55, 0.25)`
+    orange). The sun is a 70 px Polygon2D circle at (0.8x
+    map width, 180) in `_build_background`.
+  - Red flag code-drawn in `_build_arena` for map_id 0 only:
+    dark pole (x+-2, from bunker top +6 up 32 px) + red
+    pennant triangle (to +30 px right) on the bunker roof,
+    placed above the `if_bunker` decor entry (pole starts 6 px
+    below the sprite's top edge so it sits into the roof).
+  - Helicopter silhouette code-drawn in `_build_background`
+    for map_id 0 only: dark `Color(0.08, 0.10, 0.18, 0.85)`
+    Node2D at (0.7x map width, 130), body + tail + rotor +
+    mast + tail rotor + skid polygons, z_index -9 (same depth
+    as the sun, behind hills).
+  - Screenshot mode added: `--map-shot` in `game.gd`
+    (`_map_shots`, `_map_timer`, `_map_stage`; wired into
+    `_ready`, `_is_test_mode`, `_process` dispatch; function
+    `_update_mapshots`): 5 views, each two 1 s stages (setup,
+    capture), camera smoothing reset on teleport — left tower
+    (player 800,800 on the y840 perch), centre peak
+    (1750,287), centre floor/waterfall (1600, floor), right
+    tower (2950,800 on the (2800,840) perch — first tried
+    2450,800 and the tower at 3030,670 was off-frame because
+    the camera sits ~190 px left of the player), moon
+    (2250,467). Files `user://shot_map_left.png`,
+    `shot_map_peak.png`, `shot_map_waterfall.png`,
+    `shot_map_right.png`, `shot_map_moon.png`, copied to
+    `~/workspace/mini-militia-lan-v38-proof/`.
+- **Verification:** 2026-11-20 ~17:12-17:15 IST, 1280x720,
+  `xvfb-run -a`, "MAPSHOTS DONE", no script errors. Peak shot
+  shows bunker + dish tower + red flag on the roof +
+  helicopter silhouette top-right; waterfall shot shows the
+  pool at bottom centre with the fall flowing from the tunnel
+  roof, cave arches framing it; left shot shows the
+  watchtower + palms + bridge on the tiers; right shot shows
+  the second watchtower; moon shot shows the big pale moon in
+  the dusk sky. Side effect of the rework, fixed in the same
+  round: the `--v38-shots` stage 1 "clear" sniper line came
+  out red because the new peak (y330 platform + bunker +
+  comms tower) blocks the old (1500,300) aim-right path — the
+  stage now stands at (2950,639) aiming left, where the y645
+  band is clear for the full 2560 px sight range (green line
+  re-verified at 1280x720 after the move).
