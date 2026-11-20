@@ -14501,17 +14501,35 @@ func _ft_sf_c_trap_lava2() -> Array:
 # player in L4 — the bolt must land within 1.5 s (0.6 s
 # telegraph + strike) for 15 HP.
 func _ft_sf_s_trap_lightning_l4() -> void:
+	# QA-136 (v3.13 build gate): the old setup stood the player on
+	# the FIRST L4 platform in list order — platform #36, which is
+	# a COLLAPSING platform (0.8 s shake, then the shape drops and
+	# the player falls out of the strike's 200 px radius before the
+	# 0.6 s telegraph resolves). Stand on the first STATIC L4
+	# platform instead (not collapsing, not a trapdoor), clear any
+	# in-flight strike marker, and move every other living player
+	# out of L4 so the random target pick can only choose the local
+	# player — the strike must be deterministic in a test.
 	var lp = _ft_lp()
 	lp.set("health", 100.0)
 	lp.set("shield_timer", 0.0)
+	_sf_clear_strike_l4_marker()
 	var plats: Array = MAPS[map_id].get("platforms", [])
-	for p in plats:
-		var r: Rect2 = p
-		if r.position.y >= 3600.0 and r.position.y < 5400.0:
+	var collapse: Array = MAPS[map_id].get("collapsing", [])
+	var traps: Array = MAPS[map_id].get("trapdoors", [])
+	for i in plats.size():
+		var r: Rect2 = plats[i]
+		if r.position.y >= 3600.0 and r.position.y < 5400.0 and not collapse.has(i) and not traps.has(i):
 			lp.position = Vector2(r.get_center().x, r.position.y - 31.0)
 			lp.velocity = Vector2.ZERO
 			lp.sync_position = lp.position
 			break
+	for child in players_node.get_children():
+		if child == lp or not child.alive:
+			continue
+		child.position = Vector2(1800.0, 10378.0)
+		child.velocity = Vector2.ZERO
+		child.sync_position = child.position
 	_sf_strike_l4_timer = 0.0
 
 
