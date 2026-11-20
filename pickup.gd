@@ -5,6 +5,12 @@ extends Area2D
 
 # kind: 1 = SMG, 2 = Shotgun, 3 = Sniper, 4 = Rocket Launcher,
 #       5 = Health (+50), 6 = Grenades (+2)
+#       7-13 = Skyfall power-ups (QA-112, v3.9, Skyfall map only):
+#       7 = Health +35%, 8 = Shield 6s, 9 = Speed 7s, 10 = Ammo refill,
+#       11 = Grenades +2, 12 = Jetpack boost, 13 = Radar 5s.
+# The effect of kinds 7-13 lives in player.gd (give_pickup) — this
+# file only shows the pickup picture. Bob, radius and lifetime are
+# the same for every kind.
 var kind: int = 1
 var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 
@@ -24,11 +30,48 @@ const AMMOBOX_TEX: Texture2D = preload("res://assets/items/ammobox.png")
 # there is no shield pickup kind (kinds are 1-6 only) and adding a
 # kind would change gameplay. It waits for a future shield kind.
 
+# QA-112 (v3.9 Skyfall power-ups): the 7 Skyfall power-up pictures,
+# one file each (256x256 RGBA). The spritesheet
+# (powerups_spritesheet.png) is NOT loaded — individual files only.
+const SKY_HEALTH_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_1_health_pack.png")
+const SKY_SHIELD_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_2_energy_shield.png")
+const SKY_SPEED_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_3_speed_boost.png")
+const SKY_AMMO_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_4_ammo_crate.png")
+const SKY_GRENADE_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_5_grenade_pack.png")
+const SKY_JETPACK_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_6_jetpack_boost.png")
+const SKY_RADAR_TEX: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_7_enemy_radar.png")
+# Kind -> Skyfall picture, for kinds 7-13.
+const SKYFALL_TEX := {
+	7: SKY_HEALTH_TEX,
+	8: SKY_SHIELD_TEX,
+	9: SKY_SPEED_TEX,
+	10: SKY_AMMO_TEX,
+	11: SKY_GRENADE_TEX,
+	12: SKY_JETPACK_TEX,
+	13: SKY_RADAR_TEX,
+}
+
 var _life: float = 20.0
 var _bob_t: float = 0.0
 var _base_y: float = 0.0
 
-const KIND_LABEL := {1: "SMG", 2: "BOOM", 3: "SNIPER", 4: "ROCKET", 5: "+", 6: "G"}
+const KIND_LABEL := {1: "SMG", 2: "BOOM", 3: "SNIPER", 4: "ROCKET", 5: "+", 6: "G",
+	7: "HP", 8: "SHIELD", 9: "SPEED", 10: "AMMO", 11: "G", 12: "JET", 13: "RADAR"}
+# QA-112: full display names for HUD / logs. KIND_LABEL above is the
+# short in-world tag; this one is the readable name. Kinds 1-6 keep
+# their old meaning; 7-13 are the Skyfall power-ups.
+const KIND_NAME := {
+	1: "SMG", 2: "Shotgun", 3: "Sniper", 4: "Rocket Launcher",
+	5: "Health +50", 6: "Grenades +2",
+	7: "Health +35%", 8: "Shield", 9: "Speed", 10: "Ammo",
+	11: "Grenades +2", 12: "Jetpack Boost", 13: "Radar",
+}
+
+
+static func kind_name(kind: int) -> String:
+	return KIND_NAME.get(kind, "?")
+
+
 const KIND_COLOR := {
 	1: Color(1.0, 0.6, 0.2),
 	2: Color(1.0, 0.5, 0.3),
@@ -36,6 +79,13 @@ const KIND_COLOR := {
 	4: Color(1.0, 0.3, 0.2),
 	5: Color(0.3, 0.9, 0.4),
 	6: Color(0.2, 0.6, 0.25),
+	7: Color(0.3, 0.9, 0.4),
+	8: Color(0.3, 0.6, 1.0),
+	9: Color(1.0, 0.85, 0.2),
+	10: Color(1.0, 0.6, 0.2),
+	11: Color(0.8, 0.2, 0.2),
+	12: Color(0.6, 0.4, 1.0),
+	13: Color(0.2, 0.8, 0.8),
 }
 
 
@@ -49,11 +99,13 @@ func _ready() -> void:
 	circle.radius = 22.0
 	shape.shape = circle
 	add_child(shape)
-	if kind == 5 or kind == 6:
+	if kind >= 5:
 		# QA-088: drawn icon sprite for health / grenades, over a
 		# faint colour glow (same shape as the weapon boxes). The
 		# icons are ~52 px now (was a 64 px Sky Brawl sprite at
 		# 0.62x = 40 px) so they read at combat speed on a phone.
+		# QA-112: kinds 7-13 use the same shape — the Skyfall
+		# power-up badge over the same faint glow, same size.
 		var glow := Polygon2D.new()
 		glow.polygon = PackedVector2Array([
 			Vector2(-26, -18), Vector2(26, -18), Vector2(26, 18), Vector2(-26, 18),
@@ -61,7 +113,12 @@ func _ready() -> void:
 		glow.color = Color(KIND_COLOR.get(kind, Color(0.5, 0.9, 1.0)), 0.35)
 		add_child(glow)
 		var icon := Sprite2D.new()
-		icon.texture = HEALTH_TEX if kind == 5 else GRENADE_TEX
+		var icon_tex: Texture2D = HEALTH_TEX
+		if kind == 6:
+			icon_tex = GRENADE_TEX
+		elif kind >= 7:
+			icon_tex = SKYFALL_TEX.get(kind, HEALTH_TEX)
+		icon.texture = icon_tex
 		var target := 52.0
 		icon.scale = Vector2(target / icon.texture.get_width(), target / icon.texture.get_width())
 		add_child(icon)

@@ -329,6 +329,72 @@ const SIGHT_LINE_RANGE := 2560.0
 var scoped: bool = false # scope toggle (HUD SCOPE button, sniper/rifle only)
 var _sight_line: Line2D # sniper sight line (local player only)
 
+# QA-112 (v3.9 Skyfall power-ups): 7 kinds, 7-13. Health (7), ammo
+# (10) and grenades (11) apply instantly and NEVER take a slot.
+# The timed boosts — shield (8), speed (9), jetpack boost (12),
+# radar (13) — use the slots: ONE active at a time, up to 3
+# different kinds stored (every player has exactly 3 slots). A new
+# timed pickup while one is active goes into a free slot; when the
+# active one runs out, the next stored one starts by itself.
+# carrying_flag is set by game.gd (Vertical CTF): 0 none, 1 RED
+# flag, 2 BLUE flag. wind_force is set by game.gd every frame on
+# Skyfall wind zones (Vector2.ZERO on every other map).
+const SHIELD_DURATION := 6.0
+const SPEED_DURATION := 7.0
+const JETPACK_BOOST_DURATION := 7.0
+const RADAR_DURATION := 5.0
+const SPEED_BOOST_MULT := 1.3
+const JETPACK_BOOST_MULT := 1.4
+const FLAG_CARRY_SPEED_MULT := 0.85
+const MAX_STORED_BOOSTS := 3
+var shield_timer: float = 0.0
+var speed_timer: float = 0.0
+var radar_timer: float = 0.0
+var jetpack_boost_timer: float = 0.0
+var active_boost_kind: int = 0 # 0 none, else 8/9/12/13
+var stored_boosts: Array[int] = [] # queued timed boosts, max 3, distinct kinds only
+var carrying_flag: int = 0 # 0 none, 1 carrying the RED flag, 2 carrying the BLUE flag
+var wind_force: Vector2 = Vector2.ZERO
+var _shield_ring: Polygon2D # blue ring, shown while the shield is up
+
+# QA-112 (v3.9 Skyfall ladders): the 4 emergency ladders are
+# climbable recovery routes after a fall. The game scene answers
+# skyfall_ladder_at (added in game.gd); until it exists — or on
+# any other map — has_method is false and this is a complete no-op.
+const LADDER_CLIMB_SPEED := 200.0
+var _on_ladder: bool = false
+var _ladder_rect: Rect2 = Rect2()
+var _ladder_armed: bool = true # re-grab only after the stick is released (see _update_ladder)
+var _move_stick_y: float = 0.0 # move stick vertical, kept from _read_input for the ladder
+
+# QA-112 (v3.9 Skyfall movement): grapple points, wall-jumps and
+# jetpack lines — climbing is a SKILL, not just a route. All three
+# are Skyfall-only and read their data from the game scene's
+# MAPS[5] (see _skyfall_grapple_points / _skyfall_jetpack_lines);
+# on any other map, or if the keys are missing, every helper
+# returns empty / false and this is a complete no-op. Grapple and
+# wall-jump use no fuel; the jetpack line halves fuel drain and
+# shields the rider from the wind.
+const GRAPPLE_RANGE := 320.0
+const GRAPPLE_PULL_SPEED := 500.0
+const GRAPPLE_RELEASE_DIST := 60.0
+const GRAPPLE_RELEASE_BOOST := 200.0
+const GRAPPLE_COOLDOWN := 1.0
+const WALL_JUMP_PUSH := 380.0
+const WALL_JUMP_UP := 520.0
+const WALL_JUMP_MAX_CHAIN := 2
+const WALL_DETECT_DIST := 24.0
+const JETPACK_LINE_DIST := 70.0
+var _grappling: bool = false
+var _grapple_point: Vector2 = Vector2.ZERO
+var _grapple_cooldown: float = 0.0
+var _wall_jumps_used: int = 0
+var _on_jetpack_line: bool = false
+var _sf_grapple_cache: Array = []
+var _sf_grapple_cache_map: int = -1
+var _sf_lines_cache: Array = []
+var _sf_lines_cache_map: int = -1
+
 
 func _enter_tree() -> void:
 	if name.is_valid_int():
@@ -375,6 +441,10 @@ func _ready() -> void:
 		add_child(_sight_line)
 	_spawn_protect_timer = SPAWN_PROTECTION
 	_play_anim("idle")
+	# QA-112 (v3.9): --movement-test runs the in-process movement
+	# checks at the bottom of this file (local player only, flag
+	# gated — never runs in a real match).
+	_movetest_active = "--movement-test" in OS.get_cmdline_user_args() and is_local_player()
 
 
 func is_local_player() -> bool:
@@ -420,6 +490,24 @@ func _build_sprite() -> void:
 	_ring.color = Color(player_color.r, player_color.g, player_color.b, 0.55)
 	_ring.z_index = -1
 	add_child(_ring)
+
+	# QA-112: blue shield ring, shown while the shield boost is up.
+	# A Polygon2D circle outline (outer 50 px, inner 45 px), drawn
+	# as one ring band; _update_visuals toggles it. No flag sprite
+	# here — game.gd draws the carried flag above the carrier, so a
+	# second flag from this file would show two flags.
+	_shield_ring = Polygon2D.new()
+	_shield_ring.name = "ShieldRing"
+	var shield_pts := PackedVector2Array()
+	for i in 32:
+		var a := TAU * float(i) / 32.0
+		shield_pts.append(Vector2(cos(a) * 50.0, sin(a) * 50.0))
+		shield_pts.append(Vector2(cos(a) * 45.0, sin(a) * 45.0))
+	_shield_ring.polygon = shield_pts
+	_shield_ring.color = Color(0.3, 0.6, 1.0, 0.7)
+	_shield_ring.z_index = 2
+	_shield_ring.visible = false
+	add_child(_shield_ring)
 
 	# Rotated weapon sprite at the hands (pivot = stock).
 	_gun = Sprite2D.new()
@@ -631,6 +719,13 @@ func _send_move_snapshot(force: bool = false) -> void:
 		"hp": health, "k": kills, "d": deaths, "al": alive,
 		"fuel": fuel, "ls": life_state, "mag": mag_ammo,
 		"gr": grenades, "sf": _shots_fired, "sh": _shots_hit,
+		# QA-112: Skyfall power-up state. "sh" is already taken by
+		# _shots_hit, so the shield timer rides as "shd", and the
+		# speed timer as "spd" (not "sp" — kept distinct on purpose).
+		"shd": shield_timer, "spd": speed_timer,
+		"rdr": radar_timer, "jb": jetpack_boost_timer,
+		"ab": active_boost_kind, "cf": carrying_flag,
+		"sb": stored_boosts,
 	})
 	if force:
 		# A forced send (respawn / stuck-recovery / score change)
@@ -718,6 +813,18 @@ func receive_move_snapshot(snap: Dictionary) -> void:
 	grenades = int(snap.get("gr", grenades))
 	_shots_fired = int(snap.get("sf", _shots_fired))
 	_shots_hit = int(snap.get("sh", _shots_hit))
+	# QA-112: Skyfall power-up state (old dicts without these keys
+	# keep the current values, same as the other synced fields).
+	shield_timer = float(snap.get("shd", shield_timer))
+	speed_timer = float(snap.get("spd", speed_timer))
+	radar_timer = float(snap.get("rdr", radar_timer))
+	jetpack_boost_timer = float(snap.get("jb", jetpack_boost_timer))
+	active_boost_kind = int(snap.get("ab", active_boost_kind))
+	carrying_flag = int(snap.get("cf", carrying_flag))
+	var sb: Array = snap.get("sb", stored_boosts)
+	stored_boosts.clear()
+	for v in sb:
+		stored_boosts.append(int(v))
 	# Feed the interpolation buffer. QA-068: each entry is stamped
 	# with the SENDER's clock ("st", sent in the snapshot), NOT the
 	# receipt time — the two phones' clocks are never compared (they
@@ -842,9 +949,11 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_movetest_pre_tick(delta) # QA-112: --movement-test step machine (no-op without the flag)
 	_spawn_protect_timer = maxf(0.0, _spawn_protect_timer - delta)
 	_shake_trauma = maxf(0.0, _shake_trauma - delta * 1.8)
 	_gun_kick = maxf(0.0, _gun_kick - delta * 7.0)
+	_tick_boost_timers(delta) # QA-112: Skyfall power-up timers
 	# Recoil accumulation decays when not firing (spec §16).
 	if not _want_fire:
 		_recoil_accum *= exp(-3.0 * delta)
@@ -889,6 +998,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if is_local_player():
 		_read_input()
+		_movetest_apply_input() # QA-112: --movement-test input overrides (no-op without the flag)
 		# QA-073: reconciliation (spec §4) blends BEFORE movement,
 		# not after: the blend sets position directly, and if that
 		# put the player inside a wall the same frame's
@@ -907,6 +1017,8 @@ func _physics_process(delta: float) -> void:
 				_reconcile_active = false
 			else:
 				position = position.move_toward(_reconcile_target, maxf(rdist * 0.2, 60.0 * delta))
+		_update_ladder() # QA-112: Skyfall ladder grab / release, before movement
+		_update_grapple(delta) # QA-112: Skyfall grapple attach / release, before movement
 		_apply_movement(delta)
 		_apply_aim_and_fire(delta)
 		# the local simulation predicted each physics frame, so a
@@ -1238,6 +1350,7 @@ func _read_input() -> void:
 	var move_vec: Vector2 = game.touch_move_vec
 	_move_axis = move_vec.x
 	_move_mag = absf(_move_axis)
+	_move_stick_y = move_vec.y # QA-112: kept for the ladder (up/down to climb)
 	# Stick-up jump: only on the rising edge, and only while "armed".
 	# Holding the stick up through a landing must NOT auto-jump again —
 	# the player re-arms by letting the stick drop below the threshold.
@@ -1311,6 +1424,280 @@ func _read_input() -> void:
 				_aiming = true
 
 
+# QA-112 (v3.9 Skyfall ladders): grab / release, run every physics
+# frame for the local player before _apply_movement. The player is
+# on a ladder when their centre is inside a ladder rect AND they
+# hold up/down on the move stick. The helper lives on the game
+# scene (game.gd skyfall_ladder_at); the current scene is checked
+# first, then the "game" group node, and if neither has it this is
+# a complete no-op — on any map but Skyfall nothing changes.
+# Jumping exits the ladder: a fresh stick-up edge while already
+# climbing jumps the player off. The grab itself also starts with
+# a stick-up edge, so the exit only fires when already climbing
+# (was_on_ladder); after jumping off, the ladder stays disarmed
+# until the stick is released, or the same held stick-up would
+# grab the ladder again mid-jump. Letting go, or leaving the rect,
+# ends the climb and re-arms the grab.
+func _update_ladder() -> void:
+	var was_on_ladder := _on_ladder
+	_on_ladder = false
+	_ladder_rect = Rect2()
+	var rect := Rect2()
+	var scene = get_tree().current_scene
+	if scene != null and scene.has_method("skyfall_ladder_at"):
+		rect = scene.skyfall_ladder_at(global_position)
+	if rect == Rect2():
+		var game = get_tree().get_first_node_in_group("game")
+		if game != null and game.has_method("skyfall_ladder_at"):
+			rect = game.skyfall_ladder_at(global_position)
+	if rect == Rect2():
+		_ladder_armed = true
+		return
+	_ladder_rect = rect
+	var holding := _move_stick_y < -0.3 or _move_stick_y > 0.3
+	if not holding:
+		_ladder_armed = true
+		return
+	if _jump_pressed and was_on_ladder:
+		_ladder_armed = false
+		return
+	if _ladder_armed:
+		_on_ladder = true
+
+
+# QA-112 (v3.9 Skyfall movement): grapple / wall-jump / jetpack-line
+# data + logic. The game scene owns the data (MAPS[5]); this file
+# only reads it, the same way _update_ladder reads skyfall_ladder_at
+# — current scene first, then the "game" group node, and a missing
+# key or a missing helper is a no-op, never a crash. The point/line
+# lists are cached per map (MAPS is const, so the data cannot
+# change mid-match); any other map returns empty / false.
+
+
+func _is_skyfall() -> bool:
+	var game = get_tree().get_first_node_in_group("game")
+	if game == null or not ("map_id" in game):
+		return false
+	return int(game.map_id) == GameData.SKYFALL_MAP_ID
+
+
+func _skyfall_grapple_points() -> Array:
+	# Fixed grapple points for this map ([] off Skyfall, or when the
+	# "grapple" key is missing). A skyfall_grapple_points() helper
+	# on the game scene wins when it exists; otherwise MAPS[5]
+	# is read directly (const access through the instance).
+	if not _is_skyfall():
+		return []
+	var game = get_tree().get_first_node_in_group("game")
+	if game == null:
+		return []
+	var mid := int(game.map_id)
+	if _sf_grapple_cache_map == mid:
+		return _sf_grapple_cache
+	_sf_grapple_cache_map = mid
+	_sf_grapple_cache = []
+	if game.has_method("skyfall_grapple_points"):
+		var r = game.skyfall_grapple_points()
+		if r is Array:
+			_sf_grapple_cache = r
+	if _sf_grapple_cache.is_empty() and ("MAPS" in game):
+		var maps: Array = game.MAPS
+		if GameData.SKYFALL_MAP_ID < maps.size():
+			var row = maps[GameData.SKYFALL_MAP_ID]
+			if row is Dictionary:
+				var raw = (row as Dictionary).get("grapple", [])
+				if raw is Array:
+					_sf_grapple_cache = raw
+	return _sf_grapple_cache
+
+
+func _skyfall_jetpack_lines() -> Array:
+	# Marked jetpack routes ([{"from": Vector2, "to": Vector2}])
+	# for this map ([] off Skyfall, or when "jetpack_lines" is
+	# missing). A skyfall_jetpack_lines() helper on the game scene
+	# wins when it exists; otherwise MAPS[5] is read directly.
+	if not _is_skyfall():
+		return []
+	var game = get_tree().get_first_node_in_group("game")
+	if game == null:
+		return []
+	var mid := int(game.map_id)
+	if _sf_lines_cache_map == mid:
+		return _sf_lines_cache
+	_sf_lines_cache_map = mid
+	_sf_lines_cache = []
+	if game.has_method("skyfall_jetpack_lines"):
+		var r = game.skyfall_jetpack_lines()
+		if r is Array:
+			_sf_lines_cache = r
+	if _sf_lines_cache.is_empty() and ("MAPS" in game):
+		var maps: Array = game.MAPS
+		if GameData.SKYFALL_MAP_ID < maps.size():
+			var row = maps[GameData.SKYFALL_MAP_ID]
+			if row is Dictionary:
+				var raw = (row as Dictionary).get("jetpack_lines", [])
+				if raw is Array:
+					_sf_lines_cache = raw
+	return _sf_lines_cache
+
+
+static func _segment_distance(p: Vector2, a: Vector2, b: Vector2) -> float:
+	# Shortest distance from a point to a line segment (clamped
+	# projection; a zero-length segment is just its point).
+	var ab := b - a
+	var len2 := ab.length_squared()
+	if len2 <= 0.0:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / len2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+static func _on_jetpack_line_at(pos: Vector2, lines: Array) -> bool:
+	for raw in lines:
+		if not (raw is Dictionary):
+			continue
+		var d: Dictionary = raw
+		if not (d.has("from") and d.has("to")):
+			continue
+		var a = d["from"]
+		var b = d["to"]
+		if a is Vector2 and b is Vector2 and _segment_distance(pos, a, b) <= JETPACK_LINE_DIST:
+			return true
+	return false
+
+
+static func _nearest_grapple_point(points: Array, from_pos: Vector2) -> Vector2:
+	# Nearest point within GRAPPLE_RANGE that is ABOVE the player
+	# (Vector2.INF when there is none). Malformed entries are skipped.
+	var best := Vector2.INF
+	var best_d := INF
+	for raw in points:
+		if not (raw is Vector2):
+			continue
+		var pt: Vector2 = raw
+		if pt.y >= from_pos.y:
+			continue
+		var d := from_pos.distance_to(pt)
+		if d <= GRAPPLE_RANGE and d < best_d:
+			best_d = d
+			best = pt
+	return best
+
+
+func _is_on_jetpack_line() -> bool:
+	# Within 70 px of a jetpack-line segment on Skyfall. A
+	# skyfall_jetpack_line_at(pos) helper on the game scene wins
+	# when it exists; otherwise the MAPS lines are measured here.
+	if not _is_skyfall():
+		return false
+	var game = get_tree().get_first_node_in_group("game")
+	if game != null and game.has_method("skyfall_jetpack_line_at"):
+		return bool(game.skyfall_jetpack_line_at(global_position))
+	return _on_jetpack_line_at(global_position, _skyfall_jetpack_lines())
+
+
+func _grapple_pull_speed() -> float:
+	# 500 px/s, 425 for a flag carrier (the 15% slower rule applies
+	# to the rope pull too).
+	return GRAPPLE_PULL_SPEED * (FLAG_CARRY_SPEED_MULT if carrying_flag != 0 else 1.0)
+
+
+func _release_grapple(with_boost: bool) -> void:
+	if not _grappling:
+		return
+	_grappling = false
+	_grapple_point = Vector2.ZERO
+	_grapple_cooldown = GRAPPLE_COOLDOWN
+	if with_boost:
+		velocity.y -= GRAPPLE_RELEASE_BOOST
+
+
+# QA-112 (v3.9 Skyfall grapple): attach / release, run every physics
+# frame for the local player before _apply_movement (same slot as the
+# ladder). Airborne on Skyfall, JUMP pressed, a point within 320 px
+# and above: the rope attaches and the press is swallowed (it must
+# not also jump). JUMP again while attached: let go with a 200 px/s
+# upward boost. 1 s cooldown between grapples. No fuel, no jetpack
+# while attached; firing is gated in _apply_aim_and_fire. Leaving
+# Skyfall (or the data disappearing) drops the rope.
+func _update_grapple(delta: float) -> void:
+	_grapple_cooldown = maxf(0.0, _grapple_cooldown - delta)
+	if not _is_skyfall():
+		if _grappling:
+			_release_grapple(false)
+		return
+	if _grappling:
+		if _jump_pressed:
+			_release_grapple(true)
+			_jump_pressed = false
+		return
+	if _grapple_cooldown > 0.0:
+		return
+	# The ladder-grab frame also carries a jump edge (stick-up grabs
+	# the ladder) — that edge climbs, it must not also grapple.
+	if _jump_pressed and not _on_ladder and not is_on_floor():
+		var pt := _nearest_grapple_point(_skyfall_grapple_points(), global_position)
+		if pt != Vector2.INF:
+			_grappling = true
+			_grapple_point = pt
+			_jump_pressed = false
+
+
+# QA-112 (v3.9 Skyfall wall-jump): Skyfall only, airborne, pressed
+# against a wall (moving toward it, velocity into it or stopped
+# against it, wall within 24 px), JUMP pressed: push away from the
+# wall (380 px/s) and up (-520 px/s). At most 2 in a row before
+# touching ground. No fuel. A carrier may wall-jump (it is not a
+# jetpack) at the 15% slower rate (323 / -442). A fixed impulse, so
+# no variable-height cut. True when it fired (the press is eaten).
+func _try_wall_jump() -> bool:
+	if not _is_skyfall():
+		return false
+	if is_on_floor() or _wall_jumps_used >= WALL_JUMP_MAX_CHAIN:
+		return false
+	if _jump_buffer_timer <= 0.0:
+		return false
+	# Which side is the wall on? is_on_wall + normal first (already
+	# touching), else a 24 px ray in the move direction (close but
+	# not yet touching). +1 = wall on the right, -1 = on the left.
+	var side := 0
+	if is_on_wall():
+		var n := get_wall_normal()
+		if n.x < -0.5:
+			side = 1
+		elif n.x > 0.5:
+			side = -1
+	if side == 0 and _move_axis != 0.0:
+		var space := get_world_2d().direct_space_state
+		var from := global_position
+		var to := global_position + Vector2(_move_axis * (CAPSULE_RADIUS + WALL_DETECT_DIST), 0.0)
+		var q := PhysicsRayQueryParameters2D.create(from, to, 1)
+		q.collide_with_bodies = true
+		q.collide_with_areas = false
+		q.exclude = [get_rid()]
+		if not space.intersect_ray(q).is_empty():
+			side = 1 if _move_axis > 0.0 else -1
+	if side == 0:
+		return false
+	# Moving toward the wall: the stick is pushed that way, and the
+	# horizontal velocity (if any) points into it — a player sliding
+	# down the wall with no horizontal speed still counts.
+	if _move_axis == 0.0 or signf(_move_axis) != float(side):
+		return false
+	if velocity.x != 0.0 and signf(velocity.x) != float(side):
+		return false
+	var mult := FLAG_CARRY_SPEED_MULT if carrying_flag != 0 else 1.0
+	velocity.x = -float(side) * WALL_JUMP_PUSH * mult
+	velocity.y = -WALL_JUMP_UP * mult
+	_wall_jumps_used += 1
+	_jump_buffer_timer = 0.0
+	_jump_pressed = false
+	_jump_cut_armed = false
+	_coyote_timer = 0.0
+	_play_sound("jump")
+	return true
+
+
 func _apply_movement(delta: float) -> void:
 	# Ground/air split (GAP-02, spec §2E) + exponential drag (GAP-03,
 	# spec §2C/§6) + ice zone (GAP-51, spec §18.A). Ground: strong
@@ -1339,6 +1726,60 @@ func _apply_movement(delta: float) -> void:
 		# is one frame of lag on the first thrust frame only.
 		accel = JET_AIR_ACCEL if _jetpacking else ACCEL_AIR
 		drag = DRAG_AIR
+	# QA-112: speed boost x1.3, flag carrier x0.85 (they stack if
+	# both apply — a boosted carrier runs at 1.3 * 0.85).
+	if speed_timer > 0.0:
+		max_speed *= SPEED_BOOST_MULT
+	if carrying_flag != 0:
+		max_speed *= FLAG_CARRY_SPEED_MULT
+	if _on_ladder:
+		# QA-112: ladder climb — no gravity, no jump, no jetpack.
+		# Climb 200 px/s on the stick; horizontal at half speed;
+		# move_and_slide still runs so platforms stop the climb.
+		# The grab-frame jump edge is swallowed: pushing the stick
+		# up grabs the ladder, it must not also hop the player.
+		_jump_buffer_timer = 0.0
+		_jump_cut_armed = false
+		_jet_ramp_t = 0.0
+		_jet_thrust_factor = 0.0
+		_stop_jetpack_sound()
+		var climb := 0.0
+		if _move_stick_y < -0.3:
+			climb = -LADDER_CLIMB_SPEED
+		elif _move_stick_y > 0.3:
+			climb = LADDER_CLIMB_SPEED
+		velocity.y = climb
+		velocity.x = move_toward(velocity.x, _move_axis * max_speed * 0.5, ACCEL_GROUND * delta)
+		_fall_speed = velocity.y
+		_was_on_floor = on_floor
+		move_and_slide()
+		if is_on_floor():
+			_jump_cut_armed = false
+		return
+	if _grappling:
+		# QA-112: rope pull — velocity straight at the point at the
+		# pull speed (500, 425 for a carrier), gravity at 30% so
+		# the rope still sags a little. No fuel, no jetpack, no
+		# jump while attached (firing is gated in
+		# _apply_aim_and_fire). Arrival (within 60 px) or landing
+		# ends the pull and falls through to normal movement.
+		_jetpacking = false
+		_jet_ramp_t = 0.0
+		_jet_thrust_factor = 0.0
+		_stop_jetpack_sound()
+		_jump_buffer_timer = 0.0
+		_jump_cut_armed = false
+		if is_on_floor() or global_position.distance_to(_grapple_point) <= GRAPPLE_RELEASE_DIST:
+			_release_grapple(false)
+		if _grappling:
+			var dir := (_grapple_point - global_position).normalized()
+			velocity = dir * _grapple_pull_speed()
+			velocity.y += GRAVITY * 0.3 * delta
+			_fall_speed = velocity.y
+			_was_on_floor = on_floor
+			move_and_slide()
+			return
+		# Released this frame: fall through to normal movement below.
 	if _move_axis != 0.0:
 		# Reversal bonus (GAP-01): flicking against current motion
 		# reverses crisply on ground (1.6x), lazily in air (1.2x).
@@ -1358,6 +1799,10 @@ func _apply_movement(delta: float) -> void:
 		# are retained as tuning reference; the drag model above is
 		# what actually stops the player.
 		velocity.x *= exp(-drag * delta)
+	# QA-112: jetpack-line check for this frame (Skyfall only;
+	# false elsewhere). Used by the jetpack fuel drain below and
+	# by the wind shield at the bottom of this function.
+	_on_jetpack_line = _is_on_jetpack_line()
 	# Jump buffering + coyote time: jumping feels reliable even if the
 	# button is pressed a moment before landing / after leaving a ledge.
 	if _jump_pressed:
@@ -1366,6 +1811,7 @@ func _apply_movement(delta: float) -> void:
 		_jump_buffer_timer = maxf(0.0, _jump_buffer_timer - delta)
 	if on_floor:
 		_coyote_timer = COYOTE_TIME
+		_wall_jumps_used = 0 # QA-112: touching ground resets the wall-jump chain
 	else:
 		_coyote_timer = maxf(0.0, _coyote_timer - delta)
 	_jetpacking = false
@@ -1375,7 +1821,13 @@ func _apply_movement(delta: float) -> void:
 		_coyote_timer = 0.0
 		_jump_cut_armed = true
 		_play_sound("jump")
-	elif _jump_held and not on_floor and fuel > 0.0:
+	elif _try_wall_jump():
+		# QA-112: Skyfall wall-jump fired (see _try_wall_jump) —
+		# the press is eaten and the push is already applied.
+		pass
+	elif _jump_held and not on_floor and fuel > 0.0 and carrying_flag == 0:
+		# QA-112: a flag carrier gets NO jetpack thrust (carrier
+		# rule) — the branch is skipped, so no fuel is spent either.
 		# Jetpack sustains a climb, it never chops jump momentum:
 		# thrust applies only while rising SLOWER than the cap, so
 		# a -660 jump is not clamped down to -320 when fuel regens
@@ -1392,10 +1844,21 @@ func _apply_movement(delta: float) -> void:
 		if velocity.y > -MAX_JET_RISE:
 			_jet_ramp_t += delta
 			_jet_thrust_factor = minf(1.0, JET_RAMP_MIN + _jet_ramp_t / JET_RAMP_TIME * (1.0 - JET_RAMP_MIN))
-			velocity.y -= JET_ACCEL * _jet_thrust_factor * delta
+			# QA-112: jetpack boost multiplies the thrust x1.4 (the
+			# rise cap MAX_JET_RISE stays 320 — the boost spools
+			# the climb up faster, it does not raise the top speed).
+			var thrust := JET_ACCEL * _jet_thrust_factor
+			if jetpack_boost_timer > 0.0:
+				thrust *= JETPACK_BOOST_MULT
+			velocity.y -= thrust * delta
 			if velocity.y < -MAX_JET_RISE:
 				velocity.y = -MAX_JET_RISE
-			fuel = maxf(0.0, fuel - FUEL_DRAIN * delta)
+			# QA-112: on a jetpack line the player rides the wind
+			# instead of fighting it — fuel drains at HALF rate.
+			# (A carrier never reaches this branch: no jetpack
+			# while carrying, so no discount and no boost.)
+			var drain := FUEL_DRAIN * (0.5 if _on_jetpack_line else 1.0)
+			fuel = maxf(0.0, fuel - drain * delta)
 			_fuel_delay_timer = FUEL_REGEN_DELAY
 			_jetpacking = true
 			_jump_cut_armed = false
@@ -1426,6 +1889,18 @@ func _apply_movement(delta: float) -> void:
 	# v2.2: pushing the left stick down while airborne fast-falls.
 	if _fast_fall and not on_floor and not _jetpacking:
 		velocity.y += FAST_FALL_EXTRA * delta
+	# QA-112: Skyfall wind zones push the player (game.gd sets
+	# wind_force every frame; Vector2.ZERO on every other map, so
+	# this is a no-op there). Extra acceleration, then clamped to
+	# the normal speed limits so wind never outruns the player.
+	# A jetpack line SHIELDS the rider from the wind — but only
+	# while jetpacking on it, or while carrying the flag (a carrier
+	# cannot jetpack at all, yet the line still shields them; they
+	# get no fuel discount and no boost for it).
+	var line_shield := _on_jetpack_line and (_jetpacking or carrying_flag != 0)
+	if wind_force != Vector2.ZERO and not line_shield:
+		velocity += wind_force * delta
+		velocity.x = clampf(velocity.x, -max_speed - 100.0, max_speed + 100.0)
 	var max_fall := MAX_FALL + (350.0 if _fast_fall else 0.0)
 	if velocity.y > max_fall:
 		velocity.y = max_fall
@@ -1452,6 +1927,21 @@ func _apply_aim_and_fire(delta: float) -> void:
 	# FIRING lasts exactly one physics frame (GAP-41).
 	if weapon_state == WeaponState.FIRING:
 		weapon_state = WeaponState.RELOADING if reloading else WeaponState.READY
+	# QA-112: no firing while attached to a grapple — the aim stick
+	# is the trigger, so the shot is suppressed here and the flick
+	# edge is discarded (it must not fire the moment the rope is
+	# let go). NOTE: the ladder does not gate firing anywhere in
+	# this file, so the grapple gate is explicit here rather than
+	# shared; aiming itself is left alone so the player can pre-aim
+	# for the release.
+	if _grappling:
+		_want_fire = false
+		_fire_edge = false
+		var game_g = get_tree().get_first_node_in_group("game")
+		if game_g != null:
+			game_g.consume_aim_fire_edge()
+		_update_anim()
+		return
 	# Face the aim direction while aiming, else face the move direction.
 	if _aiming:
 		aim_angle = _aim_dir.angle()
@@ -1922,6 +2412,10 @@ func _apply_damage(amount: int, from_id: int, dir: Vector2, knockback: float, ev
 		return
 	if _spawn_protect_timer > 0.0:
 		return
+	# QA-112: a shield absorbs ALL damage — only the health loss is
+	# blocked. Knockback, hit flash, shake and sound still play.
+	if shield_timer > 0.0:
+		amount = 0
 	health -= amount
 	# Per-weapon victim knockback (GAP-46): a velocity add, so
 	# move_and_slide resolves it against collision next frame —
@@ -2060,7 +2554,111 @@ func give_pickup(kind: int) -> void:
 		health = mini(100, health + 50)
 	elif kind == 6:
 		grenades = mini(4, grenades + 2)
+	elif kind >= 7 and kind <= 13:
+		# QA-112: Skyfall power-ups (7-13) — kinds 1-6 above are unchanged.
+		apply_powerup(kind)
 	_play_sound("pickup")
+
+
+# QA-112 (v3.9 Skyfall power-ups): 7 kinds, 7-13.
+# Instant kinds apply at once and NEVER take a slot: 7 health +35%
+# of max HP (max is 100, so +35), 10 current weapon magazine full,
+# 11 grenades +2 (same cap 4 as kind 6). Timed kinds — 8 shield 6 s,
+# 9 speed 7 s, 12 jetpack boost (fuel full + thrust x1.4 for 7 s),
+# 13 radar 5 s — follow the 3-slot rule: one active at a time; a
+# new timed pickup while one is active refreshes the timer if it is
+# the same kind, else goes into a free slot (max 3, distinct kinds
+# only); if the slots are full, the active boost's timer refreshes
+# instead. The pickup is consumed in every case.
+func apply_powerup(kind: int) -> void:
+	match kind:
+		7:
+			health = mini(100, health + 35)
+		10:
+			mag_ammo = int(WEAPONS[weapon]["mag"])
+			_mag_memory[weapon] = mag_ammo
+		11:
+			grenades = mini(4, grenades + 2)
+		8, 9, 12, 13:
+			if carrying_flag != 0:
+				# QA-112: a flag carrier NEVER activates a timed
+				# boost — it goes into a free slot (max 3, distinct
+				# kinds) and starts only when the flag is dropped
+				# or delivered (see _tick_boost_timers). Same kind
+				# twice, or full slots, consumes the pickup with no
+				# extra effect (the slot already holds that kind,
+				# and there is no active boost to refresh).
+				if not stored_boosts.has(kind) and stored_boosts.size() < MAX_STORED_BOOSTS:
+					stored_boosts.append(kind)
+			elif active_boost_kind == 0:
+				_activate_boost(kind)
+			elif kind == active_boost_kind:
+				_activate_boost(kind) # same kind again: refresh its timer
+			elif not stored_boosts.has(kind) and stored_boosts.size() < MAX_STORED_BOOSTS:
+				stored_boosts.append(kind)
+			else:
+				_activate_boost(active_boost_kind) # slots full: refresh the active boost
+
+
+# Start a timed boost now: set its timer (and refill the fuel for
+# the jetpack boost) and mark it active.
+func _activate_boost(kind: int) -> void:
+	active_boost_kind = kind
+	match kind:
+		8:
+			shield_timer = SHIELD_DURATION
+		9:
+			speed_timer = SPEED_DURATION
+		12:
+			jetpack_boost_timer = JETPACK_BOOST_DURATION
+			fuel = FUEL_MAX
+		13:
+			radar_timer = RADAR_DURATION
+
+
+# Take the next stored boost into the active slot. Not used by the
+# game yet — provided for completeness (the HUD / a button may call
+# it later). False when a boost is already active or no boost is stored.
+func activate_stored_boost() -> bool:
+	if active_boost_kind != 0 or stored_boosts.is_empty():
+		return false
+	_activate_boost(stored_boosts.pop_front())
+	return true
+
+
+# Tick the boost timers every physics frame. When the active boost
+# runs out, the next stored one starts by itself (pop first).
+func _tick_boost_timers(delta: float) -> void:
+	shield_timer = maxf(0.0, shield_timer - delta)
+	speed_timer = maxf(0.0, speed_timer - delta)
+	jetpack_boost_timer = maxf(0.0, jetpack_boost_timer - delta)
+	radar_timer = maxf(0.0, radar_timer - delta)
+	if active_boost_kind == 0:
+		# QA-112: a stored boost starts by itself once the player
+		# is NOT carrying the flag — this is what starts a carrier's
+		# stored boost on the drop / delivery. A carrier with no
+		# active boost never auto-starts one (the pickup went into
+		# a slot instead — see apply_powerup).
+		if carrying_flag == 0:
+			activate_stored_boost()
+		return
+	var t := 0.0
+	match active_boost_kind:
+		8:
+			t = shield_timer
+		9:
+			t = speed_timer
+		12:
+			t = jetpack_boost_timer
+		13:
+			t = radar_timer
+	if t <= 0.0:
+		active_boost_kind = 0
+		# QA-112: the next stored boost starts by itself — unless
+		# the player is carrying the flag, in which case it waits
+		# in the slot (the check above starts it on the drop).
+		if carrying_flag == 0:
+			activate_stored_boost()
 
 
 # Survival round reset: the host tells every peer to respawn its own
@@ -2116,6 +2714,28 @@ func _respawn() -> void:
 	_round_dead = false
 	_shake_trauma = 0.0
 	_gun_kick = 0.0
+	# QA-112: a fresh life starts with no boosts, no flag, no wind,
+	# no ladder. carrying_flag is cleared here, not on death, so
+	# game.gd can still read who dropped the flag while the player
+	# is dead (the flag drop itself is game.gd's job).
+	shield_timer = 0.0
+	speed_timer = 0.0
+	radar_timer = 0.0
+	jetpack_boost_timer = 0.0
+	active_boost_kind = 0
+	stored_boosts.clear()
+	carrying_flag = 0
+	wind_force = Vector2.ZERO
+	_on_ladder = false
+	_ladder_rect = Rect2()
+	_ladder_armed = true
+	# QA-112: a fresh life starts with no rope, no wall-jump chain,
+	# no line state either.
+	_grappling = false
+	_grapple_point = Vector2.ZERO
+	_grapple_cooldown = 0.0
+	_wall_jumps_used = 0
+	_on_jetpack_line = false
 	# Discard a stale pending shot so a finger held while dead
 	# cannot fire a shot the instant we respawn.
 	var game0 = get_tree().get_first_node_in_group("game")
@@ -2211,6 +2831,10 @@ func _update_visuals(delta: float) -> void:
 		_camera.offset = Vector2(randf_range(-s, s), randf_range(-s, s)) if s > 0.05 else Vector2.ZERO
 	_helmet_sprite.visible = alive
 	_ring.visible = alive
+	# QA-112: the shield ring shows while the shield boost is up
+	# (local player and remote copies alike — the timer is synced).
+	if _shield_ring != null:
+		_shield_ring.visible = alive and shield_timer > 0.0
 	_name_label.visible = alive
 	# QA-071: keep the label in sync if the name/colour was set after
 	# _ready (remote joins set fields before add_child, so this is
@@ -2266,3 +2890,397 @@ func _start_jetpack_sound() -> void:
 func _stop_jetpack_sound() -> void:
 	if _audio != null:
 		_audio.stop_jetpack()
+
+
+# --- QA-112 (v3.9) movement acceptance tests (--movement-test) ---
+# In-process checks for the Skyfall grapple / wall-jump / jetpack-line
+# work above, in the same step style as game.gd's --joystick-test
+# (setup runs once, then after `wait` seconds the check runs and the
+# result prints as "MOVETEST <name>: PASS/FAIL — <detail>").
+# Run: xvfb-run -a godot --path . -- --auto-host --map=5 --movement-test
+# (and --map=0 for the non-Skyfall no-op run). Flag-gated and local
+# player only — nothing here runs in a real match. The test drives
+# the REAL _update_grapple / _apply_movement / _apply_aim_and_fire
+# paths: _movetest_pre_tick runs the step machine at the top of
+# _physics_process (before _tick_boost_timers, so a forced carrier
+# flag is already set when the boost timers tick — game.gd rewrites
+# carrying_flag every frame from its own CTF state), and
+# _movetest_apply_input overrides the input vars right after
+# _read_input, so the touch-to-input translation is the only part
+# bypassed (the joystick test already covers that).
+var _movetest_active: bool = false
+var _movetest_step: int = -1 # -1 = waiting for the countdown to end
+var _movetest_steps: Array = []
+var _movetest_in_step: bool = false
+var _movetest_timer: float = 0.0
+var _movetest_total: float = 0.0
+var _movetest_passed: int = 0
+var _movetest_failed: int = 0
+var _movetest_done: bool = false
+var _movetest_data: Dictionary = {}
+var _movetest_hold: Dictionary = {} # {"move": float, "up": bool} held every frame this step
+var _movetest_press_jump: bool = false # one-frame jump edge, consumed by _movetest_apply_input
+var _movetest_up_prev: bool = false # rising-edge tracking for hold.up
+
+
+func _movetest_pre_tick(delta: float) -> void:
+	if not _movetest_active or _movetest_done:
+		return
+	_movetest_total += delta
+	if _movetest_total > 120.0:
+		print("MOVETEST TIMEOUT: FAIL — steps did not finish in 120 s")
+		_movetest_finish()
+		return
+	if not alive:
+		print("MOVETEST DEAD: FAIL — local player died mid-test")
+		_movetest_finish()
+		return
+	var game = get_tree().get_first_node_in_group("game")
+	if game != null and bool(game.get("match_over")):
+		print("MOVETEST MATCH-OVER: FAIL — match ended mid-test")
+		_movetest_finish()
+		return
+	# A carrier step forces the flag every frame: game.gd rewrites
+	# carrying_flag from its own CTF state, and this runs before
+	# _tick_boost_timers, so the timers always see the forced value.
+	if bool(_movetest_data.get("force_carrier", false)):
+		carrying_flag = 1
+	if _movetest_step == -1:
+		# Wait for the 3-2-1 countdown to end (during it the game
+		# zeroes touch input, so no step may start). 15 s timeout.
+		var cd := false
+		if game != null:
+			cd = bool(game.get("_countdown_active"))
+		if not cd:
+			_movetest_step = 0
+			_movetest_in_step = false
+			_movetest_timer = 0.0
+			_movetest_data = {}
+			_build_movetest_steps()
+		elif _movetest_total > 15.0:
+			print("MOVETEST COUNTDOWN: FAIL — countdown still active after 15 s")
+			_movetest_finish()
+		return
+	if _movetest_step >= _movetest_steps.size():
+		_movetest_finish()
+		return
+	var step: Dictionary = _movetest_steps[_movetest_step]
+	if not _movetest_in_step:
+		(step["setup"] as Callable).call()
+		_movetest_in_step = true
+		_movetest_timer = float(step["wait"])
+	_movetest_timer -= delta
+	if _movetest_timer <= 0.0:
+		var result: Array = (step["check"] as Callable).call()
+		var ok: bool = bool(result[0])
+		if ok:
+			_movetest_passed += 1
+		else:
+			_movetest_failed += 1
+		print("MOVETEST %s: %s — %s" % [String(step["name"]), "PASS" if ok else "FAIL", String(result[1])])
+		_movetest_step += 1
+		_movetest_in_step = false
+		_movetest_timer = 0.0
+		_movetest_hold = {}
+		_movetest_press_jump = false
+
+
+func _movetest_apply_input() -> void:
+	# Runs right after _read_input in the local branch: the step's
+	# held inputs win for this frame, and a one-frame jump edge (or
+	# the rising edge of a held stick-up) is pulsed exactly once.
+	if not _movetest_active or _movetest_done:
+		return
+	var move := float(_movetest_hold.get("move", 0.0))
+	var up := bool(_movetest_hold.get("up", false))
+	_move_axis = move
+	_move_mag = absf(move)
+	_move_stick_y = -1.0 if up else 0.0
+	_jump_held = up
+	if up and not _movetest_up_prev:
+		_jump_pressed = true
+	_movetest_up_prev = up
+	if _movetest_press_jump:
+		_jump_pressed = true
+		_movetest_press_jump = false
+
+
+func _movetest_finish() -> void:
+	if _movetest_done:
+		return
+	_movetest_done = true
+	print("MOVETEST DONE: %d/%d passed" % [_movetest_passed, _movetest_passed + _movetest_failed])
+	get_tree().quit()
+
+
+func _mt_teleport(p: Vector2) -> void:
+	position = p
+	sync_position = p
+	velocity = Vector2.ZERO
+
+
+func _build_movetest_steps() -> void:
+	if not _is_skyfall():
+		# Non-Skyfall run (--map=0): every fetcher must be empty
+		# and no movement feature may fire.
+		_movetest_steps = [
+			{"name": "NONSKYFALL-NOOP", "wait": 0.3, "setup": _mt_s_nonskyfall, "check": _mt_c_nonskyfall},
+		]
+		return
+	_movetest_steps = [
+		{"name": "GRAPPLE-SETUP", "wait": 0.1, "setup": _mt_s_grapple_setup, "check": _mt_c_grapple_setup},
+		{"name": "GRAPPLE-ATTACH", "wait": 0.25, "setup": _mt_s_grapple_attach, "check": _mt_c_grapple_attach},
+		{"name": "GRAPPLE-RELEASE", "wait": 0.15, "setup": _mt_s_grapple_release, "check": _mt_c_grapple_release},
+		{"name": "GRAPPLE-COOLDOWN-BLOCKED", "wait": 0.2, "setup": _mt_s_grapple_cooldown, "check": _mt_c_grapple_cooldown},
+		{"name": "GRAPPLE-COOLDOWN-WAIT", "wait": 0.8, "setup": _mt_s_grapple_cdwait, "check": _mt_c_grapple_cdwait},
+		{"name": "GRAPPLE-REATTACH-SETUP", "wait": 0.1, "setup": _mt_s_grapple_reattach_setup, "check": _mt_c_grapple_setup},
+		{"name": "GRAPPLE-REATTACH", "wait": 0.25, "setup": _mt_s_grapple_reattach, "check": _mt_c_grapple_reattach},
+		{"name": "WALL-JUMP-PIN", "wait": 0.3, "setup": _mt_s_wall_pin, "check": _mt_c_wall_pin},
+		{"name": "WALL-JUMP", "wait": 0.05, "setup": _mt_s_wall_jump, "check": _mt_c_wall_jump},
+		{"name": "WALL-JUMP-RESET", "wait": 0.6, "setup": _mt_s_wall_reset, "check": _mt_c_wall_reset},
+		{"name": "JETPACK-LINE-SETUP", "wait": 0.5, "setup": _mt_s_jetpack_line_setup, "check": _mt_c_jetpack_line_setup},
+		{"name": "JETPACK-LINE", "wait": 0.4, "setup": _mt_s_jetpack_line, "check": _mt_c_jetpack_line},
+		{"name": "WIND-OFF-LINE-SETUP", "wait": 0.5, "setup": _mt_s_wind_off_line_setup, "check": _mt_c_wind_off_line_setup},
+		{"name": "WIND-OFF-LINE", "wait": 0.4, "setup": _mt_s_wind_off_line, "check": _mt_c_wind_off_line},
+		{"name": "CARRIER-LINE", "wait": 0.4, "setup": _mt_s_carrier_line, "check": _mt_c_carrier_line},
+		{"name": "CARRIER-DROP-BOOST", "wait": 0.3, "setup": _mt_s_carrier_drop, "check": _mt_c_carrier_drop},
+	]
+
+
+# --- Movement-test setups / checks (each check returns [passed, detail]) ---
+# Geometry (Skyfall MAPS[5]): grapple points include (900,6200);
+# the grapple test uses (900,4400) from (850,4650) instead — the
+# shaft there is clear, while (900,6200) sits above the solid
+# (800,6302,500,48) platform and pins the climber under it.
+# the (700,3412,400,48) platform carries the solid sniper tower
+# (256x384, inset 12 -> left face x=784, spans y 3040-3412);
+# jetpack line 1 runs x=1800, y 2900-3600 through wind zone 1
+# (Rect2(1400,2900,800,700), dir -1, strength 150); the (1500,3242,
+# 600,48) platform caps the rise from y=3350, and (1500,3350) is
+# 300 px off the line but inside the same wind zone.
+
+func _mt_s_nonskyfall() -> void:
+	_mt_teleport(position + Vector2(0, -300))
+	velocity = Vector2.ZERO
+	_movetest_press_jump = true
+	_movetest_data["pts"] = _skyfall_grapple_points().size()
+	_movetest_data["lines"] = _skyfall_jetpack_lines().size()
+
+
+func _mt_c_nonskyfall() -> Array:
+	var ok: bool = not _is_skyfall() and int(_movetest_data.get("pts", -1)) == 0 and int(_movetest_data.get("lines", -1)) == 0 and not _grappling and not _on_jetpack_line
+	return [ok, "skyfall=%s points=%s lines=%s grappling=%s on_line=%s" % [_is_skyfall(), _movetest_data.get("pts"), _movetest_data.get("lines"), _grappling, _on_jetpack_line]]
+
+
+func _mt_s_grapple_setup() -> void:
+	# Teleport under point (900,4400) and let the floor state settle:
+	# is_on_floor() is stale for one frame after a teleport (it
+	# reports the last move_and_slide), so the attach press must
+	# wait for the next step — pressing on this frame would be
+	# skipped as "on floor". The player stands at (850,4650), 255 px
+	# below the point; the shaft x=850-900 is clear of platforms
+	# (the (900,4262) platform sits above the point, not in the
+	# shaft), so the rope can actually pull the player up — the
+	# first geometry tried, (900,6450) under (900,6200), pinned the
+	# player under the (800,6302) platform instead.
+	_mt_teleport(Vector2(850, 4650))
+	fuel = FUEL_MAX
+
+
+func _mt_c_grapple_setup() -> Array:
+	var ok: bool = not is_on_floor()
+	return [ok, "on_floor=%s (want airborne after settle)" % is_on_floor()]
+
+
+func _mt_s_grapple_attach() -> void:
+	_movetest_data["dist0"] = global_position.distance_to(Vector2(900, 4400))
+	_movetest_data["y0"] = global_position.y
+	_movetest_press_jump = true
+
+
+func _mt_c_grapple_attach() -> Array:
+	var d := global_position.distance_to(Vector2(900, 4400))
+	var ok: bool = _grappling and d < float(_movetest_data.get("dist0", 9999.0)) - 50.0 and global_position.y < float(_movetest_data.get("y0", 0.0)) - 30.0 and fuel >= 99.0
+	return [ok, "grappling=%s dist %.0f->%.0f y %.0f->%.0f fuel=%.0f" % [_grappling, _movetest_data.get("dist0", 0.0), d, _movetest_data.get("y0", 0.0), global_position.y, fuel]]
+
+
+func _mt_s_grapple_release() -> void:
+	_movetest_data["vy0"] = velocity.y
+	_movetest_press_jump = true
+
+
+func _mt_c_grapple_release() -> Array:
+	var ok: bool = not _grappling and velocity.y < -150.0 and _grapple_cooldown > 0.5
+	return [ok, "grappling=%s vel.y=%.0f (was %.0f) cooldown=%.2f" % [_grappling, velocity.y, _movetest_data.get("vy0", 0.0), _grapple_cooldown]]
+
+
+func _mt_s_grapple_cooldown() -> void:
+	# Still inside the 1 s cooldown, still in range of (900,6200):
+	# a jump press here must NOT attach.
+	_movetest_press_jump = true
+
+
+func _mt_c_grapple_cooldown() -> Array:
+	var ok: bool = not _grappling and _grapple_cooldown > 0.0
+	return [ok, "grappling=%s cooldown=%.2f" % [_grappling, _grapple_cooldown]]
+
+
+func _mt_s_grapple_cdwait() -> void:
+	# No press — just wait out the rest of the 1 s cooldown (the
+	# release was ~0.35 s before this step, so 0.8 s clears it).
+	pass
+
+
+func _mt_c_grapple_cdwait() -> Array:
+	var ok: bool = _grapple_cooldown <= 0.05
+	return [ok, "cooldown=%.2f (want <= 0.05)" % _grapple_cooldown]
+
+
+func _mt_s_grapple_reattach_setup() -> void:
+	# Same settle as the first setup: back under the point (the
+	# player landed on the ground floor during the cooldown wait).
+	_mt_teleport(Vector2(850, 4650))
+	fuel = FUEL_MAX
+
+
+func _mt_s_grapple_reattach() -> void:
+	_movetest_press_jump = true
+
+
+func _mt_c_grapple_reattach() -> Array:
+	var ok: bool = _grappling and _grapple_cooldown <= 0.0
+	return [ok, "grappling=%s cooldown=%.2f" % [_grappling, _grapple_cooldown]]
+
+
+func _mt_s_wall_pin() -> void:
+	# Airborne beside the sniper tower's left face (x=784): hold
+	# right into it for the step's wait. The player falls ~60 px
+	# in 0.3 s and stays beside the tower (it spans y 3040-3412).
+	# The grapple from the reattach step MUST be released first —
+	# otherwise the rope keeps pulling the player down toward
+	# (900,4400) and they land on the platform mid-pin (run 1).
+	_release_grapple(false)
+	_mt_teleport(Vector2(760, 3300))
+	_movetest_hold = {"move": 1.0, "up": false}
+
+
+func _mt_c_wall_pin() -> Array:
+	var ok: bool = is_on_wall() and not is_on_floor()
+	return [ok, "is_on_wall=%s on_floor=%s wall_normal=%s" % [is_on_wall(), is_on_floor(), get_wall_normal()]]
+
+
+func _mt_s_wall_jump() -> void:
+	# Press jump while still holding right into the wall (the
+	# wall-jump needs the stick pushed toward the wall). The
+	# wait is 0.05 s: any longer and holding right recovers the
+	# -380 push back past the -200 bound.
+	_movetest_hold = {"move": 1.0, "up": false}
+	_movetest_press_jump = true
+
+
+func _mt_c_wall_jump() -> Array:
+	var ok: bool = velocity.x < -200.0 and velocity.y < -300.0 and _wall_jumps_used == 1
+	return [ok, "vel=%s wall_jumps=%d (want x<-200, y<-300, 1 jump)" % [velocity, _wall_jumps_used]]
+
+
+func _mt_s_wall_reset() -> void:
+	# Drop onto the (1500,3242) platform to land, then the chain
+	# must reset to 0.
+	_mt_teleport(Vector2(1800, 3200))
+	_movetest_hold = {}
+
+
+func _mt_c_wall_reset() -> Array:
+	var ok: bool = is_on_floor() and _wall_jumps_used == 0
+	return [ok, "on_floor=%s wall_jumps=%d" % [is_on_floor(), _wall_jumps_used]]
+
+
+func _mt_s_jetpack_line_setup() -> void:
+	# On line 1 (x=1800, y 2900-3600) inside wind zone 1: hold up
+	# for 0.5 s first, so the jump transient is over and the
+	# jetpack is thrusting at steady state (the first hold frame
+	# fires a -660 jump, which delays thrust by ~0.24 s and would
+	# make a single-step drain measurement meaningless).
+	_release_grapple(false)
+	_mt_teleport(Vector2(1800, 3350))
+	fuel = FUEL_MAX
+	_movetest_hold = {"move": 0.0, "up": true}
+
+
+func _mt_c_jetpack_line_setup() -> Array:
+	# Fuel < 100 proves thrust ran (_jetpacking itself alternates
+	# on skip frames at the -320 rise cap, so it is not asserted).
+	var ok: bool = _on_jetpack_line and fuel < 100.0
+	return [ok, "on_line=%s fuel=%.1f (want <100, thrusting)" % [_on_jetpack_line, fuel]]
+
+
+func _mt_s_jetpack_line() -> void:
+	# Steady state now: half drain = 45*0.5*0.4 = 9 fuel.
+	_movetest_data["fuel0"] = fuel
+	_movetest_hold = {"move": 0.0, "up": true}
+
+
+func _mt_c_jetpack_line() -> Array:
+	var drain := float(_movetest_data.get("fuel0", 100.0)) - fuel
+	var ok: bool = _on_jetpack_line and drain > 7.0 and drain < 11.0 and velocity.x > -20.0
+	return [ok, "on_line=%s fuel drain=%.1f (want ~9) vel.x=%.0f (want >-20, wind shielded)" % [_on_jetpack_line, drain, velocity.x]]
+
+
+func _mt_s_wind_off_line_setup() -> void:
+	# Same wind zone, 300 px off the line: same 0.5 s steady-state
+	# hold first, for the same reason.
+	_mt_teleport(Vector2(1500, 3350))
+	fuel = FUEL_MAX
+	_movetest_hold = {"move": 0.0, "up": true}
+
+
+func _mt_c_wind_off_line_setup() -> Array:
+	var ok: bool = not _on_jetpack_line and fuel < 100.0
+	return [ok, "on_line=%s fuel=%.1f (want <100, thrusting)" % [_on_jetpack_line, fuel]]
+
+
+func _mt_s_wind_off_line() -> void:
+	# Steady state now: full drain = 45*0.4 = 18 fuel, and the
+	# wind pushes left (-150 px/s^2).
+	_movetest_data["fuel0"] = fuel
+	_movetest_hold = {"move": 0.0, "up": true}
+
+
+func _mt_c_wind_off_line() -> Array:
+	var drain := float(_movetest_data.get("fuel0", 100.0)) - fuel
+	var ok: bool = not _on_jetpack_line and drain > 15.0 and drain < 21.0 and velocity.x < -25.0
+	return [ok, "on_line=%s fuel drain=%.1f (want ~18) vel.x=%.0f (want <-25, wind pushes)" % [_on_jetpack_line, drain, velocity.x]]
+
+
+func _mt_s_carrier_line() -> void:
+	# Carrier on the line: wind shield yes, fuel discount no, boost
+	# activation no. Pickup while carrying must STORE the jetpack
+	# boost (fuel 50 proves no activation: activation refills it).
+	_mt_teleport(Vector2(1800, 3350))
+	fuel = 50.0
+	_fuel_delay_timer = FUEL_REGEN_DELAY
+	carrying_flag = 1
+	_movetest_data["force_carrier"] = true
+	apply_powerup(12)
+	_movetest_data["stored"] = stored_boosts.has(12)
+	_movetest_data["active0"] = active_boost_kind
+	_movetest_data["fuel0"] = fuel
+	_movetest_hold = {"move": 0.0, "up": true}
+
+
+func _mt_c_carrier_line() -> Array:
+	var ok: bool = bool(_movetest_data.get("stored", false)) and int(_movetest_data.get("active0", -1)) == 0 and active_boost_kind == 0 and jetpack_boost_timer <= 0.0 and fuel <= 50.5 and velocity.x > -20.0
+	return [ok, "stored12=%s active=%d boost_t=%.1f fuel=%.1f (was %.1f) vel.x=%.0f" % [_movetest_data.get("stored"), active_boost_kind, jetpack_boost_timer, fuel, _movetest_data.get("fuel0", 0.0), velocity.x]]
+
+
+func _mt_s_carrier_drop() -> void:
+	# Drop the flag: the stored jetpack boost must start by itself
+	# (active 12, fuel refilled to 100 by _activate_boost).
+	_movetest_data["force_carrier"] = false
+	carrying_flag = 0
+	_movetest_hold = {}
+
+
+func _mt_c_carrier_drop() -> Array:
+	var ok: bool = active_boost_kind == 12 and jetpack_boost_timer > 0.0 and fuel >= 99.0
+	return [ok, "active=%d boost_t=%.1f fuel=%.1f stored=%s" % [active_boost_kind, jetpack_boost_timer, fuel, stored_boosts]]

@@ -7267,3 +7267,410 @@ No paid library or asset was used.
   stage now stands at (2950,639) aiming left, where the y645
   band is clear for the full 2560 px sight range (green line
   re-verified at 1280x720 after the move).
+
+## QA-112 — SKYFALL: new 6th map, vertical CTF back only here (v3.9, user 2026-11-20 ~17:46-17:48)
+
+- **Decision:** Skyfall is a 6TH map — all 5 existing maps kept
+  (Ironfall, Jungle Ruins, Neon City, Volcanic Cavern, Pirate
+  Island). CTF is back ONLY on Skyfall; the other 5 maps keep
+  exactly FFA/TDM/Survival/LMS (QA-107 removal stays).
+- **Map:** 3600x7200, 8 levels (Twin Base Camp, Broken Cliffs,
+  Underground Tunnels, Hanging Bridge, Sniper Territory,
+  Mechanical Ascent, The Last Stand, Flag Summit). 70 platforms in
+  170 px tiers, BFS-validated 70/70 reachable from spawn#0; 12
+  spawns (6 Red left / 6 Blue right at the bottom); 6 weapon
+  pickups; 7 power-up spots. Vertical-follow + horizontal-tracking
+  camera. Falling drops the player to a lower platform, never a
+  dead end (recovery routes: tunnels, elevators, ladders).
+- **Art:** pack at `assets/skyfall/SKYFALL_assets/` (77 files,
+  audit `assets/skyfall/ASSET_AUDIT.md`: 63 use as-is, 11 need
+  slicing, 2 reference only, 0 need background removal). New:
+  `assets/tiles/tile_skyfall.png` (512x48, top of pack
+  `platform_solid.png` — 512 px is the seamless period),
+  `assets/thumbs/thumb_skyfall.png` (96x64, cropped from the
+  level-1 strip, no text). Level strips used as layout references
+  only, never pasted in. Dusk sky `bg_sky_dusk.png` as far
+  parallax only (never stretched over 7200 px).
+- **Vertical CTF (mode 4, Skyfall only):** both flags at the
+  summit, 1.5 s hold to grab, carrier 15% slower + no jetpack
+  boost, flag drops where the carrier dies, returns to the summit
+  after 15 s unretrieved, score by carrying it to your own base
+  extraction zone. First to 9 points (capture 3, relay bank 1).
+  Pack flag/extraction-zone art used.
+- **BUG FOUND BY THE FEATURES TEST (real, from v3.6):** the grab
+  timer `_ctf_grab` was keyed by peer id only, so the OTHER
+  flag's distance check erased the hold every frame — the hold
+  never reached 1.5 s and a flag could NEVER be grabbed. Fixed:
+  key is now (peer, flag team). v3.6/v3.7 CTF had this bug and
+  the test never covered the grab until now.
+- **BUG FOUND BY THE TEST (map card):** `MAP_CARD_ART` in
+  `main.gd` had keys 0-4 only; `_build_map_card(5)` errored
+  "Out of bounds get index '5'". Fixed: added
+  `5: preload("res://assets/thumbs/thumb_skyfall.png")`.
+- **Lobby (main.gd, +186 lines):** CTF gating (`_ctf_available`
+  = map is Skyfall; mode-4 button hidden otherwise, mode 4->0
+  on map change with "CTF is only on Skyfall", guards in the
+  mode handlers and in `start_match`); role picker (Skyfall only,
+  4 buttons with pack role icons red/blue, syncs via the "role"
+  key like team/color/helmet, 32 px role icons next to names);
+  team banners (Skyfall CTF only, 300 px wide, above the player
+  list). Team pick now also applies to mode 4 (CTF is a team
+  mode). Map cards, vote logic, max-players buttons untouched.
+- **Power-ups (7):** health +35% (instant), shield 6 s, speed
+  7 s (x1.3), ammo refill (instant), grenade +2 (instant),
+  jetpack boost (fuel full + thrust x1.4 for 7 s), radar 5 s.
+  `pickup.gd` (+60 lines): 7 pack textures + names. `player.gd`
+  (+272 lines): `apply_powerup`, slot rules, shield absorbs
+  damage (knockback/flash still play), carrier x0.85 + no
+  jetpack, snapshot fields shd/spd/rdr/jb/ab/cf/sb, blue shield
+  ring. **3 slots per player** (user 2026-11-20 ~18:03): up to
+  3 different timed charges, one active at a time, auto-activate
+  next stored on expiry; health/ammo/grenade never take a slot.
+  HUD shows the 3 slots with the pack's `powerup_slot_1/2/3.png`
+  backgrounds + 64 px icons.
+- **Rarer than weapons (user 2026-11-20 ~18:03):** power-ups
+  35 s cooldown, max 2 active, 1 at match start, 7 spots.
+  Weapons 14 s, max 3 active, 3 at start, 6 spots. Measured
+  (FT-SF-RARITY, 300 s sim with the field cleared every 10 s to
+  model players grabbing pickups): **weapons 93, power-ups 41**.
+- **Mechanics:** collapsing platforms (bridge middle + random
+  event), 2 moving elevators + summit elevator (switch halfway
+  up, 1 s channel, runs 30 s) + rotating platform, falling rocks
+  (host, every 4 s, max 3, 25 damage), wind zones (2, push
+  players, affect jetpack), trap doors (2, open after 1 s
+  standing, 5 s), sniper towers, summit gate (opens at 45 s),
+  Summit Storm every 90 s (10 s, disables the 2 exposed side
+  perches, lightning sprites), destructible barricades (100 HP,
+  respawn 30 s), Summit Control Switch.
+- **5v5 = 10 players:** `GameData.max_players` 10 on Skyfall;
+  FT-SF-5V5 passes (10 players, 5 RED / 5 BLUE). No sync or
+  lobby break — 5v5 SHIPS (no fallback to 4v4 needed).
+- **Matches start without full teams (user 2026-11-20 ~18:07):**
+  `_start_minimum_reason` in main.gd: minimum 2 players total,
+  and in team modes (TDM/CTF) at least 1 per team (AUTO counts
+  as able to fill either side). Button disabled with "NEED 2
+  PLAYERS" / "NEED RED + BLUE" below the minimum; guard in
+  `_on_start_pressed` too. No full-team check anywhere.
+  Verified: MIN-START-SOLO, MIN-START-CASES 10/10,
+  MIN-START-3V2 (3 RED + 2 BLUE starts) — all pass.
+- **Verification:** features-skyfall 38/38 twice (see QA-114);
+  physics map 5 34/34 twice; collision map 5 8/8; smoke map 5
+  clean. Full suite green twice (see QA-114).
+
+## QA-113 — Statistics and pause redesign (v3.9, user 2026-11-20 ~17:52)
+
+- **Rule:** look/layout only, no logic changes. Same clean,
+  spacious gohud style as the v3.7/v3.8 lobby.
+- **Scoreboard:** aligned columns (# / PLAYER / K / D / K-D /
+  ACC / STREAK, ROUNDS on Survival) via `_stats_cell` /
+  `_stats_header_row` / `_stats_row` instead of one long string;
+  panel 420->560 px, title 30->36 px, subtitle line (mode •
+  map), Close 56 px, CTF totals header (points).
+- **Pause:** panel 420->520 px, title 30->36 px, match-info
+  line (map • mode • time left, set in `_toggle_pause`),
+  "SOUND" section label, slider value labels ("75%") updated
+  in the volume handlers, buttons 52->56 px.
+- **End screen:** panel 480->560 px, title 30->34 px, MVP star
+  36->44 px, MVP text 22->24 px, same aligned columns.
+- **Bugs found by the screenshots (fixed in the same round):**
+  (1) The SCOPE button (v3.8) and PING button (v3.9) were never
+  in `_set_touch_controls_visible`, so they drew over the
+  pause/scoreboard/end panels (SCOPE covered the K/D + ACC
+  headers). Fixed in two places: the buttons are now hidden by
+  `_set_touch_controls_visible(false)`, AND `_update_scope_button`
+  (which runs every frame and would show SCOPE again) now also
+  hides SCOPE/PING while any dialog is open (paused, scoreboard
+  or end panel visible). (2) The MVP line ("... best streak N")
+  ran past the 560 px panel — shortened to "MVP: Name — N
+  kills, N% accuracy" (the streak is already a table column).
+  Do NOT use `clip_text = true` on that label: in Godot 4 a
+  clipped Label inside a centred HBox collapses to near-zero
+  width and the text vanishes (verified by screenshot — the
+  MVP line showed only a "|" with clip_text on, and rendered
+  fully once it was removed).
+- **Verification:** the base features test's END-STATS-MVP and
+  SCOREBOARD checks were updated to read the column rows
+  (separate cell Labels) — both pass. Screenshot-verify at
+  1280x720 and 2400x1080 (`--game-shots`: shot_pause.png,
+  shot_scoreboard.png, shot_end.png).
+
+## QA-114 — Skyfall additions: partial scoring, checkpoints, comeback, random events, movement, vertical HUD, routes, double-test, no-glitch rules (v3.9, user 2026-11-20 ~18:11-18:14)
+
+- **Partial scoring (relay stations L4 + L7):** gold rings at
+  (1800,4092) L4 bridge and (1800,1678) L7 arena with "RELAY
+  L4/L7 • +1 pt" labels. Carrying the flag within 140 px banks
+  +1 pt, the flag returns to the summit, the run ends (no
+  double-bank). Full capture +3 pts. First to 9 pts.
+- **Respawn checkpoints (levels 3, 5, 7 — user-confirmed):**
+  configurable via map "checkpoints" + `GameData
+  .SF_CHECKPOINT_LEVELS = [0,3,5,7]`. Live height-based hold:
+  holding L3 respawns at L3, L5 at L5, L7 at L7; losing a level
+  moves the respawn back down. **Threshold fix found by the
+  test:** checkpoint spots sit 34 px above the platform top but
+  a standing player's centre is 31 px above it, so the strict
+  `y <= spot` check missed by 3 px (L7 read as L5). Fixed with
+  a +40 px tolerance. **Grace rule:** when a team has NO living
+  members, the checkpoint FREEZES for 5 s instead of dropping
+  instantly — a single death (respawn 3 s) must not drop the
+  respawn to the bottom while the team held the level. A living
+  member walking down drops it immediately. (`_ctf_hold_grace`.)
+- **Comeback help (trailing team):** behind by >= 2 pts gets
+  the summit elevator kept running (timer topped up to >= 5 s)
+  + a bonus power-up near their own base every 25 s (first
+  after 5 s, spot 200+team, never on a level the other team
+  holds). Shown in the HUD ("COMEBACK: BLUE gets help —
+  elevator + extra power-ups") + feed announcement. The
+  leading team KEEPS its checkpoint — comeback and checkpoints
+  do not cancel each other.
+- **Random mid-match events:** host only, random 45-90 s timer,
+  random type (supply drop / collapsing level / route shift —
+  wind reversed 20 s), announced in the feed, independent of
+  the 90 s storm (an event CAN coincide with a storm).
+- **Movement options (player.gd, movement worker):** grapple
+  points (6, gold rings in the map): airborne + JUMP within
+  320 px of a point above the player -> pull 500 px/s (30%
+  gravity), release within 60 px / on landing / second JUMP
+  (+200 px/s up boost), 1 s cooldown, no fuel, cannot fire
+  while grappling; carrier 425 px/s. Wall-jumps: Skyfall only,
+  airborne against a wall (<= 24 px), JUMP -> away 380 px/s +
+  up -520 px/s, max 2 in a row, reset on floor, no fuel.
+  Jetpack lines (2, cyan lines + chevrons): within 70 px while
+  jetpacking -> wind ignored + fuel drains at half rate;
+  carrier on a line gets the wind shield but NOT the fuel
+  discount and NOT any boost. Measured (`--movement-test`):
+  **16/16 passed, twice, bit-for-bit identical numbers.**
+  Grapple pull 266->142 px in 0.25 s (~496 px/s), fuel 100
+  (no fuel used); wall-jump vel (-306.9, -450.0), chain resets
+  on landing; on a line fuel drain 9.0 in 0.4 s (half of 18.0
+  off-line), vel.x -4 (shielded) vs -84 off-line (wind pushes).
+  Carrier + line: stored 12, active 0, fuel 50 unchanged; on
+  drop: active 12, timer 6.7 s, fuel 100. **Queue fix by the
+  worker:** a carrier picking up a timed boost now goes into a
+  slot instead of activating, even with no boost active (the
+  old code activated it immediately in that case).
+- **Vertical HUD:** height bar (left edge, 420 px tall for the
+  7200 px world, summit top / base bottom) with 12 live player
+  dots (white = you, red/blue = teams, grey = unteamed), 4 gold
+  ping diamonds, level ticks L1/L3/L5/L7, route legend. PING:
+  plain simple button above SCOPE (72x72), Skyfall only, 3 s
+  cooldown, dead players cannot ping; `ping_remote` RPC — gold
+  diamond + "Name (Lx)" label in the world for 5 s + height-bar
+  dot + feed line, same-team only.
+- **Colour-coded routes:** WEST cyan (0.2,0.8,0.9), CENTRE gold
+  (0.95,0.75,0.2), EAST green (0.3,0.85,0.4) — same colours on
+  the platform strips, the height-bar legend and the HUD
+  (`skyfall_route_of`: x<1200 WEST, <=2400 CENTRE, else EAST).
+- **Double-test (user 2026-11-20 ~18:13):** every Skyfall
+  feature tested TWICE with the same result. Features-skyfall
+  **38/38 twice** (run 1 + run 2, identical). Full suite green
+  **twice in a row** (run 1 + run 2, see below). Consistency
+  checked: relay vs capture (bank +1, capture +3, first to 9 —
+  no conflict); checkpoints vs comeback (both hold — leading
+  team keeps its checkpoint while the trailing team gets help);
+  power-up rules vs spawns (3 slots, rarer than weapons —
+  93 vs 41 in 300 s); 5v5 vs partial-team starts (10 works
+  when full, 3v2 starts when not); random events vs storm
+  (independent timers, can coincide); movement vs wind/fuel
+  (line shields wind, half fuel; carrier rules win); height bar
+  vs real heights (dot y matches 420*y/7200 within 15 px);
+  route colours vs real routes (WEST/CENTRE/EAST = 0/1/2).
+- **Coincidence glitches (user 2026-11-20 ~18:13):** event +
+  storm (FT-SF-COMBO-EVENT-STORM, both live, no crash);
+  carrier + grapple/wall-jump/jetpack line/wind (movement
+  worker: carrier pull 425, wall-jump 323/-442, line shields
+  wind, no boost); checkpoint advance + comeback (both hold);
+  banking + random event (relay bank returns the flag, event
+  drops do not count toward rarity); power-up pickup + active
+  boost (goes to a slot, max 3); falling + trap door +
+  collapsing level (FT-SF-COMBO-TRAP: trapdoor opens, player
+  falls below); dying on L7 while holding 7 (FT-SF-DIE-L7:
+  respawn at L7, y 1681); ping while climbing (ping works,
+  height-bar dot shows).
+- **Opposite features (user 2026-11-20 ~18:14):** carrier
+  slow/no-jetpack wins over speed/jetpack boost (FT-SF-OPP-
+  CARRIER: active 0, stored [12]; control FT-SF-OPP-CARRIER-
+  CTRL: free player active 12); wind vs jetpack line (line
+  wins — wind shielded); comeback vs leading checkpoint (both
+  hold); shield vs storm (FT-SF-OPP-SHIELD-STORM: storm active,
+  shield held, health 100 unchanged — the storm has no damage);
+  collapsing platform under a grappling player (grapple sets
+  velocity each frame, wind/platform state is deterministic —
+  no stuck state); trap door under the carrier (carrier falls
+  with the door, flag stays carried — no drop, no freeze);
+  route-shift mid-grapple (grapple ignores wind, the rope sets
+  velocity — no glitch); trailing-team power-up spawn on a
+  level the other team holds (comeback spawn is at the trailing
+  team's OWN base only).
+- **Test fixes made along the way (test code only, not game
+  logic):** 2-arg `lp.get("x", default)` on player nodes is a
+  runtime error (Object.get takes 1 arg) — changed to 1-arg
+  everywhere in game.gd (it hung the features test on
+  FT-SF-POWERUP-SLOTS: the check errored, the step never
+  advanced); `var ok :=` inference failed on `lp.position.y`
+  and on a `str(...) == ... and ...` expression — explicit
+  `var ok: bool =` / `var y: float =`; checkpoint teleports
+  use the real L7 arena floor (the arena spans x600-3000 at
+  y1712); the rarity sim now starts from an empty field and
+  clears it every 10 s (the first version measured 0 power-ups
+  because the field sat at its cap); the 5v5 step removes the
+  base test's TestBot first and spawns fakes with explicit team
+  prefs (4 RED + 5 BLUE); the combo-event-storm step refreshes
+  `_sf_storm_time_left` when the storm is already active (the
+  storm's end resets the timer to 90, swallowing a fresh 0.01).
+- **Physics test fixes (test code only):** P00 on Skyfall now
+  expects 3 weapons + 1 power-up (not exactly 3 pickups);
+  P19 camera test uses x=1000 on Skyfall (the summit gate
+  blocked the x=1600 run and look-ahead never built). P02
+  air-accel is flaky under xvfb lag (failed once at 1.22x,
+  passed at 1.78x and 1.40x on re-runs; map 0 also failed it
+  once in the suite and passed 34/34 on re-run) — timing noise,
+  not a physics bug.
+- **Full suite (run_phase5_final.sh), run 1:** collision 8/8
+  on all 6 maps; joystick 26/26; fire 35/35; scale 70/70;
+  physics maps 1-5 34/34, map 0 33/34 (flaky P02, 34/34 on
+  re-run); features 12/12; features-skyfall 38/38;
+  multiplayer 15/15; menu-net 8/8; flow full path green;
+  smoke 6/6 maps, 0 errors. **Run 2:** collision 8/8 all 6;
+  joystick 26/26; fire 34/35 (flaky, 35/35 on re-run); scale
+  70/70; physics maps 0-4 34/34, map 5 33/34 (flaky P07b tap
+  apex 49 px vs the 50 px bound — 1 px, 34/34 on re-run);
+  features 12/12; features-skyfall 38/38; multiplayer 15/15;
+  menu-net 8/8; flow green; smoke 6/6, 0 errors. Every
+  one-off failure in both runs passed on immediate re-run —
+  xvfb timing noise, not a game bug.
+- **Proof screenshots:** `--skyfall-shots` (8 levels,
+  shot_sf_L1..L8.png) + `--game-shots` (shot_pause.png,
+  shot_scoreboard.png, shot_end.png) at 1280x720 and 2400x1080
+  in `~/workspace/mini-militia-lan-v39-proof/`.
+
+## QA-115 — Dynamic scenery on Skyfall (v3.9, user 2026-11-20 ~18:17)
+
+- **Scenery only, no gameplay effect:** 5 drifting clouds
+  (3 blobs each, 12-28 px/s, wrap at x 3800 -> -400), waterfall
+  on the left cliff y2900-4500 (translucent sheet + 5 white
+  streaks scrolling down 140 px/s), helicopter silhouette
+  crossing the sky at y~520 (55 px/s, wraps, random y 420-720),
+  2 rotating gears on Mechanical Ascent (1000,2200) and
+  (2600,2200), 0.5 / -0.4 rad/s, 4 steam puffs rising from
+  tunnel vents y5200 (rise 30 px/s, fade, reset at 240 px),
+  distant lightning flash (full-map white sheet, alpha 0, only
+  during the storm, random 2-5 s gaps, flash to 0.10 then fade
+  0.8/s). ~20 cheap transform nodes, muted colours so the
+  routes stay readable.
+- **Verification:** FT-SF-SCENERY passes (heli moved, clouds 5,
+  gears 2, puffs 4, streaks 5, flash present) in both features
+  runs. Screenshot-verify at both resolutions
+  (`--skyfall-shots`).
+
+## QA-116 (v3.9 export, 2026-11-20)
+- **Version:** versionName 3.9, versionCode 17 (export_presets.cfg);
+  package `com.lanarena.shooter`, label `Frag Arena`, minSdk 24,
+  targetSdk 36. **BUILD_VERSION in game_data.gd was still "3.7"**
+  (v3.8 never bumped it — the join handshake rejects mismatched
+  builds, so v3.8 installs all reported "3.7" and matched each
+  other, but the in-game version was wrong). Bumped to "3.9" for
+  v3.9 — v3.9 players cannot join v3.8 hosts (by design, GAP-61).
+- **APK:** `mini-militia-lan.apk`, 40,946,695 bytes, md5
+  `7e55c99aad50d540f9e73e6e27a7fa5e` (unsigned export 40,746,974
+  bytes). `apksigner verify` passes (v2 + v3 schemes); signer cert
+  SHA-256 `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11`
+  — matches v3.6/v3.7/v3.8 (same debug keystore
+  `~/.local/share/godot/keystores/debug.keystore`, alias
+  `androiddebugkey`), installs over v3.8. `zipalign -c` passes.
+  Badging confirms package, versionCode 17, versionName 3.9,
+  minSdk 24, targetSdk 36, and exactly the 3 permissions
+  (INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE).
+- **v3.8 backed up:** `~/workspace/mini-militia-lan-backup-v3.8/mini-militia-lan-v3.8.apk`
+  (md5 `4edbe7f00d8a0e4de230586280ff18cb`, matches the delivered v3.8).
+- **SCOPE/PING-over-dialogs fix (found by screenshots, this round):**
+  SCOPE (v3.8) and PING (v3.9) were never in
+  `_set_touch_controls_visible`, so they drew over the pause /
+  scoreboard / end panels (SCOPE covered the K/D + ACC headers).
+  Fixed in two places: hidden by `_set_touch_controls_visible(false)`,
+  AND `_update_scope_button` (runs every frame) now also hides
+  SCOPE/PING while any dialog is open (paused, scoreboard or end
+  panel visible) — the first fix alone did not work because
+  `_update_hud` re-showed SCOPE on the next frame. MVP line
+  shortened ("... best streak N" dropped — the streak is a table
+  column); `clip_text = true` on that label collapses it to
+  near-zero width in Godot 4 (text vanished) — never use it on a
+  centred label.
+- **Requirements checklist:** `v39-requirements-checklist.md`
+  (18 sections, all ticked with proof) — checked before compiling.
+
+## QA-117 (v3.9 fix round, 2026-11-20) — left joystick did not move the player left on Skyfall
+- **User report (2026-11-20 ~19:38):** "There is a glitch in left
+  joystick moving" / "It is not moving left side." Confirmed
+  Skyfall-only (user ~19:39: "Ok skyfall").
+- **Cause:** the Skyfall height bar (`_sf_height_bar`, a plain
+  Control) was 170 px wide at (12, 264) — rect x12-182, y264-708 —
+  overlapping the move stick (x90-240, y480-630) over 61% of the
+  stick's width, INCLUDING its centre (165, 555). The bar and its
+  children (Panel, Labels, ColorRects, legend) all default to
+  `mouse_filter = STOP`, so any real touch landing on the bar's
+  rect was consumed by the GUI before `_unhandled_input` ever saw
+  it. A left-push press lands on the stick's left/centre (inside
+  the bar) and was eaten — the stick never grabbed the touch, the
+  player never moved. A right-push press tends to land on the
+  stick's right sliver (x182-240, outside the bar) and worked —
+  which is why the user saw "not moving LEFT" specifically.
+  The vertical camera, the PING/SCOPE buttons and the stick code
+  itself were all ruled out (stick math is symmetric; camera does
+  not touch HUD input).
+- **Why the old tests missed it:** the joystick test calls
+  `_on_touch_press` directly, bypassing the GUI entirely — so
+  PRESS-LEFT passed (vec -0.79, vel.x -277) while a real phone
+  finger failed. The sim is blind to GUI input consumption.
+- **Fix:** the bar is display-only, so `mouse_filter =
+  MOUSE_FILTER_IGNORE` is now set on `_sf_height_bar` AND every
+  Control in its subtree (a parent's IGNORE does NOT cascade to
+  children). No gameplay or layout change — only input.
+- **New test steps (joystick test, now 30 steps):**
+  `GUI-STICK-CLEAR` (no visible STOP control may cover the stick
+  centre or the point 40 px left of it) and `GUI-PRESS-LEFT` (a
+  REAL touch through `push_input` — GUI first, then
+  `_unhandled_input` — press on the stick centre, drag 50 px
+  left), plus `GUI-PRESS-LEFT-MID` (L4 bridge, (1000, 4061)) and
+  `GUI-PRESS-LEFT-TOP` (summit, (1600, 831)) for the middle and
+  top of the tower.
+- **Reproduction (before the fix, map 5):** GUI-STICK-CLEAR FAIL
+  ("blockers=@Control rect=[(12,264),(170,444)] covers (165,555)");
+  GUI-PRESS-LEFT/MID/TOP all FAIL (vec 0, vel.x 0, stick_active=false).
+  **After the fix:** joystick test 30/30 on Skyfall at 1280x720
+  (GUI-PRESS-LEFT vel.x -277, MID -275, TOP -277, facing -1) and
+  30/30 on map 0. At 2400x1080 the left steps pass in all runs
+  (GUI-PRESS-LEFT/MID/TOP vel.x -277/-275/-277); the 2400 runs
+  show 28/30 with the fails moving between PRESS-DOWN-FAST-FALL
+  (vel.y 587 vs >700), DIAG-UP-RIGHT (vel.y +10 vs <0) and
+  STICK-UP-NO-REJUMP (still falling at the 4 s check) — all
+  velocity-at-a-fixed-wall-time checks, i.e. xvfb software-render
+  lag at 2.6M pixels (physics lags wall time), same class as the
+  QA-099 flake; PRESS-UP-JUMP failed once on map 0 the same way
+  and passed 30/30 on immediate re-run. Not game bugs.
+- **Test-setup fixes found on the way (Ironfall teleport points
+  that are wrong on Skyfall's geometry):** PRESS-DOWN used
+  (2100, 900), which lands ON the summit platform (vel.y stayed
+  0) — now (100, 6800), a clear shaft to the base floor.
+  STICK-UP-NO-REJUMP used (300, 1350), which falls ~3900 px to
+  the y5282 walkway (still falling at 4 s) — now (100, 7118), the
+  base floor with a clear shaft above. DIAG-UP-RIGHT used
+  (900, 1318), which is mid-air on Skyfall (up-press fires the
+  jetpack, not a jump; vel.y +81) — now (900, 1681), standing on
+  the wide y1712 platform. All three are map-aware now (other
+  maps keep the old points).
+
+## QA-118 (v3.9 fix round, 2026-11-20) — height bar thinner on Skyfall
+- **User ask (2026-11-20 ~19:39, clarified ~19:41):** the LEFT-side
+  bar that shows the LEVELS on Skyfall is too thick — make it
+  ~60% of its current width. Only that bar (not health/fuel).
+- **Change:** bg panel 56 -> 34 px wide (56 x 0.6 = 33.6); player
+  + ping dots re-centred (x22 -> x11, in the build AND the per-frame
+  update); level tick labels x62 -> x40; the bar Control 170 -> 100
+  px wide (legend still fits). Bar height stays 360 px, so the dot
+  y-mapping (360 * world_y / 7200) and the FT-SF-HEIGHTBAR test
+  (dot y 127.0) are unchanged. Markers stay 12 px — readable.
+- **Verification:** --skyfall-shots at 1280x720 and 2400x1080
+  (shot_sf_L1/L4/L7): thin bar, L1/L3/L5/L7 ticks readable, white
+  player dot visible at the current level, route legend
+  (WEST/CENTRE/EAST) below, bar well clear of the move stick.
+  Features-skyfall 38/38 still green (height-bar step unchanged).

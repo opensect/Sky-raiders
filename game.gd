@@ -52,11 +52,16 @@ const TILE_TEX: Array[Texture2D] = [
 	# plate), 1 Jungle Ruins, 2 Neon City (Sky Brawl), 3 Volcanic
 	# Cavern, 4 Pirate Island. The 8 deleted maps' tiles are gone
 	# (their tile files are deleted — nothing references them).
+	# QA-112 (v3.9): 5 Skyfall — the top 48 px of the pack's
+	# platform_solid.png (512 px wide = the seamless period, so
+	# _draw_tiles repeats it without a visible seam), sliced by
+	# hand into assets/tiles/tile_skyfall.png.
 	preload("res://assets/tiles/tile_ironfall.png"),
 	preload("res://assets/tiles/tile_jungle.png"),
 	preload("res://assets/skybrawl/tiles/tile_neon.png"),
 	preload("res://assets/tiles/tile_volcanic.png"),
 	preload("res://assets/tiles/tile_pirate.png"),
+	preload("res://assets/tiles/tile_skyfall.png"),
 ]
 # Phase 5 — Sky Brawl arena backgrounds as a FAR parallax layer
 # (viewport scale ~1.3x, parallax 0.25, never stretched over a map).
@@ -64,11 +69,67 @@ const TILE_TEX: Array[Texture2D] = [
 # 0 Ironfall (new, code-drawn dusk factory skyline), 1 Volcanic
 # Cavern, 2 Neon City. Jungle Ruins and Pirate Island keep the
 # procedural gradient (no "bg" key), as before.
+# QA-112 (v3.9): 3 Skyfall dusk sky (pack's bg_sky_dusk.png,
+# 1920x1080 landscape — used as the far parallax layer only,
+# never stretched over the 7200 px world).
 const BG_TEX: Array[Texture2D] = [
 	preload("res://assets/skybrawl/maps/bg_ironfall.png"),
 	preload("res://assets/skybrawl/maps/bg_volcanic.png"),
 	preload("res://assets/skybrawl/maps/bg_neon.png"),
+	preload("res://assets/skyfall/SKYFALL_assets/map/bg_sky_dusk.png"),
 ]
+# QA-112 (v3.9): Skyfall pack art (assets/skyfall/ASSET_AUDIT.md —
+# every file below verified clean, real transparency, no dark box).
+const SF_TEX_TOWER: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/sniper_tower.png")
+const SF_TEX_LADDER: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/emergency_ladder.png")
+const SF_TEX_BRIDGE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/rope_bridge.png")
+const SF_TEX_GATE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/summit_gate_closed.png")
+const SF_TEX_SWITCH: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/summit_control_switch.png")
+const SF_TEX_BARRICADE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/destructible_barricade.png")
+const SF_TEX_WIND: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/wind_zone.png")
+const SF_TEX_ELEVATOR: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/platform_moving_elevator.png")
+const SF_TEX_COLLAPSING: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/platform_collapsing.png")
+const SF_TEX_DISABLED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/hazards/platform_disabled_by_storm.png")
+const SF_TEX_TRAPDOOR_CLOSED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/trapdoor_closed.png")
+const SF_TEX_TRAPDOOR_OPEN: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/trapdoor_open.png")
+const SF_TEX_FLAG_RED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/flags/flag_red.png")
+const SF_TEX_FLAG_BLUE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/flags/flag_blue.png")
+const SF_TEX_FLAG_RED_DROPPED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/flags/flag_red_dropped.png")
+const SF_TEX_FLAG_BLUE_DROPPED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/flags/flag_blue_dropped.png")
+const SF_TEX_ZONE_RED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/flags/extraction_zone_red.png")
+const SF_TEX_ZONE_BLUE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/flags/extraction_zone_blue.png")
+const SF_TEX_ROCK: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/hazards/falling_rock.png")
+const SF_TEX_LIGHTNING: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/hazards/summit_storm_lightning.png")
+const SF_TEX_WALL: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/tiles/wall_block.png")
+# QA-114 (v3.9): colour-coded climbing routes — WEST (left third),
+# CENTRE (middle third), EAST (right third). Same colours on the
+# map platforms, the HUD height bar, and the legend.
+const SF_ROUTE_COLORS: Array[Color] = [Color(0.2, 0.8, 0.9), Color(0.95, 0.75, 0.2), Color(0.3, 0.85, 0.4)]
+const SF_ROUTE_NAMES: Array[String] = ["WEST", "CENTRE", "EAST"]
+
+
+static func skyfall_route_of(x: float) -> int:
+	if x < 1200.0:
+		return 0
+	if x <= 2400.0:
+		return 1
+	return 2
+# QA-112 (v3.9): power-up HUD — the 3 slot backgrounds + the 64 px
+# icons for the 7 power-ups (user rule: every player has 3 slots).
+const SF_TEX_SLOT: Array[Texture2D] = [
+	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_1.png"),
+	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_2.png"),
+	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_3.png"),
+]
+const SF_TEX_PU64 := {
+	7: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_1_health_pack_64.png"),
+	8: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_2_energy_shield_64.png"),
+	9: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_3_speed_boost_64.png"),
+	10: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_4_ammo_crate_64.png"),
+	11: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_5_grenade_pack_64.png"),
+	12: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_6_jetpack_boost_64.png"),
+	13: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_7_enemy_radar_64.png"),
+}
 const DECOR_CRATE: Texture2D = preload("res://assets/tiles/crate.png")
 const DECOR_BARRELS: Texture2D = preload("res://assets/tiles/barrels.png")
 const DECOR_SANDBAGS: Texture2D = preload("res://assets/tiles/sandbags.png")
@@ -333,6 +394,115 @@ const MAPS := [
 		"pickups": [Vector2(600, 1422), Vector2(2910, 1422), Vector2(2420, 1250), Vector2(1500, 1080), Vector2(2550, 910), Vector2(1150, 570)],
 		"decor": [["palms", 400, 1452], ["palms", 2850, 1452], ["crate", 720, 1452], ["barrels", 1020, 1452], ["column", 1320, 1452], ["crate", 1620, 1452], ["barrels", 2220, 1452], ["column", 2520, 1452], ["crate", 2820, 1452], ["crate", 210, 1452], ["crate", 340, 1280], ["crate", 600, 1280], ["column", 1800, 1452], ["crate", 590, 1110], ["crate", 840, 940], ["crate", 1240, 600], ["crate", 1540, 1110], ["crate", 2290, 1280], ["crate", 2290, 1110], ["crate", 2640, 940], ["crate", 2740, 770], ["crate", 1990, 1452]],
 	},
+	{
+		# QA-112 (v3.9): SKYFALL — The Last Ascent. Vertical
+		# battlefield, 3600x7200, 8 levels x 900 px (L1 Twin Base
+		# Camp at the bottom, L8 Flag Summit at the top). 70 static
+		# platforms in 170 px tiers (the Ironfall rise) — the full
+		# climb was BFS-validated in /tmp/skyfall_layout_check.py:
+		# every platform reachable from spawn#0 (hgap <= 340,
+		# rise <= 320), every spawn/pickup/power-up on a reachable
+		# platform. A fall drops the player to a lower platform,
+		# never a dead end: every level has 2 routes + ladders /
+		# elevators / tunnels as alternates. CTF lives ONLY here
+		# (mode 4, gated in main.gd + game.gd); the other 5 maps
+		# keep FFA/TDM/Survival/LMS. Level strips in the pack are
+		# layout references only (baked-in labels) — the levels
+		# are rebuilt from the tile sprites (see ASSET_AUDIT.md).
+		"name": "Skyfall", "size": Vector2(3600, 7200), "tile": 5,
+		"bg": 3,
+		"sky_top": Color(0.07, 0.06, 0.16), "sky_bottom": Color(0.45, 0.30, 0.22),
+		"hill": Color(0.10, 0.12, 0.20), "sun": Color(0.92, 0.92, 0.98), "fx": "dust",
+		"platforms": [
+			Rect2(0, 7152, 3600, 48),
+			Rect2(300, 6982, 500, 48), Rect2(2800, 6982, 500, 48),
+			Rect2(900, 6812, 500, 48), Rect2(2200, 6812, 500, 48),
+			Rect2(1550, 6642, 500, 48),
+			Rect2(1200, 6472, 500, 48), Rect2(1900, 6472, 500, 48),
+			Rect2(800, 6302, 500, 48), Rect2(2300, 6302, 500, 48),
+			Rect2(1200, 6132, 500, 48), Rect2(1900, 6132, 500, 48),
+			Rect2(600, 5962, 500, 48), Rect2(2500, 5962, 500, 48),
+			Rect2(1100, 5792, 500, 48), Rect2(2100, 5792, 500, 48),
+			Rect2(1200, 5622, 500, 48), Rect2(1900, 5622, 500, 48),
+			Rect2(1550, 5452, 500, 48),
+			Rect2(200, 5282, 150, 48), Rect2(350, 5282, 300, 48),
+			Rect2(650, 5282, 2300, 48),
+			Rect2(2950, 5282, 300, 48), Rect2(3250, 5282, 150, 48),
+			Rect2(1500, 5112, 600, 48),
+			Rect2(400, 4942, 2800, 48),
+			Rect2(1500, 4772, 600, 48),
+			Rect2(1200, 4602, 500, 48), Rect2(1900, 4602, 500, 48),
+			Rect2(1200, 4432, 500, 48), Rect2(1900, 4432, 500, 48),
+			Rect2(900, 4262, 500, 48), Rect2(2200, 4262, 500, 48),
+			Rect2(600, 4092, 900, 48), Rect2(1700, 4092, 600, 48),
+			Rect2(2500, 4092, 500, 48),
+			Rect2(1000, 3922, 500, 48), Rect2(2100, 3922, 500, 48),
+			Rect2(1550, 3752, 500, 48),
+			Rect2(1200, 3582, 500, 48), Rect2(1900, 3582, 500, 48),
+			Rect2(700, 3412, 400, 48), Rect2(2500, 3412, 400, 48),
+			Rect2(1500, 3412, 600, 48),
+			Rect2(1500, 3242, 600, 48),
+			Rect2(1000, 3072, 500, 48), Rect2(2100, 3072, 500, 48),
+			Rect2(1550, 2902, 500, 48),
+			Rect2(1200, 2732, 500, 48), Rect2(1900, 2732, 500, 48),
+			Rect2(900, 2562, 500, 48), Rect2(2200, 2562, 500, 48),
+			Rect2(400, 2392, 400, 48), Rect2(2800, 2392, 400, 48),
+			Rect2(600, 2222, 400, 48), Rect2(2600, 2222, 400, 48),
+			Rect2(1200, 2052, 500, 48), Rect2(1900, 2052, 500, 48),
+			Rect2(1550, 1882, 500, 48),
+			Rect2(600, 1712, 2400, 48),
+			Rect2(900, 1542, 500, 48), Rect2(2200, 1542, 500, 48),
+			Rect2(1200, 1372, 500, 48), Rect2(1900, 1372, 500, 48),
+			Rect2(1550, 1202, 500, 48),
+			Rect2(1200, 1032, 500, 48), Rect2(1900, 1032, 500, 48),
+			Rect2(1200, 862, 1200, 48),
+			Rect2(700, 690, 400, 48), Rect2(2500, 690, 400, 48),
+		],
+		"spawns": [Vector2(300, 7118), Vector2(700, 7118), Vector2(550, 6948), Vector2(1150, 6778), Vector2(1700, 6608), Vector2(1450, 6438), Vector2(3300, 7118), Vector2(2900, 7118), Vector2(3050, 6948), Vector2(2450, 6778), Vector2(2150, 6438), Vector2(2500, 6268)],
+		"pickups": [Vector2(400, 6948), Vector2(3200, 6948), Vector2(1800, 6608), Vector2(1800, 1678), Vector2(1800, 5248), Vector2(1800, 3208)],
+		"decor": [["crate", 1200, 7152], ["barrels", 2400, 7152], ["palms", 200, 7152], ["palms", 3400, 7152], ["sf_tower", 900, 3412], ["sf_tower", 2700, 3412], ["sf_ladder", 1448, 6472], ["sf_ladder", 1648, 4772], ["sf_ladder", 1348, 2732], ["sf_ladder", 1348, 1712], ["sf_bridge", 1050, 4092], ["sf_bridge", 2000, 4092], ["sf_bridge", 2750, 4092], ["crate", 1500, 1712], ["barrels", 2100, 1712], ["crate", 2500, 5282]],
+		"skyfall": true,
+		# Power-up spots: [x, y, kind] — one per power-up, spread
+		# across the heights (kinds 7-13, see pickup.gd).
+		"skyfall_pickups": [[1000, 6778, 7], [2600, 6778, 10], [1350, 5758, 11], [800, 5248, 8], [1800, 4058, 12], [2700, 3378, 13], [2600, 1678, 9]],
+		# Vertical CTF: both flags at the summit, extraction zones
+		# at the bases. Red steals the BLUE flag to the RED zone.
+		"ctf": {"flag_red": Vector2(1400, 862), "flag_blue": Vector2(2200, 862), "extract_red": Vector2(450, 7152), "extract_blue": Vector2(3150, 7152)},
+		# Team respawn checkpoints, per level: [red, blue] positions
+		# for L1 (base), L3 (tunnel), L5 (sniper top), L7 (arena).
+		"checkpoints": [[Vector2(450, 7118), Vector2(3150, 7118)], [Vector2(800, 5248), Vector2(2800, 5248)], [Vector2(1450, 2698), Vector2(2150, 2698)], [Vector2(1000, 1678), Vector2(2600, 1678)]],
+		# QA-114 (v3.9): relay stations — partial scoring. Either team
+		# banks the flag here for +1 point (level 4 bridge, level 7
+		# arena); the flag then returns to the summit.
+		"relay": [Vector2(1800, 4092), Vector2(1800, 1678)],
+		# QA-114 (v3.9): movement options — grapple points and marked
+		# jetpack lines straight through the two wind zones.
+		"grapple": [Vector2(900, 6200), Vector2(2700, 6200), Vector2(900, 4400), Vector2(2700, 4400), Vector2(1200, 2400), Vector2(2400, 2400)],
+		"jetpack_lines": [{"from": Vector2(1800, 3600), "to": Vector2(1800, 2900)}, {"from": Vector2(1800, 4300), "to": Vector2(1800, 3900)}],
+		# Emergency ladders (climb rects; visuals are sf_ladder decor).
+		"ladders": [Rect2(1400, 6088, 96, 384), Rect2(1600, 4388, 96, 384), Rect2(1300, 2518, 96, 214), Rect2(1300, 1328, 96, 384)],
+		# Moving elevators (L6): x, width, top/bottom y, phase.
+		"elevators": [{"x": 1200, "w": 512, "y_top": 2052, "y_bottom": 2392, "phase": 0.0}, {"x": 1900, "w": 512, "y_top": 2052, "y_bottom": 2392, "phase": 0.5}],
+		# Rotating platform (L6): orbits its centre.
+		"rotator": {"center": Vector2(1800, 2222), "radius": 120.0, "speed": 0.5, "w": 400},
+		# Platform indices (into "platforms"): collapsing bridge
+		# middle, trapdoor segments, storm-disabled side perches.
+		"collapsing": [34],
+		"trapdoors": [20, 22],
+		"storm_platforms": [68, 69],
+		# Summit gate (blocks the middle of the summit floor until
+		# it opens 45 s into the match) + control switch on the
+		# arena floor (activates the summit elevator for 30 s).
+		"gate": {"x": 1800, "y": 862},
+		"switch": {"pos": Vector2(1800, 1712)},
+		"summit_elevator": {"x": 1650, "w": 300, "y_bottom": 1712, "y_top": 862},
+		# Destructible barricades (shoot to break, respawn in 30 s).
+		"barricades": [{"pos": Vector2(1200, 1712)}, {"pos": Vector2(2400, 1712)}],
+		# Wind zones: push + weaken the jetpack inside the rect.
+		"wind": [{"rect": Rect2(1400, 2900, 800, 700), "dir": Vector2(-1, 0), "strength": 150.0}, {"rect": Rect2(600, 3900, 2400, 400), "dir": Vector2(1, 0), "strength": 120.0}],
+		# Falling rocks (L2 Broken Cliffs).
+		"rocks": {"x_min": 1000, "x_max": 2600, "y_top": 5450, "interval": 4.0},
+	},
 ]
 const DECOR_TEX := {
 	"crate": DECOR_CRATE, "barrels": DECOR_BARRELS, "sandbags": DECOR_SANDBAGS,
@@ -362,6 +532,12 @@ const DECOR_TEX := {
 	"if_vines": DECOR_IF_VINES, "if_rock": DECOR_IF_ROCK,
 	"if_tree": DECOR_IF_TREE, "if_bunker": DECOR_IF_BUNKER,
 	"if_arch": DECOR_IF_ARCH, "if_comms": DECOR_IF_COMMS,
+	# QA-112 (v3.9): Skyfall decor — tower is SOLID cover (see
+	# SOLID_DECOR_KINDS); ladder / rope bridge are pass-through
+	# dressing (the bridge's walkable surface is its platform
+	# rect; ladders climb through skyfall_ladder_at).
+	"sf_tower": SF_TEX_TOWER, "sf_ladder": SF_TEX_LADDER,
+	"sf_bridge": SF_TEX_BRIDGE,
 }
 const PLAYER_COLORS := [
 	Color(0.95, 0.3, 0.25), Color(0.25, 0.55, 0.95), Color(0.3, 0.85, 0.4),
@@ -491,6 +667,10 @@ var _pickup_timer: float = 0.0
 # and the HUD shows a visible timer for the next one.
 var _centre_kind_next: int = 3 # Sniper first, then Rocket, alternating
 var _centre_label: Label
+var _ctf_flag_labels: Array = [] # QA-112 (v3.9): RED/BLUE flag status lines (CTF only)
+var _sf_slot_icons: Array = [] # QA-112 (v3.9): 3 power-up slot icon TextureRects
+var _sf_active_boost_label: Label # QA-112 (v3.9): active boost + time left
+var _sf_slot_row: HBoxContainer # QA-112 (v3.9): the 3-slot row (visibility toggle)
 # Phase 3B physics systems (GAP-37/45/51/64/66):
 var _pickup_spot_timers: Dictionary = {} # spot index -> seconds until respawn
 var _damage_event_seq: int = 0 # unique damage event ids (GAP-43)
@@ -507,6 +687,75 @@ var _kill_credit_lock: Dictionary = {}
 const KILL_CREDIT_LOCK_MS: int = 1000
 var _barrels: Array = [] # {rect, sprite, shape, hp, alive} (GAP-64)
 var _bounce_pads: Array = [] # {rect, area, cooldowns{peer: t}} (GAP-66)
+# ---------------------------------------------------------------------------
+# QA-112 (v3.9) — SKYFALL: Vertical CTF (mode 4, Skyfall-only) + the
+# climbing mechanics. Restored from the v3.6 CTF (QA-080, git
+# e972393) and adapted: both flags live at the SUMMIT, captures
+# score at the base EXTRACTION ZONES, grabbing takes a 1.5 s hold,
+# a dropped flag returns after 15 s, the carrier is 15% slower
+# with no jetpack (player.gd reads carrying_flag). Clients never
+# decide flag state — the host syncs it on ctf_sync (0.5 s
+# heartbeat + on change), exactly like v3.6.
+# ---------------------------------------------------------------------------
+var _ctf_flags: Array = [] # {team, home, pos, carrier, dropped, node, sprite}
+var _ctf_scores: Dictionary = {0: 0, 1: 0} # captures per team
+var _ctf_captures: Dictionary = {} # peer id -> captures (scoreboard)
+var _ctf_sync_timer: float = 0.0
+var _ctf_grab: Dictionary = {} # peer id -> seconds held on a flag
+var _ctf_dropped_timer: Dictionary = {} # flag team -> seconds dropped
+var _ctf_checkpoints: Dictionary = {0: 0, 1: 0} # team -> highest level 0-3
+var _ctf_hold_grace: Dictionary = {0: 0.0, 1: 0.0} # QA-114 (v3.9): 5 s freeze before a wiped team's checkpoint drops
+var _ctf_extract_nodes: Array = [] # extraction-zone sprites (pulse)
+var _ctf_hud_labels: Array = [] # flag-status labels (rebuilt in _build_hud)
+# Skyfall mechanics state (all host-driven, rendered on every peer).
+var _sf_elevators: Array = [] # {body, sprite, cfg, phase}
+var _sf_rotator: Dictionary = {} # {body, sprite, cfg, angle}
+var _sf_summit_elevator: Dictionary = {} # {body, sprite, cfg, state, timer}
+var _sf_collapsing: Array = [] # {idx, shape, sprite, state, timer}
+var _sf_trapdoors: Array = [] # {idx, shape, spr_closed, spr_open, state, timer}
+var _sf_gate_shape: CollisionShape2D = null # summit gate (removed on open)
+var _sf_gate_sprite: Sprite2D = null
+var _sf_gate_open: bool = false
+var _sf_gate_timer: float = 0.0 # opens 45 s after match start
+var _sf_switch_on: bool = false # control switch pressed (visual)
+var _sf_switch_timer: float = 0.0 # 1 s stand-on channel
+var _sf_summit_timer: float = 0.0 # summit elevator active time left
+var _sf_comeback_team: int = -1 # QA-114 (v3.9): team trailing by >= 2 pts — gets catch-up help
+var _sf_comeback_pu_timer: float = 0.0 # QA-114: bonus power-up timer for the trailing team (25 s)
+var _sf_event_timer: float = 0.0 # QA-114 (v3.9): countdown to the next RANDOM event (45-90 s)
+var _sf_event_active: String = "" # QA-114: current random event ("" = none)
+var _sf_event_time_left: float = 0.0 # QA-114: seconds left on the current event
+var _sf_event_wind_flip: bool = false # QA-114: route-shift flips the wind for 20 s
+var _sf_event_collapse_idx: int = -1 # QA-114: platform collapsed by the random event
+var _sf_scenery: Dictionary = {} # QA-115 (v3.9): dynamic scenery nodes (clouds, waterfall, heli, gears, steam, flash)
+var _sf_pings: Array = [] # QA-114 (v3.9): active team pings {node, label, pos, timer}
+var _sf_ping_cooldown: float = 0.0 # QA-114: 3 s between pings
+var ping_button: Button # QA-114 (v3.9): PING button (Skyfall only)
+
+
+static func _sf_level_of(y: float) -> int:
+	# World y -> level 1-8 (each level is 900 px tall; y grows
+	# downward, so level 1 is the bottom). Used by pings and the
+	# height bar labels.
+	return clampi(8 - int(y / 900.0), 1, 8)
+var _sf_barricades: Array = [] # {rect, sprite, shape, hp, alive, timer}
+var _sf_rocks: Array = [] # {node, vel} falling rocks (host spawns)
+var _sf_rock_timer: float = 0.0
+var _sf_storm_timer: float = 90.0 # Summit Storm every 90 s
+var _sf_storm_active: bool = false
+var _sf_storm_time_left: float = 0.0
+var _sf_storm_nodes: Array = [] # lightning sprites shown during a storm
+var _sf_disabled: Array = [] # {idx, shape, sprite, orig_sprite} storm-disabled platforms
+var _sf_pickup_timers: Dictionary = {} # skyfall power-up spot -> seconds
+var _sf_initial_powerups_done: bool = false
+var _sf_match_time: float = 0.0 # seconds since countdown ended
+var _sf_radar_markers: Array = [] # enemy markers while radar is active
+var _sf_boost_slots: Array = [] # HUD power-up slot icons (3)
+# QA-112 (v3.9): spawn counters for the FT-SF-RARITY test (power-ups
+# must spawn less often than weapons). Read by the features test
+# only; they cost nothing in normal play.
+var _test_weapon_spawns: int = 0
+var _test_powerup_spawns: int = 0
 var _physics_test: bool = false # --physics-test harness (T-01..T-75 support)
 var _phys_steps: Array = []
 var _phys_step: int = 0
@@ -597,6 +846,9 @@ var _feat_done: bool = false
 var _feat_bot: Node = null
 var _round_number: int = 1 # v2.4 Survival: current round
 var _kd_label: Label # QA-079: slim "K 3 • D 1" line under the score, always visible
+var _pause_info_label: Label # QA-113 (v3.9): map • mode • time left line in the pause menu
+var _sfx_value_label: Label # QA-113 (v3.9): "75%" next to the Sound slider
+var _music_value_label: Label # QA-113 (v3.9): "75%" next to the Music slider
 var _stats_recorded: bool = false # QA-078: record_match runs once per match
 var _spawn_retry_timer: float = 0.0 # v2.4: request_spawn retry clock
 var _fire_test: bool = false # v2.4: --fire-test harness
@@ -713,7 +965,10 @@ var _glitch_steps: Array = []
 var _map_shots: bool = false # v3.8 QA-111: --map-shot captures the Ironfall map in 4 views (left, centre peak, centre floor/waterfall, right) to user://shot_map_*.png
 var _map_timer: float = 0.0
 var _map_stage: int = -1
+var _sf_shot_timer: float = 0.0 # QA-112 (v3.9): --skyfall-shots stage clock
+var _sf_shot_stage: int = -1 # QA-112 (v3.9): --skyfall-shots stage
 var _land_shots: bool = false # v3.8 QA-110: --land-shot drops the player from high and captures the landing frame + 0.15 s later to user://shot_land_*.png
+var _skyfall_shots: bool = false # QA-112 (v3.9): --skyfall-shots captures the 8 Skyfall levels to user://shot_sf_*.png
 var _land_timer: float = 0.0
 var _land_stage: int = -1
 var _land_armed: bool = false
@@ -749,6 +1004,12 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	map_id = clampi(GameData.map_id, 0, MAPS.size() - 1)
 	game_mode = GameData.game_mode
+	# QA-112 (v3.9): CTF (mode 4) exists ONLY on Skyfall. A stale
+	# mode 4 from another map (or an old lobby) falls back to FFA
+	# here, so CTF can never start on the wrong map — the same
+	# guard the lobby applies in main.gd.
+	if game_mode == 4 and map_id != GameData.SKYFALL_MAP_ID:
+		game_mode = 0
 	kill_limit = GameData.kill_limit
 	max_players = clampi(GameData.max_players, 2, MAX_PLAYERS)
 	_time_left = float(GameData.match_minutes * 60)
@@ -768,6 +1029,7 @@ func _ready() -> void:
 	_glitch_shots = "--glitch-shots" in OS.get_cmdline_user_args()
 	_map_shots = "--map-shot" in OS.get_cmdline_user_args()
 	_land_shots = "--land-shot" in OS.get_cmdline_user_args()
+	_skyfall_shots = "--skyfall-shots" in OS.get_cmdline_user_args() # QA-112 (v3.9): --skyfall-shots captures the 8 Skyfall levels
 	_join_test_host = "--join-test-host" in OS.get_cmdline_user_args()
 	_join_test_client = "--join-test-client" in OS.get_cmdline_user_args() or "--join-test-client-quick" in OS.get_cmdline_user_args()
 	_repl_sim_test = "--repl-sim-test" in OS.get_cmdline_user_args()
@@ -801,7 +1063,7 @@ func _ready() -> void:
 	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
 	# scripted harness (they move/shoot from frame one) and in the
 	# features test, which drives the countdown itself in step 1.
-	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test or _restart_test or _v37_shots or _v38_shots or _glitch_shots or _map_shots or _land_shots
+	var _is_test_mode := _smoke_test or _joystick_test or _fire_test or _net_test or _flow_test or _scale_test or _collision_test or _physics_test or _perf_test or _features_test or _repl_sim_test or _restart_test or _v37_shots or _v38_shots or _glitch_shots or _map_shots or _land_shots or _skyfall_shots
 	if not _is_test_mode:
 		_countdown_active = true
 		_countdown_t = 3.0
@@ -814,6 +1076,8 @@ func _ready() -> void:
 	_build_bounce_pads(map)
 	_build_lava(map)
 	_build_ambient_fx(map)
+	# QA-112 (v3.9): Skyfall mechanics + CTF flags (no-op on other maps).
+	_build_skyfall(map)
 	_build_nodes()
 	# v2.4: bullet pool + host-side shooting validation live on the game.
 	bullet_pool = BulletPool.new(BULLET_SCENE, bullets_node, 160) # GAP-67: 96 = 12/player at 8 players, below the 16-32 spec budget
@@ -903,7 +1167,23 @@ func get_valid_spawn_point(player_index: int, exclude_peer: int, avoid_pos: Vect
 	var n := spawns.size()
 	var start := (player_index - 1) % n
 	var order: Array = []
-	if game_mode == 1:
+	# QA-112 (v3.9): CTF respawns at the team's highest checkpoint
+	# (L1 base / L3 tunnel / L5 top / L7 arena), so a dead carrier
+	# does not climb the whole tower again. The checkpoint is tried
+	# first; if it is not valid (enemy camping it), the normal
+	# team-half order below runs instead.
+	if game_mode == 4:
+		var node := players_node.get_node_or_null(str(exclude_peer))
+		var team := (player_index - 1) % 2
+		if node != null and int(node.team) in [0, 1]:
+			team = int(node.team)
+		var cps: Array = MAPS[map_id].get("checkpoints", [])
+		var lvl := int(_ctf_checkpoints.get(team, 0))
+		if lvl > 0 and lvl < cps.size():
+			var cp: Vector2 = (cps[lvl] as Array)[team]
+			if (avoid_pos == Vector2.INF or cp.distance_to(avoid_pos) >= 150.0) and is_spawn_valid(cp, exclude_peer):
+				return cp
+	if game_mode == 1 or game_mode == 4:
 		# QA-078: use the player's REAL team, not index parity —
 		# a lobby team pick can put a player on the other half
 		# from what their spawn index would suggest. Fall back to
@@ -1091,7 +1371,9 @@ const SOLID_DECOR_KINDS := ["crate", "barrels", "sandbags", "rock", "column",
 	"sb_hut", "sb_hut_pink", "sb_hut_blue", "sb_vent", "sb_vent_orange",
 	"sb_shrine", "sb_block", "sb_hut_green", "sb_crate",
 	# QA-096: Ironfall solid props (crate / barrel / sandbags).
-	"if_crate", "if_barrel", "if_sandbags"]
+	"if_crate", "if_barrel", "if_sandbags",
+	# QA-112 (v3.9): Skyfall sniper tower — solid cover (256x384).
+	"sf_tower"]
 # GAP-13: bridges/arches look walkable — they now get a thin top plank
 # (24 px at the sprite's top edge), not the full texture.
 const BRIDGE_DECOR_KINDS := ["bridge", "jbridge", "jarch"]
@@ -1101,7 +1383,8 @@ const DECOR_INSETS := {"crate": 6, "barrels": 8, "sandbags": 6, "rock": 10,
 	"column": 10, "jpillar": 10, "jstatue": 8, "jtower": 10, "jcrate": 6, "jrock": 10,
 	"sb_hut": 10, "sb_hut_pink": 10, "sb_hut_blue": 10, "sb_vent": 10,
 	"sb_vent_orange": 10, "sb_shrine": 10, "sb_block": 10, "sb_hut_green": 10,
-	"sb_crate": 10, "if_crate": 6, "if_barrel": 8, "if_sandbags": 6}
+	"sb_crate": 10, "if_crate": 6, "if_barrel": 8, "if_sandbags": 6,
+	"sf_tower": 12}
 
 
 func _build_arena(map: Dictionary) -> void:
@@ -1440,6 +1723,695 @@ func _update_lava(delta: float) -> void:
 			_lava_cd[child.peer_id] = cd
 
 
+func _update_skyfall(delta: float) -> void:
+	if map_id != GameData.SKYFALL_MAP_ID:
+		return
+	# Match clock (drives the gate + storm + movers). Counts only
+	# after the countdown, so every peer agrees on the schedule.
+	if not _countdown_active and not match_over:
+		_sf_match_time += delta
+	# --- Summit gate: opens 45 s into the match. The side ledges
+	# are always open, so it never blocks the climb. ---
+	if not _sf_gate_open and not match_over and _sf_match_time >= 45.0:
+		_sf_gate_open = true
+		if _sf_gate_shape != null:
+			_sf_gate_shape.set_deferred("disabled", true)
+		if _sf_gate_sprite != null:
+			_sf_gate_sprite.visible = false
+		_ctf_feed("The summit gate is open!", Color(0.9, 0.9, 0.9))
+	# --- Wind: push every player inside a wind zone (player.gd
+	# applies wind_force as extra acceleration). ---
+	for child in players_node.get_children():
+		if "wind_force" in child:
+			child.set("wind_force", skyfall_wind_at(child.position))
+	# --- Moving elevators + rotating platform: pure functions of
+	# the match clock, so every peer agrees with no RPC. ---
+	for e in _sf_elevators:
+		var cfg: Dictionary = e["cfg"]
+		var period := 6.0
+		var t := fmod(_sf_match_time + float(e.get("phase", 0.0)) * period, period)
+		var y: float
+		if t < period * 0.5:
+			y = lerpf(float(cfg["y_bottom"]), float(cfg["y_top"]), t / (period * 0.5))
+		else:
+			y = lerpf(float(cfg["y_top"]), float(cfg["y_bottom"]), (t - period * 0.5) / (period * 0.5))
+		(e["body"] as AnimatableBody2D).position = Vector2(float(cfg["x"]) + float(cfg["w"]) * 0.5, y + 24.0)
+	if not _sf_rotator.is_empty():
+		var rcfg: Dictionary = _sf_rotator["cfg"]
+		var ang := _sf_match_time * float(rcfg.get("speed", 0.5))
+		var centre: Vector2 = rcfg["center"]
+		(_sf_rotator["body"] as AnimatableBody2D).position = centre + Vector2(cos(ang), sin(ang)) * float(rcfg.get("radius", 120.0))
+	# --- Control switch: stand within 90 px for 1 s (any player).
+	# Activates the summit elevator for 30 s. Detected locally on
+	# every peer (the 1 s channel is long enough that all agree). ---
+	if not _sf_summit_elevator.is_empty():
+		var sw: Dictionary = MAPS[map_id].get("switch", {})
+		var spos: Vector2 = sw.get("pos", Vector2(1800, 1712))
+		var near := false
+		for child in players_node.get_children():
+			if child.alive and child.position.distance_to(spos) < 90.0:
+				near = true
+				break
+		if near and _sf_summit_timer <= 0.0:
+			_sf_switch_timer += delta
+			if _sf_switch_timer >= 1.0:
+				_sf_switch_timer = 0.0
+				_sf_summit_timer = 30.0
+				_sf_switch_on = true
+				_ctf_feed("Summit elevator activated for 30 s!", Color(0.5, 1.0, 0.5))
+		else:
+			_sf_switch_timer = 0.0
+		if _sf_summit_timer > 0.0:
+			_sf_summit_timer -= delta
+			_sf_update_summit_elevator(delta)
+	# --- Collapsing platforms + trapdoors: local state machines
+	# (every peer sees the same player positions, so they agree). ---
+	_sf_update_collapsing(delta)
+	_sf_update_trapdoors(delta)
+	# --- Falling rocks (host spawns, all peers simulate the fall). ---
+	_sf_update_rocks(delta)
+	# --- Summit Storm every 90 s: lightning disables the two
+	# exposed side perches for 10 s. ---
+	_sf_update_storm(delta)
+	# --- Dynamic scenery (QA-115): clouds, waterfall, helicopter,
+	# gears, steam, storm lightning — scenery only. ---
+	_update_skyfall_scenery(delta)
+	# --- Barricade respawn (host only; clients get the RPC). ---
+	if multiplayer.is_server():
+		for b in _sf_barricades:
+			if not bool(b["alive"]):
+				b["timer"] = float(b["timer"]) - delta
+				if float(b["timer"]) <= 0.0:
+					b["alive"] = true
+					b["hp"] = 100.0
+					(b["sprite"] as Node2D).visible = true
+					if b["shape"] != null:
+						(b["shape"] as CollisionShape2D).set_deferred("disabled", false)
+					rpc("sf_barricade_remote", _sf_barricades.find(b), true)
+	# --- CTF checkpoints (QA-114, v3.9): a team's checkpoint is the
+	# HIGHEST level any living member currently stands at or above
+	# (levels 3, 5, 7 — user-confirmed 2026-11-20 ~18:11). It is
+	# recomputed live every frame, so it ADVANCES as the team climbs
+	# and DROPS BACK DOWN when the team loses the level (everyone
+	# dead or fallen below it) — dying on level 7 no longer sends a
+	# player back to the bottom while the team still holds 7, and
+	# losing 7 drops the respawn back to 5 (or 3, or base). The
+	# thresholds come from the checkpoint spots themselves (their
+	# y), so the list stays configurable in one place (map data
+	# "checkpoints" + GameData.SF_CHECKPOINT_LEVELS). Host tracks,
+	# ctf_sync carries it to clients.
+	# GRACE (QA-114): when a team has NO living members at all, the
+	# checkpoint FREEZES for 5 s instead of dropping instantly —
+	# a single death (respawn 3 s) must not drop the respawn to the
+	# bottom while the team still held the level. Only a full wipe
+	# that lasts 5 s drops it. A living member walking down drops
+	# it immediately (no grace — the team is alive and below).
+	if game_mode == 4 and multiplayer.is_server() and not match_over:
+		var cps: Array = MAPS[map_id].get("checkpoints", [])
+		if cps.size() >= 4:
+			var held := {0: 0, 1: 0}
+			var any_alive := {0: false, 1: false}
+			for child in players_node.get_children():
+				if not child.alive:
+					continue
+				var team := int(child.team)
+				if team < 0 or team > 1:
+					continue
+				any_alive[team] = true
+				var y: float = child.position.y
+				# Checkpoint spots sit ~34 px above the platform
+				# top (the player's centre stands 31 px above it)
+				# — allow a 40 px tolerance or a standing player
+				# never counts as "at" the level (the L7 spot is
+				# 1678 but a standing player is at y 1681).
+				var lvl := 0
+				if y <= float((cps[3] as Array)[team].y) + 40.0:
+					lvl = 3
+				elif y <= float((cps[2] as Array)[team].y) + 40.0:
+					lvl = 2
+				elif y <= float((cps[1] as Array)[team].y) + 40.0:
+					lvl = 1
+				held[team] = maxi(int(held[team]), lvl)
+			for team in [0, 1]:
+				var prev := int(_ctf_checkpoints.get(team, 0))
+				var now := int(held[team])
+				if bool(any_alive[team]):
+					_ctf_hold_grace[team] = 0.0
+					if now != prev:
+						_ctf_checkpoints[team] = now
+						if now > prev:
+							_ctf_feed("⚑ %s holds Level %d — respawn moved up!" % ["RED" if team == 0 else "BLUE", GameData.SF_CHECKPOINT_LEVELS[now]], _ctf_team_color(team))
+						else:
+							_ctf_feed("⚑ %s lost Level %d — respawn moved back down." % ["RED" if team == 0 else "BLUE", GameData.SF_CHECKPOINT_LEVELS[prev]], _ctf_team_color(team))
+				elif prev > 0:
+					# Whole team dead: freeze the checkpoint for 5 s.
+					var g := float(_ctf_hold_grace.get(team, 0.0)) + delta
+					_ctf_hold_grace[team] = g
+					if g >= 5.0:
+						_ctf_hold_grace[team] = 0.0
+						_ctf_checkpoints[team] = 0
+						_ctf_feed("⚑ %s lost Level %d — respawn moved back down." % ["RED" if team == 0 else "BLUE", GameData.SF_CHECKPOINT_LEVELS[prev]], _ctf_team_color(team))
+	# --- Power-up spawning (host only; rarer than weapons — see
+	# _update_skyfall_powerups). ---
+	_update_skyfall_powerups(delta)
+	# --- Comeback help + random events (QA-114, host only). ---
+	_sf_update_comeback(delta)
+	_sf_update_random_events(delta)
+	# --- Extraction-zone pulse. ---
+	var pulse := 0.9 + 0.1 * sin(_sf_match_time * 3.0)
+	for z in _ctf_extract_nodes:
+		(z as Sprite2D).scale = Vector2(pulse, pulse)
+	# --- Radar markers (local player only). ---
+	_sf_update_radar()
+	# --- Team pings (QA-114): 5 s lifetime, 3 s cooldown. ---
+	if _sf_ping_cooldown > 0.0:
+		_sf_ping_cooldown -= delta
+	for i in range(_sf_pings.size() - 1, -1, -1):
+		var pg: Dictionary = _sf_pings[i]
+		pg["timer"] = float(pg.get("timer", 0.0)) - delta
+		if float(pg.get("timer", 0.0)) <= 0.0:
+			if is_instance_valid(pg.get("node")):
+				(pg["node"] as Node).queue_free()
+			if is_instance_valid(pg.get("label")):
+				(pg["label"] as Node).queue_free()
+			_sf_pings.remove_at(i)
+	# --- CTF (flags, grabs, captures). ---
+	_update_ctf(delta)
+
+
+func _sf_trailing_team() -> int:
+	# QA-114 (v3.9): the team behind by >= 2 points is the trailing
+	# team (-1 when the scores are level or within 1). Pure — from
+	# _ctf_scores only, so every peer computes the same answer and
+	# the HUD agrees on all phones. CTF only.
+	if game_mode != 4:
+		return -1
+	var red := int(_ctf_scores.get(0, 0))
+	var blue := int(_ctf_scores.get(1, 0))
+	if red - blue >= 2:
+		return 1
+	if blue - red >= 2:
+		return 0
+	return -1
+
+
+func _sf_update_comeback(delta: float) -> void:
+	# QA-114 (v3.9): COMEBACK HELP — the trailing team gets a modest
+	# advantage, never a guaranteed win: (1) the summit elevator
+	# runs continuously while they trail (the switch normally gives
+	# 30 s; the comeback tops the timer up so it never docks), and
+	# (2) a bonus power-up spawns near their base every 25 s.
+	# Both teams see it in the HUD, so it is never a hidden buff.
+	# The leading team KEEPS its checkpoint — comeback help and
+	# checkpoints do not cancel each other (opposite-feature rule).
+	var trail := _sf_trailing_team()
+	if trail != _sf_comeback_team:
+		if trail >= 0:
+			_ctf_feed("COMEBACK: %s is behind — summit elevator running + extra power-ups at their base!" % ("RED" if trail == 0 else "BLUE"), Color(1.0, 0.8, 0.2))
+			_sf_comeback_pu_timer = 5.0 # first bonus arrives fast
+		_sf_comeback_team = trail
+	if not multiplayer.is_server() or match_over or trail < 0:
+		return
+	# (1) Elevator: keep the timer topped up so it never docks
+	# while the comeback is active. Runs after the switch block's
+	# decrement, so the top-up wins every frame.
+	_sf_summit_timer = maxf(_sf_summit_timer, 5.0)
+	# (2) Bonus power-up near the trailing team's base (their own
+	# side only — never on a level the other team holds).
+	_sf_comeback_pu_timer -= delta
+	if _sf_comeback_pu_timer > 0.0:
+		return
+	_sf_comeback_pu_timer = 25.0
+	var spot := 200 + trail
+	var active := false
+	for child in pickups_node.get_children():
+		if int(child.get("spot_index")) == spot:
+			active = true
+			break
+	if active:
+		return
+	var kind := randi_range(7, 13)
+	var pos := Vector2(700, 6948) if trail == 0 else Vector2(2900, 6948)
+	var pname := "sfcomeback_" + str(Time.get_ticks_msec()) + "_" + str(trail)
+	rpc("spawn_pickup_remote", pos, pname, kind, spot)
+
+
+func _sf_update_random_events(delta: float) -> void:
+	# QA-114 (v3.9): RANDOM mid-match events — the fixed 90 s Summit
+	# Storm alone is too predictable, so events fire at RANDOM times
+	# (45-90 s apart) with a RANDOM type: supply drop, collapsing
+	# level, or route shift. Announced to both teams in the feed.
+	# Independent of the storm timer, so an event CAN coincide with
+	# a storm — that combination is tested, not prevented.
+	if not multiplayer.is_server() or match_over or _countdown_active:
+		return
+	if _sf_event_active != "":
+		_sf_event_time_left -= delta
+		if _sf_event_time_left <= 0.0:
+			if _sf_event_active == "route_shift":
+				_sf_event_wind_flip = false
+				_ctf_feed("EVENT over: the wind is back to normal.", Color(0.9, 0.9, 0.9))
+			_sf_event_active = ""
+			_sf_event_timer = randf_range(45.0, 90.0)
+		return
+	if _sf_event_timer <= 0.0:
+		_sf_event_timer = randf_range(45.0, 90.0)
+		return
+	_sf_event_timer -= delta
+	if _sf_event_timer > 0.0:
+		return
+	match randi() % 3:
+		0:
+			_sf_event_supply_drop()
+			_sf_event_active = "supply_drop"
+			_sf_event_time_left = 1.0 # instant effect; ends next frame
+		1:
+			_sf_event_collapse()
+			_sf_event_active = "collapse"
+			_sf_event_time_left = 1.0 # the collapse runs its own 8 s cycle
+		2:
+			_sf_event_wind_flip = true
+			_sf_event_active = "route_shift"
+			_sf_event_time_left = 20.0
+			_ctf_feed("EVENT: ROUTE SHIFT! The wind has reversed for 20 s!", Color(0.6, 0.9, 1.0))
+
+
+func _sf_event_supply_drop() -> void:
+	# A weapon or power-up drops on a random reachable platform.
+	var plats: Array = MAPS[map_id].get("platforms", [])
+	if plats.is_empty():
+		return
+	var r: Rect2 = plats[randi() % plats.size()]
+	var pos := r.get_center() + Vector2(0, -60)
+	var kind := randi_range(1, 6) if randi() % 2 == 0 else randi_range(7, 13)
+	var pname := "sfsupply_" + str(Time.get_ticks_msec())
+	# Event drops do NOT count toward the FT-SF-RARITY test — that
+	# test measures the regular spawn loop only.
+	rpc("spawn_pickup_remote", pos, pname, kind, -1)
+	_ctf_feed("EVENT: SUPPLY DROP! Something landed on the tower — go get it!", Color(0.6, 1.0, 0.6))
+
+
+func _sf_event_collapse() -> void:
+	# A random bridge-level platform collapses (same 0.8 s shake ->
+	# fall -> 8 s gone -> back cycle as the built-in collapsing
+	# platform). Never a spawn, checkpoint, relay, extraction, or
+	# summit platform — those are protected, so the event can never
+	# remove a route home or a respawn.
+	var plats: Array = MAPS[map_id].get("platforms", [])
+	var protected: Array = []
+	for sp in MAPS[map_id].get("spawns", []):
+		protected.append(sp)
+	for cps in MAPS[map_id].get("checkpoints", []):
+		for cp in cps:
+			protected.append(cp)
+	for rp in MAPS[map_id].get("relay", []):
+		protected.append(rp)
+	var ctf: Dictionary = MAPS[map_id].get("ctf", {})
+	protected.append(ctf.get("extract_red", Vector2.ZERO))
+	protected.append(ctf.get("extract_blue", Vector2.ZERO))
+	var candidates: Array = []
+	for i in plats.size():
+		var r: Rect2 = plats[i]
+		if i == 34: # already the built-in collapsing platform
+			continue
+		var safe := true
+		for pp in protected:
+			if absf(float(pp.y) - float(r.position.y)) < 120.0 and float(pp.x) >= float(r.position.x) - 100.0 and float(pp.x) <= float(r.end.x) + 100.0:
+				safe = false
+				break
+		if safe:
+			candidates.append(i)
+	if candidates.is_empty():
+		return
+	var idx: int = candidates[randi() % candidates.size()]
+	var rect: Rect2 = plats[idx]
+	for c in _sf_collapsing:
+		if int(c.get("idx", -1)) == idx:
+			c["state"] = "shaking"
+			c["timer"] = 0.8
+			_sf_event_collapse_idx = idx
+			_ctf_feed("EVENT: A LEVEL IS COLLAPSING! Watch your step!", Color(1.0, 0.6, 0.2))
+			return
+	_sf_collapsing.append({"idx": idx, "rect": rect, "shape": _sf_arena_shape_at(rect.get_center()), "sprites": _sf_tile_sprites_at(rect), "state": "shaking", "timer": 0.8})
+	_sf_event_collapse_idx = idx
+	_ctf_feed("EVENT: A LEVEL IS COLLAPSING! Watch your step!", Color(1.0, 0.6, 0.2))
+
+
+func _sf_update_summit_elevator(delta: float) -> void:
+	# Shuttles arena <-> summit while active: up 4 s, wait 6 s at
+	# the top, down 4 s, wait 6 s at the bottom, repeat. Docked at
+	# the arena when the timer runs out.
+	var se: Dictionary = _sf_summit_elevator
+	var body := se["body"] as AnimatableBody2D
+	var cfg: Dictionary = se["cfg"]
+	var y_top := float(cfg["y_top"])
+	var y_bot := float(cfg["y_bottom"])
+	var state: String = str(se.get("state", "docked"))
+	var timer := float(se.get("timer", 0.0)) + delta
+	se["timer"] = timer
+	var x := float(cfg["x"]) + float(cfg.get("w", 300)) * 0.5
+	match state:
+		"docked":
+			body.position = Vector2(x, y_bot + 24.0)
+			if _sf_summit_timer > 0.0:
+				se["state"] = "up"
+				se["timer"] = 0.0
+		"up":
+			var k := clampf(timer / 4.0, 0.0, 1.0)
+			body.position = Vector2(x, lerpf(y_bot, y_top, k) + 24.0)
+			if timer >= 4.0:
+				se["state"] = "top"
+				se["timer"] = 0.0
+		"top":
+			body.position = Vector2(x, y_top + 24.0)
+			if timer >= 6.0 or _sf_summit_timer <= 0.0:
+				se["state"] = "down"
+				se["timer"] = 0.0
+		"down":
+			var k := clampf(timer / 4.0, 0.0, 1.0)
+			body.position = Vector2(x, lerpf(y_top, y_bot, k) + 24.0)
+			if timer >= 4.0:
+				se["state"] = "bottom"
+				se["timer"] = 0.0
+		"bottom":
+			body.position = Vector2(x, y_bot + 24.0)
+			if timer >= 6.0 or _sf_summit_timer <= 0.0:
+				se["state"] = "docked" if _sf_summit_timer <= 0.0 else "up"
+				se["timer"] = 0.0
+
+
+func _sf_player_standing_on(rect: Rect2) -> bool:
+	# Any alive player whose feet are on this platform (within
+	# 8 px of its top, inside its x-range).
+	for child in players_node.get_children():
+		if not child.alive:
+			continue
+		var feet: Vector2 = child.position + Vector2(0, 31)
+		if feet.x >= rect.position.x - 4.0 and feet.x <= rect.end.x + 4.0 and absf(feet.y - rect.position.y) <= 8.0:
+			return true
+	return false
+
+
+func _sf_update_collapsing(delta: float) -> void:
+	for c in _sf_collapsing:
+		var state: String = str(c.get("state", "idle"))
+		var rect: Rect2 = c["rect"]
+		if state == "idle":
+			if _sf_player_standing_on(rect):
+				c["state"] = "shaking"
+				c["timer"] = 0.8
+		elif state == "shaking":
+			# Shake the tile sprites; the shape stays solid.
+			var t := float(c.get("timer", 0.0)) - delta
+			c["timer"] = t
+			var off := sin(t * 40.0) * 3.0
+			for s in c["sprites"]:
+				(s as Sprite2D).offset = Vector2(off, 0)
+			if t <= 0.0:
+				c["state"] = "falling"
+				c["timer"] = 0.6
+				if c["shape"] != null:
+					(c["shape"] as CollisionShape2D).set_deferred("disabled", true)
+		elif state == "falling":
+			var t := float(c.get("timer", 0.0)) - delta
+			c["timer"] = t
+			for s in c["sprites"]:
+				(s as Sprite2D).modulate.a = maxf(0.0, t / 0.6)
+				(s as Sprite2D).offset = Vector2(0, (0.6 - t) * 120.0)
+			if t <= 0.0:
+				c["state"] = "gone"
+				c["timer"] = 8.0
+				for s in c["sprites"]:
+					(s as Sprite2D).visible = false
+		elif state == "gone":
+			var t := float(c.get("timer", 0.0)) - delta
+			c["timer"] = t
+			if t <= 0.0:
+				c["state"] = "idle"
+				if c["shape"] != null:
+					(c["shape"] as CollisionShape2D).set_deferred("disabled", false)
+				for s in c["sprites"]:
+					(s as Sprite2D).visible = true
+					(s as Sprite2D).modulate.a = 1.0
+					(s as Sprite2D).offset = Vector2.ZERO
+
+
+func _sf_update_trapdoors(delta: float) -> void:
+	for td in _sf_trapdoors:
+		var state: String = str(td.get("state", "closed"))
+		var rect: Rect2 = td["rect"]
+		if state == "closed":
+			if _sf_player_standing_on(rect):
+				var t := float(td.get("timer", 0.0)) + delta
+				td["timer"] = t
+				if t >= 1.0:
+					td["state"] = "open"
+					td["timer"] = 5.0
+					if td["shape"] != null:
+						(td["shape"] as CollisionShape2D).set_deferred("disabled", true)
+					for s in td["sprites"]:
+						(s as Sprite2D).texture = SF_TEX_TRAPDOOR_OPEN
+			else:
+				td["timer"] = 0.0
+		elif state == "open":
+			var t := float(td.get("timer", 0.0)) - delta
+			td["timer"] = t
+			if t <= 0.0:
+				td["state"] = "closed"
+				td["timer"] = 0.0
+				if td["shape"] != null:
+					(td["shape"] as CollisionShape2D).set_deferred("disabled", false)
+				for s in td["sprites"]:
+					(s as Sprite2D).texture = SF_TEX_TRAPDOOR_CLOSED
+
+
+func _sf_update_rocks(delta: float) -> void:
+	# Host spawns a rock every 4 s (max 3 falling); every peer
+	# simulates the same fall (gravity + land on the first
+	# platform below). Host-only damage on impact with a player.
+	if multiplayer.is_server() and not match_over and not _countdown_active:
+		_sf_rock_timer -= delta
+		if _sf_rock_timer <= 0.0:
+			_sf_rock_timer = float(MAPS[map_id].get("rocks", {}).get("interval", 4.0))
+			var active := 0
+			for r in _sf_rocks:
+				if not bool(r.get("landed", false)):
+					active += 1
+			if active < 3:
+				var rocks: Dictionary = MAPS[map_id].get("rocks", {})
+				var rx := randf_range(float(rocks.get("x_min", 1000)), float(rocks.get("x_max", 2600)))
+				rpc("sf_rock_remote", rx)
+	for i in range(_sf_rocks.size() - 1, -1, -1):
+		var r: Dictionary = _sf_rocks[i]
+		var node: Node2D = r["node"]
+		if node == null or not is_instance_valid(node):
+			_sf_rocks.remove_at(i)
+			continue
+		if bool(r.get("landed", false)):
+			var ft := float(r.get("fade", 0.0)) - delta
+			r["fade"] = ft
+			(node as Sprite2D).modulate.a = maxf(0.0, ft)
+			if ft <= 0.0:
+				node.queue_free()
+				_sf_rocks.remove_at(i)
+			continue
+		var vel := float(r.get("vel", 0.0)) + 1400.0 * delta
+		r["vel"] = vel
+		var prev_y: float = node.position.y
+		node.position.y += vel * delta
+		node.rotation += 3.0 * delta
+		# Land on the first platform top crossed this frame.
+		var landed := false
+		for p in MAPS[map_id]["platforms"]:
+			var pr: Rect2 = p
+			if node.position.x >= pr.position.x and node.position.x <= pr.end.x and prev_y + 30.0 <= pr.position.y and node.position.y + 30.0 >= pr.position.y:
+				node.position.y = pr.position.y - 30.0
+				node.rotation = 0.0
+				r["landed"] = true
+				r["fade"] = 1.0
+				landed = true
+				break
+		if landed:
+			continue
+		# Host-only: 25 damage + knockback on a player hit mid-fall.
+		if multiplayer.is_server() and not match_over:
+			for child in players_node.get_children():
+				if not child.alive:
+					continue
+				var box := Rect2(child.position - Vector2(20, 31), Vector2(40, 62))
+				var rock_box := Rect2(node.position - Vector2(30, 30), Vector2(60, 60))
+				if box.intersects(rock_box):
+					if child.get_multiplayer_authority() == multiplayer.get_unique_id():
+						child.take_damage(25, 0)
+					elif multiplayer.get_peers().has(child.get_multiplayer_authority()):
+						child.rpc_id(child.get_multiplayer_authority(), "take_damage", 25, 0)
+					node.queue_free()
+					_sf_rocks.remove_at(i)
+					break
+
+
+@rpc("any_peer", "call_local")
+func sf_rock_remote(x: float) -> void:
+	var rocks: Dictionary = MAPS[map_id].get("rocks", {})
+	var node := Sprite2D.new()
+	node.texture = SF_TEX_ROCK
+	node.scale = Vector2(0.6, 0.6)
+	node.position = Vector2(x, float(rocks.get("y_top", 5450)))
+	node.z_index = 3
+	add_child(node)
+	_sf_rocks.append({"node": node, "vel": 0.0, "landed": false, "fade": 0.0})
+
+
+func _sf_update_storm(delta: float) -> void:
+	# Summit Storm every 90 s: lightning disables the two exposed
+	# side perches for 10 s. Driven by the match clock, so every
+	# peer agrees with no RPC.
+	if match_over or _countdown_active:
+		return
+	if _sf_storm_active:
+		_sf_storm_time_left -= delta
+		# Lightning flicker while the storm runs.
+		for n in _sf_storm_nodes:
+			(n as Sprite2D).modulate.a = 0.5 + 0.5 * sin(_sf_match_time * 9.0 + float((n as Sprite2D).position.x))
+		if _sf_storm_time_left <= 0.0:
+			_sf_storm_active = false
+			_sf_storm_timer = 90.0
+			for d in _sf_disabled:
+				if bool(d.get("disabled", false)):
+					d["disabled"] = false
+					if d["shape"] != null:
+						(d["shape"] as CollisionShape2D).set_deferred("disabled", false)
+					for o in d["orig"]:
+						var os: Sprite2D = o["sprite"]
+						os.texture = o["texture"]
+						os.region_enabled = bool(o["region_enabled"])
+						os.region_rect = o["region_rect"]
+			for n in _sf_storm_nodes:
+				(n as Sprite2D).visible = false
+			_ctf_feed("The storm has passed.", Color(0.8, 0.85, 1.0))
+		return
+	_sf_storm_timer -= delta
+	if _sf_storm_timer <= 0.0:
+		_sf_storm_active = true
+		_sf_storm_time_left = 10.0
+		for d in _sf_disabled:
+			d["disabled"] = true
+			if d["shape"] != null:
+				(d["shape"] as CollisionShape2D).set_deferred("disabled", true)
+			for s in d["sprites"]:
+				(s as Sprite2D).texture = SF_TEX_DISABLED
+				(s as Sprite2D).region_enabled = true
+				# Keep the sprite's own width (400 for the perches)
+				# and show only the top 48 px of the disabled slab.
+				var w := (s as Sprite2D).region_rect.size.x
+				if w <= 0.0:
+					w = 512.0
+				(s as Sprite2D).region_rect = Rect2(0, 0, w, 48)
+		if _sf_storm_nodes.is_empty():
+			for lx in [900, 1800, 2700]:
+				var bolt := Sprite2D.new()
+				bolt.texture = SF_TEX_LIGHTNING
+				bolt.position = Vector2(lx, 500)
+				bolt.z_index = 4
+				add_child(bolt)
+				_sf_storm_nodes.append(bolt)
+		for n in _sf_storm_nodes:
+			(n as Sprite2D).visible = true
+		_ctf_feed("SUMMIT STORM! Exposed platforms disabled!", Color(0.65, 0.8, 1.0))
+
+
+# --- Skyfall power-ups: RARER than weapons (user rule, 2026-11-20).
+# Weapons: 6 spots, 14 s respawn, max 3 active, 3 at match start.
+# Power-ups: 7 spots (one per kind), 35 s respawn, max 2 active,
+# 1 at match start. Over a 5-min match that is roughly 4x fewer
+# power-up spawns than weapon spawns (verified by the features
+# test step FT-SF-RARITY, which counts both over 300 simulated s).
+# ---------------------------------------------------------------------------
+const SF_POWERUP_COOLDOWN := 35.0
+const SF_POWERUP_MAX_ACTIVE := 2
+
+func _update_skyfall_powerups(delta: float) -> void:
+	if map_id != GameData.SKYFALL_MAP_ID:
+		return
+	if not multiplayer.is_server() or match_over:
+		return
+	var spots: Array = MAPS[map_id].get("skyfall_pickups", [])
+	if spots.is_empty():
+		return
+	if not _sf_initial_powerups_done:
+		_sf_initial_powerups_done = true
+		_spawn_skyfall_powerup(randi() % spots.size())
+		for i in spots.size():
+			_sf_pickup_timers[i] = SF_POWERUP_COOLDOWN
+		return
+	var active := 0
+	for child in pickups_node.get_children():
+		if int(child.get("kind")) >= 7:
+			active += 1
+	if active >= SF_POWERUP_MAX_ACTIVE:
+		return
+	for i in spots.size():
+		var t := float(_sf_pickup_timers.get(i, 0.0)) - delta
+		_sf_pickup_timers[i] = t
+		if t <= 0.0:
+			_sf_pickup_timers[i] = SF_POWERUP_COOLDOWN
+			_spawn_skyfall_powerup(i)
+			return # one spawn per frame at most
+
+
+func _spawn_skyfall_powerup(spot_idx: int) -> void:
+	var spots: Array = MAPS[map_id].get("skyfall_pickups", [])
+	if spot_idx < 0 or spot_idx >= spots.size():
+		return
+	var spot: Array = spots[spot_idx]
+	var pos := Vector2(float(spot[0]), float(spot[1]))
+	var kind := int(spot[2])
+	var pname := "sfpowerup_" + str(Time.get_ticks_msec()) + "_" + str(spot_idx)
+	# Spot index 100+ keeps power-ups out of the standard weapon
+	# spot timers (on_pickup_gone routes 100+ to the power-up timer).
+	_test_powerup_spawns += 1
+	rpc("spawn_pickup_remote", pos, pname, kind, 100 + spot_idx)
+
+
+func _sf_update_radar() -> void:
+	# Radar (power-up 13): while the LOCAL player has it active,
+	# every living enemy gets a diamond marker above their head
+	# (through walls — it draws at z 50). No radar, no markers.
+	var lp = _get_local_player()
+	var want := false
+	if lp != null and "radar_timer" in lp and float(lp.get("radar_timer")) > 0.0:
+		want = true
+	if not want:
+		for m in _sf_radar_markers:
+			if is_instance_valid(m):
+				m.queue_free()
+		_sf_radar_markers.clear()
+		return
+	if lp == null:
+		return
+	var my_team := int(lp.team)
+	var idx := 0
+	for child in players_node.get_children():
+		if int(child.peer_id) == int(lp.peer_id) or not child.alive or int(child.team) == my_team:
+			continue
+		var marker: Polygon2D = null
+		if idx < _sf_radar_markers.size():
+			marker = _sf_radar_markers[idx]
+		else:
+			marker = Polygon2D.new()
+			marker.polygon = PackedVector2Array([Vector2(0, -12), Vector2(10, 0), Vector2(0, 12), Vector2(-10, 0)])
+			marker.z_index = 50
+			add_child(marker)
+			_sf_radar_markers.append(marker)
+		marker.color = Color(0.95, 0.3, 0.25) if int(child.team) == 0 else Color(0.25, 0.55, 0.95)
+		marker.position = child.position + Vector2(0, -70)
+		idx += 1
+	while _sf_radar_markers.size() > idx:
+		var extra: Node = _sf_radar_markers.pop_back()
+		if is_instance_valid(extra):
+			extra.queue_free()
+
+
 func _draw_tiles(map: Dictionary, platforms: Array) -> void:
 	var tex: Texture2D = TILE_TEX[clampi(int(map["tile"]), 0, TILE_TEX.size() - 1)]
 	var tile_w := float(tex.get_width())
@@ -1470,6 +2442,880 @@ func _draw_tiles(map: Dictionary, platforms: Array) -> void:
 			Vector2(r.position.x, r.position.y + r.size.y + 16.0)])
 		skirt.color = Color(0, 0, 0, 0.25)
 		add_child(skirt)
+
+
+# ---------------------------------------------------------------------------
+# QA-112 (v3.9) — SKYFALL builders + Vertical CTF + mechanics.
+# Everything here is a no-op unless the loaded map has "skyfall".
+# Moving platforms use AnimatableBody2D (sync_to_physics carries
+# players standing on them); static platform shapes are found by
+# position in the Arena body so _build_arena stays untouched.
+# ---------------------------------------------------------------------------
+
+func _build_skyfall(map: Dictionary) -> void:
+	if not bool(map.get("skyfall", false)):
+		return
+	# L3 Underground Tunnels: a dark band over the tunnel levels so
+	# the two corridors read as tunnels, not open sky. Drawn here
+	# (behind the players, z -2) — the lamp dots are small warm
+	# circles along the tunnel floors.
+	var band := Polygon2D.new()
+	band.polygon = PackedVector2Array([Vector2(0, 4500), Vector2(map_size.x, 4500), Vector2(map_size.x, 5400), Vector2(0, 5400)])
+	band.color = Color(0.02, 0.02, 0.04, 0.45)
+	band.z_index = -2
+	add_child(band)
+	for lx in [400, 1000, 1600, 2200, 2800, 3200]:
+		for ly in [5240, 4900]:
+			var lamp := Polygon2D.new()
+			var pts := PackedVector2Array()
+			for i in 12:
+				var a := TAU * float(i) / 12.0
+				pts.append(Vector2(cos(a), sin(a)) * 8.0)
+			lamp.polygon = pts
+			lamp.color = Color(1.0, 0.8, 0.3, 0.85)
+			lamp.position = Vector2(lx, ly)
+			lamp.z_index = -1
+			add_child(lamp)
+	# Summit roof: a red triangle over the gate + two dark pillars
+	# flanking it, so the summit reads as a gatehouse. The pack has
+	# no standalone summit building (ASSET_AUDIT.md §9) — this is
+	# code-drawn from the gate + wall art, not a pasted strip.
+	var roof := Polygon2D.new()
+	roof.polygon = PackedVector2Array([Vector2(1660, 478), Vector2(1940, 478), Vector2(1800, 380)])
+	roof.color = Color(0.62, 0.12, 0.12)
+	roof.z_index = -1
+	add_child(roof)
+	for px in [1690, 1890]:
+		var pillar := Polygon2D.new()
+		pillar.polygon = PackedVector2Array([Vector2(px, 478), Vector2(px + 20, 478), Vector2(px + 20, 862), Vector2(px, 862)])
+		pillar.color = Color(0.16, 0.16, 0.20)
+		pillar.z_index = -1
+		add_child(pillar)
+	# Wind-zone overlays (faint, so the square edge barely shows).
+	for w in map.get("wind", []):
+		var wr: Rect2 = w["rect"]
+		var ov := Sprite2D.new()
+		ov.texture = SF_TEX_WIND
+		ov.position = wr.get_center()
+		ov.scale = Vector2(wr.size.x / 384.0, wr.size.y / 384.0)
+		ov.modulate = Color(1, 1, 1, 0.55)
+		ov.z_index = -1
+		add_child(ov)
+	# Extraction-zone rings at the bases (pulse in _update_skyfall).
+	var ctf: Dictionary = map.get("ctf", {})
+	for team in [0, 1]:
+		var zpos: Vector2 = ctf.get("extract_red" if team == 0 else "extract_blue", Vector2.ZERO)
+		var zspr := Sprite2D.new()
+		zspr.texture = SF_TEX_ZONE_RED if team == 0 else SF_TEX_ZONE_BLUE
+		zspr.position = zpos + Vector2(0, -10)
+		zspr.scale = Vector2(0.9, 0.9)
+		zspr.z_index = 1
+		add_child(zspr)
+		_ctf_extract_nodes.append(zspr)
+	# QA-114 (v3.9): relay stations — gold rings (radius = the 140 px
+	# bank radius, so the zone is exactly what you see) + a label.
+	for ri in (map.get("relay", []) as Array).size():
+		var rp: Vector2 = (map.get("relay", []) as Array)[ri]
+		var ring := Line2D.new()
+		ring.width = 6.0
+		ring.default_color = Color(1.0, 0.8, 0.2)
+		var pts := PackedVector2Array()
+		for i in 32:
+			var a := TAU * float(i) / 32.0
+			pts.append(rp + Vector2(cos(a), sin(a)) * 140.0)
+		pts.append(rp + Vector2(140.0, 0))
+		ring.points = pts
+		ring.z_index = 1
+		add_child(ring)
+		var rlbl := Label.new()
+		rlbl.text = "RELAY L%d  •  +1 pt" % [4 if ri == 0 else 7]
+		# QA-114: below the ring, not above — above puts the label
+		# in the top UI band (it collided with the "Waiting for
+		# other players" message in the L4 screenshot).
+		rlbl.position = rp + Vector2(-80, 60)
+		rlbl.add_theme_font_size_override("font_size", 24)
+		rlbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+		rlbl.z_index = 1
+		add_child(rlbl)
+	# QA-114 (v3.9): grapple points — gold ring + centre dot, so a
+	# player can spot them while climbing.
+	for gp in map.get("grapple", []):
+		var gpos: Vector2 = gp
+		var gring := Line2D.new()
+		gring.width = 4.0
+		gring.default_color = Color(1.0, 0.85, 0.3)
+		var gpts := PackedVector2Array()
+		for i in 20:
+			var a := TAU * float(i) / 20.0
+			gpts.append(gpos + Vector2(cos(a), sin(a)) * 26.0)
+		gpts.append(gpos + Vector2(26.0, 0))
+		gring.points = gpts
+		gring.z_index = 1
+		add_child(gring)
+		var gdot := Polygon2D.new()
+		var dpts := PackedVector2Array()
+		for i in 10:
+			var a := TAU * float(i) / 10.0
+			dpts.append(Vector2(cos(a), sin(a)) * 8.0)
+		gdot.polygon = dpts
+		gdot.color = Color(1.0, 0.85, 0.3)
+		gdot.position = gpos
+		gdot.z_index = 1
+		add_child(gdot)
+	# QA-114 (v3.9): jetpack lines — bright cyan lines straight
+	# through the wind zones, with up-chevrons, so the marked route
+	# is visible from below.
+	for jl in map.get("jetpack_lines", []):
+		var jd: Dictionary = jl
+		var a: Vector2 = jd["from"]
+		var b: Vector2 = jd["to"]
+		var line := Line2D.new()
+		line.width = 8.0
+		line.default_color = Color(0.2, 0.8, 1.0, 0.75)
+		line.points = PackedVector2Array([a, b])
+		line.z_index = 1
+		add_child(line)
+		var steps := 4
+		for si in steps:
+			var t := (float(si) + 0.5) / float(steps)
+			var cp: Vector2 = a.lerp(b, t)
+			var chev := Polygon2D.new()
+			chev.polygon = PackedVector2Array([Vector2(-14, 10), Vector2(0, -12), Vector2(14, 10), Vector2(0, 2)])
+			chev.color = Color(0.2, 0.8, 1.0, 0.9)
+			chev.position = cp
+			chev.z_index = 1
+			add_child(chev)
+	# QA-114 (v3.9): colour-coded routes — every platform gets a
+	# small strip in its route colour (WEST cyan / CENTRE gold /
+	# EAST green, by x-centre). Same colours on the HUD height bar.
+	var plats: Array = map.get("platforms", [])
+	for pr in plats:
+		var prect: Rect2 = pr
+		var route := skyfall_route_of(prect.get_center().x)
+		var strip := Polygon2D.new()
+		var sx := prect.position.x
+		var sy := prect.position.y
+		strip.polygon = PackedVector2Array([Vector2(sx, sy - 6), Vector2(sx + 60, sy - 6), Vector2(sx + 60, sy), Vector2(sx, sy)])
+		strip.color = SF_ROUTE_COLORS[route]
+		strip.z_index = 1
+		add_child(strip)
+	# QA-115 (v3.9): dynamic scenery — the map must feel alive, not
+	# a still picture. Scenery only, no gameplay effect.
+	_build_skyfall_scenery(map)
+	_build_skyfall_movers(map)
+	_build_skyfall_gate(map)
+	_build_skyfall_switch(map)
+	_build_skyfall_barricades(map)
+	_build_skyfall_platform_refs(map)
+	_build_ctf_flags()
+
+
+func _sf_arena_shape_at(center: Vector2) -> CollisionShape2D:
+	# The Arena StaticBody2D's shapes are positioned at their rect
+	# centres — find one by position (within 1 px).
+	var arena := get_node_or_null("Arena")
+	if arena == null:
+		return null
+	for child in arena.get_children():
+		if child is CollisionShape2D and (child as CollisionShape2D).position.distance_to(center) < 1.0:
+			return child as CollisionShape2D
+	return null
+
+
+func _sf_tile_sprites_at(rect: Rect2) -> Array:
+	# _draw_tiles adds one sprite per 512 px of platform, as a child
+	# of the game, at (rect.x + k*512, rect.y). Collect them.
+	var out: Array = []
+	for child in get_children():
+		if child is Sprite2D and absf((child as Sprite2D).position.y - rect.position.y) < 0.5 and (child as Sprite2D).position.x >= rect.position.x - 0.5 and (child as Sprite2D).position.x < rect.end.x:
+			out.append(child)
+	return out
+
+
+func _build_skyfall_scenery(map: Dictionary) -> void:
+	# QA-115 (v3.9): DYNAMIC SCENERY — drifting clouds, a flowing
+	# waterfall, a helicopter crossing the sky, rotating gears on
+	# the Mechanical Ascent, steam from the tunnel vents, and
+	# distant lightning flashes during the storm. All code-drawn
+	# (the pack has no art for these) and all scenery-only: no
+	# collision, no gameplay effect, ~20 nodes of cheap transforms
+	# (no per-frame allocations), so phones are unaffected. The
+	# colours stay muted so the routes stay readable.
+	var clouds: Array = []
+	for ci in 5:
+		var cloud := Node2D.new()
+		cloud.position = Vector2(float(ci) * 700.0 + 200.0, 300.0 + float(ci % 3) * 900.0 + 1200.0)
+		cloud.z_index = -2
+		add_child(cloud)
+		for bi in 3:
+			var blob := Polygon2D.new()
+			var pts := PackedVector2Array()
+			for i in 16:
+				var a := TAU * float(i) / 16.0
+				pts.append(Vector2(cos(a) * (90.0 + float(bi) * 30.0), sin(a) * 28.0))
+			blob.polygon = pts
+			blob.color = Color(0.85, 0.88, 0.95, 0.10)
+			blob.position = Vector2(float(bi) * 110.0 - 110.0, float(bi % 2) * 14.0)
+			cloud.add_child(blob)
+		clouds.append({"node": cloud, "speed": 12.0 + float(ci) * 4.0})
+	# Waterfall on the left cliff face (Broken Cliffs, y 2900-4500):
+	# a translucent sheet + 5 white streaks that scroll downward.
+	var fall := Polygon2D.new()
+	fall.polygon = PackedVector2Array([Vector2(250, 2900), Vector2(330, 2900), Vector2(330, 4500), Vector2(250, 4500)])
+	fall.color = Color(0.55, 0.75, 0.95, 0.30)
+	fall.z_index = -1
+	add_child(fall)
+	var streaks: Array = []
+	for si in 5:
+		var st := Line2D.new()
+		st.width = 3.0
+		st.default_color = Color(1, 1, 1, 0.55)
+		st.points = PackedVector2Array([Vector2(258 + float(si) * 14.0, 2950), Vector2(258 + float(si) * 14.0, 3050)])
+		st.z_index = -1
+		add_child(st)
+		streaks.append(st)
+	# Helicopter silhouette crossing the sky above the summit.
+	var heli := Node2D.new()
+	heli.position = Vector2(-200, 520)
+	heli.z_index = -2
+	add_child(heli)
+	var hbody := Polygon2D.new()
+	hbody.polygon = PackedVector2Array([Vector2(-40, 0), Vector2(30, -12), Vector2(60, 0), Vector2(30, 12), Vector2(-40, 10)])
+	hbody.color = Color(0.08, 0.08, 0.10, 0.85)
+	heli.add_child(hbody)
+	var htail := Polygon2D.new()
+	htail.polygon = PackedVector2Array([Vector2(-40, -4), Vector2(-95, -14), Vector2(-95, -6), Vector2(-40, 4)])
+	htail.color = Color(0.08, 0.08, 0.10, 0.85)
+	heli.add_child(htail)
+	var hrotor := Line2D.new()
+	hrotor.width = 3.0
+	hrotor.default_color = Color(0.08, 0.08, 0.10, 0.85)
+	hrotor.points = PackedVector2Array([Vector2(-70, -18), Vector2(70, -18)])
+	heli.add_child(hrotor)
+	# Rotating gears on the Mechanical Ascent (flanking the elevators).
+	var gears: Array = []
+	for gx in [1000.0, 2600.0]:
+		var gear := Node2D.new()
+		gear.position = Vector2(gx, 2200)
+		gear.z_index = -1
+		add_child(gear)
+		var teeth := Polygon2D.new()
+		var tpts := PackedVector2Array()
+		for i in 24:
+			var a := TAU * float(i) / 24.0
+			var r := 46.0 if i % 2 == 0 else 34.0
+			tpts.append(Vector2(cos(a), sin(a)) * r)
+		teeth.polygon = tpts
+		teeth.color = Color(0.22, 0.22, 0.26, 0.9)
+		gear.add_child(teeth)
+		var hub := Polygon2D.new()
+		var hpts := PackedVector2Array()
+		for i in 10:
+			var a := TAU * float(i) / 10.0
+			hpts.append(Vector2(cos(a), sin(a)) * 12.0)
+		hub.polygon = hpts
+		hub.color = Color(0.35, 0.35, 0.40, 0.9)
+		gear.add_child(hub)
+		gears.append(gear)
+	# Steam puffs rising from the tunnel vents (y ~5200).
+	var puffs: Array = []
+	for px in [800.0, 1600.0, 2400.0, 3200.0]:
+		var puff := Polygon2D.new()
+		var ppts := PackedVector2Array()
+		for i in 12:
+			var a := TAU * float(i) / 12.0
+			ppts.append(Vector2(cos(a), sin(a)) * 16.0)
+		puff.polygon = ppts
+		puff.color = Color(0.75, 0.75, 0.78, 0.22)
+		puff.position = Vector2(px, 5200)
+		puff.z_index = -1
+		add_child(puff)
+		puffs.append({"node": puff, "rise": 0.0})
+	# Distant lightning flash: a full-map white sheet, invisible
+	# until a storm flash fires (see _update_skyfall_scenery).
+	var flash := Polygon2D.new()
+	flash.polygon = PackedVector2Array([Vector2(0, 0), Vector2(3600, 0), Vector2(3600, 7200), Vector2(0, 7200)])
+	flash.color = Color(1, 1, 1, 0.0)
+	flash.z_index = -2
+	add_child(flash)
+	_sf_scenery = {"clouds": clouds, "streaks": streaks, "heli": heli, "gears": gears, "puffs": puffs, "flash": flash, "flash_timer": 3.0, "flash_alpha": 0.0}
+
+
+func _update_skyfall_scenery(delta: float) -> void:
+	# QA-115 (v3.9): animate the scenery — all cheap transforms,
+	# no allocations, no gameplay reads. Runs on every peer (pure
+	# functions of _sf_match_time + delta), so all phones agree.
+	if _sf_scenery.is_empty():
+		return
+	for c in _sf_scenery.get("clouds", []):
+		var node: Node2D = c["node"]
+		node.position.x += float(c["speed"]) * delta
+		if node.position.x > 3800.0:
+			node.position.x = -400.0
+	for st in _sf_scenery.get("streaks", []):
+		var line := st as Line2D
+		var pts: PackedVector2Array = line.points
+		pts[0].y += 140.0 * delta
+		pts[1].y += 140.0 * delta
+		if pts[0].y > 4480.0:
+			pts[0].y = 2920.0
+			pts[1].y = 3020.0
+		line.points = pts
+	var heli: Node2D = _sf_scenery.get("heli")
+	if heli != null:
+		heli.position.x += 55.0 * delta
+		if heli.position.x > 3800.0:
+			heli.position.x = -200.0
+			heli.position.y = 420.0 + randf() * 300.0
+	var gears: Array = _sf_scenery.get("gears", [])
+	for gi in gears.size():
+		(gears[gi] as Node2D).rotation += (0.5 if gi == 0 else -0.4) * delta
+	for p in _sf_scenery.get("puffs", []):
+		var pd: Dictionary = p
+		var node: Node2D = pd["node"]
+		pd["rise"] = float(pd.get("rise", 0.0)) + delta * 30.0
+		node.position.y = 5200.0 - float(pd["rise"])
+		var col: Color = (node as Polygon2D).color
+		col.a = maxf(0.0, 0.22 - float(pd["rise"]) * 0.0009)
+		(node as Polygon2D).color = col
+		if float(pd["rise"]) > 240.0:
+			pd["rise"] = 0.0
+	# Distant lightning: only during the Summit Storm, at random
+	# 2-5 s gaps — a brief pale flash over the sky.
+	if _sf_storm_active:
+		_sf_scenery["flash_timer"] = float(_sf_scenery.get("flash_timer", 3.0)) - delta
+		if float(_sf_scenery.get("flash_timer", 0.0)) <= 0.0:
+			_sf_scenery["flash_timer"] = randf_range(2.0, 5.0)
+			_sf_scenery["flash_alpha"] = 0.10
+		var fa := float(_sf_scenery.get("flash_alpha", 0.0))
+		if fa > 0.0:
+			fa = maxf(0.0, fa - delta * 0.8)
+			_sf_scenery["flash_alpha"] = fa
+		var flash: Polygon2D = _sf_scenery.get("flash")
+		if flash != null:
+			var fcol: Color = flash.color
+			fcol.a = fa
+			flash.color = fcol
+	elif _sf_scenery.get("flash") != null:
+		var flash2: Polygon2D = _sf_scenery.get("flash")
+		var fcol2: Color = flash2.color
+		fcol2.a = 0.0
+		flash2.color = fcol2
+
+
+func _build_skyfall_movers(map: Dictionary) -> void:
+	# Moving elevators (L6): AnimatableBody2D, ping-pong between
+	# y_top and y_bottom. sync_to_physics carries riders.
+	for cfg in map.get("elevators", []):
+		var body := AnimatableBody2D.new()
+		body.name = "Elevator_%d" % int(cfg["x"])
+		body.collision_layer = 1
+		body.collision_mask = 0
+		body.sync_to_physics = true
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = Vector2(float(cfg["w"]), 48.0)
+		shape.shape = box
+		body.add_child(shape)
+		var spr := Sprite2D.new()
+		spr.texture = SF_TEX_ELEVATOR
+		spr.position = Vector2(0, 24) # slab art is 96 tall; top aligns with the collision top
+		body.add_child(spr)
+		var y_mid := (float(cfg["y_top"]) + float(cfg["y_bottom"])) * 0.5
+		body.position = Vector2(float(cfg["x"]) + float(cfg["w"]) * 0.5, y_mid + 24.0)
+		add_child(body)
+		_sf_elevators.append({"body": body, "sprite": spr, "cfg": cfg, "phase": float(cfg.get("phase", 0.0))})
+	# Rotating platform (L6): orbits its centre.
+	var rot: Dictionary = map.get("rotator", {})
+	if not rot.is_empty():
+		var body := AnimatableBody2D.new()
+		body.name = "Rotator"
+		body.collision_layer = 1
+		body.collision_mask = 0
+		body.sync_to_physics = true
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = Vector2(float(rot.get("w", 400)), 48.0)
+		shape.shape = box
+		body.add_child(shape)
+		var spr := Sprite2D.new()
+		spr.texture = SF_TEX_ELEVATOR
+		spr.region_enabled = true
+		spr.region_rect = Rect2(0, 0, float(rot.get("w", 400)), 96)
+		spr.position = Vector2(0, 24)
+		body.add_child(spr)
+		body.position = (rot["center"] as Vector2) + Vector2(float(rot.get("radius", 120.0)), 0)
+		add_child(body)
+		_sf_rotator = {"body": body, "sprite": spr, "cfg": rot, "angle": 0.0}
+	# Summit elevator: docked at the arena until the control switch
+	# activates it (then it shuttles arena <-> summit for 30 s).
+	var se: Dictionary = map.get("summit_elevator", {})
+	if not se.is_empty():
+		var body := AnimatableBody2D.new()
+		body.name = "SummitElevator"
+		body.collision_layer = 1
+		body.collision_mask = 0
+		body.sync_to_physics = true
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = Vector2(float(se.get("w", 300)), 48.0)
+		shape.shape = box
+		body.add_child(shape)
+		var spr := Sprite2D.new()
+		spr.texture = SF_TEX_ELEVATOR
+		spr.region_enabled = true
+		spr.region_rect = Rect2(0, 0, float(se.get("w", 300)), 96)
+		spr.position = Vector2(0, 24)
+		body.add_child(spr)
+		body.position = Vector2(float(se["x"]) + float(se.get("w", 300)) * 0.5, float(se["y_bottom"]) + 24.0)
+		add_child(body)
+		_sf_summit_elevator = {"body": body, "sprite": spr, "cfg": se, "state": "docked", "timer": 0.0, "dir": -1.0}
+
+
+func _build_skyfall_gate(map: Dictionary) -> void:
+	# Summit gate: stands on the summit floor, bars vertical, gaps
+	# transparent (the pack's gate art). Blocks the middle of the
+	# summit floor until it opens 45 s into the match; the side
+	# ledges are always open, so it never blocks the climb.
+	var g: Dictionary = map.get("gate", {})
+	if g.is_empty():
+		return
+	var gx := float(g.get("x", 1800))
+	var gy := float(g.get("y", 862))
+	var spr := Sprite2D.new()
+	spr.texture = SF_TEX_GATE
+	spr.position = Vector2(gx, gy - 192)
+	spr.z_index = 2
+	add_child(spr)
+	_sf_gate_sprite = spr
+	var arena := get_node_or_null("Arena")
+	if arena != null:
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = Vector2(116, 378)
+		shape.shape = box
+		shape.position = Vector2(gx, gy - 189)
+		arena.add_child(shape)
+		_sf_gate_shape = shape
+	_sf_gate_open = false
+	_sf_gate_timer = 45.0
+
+
+func _build_skyfall_switch(map: Dictionary) -> void:
+	# Summit Control Switch on the arena floor: stand next to it
+	# for 1 s to activate the summit elevator for 30 s.
+	var sw: Dictionary = map.get("switch", {})
+	if sw.is_empty():
+		return
+	var pos: Vector2 = sw.get("pos", Vector2(1800, 1712))
+	var spr := Sprite2D.new()
+	spr.texture = SF_TEX_SWITCH
+	spr.position = pos + Vector2(0, -128)
+	spr.z_index = 2
+	add_child(spr)
+	# The 1 s channel is checked by distance in _update_skyfall
+	# (any alive player within 90 px of the switch) — no Area2D
+	# needed, and distance is simpler to test.
+	_sf_switch_on = false
+	_sf_switch_timer = 0.0
+
+
+func _build_skyfall_barricades(map: Dictionary) -> void:
+	# Destructible wooden barricades on the arena floor: solid
+	# cover, 100 HP, break when shot (try_barricade_hit, same
+	# pattern as barrels) or caught in a blast, respawn in 30 s.
+	var arena := get_node_or_null("Arena")
+	for b in map.get("barricades", []):
+		var pos: Vector2 = b.get("pos", Vector2.ZERO)
+		var spr := Sprite2D.new()
+		spr.texture = SF_TEX_BARRICADE
+		spr.position = pos + Vector2(0, -96)
+		spr.z_index = 2
+		add_child(spr)
+		var shape: CollisionShape2D = null
+		if arena != null:
+			shape = CollisionShape2D.new()
+			var box := RectangleShape2D.new()
+			box.size = Vector2(148, 180)
+			shape.shape = box
+			shape.position = pos + Vector2(0, -90)
+			arena.add_child(shape)
+		_sf_barricades.append({"rect": Rect2(pos + Vector2(-74, -180), Vector2(148, 180)), "sprite": spr, "shape": shape, "hp": 100.0, "alive": true, "timer": 0.0})
+
+
+func try_barricade_hit(hit_pos: Vector2, dmg: int) -> bool:
+	# Bullet vs destructible barricade (QA-112). Host-authorised:
+	# only the server damages barricades; clients return false
+	# (just the spark). Returns true when a barricade was hit.
+	if not multiplayer.is_server():
+		return false
+	for b in _sf_barricades:
+		if not bool(b["alive"]):
+			continue
+		var r: Rect2 = b["rect"]
+		if r.grow(6.0).has_point(hit_pos):
+			b["hp"] = float(b["hp"]) - dmg
+			if float(b["hp"]) <= 0.0:
+				_sf_break_barricade(b)
+			return true
+	return false
+
+
+func _sf_break_barricade(b: Dictionary) -> void:
+	b["alive"] = false
+	b["timer"] = 30.0
+	(b["sprite"] as Node2D).visible = false
+	if b["shape"] != null:
+		(b["shape"] as CollisionShape2D).set_deferred("disabled", true)
+	rpc("sf_barricade_remote", _sf_barricades.find(b), false)
+
+
+@rpc("any_peer", "call_local")
+func sf_barricade_remote(idx: int, alive: bool) -> void:
+	if idx < 0 or idx >= _sf_barricades.size():
+		return
+	var b: Dictionary = _sf_barricades[idx]
+	b["alive"] = alive
+	(b["sprite"] as Node2D).visible = alive
+	if b["shape"] != null:
+		(b["shape"] as CollisionShape2D).set_deferred("disabled", not alive)
+	if not alive:
+		b["timer"] = 30.0
+
+
+func _build_skyfall_platform_refs(map: Dictionary) -> void:
+	# Collapsing bridge middle, trapdoors, storm perches: find
+	# their Arena shapes + tile sprites by position (see
+	# _sf_arena_shape_at / _sf_tile_sprites_at).
+	var plats: Array = map["platforms"]
+	for idx in map.get("collapsing", []):
+		var r: Rect2 = plats[int(idx)]
+		_sf_collapsing.append({"idx": int(idx), "rect": r, "shape": _sf_arena_shape_at(r.get_center()), "sprites": _sf_tile_sprites_at(r), "state": "idle", "timer": 0.0})
+	for idx in map.get("trapdoors", []):
+		var r: Rect2 = plats[int(idx)]
+		var sprs: Array = _sf_tile_sprites_at(r)
+		for s in sprs:
+			(s as Sprite2D).texture = SF_TEX_TRAPDOOR_CLOSED
+			(s as Sprite2D).region_enabled = true
+			(s as Sprite2D).region_rect = Rect2(0, 0, minf(512.0, r.size.x), 48)
+		_sf_trapdoors.append({"idx": int(idx), "rect": r, "shape": _sf_arena_shape_at(r.get_center()), "sprites": sprs, "state": "closed", "timer": 0.0})
+	for idx in map.get("storm_platforms", []):
+		var r: Rect2 = plats[int(idx)]
+		var sprs: Array = _sf_tile_sprites_at(r)
+		var orig: Array = []
+		for s in sprs:
+			orig.append({"sprite": s, "texture": (s as Sprite2D).texture, "region_enabled": (s as Sprite2D).region_enabled, "region_rect": (s as Sprite2D).region_rect})
+		_sf_disabled.append({"idx": int(idx), "rect": r, "shape": _sf_arena_shape_at(r.get_center()), "sprites": sprs, "orig": orig, "disabled": false})
+
+
+# ---------------------------------------------------------------------------
+# QA-112 (v3.9) — Vertical CTF (mode 4, SKYFALL ONLY). Restored from
+# the v3.6 CTF (QA-080) and adapted: BOTH flags live at the SUMMIT,
+# captures score at the base EXTRACTION ZONES, grabbing takes a
+# 1.5 s hold, a dropped flag returns after 15 s, the carrier is
+# 15% slower with no jetpack (player.gd reads carrying_flag).
+# Host-authoritative; clients only render what ctf_sync sends.
+# ---------------------------------------------------------------------------
+
+func _ctf_team_color(team: int) -> Color:
+	return Color(0.95, 0.3, 0.25) if team == 0 else Color(0.25, 0.55, 0.95)
+
+
+func _ctf_flag_visual(team: int) -> Node2D:
+	# Pack art (flag_red/blue.png, 256 px, real transparency) at
+	# half scale, with a small team tag underneath. The dropped
+	# variant swaps in when the flag is on the ground.
+	var node := Node2D.new()
+	node.name = "Flag%d" % team
+	node.z_index = 5
+	var spr := Sprite2D.new()
+	spr.texture = SF_TEX_FLAG_RED if team == 0 else SF_TEX_FLAG_BLUE
+	spr.scale = Vector2(0.5, 0.5)
+	spr.position = Vector2(0, -64)
+	node.add_child(spr)
+	var tag := Label.new()
+	tag.text = "RED FLAG" if team == 0 else "BLUE FLAG"
+	tag.position = Vector2(-40, 6)
+	tag.size = Vector2(80, 20)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.add_theme_font_size_override("font_size", 16)
+	tag.add_theme_color_override("font_color", _ctf_team_color(team))
+	tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	tag.add_theme_constant_override("outline_size", 4)
+	node.add_child(tag)
+	node.set_meta("sprite", spr)
+	return node
+
+
+func _build_ctf_flags() -> void:
+	# One flag per team, both at the summit (map["ctf"] homes).
+	# Idempotent: the features test rebuilds CTF mid-run and must
+	# not stack flags.
+	for f in _ctf_flags:
+		var old_node: Node = (f as Dictionary).get("node")
+		if old_node != null and is_instance_valid(old_node):
+			old_node.queue_free()
+	_ctf_flags.clear()
+	_ctf_scores = {0: 0, 1: 0}
+	_ctf_captures.clear()
+	_ctf_grab.clear()
+	_ctf_dropped_timer.clear()
+	_ctf_checkpoints = {0: 0, 1: 0}
+	if game_mode != 4:
+		return
+	var ctf: Dictionary = MAPS[map_id].get("ctf", {})
+	if ctf.is_empty():
+		return
+	for team in [0, 1]:
+		var home: Vector2 = ctf.get("flag_red" if team == 0 else "flag_blue", Vector2(1400 + team * 800, 862))
+		var node := _ctf_flag_visual(team)
+		node.position = home
+		add_child(node)
+		_ctf_flags.append({"team": team, "home": home, "pos": home, "carrier": -1, "dropped": false, "node": node, "sprite": node.get_meta("sprite")})
+
+
+func _ctf_carrier_of(pid: int) -> int:
+	for f in _ctf_flags:
+		if int((f as Dictionary).get("carrier", -1)) == pid:
+			return int((f as Dictionary).get("team", -1))
+	return -1
+
+
+func _ctf_state() -> Array:
+	var out: Array = []
+	for f in _ctf_flags:
+		var d: Dictionary = f
+		out.append({"team": int(d.get("team", 0)), "pos": d.get("pos"), "carrier": int(d.get("carrier", -1)), "dropped": bool(d.get("dropped", false))})
+	return out
+
+
+func _ctf_send_sync() -> void:
+	if _ctf_flags.is_empty():
+		return
+	rpc("ctf_sync", _ctf_state(), _ctf_scores.duplicate(), _ctf_checkpoints.duplicate())
+
+
+@rpc("any_peer", "call_local")
+func ctf_sync(state: Array, scores: Dictionary, checkpoints: Dictionary = {0: 0, 1: 0}) -> void:
+	# Only the host may set flag state.
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != 1:
+		return
+	_ctf_scores = scores.duplicate()
+	_ctf_checkpoints = checkpoints.duplicate()
+	for i in mini(state.size(), _ctf_flags.size()):
+		var s: Dictionary = state[i]
+		var f: Dictionary = _ctf_flags[i]
+		f["pos"] = s.get("pos", f.get("pos"))
+		f["carrier"] = int(s.get("carrier", -1))
+		f["dropped"] = bool(s.get("dropped", false))
+	_ctf_update_carrying_flags()
+
+
+func _ctf_update_carrying_flags() -> void:
+	# Every player node carries its flag state (player.gd reads
+	# carrying_flag for the 15% slowdown + no jetpack). The host
+	# sets it from the flag state; clients get it from ctf_sync.
+	if players_node == null:
+		return
+	for child in players_node.get_children():
+		child.set("carrying_flag", _ctf_carrier_of(int(child.peer_id)))
+
+
+func _ctf_feed(text: String, color: Color) -> void:
+	# Plain-text line on the kill feed (same chip + 5 s expiry as
+	# a kill line — _add_kill_feed_entry is kill-shaped, so CTF
+	# gets its own small builder instead of bending that one).
+	if _kill_feed_list == null:
+		return
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_override("font", FONT_BODY_MEDIUM)
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", color)
+	_outline_label(lbl)
+	var chip := PanelContainer.new()
+	var chip_bg := StyleBoxFlat.new()
+	chip_bg.bg_color = Color(0.02, 0.05, 0.09, 0.72)
+	chip_bg.set_corner_radius_all(4)
+	chip_bg.content_margin_left = 8
+	chip_bg.content_margin_right = 8
+	chip_bg.content_margin_top = 2
+	chip_bg.content_margin_bottom = 2
+	chip.add_theme_stylebox_override("panel", chip_bg)
+	chip.add_child(lbl)
+	_kill_feed_list.add_child(chip)
+	_kill_feed_entries.append({"label": lbl, "panel": chip, "expiry": 5.0})
+	while _kill_feed_entries.size() > 4:
+		var old: Dictionary = _kill_feed_entries.pop_front()
+		(old["panel"] as PanelContainer).queue_free()
+
+
+func _update_ctf(delta: float) -> void:
+	if game_mode != 4 or _ctf_flags.is_empty():
+		return
+	# Render (every peer, every frame): a carried flag rides above
+	# its carrier's head; a dropped flag lies where it fell (fallen
+	# art); a home flag stands at the summit.
+	for f in _ctf_flags:
+		var d: Dictionary = f
+		var node: Node = d.get("node")
+		if node == null or not is_instance_valid(node):
+			continue
+		var spr: Sprite2D = d.get("sprite")
+		var carrier: int = int(d.get("carrier", -1))
+		if spr != null:
+			if bool(d.get("dropped", false)):
+				spr.texture = SF_TEX_FLAG_RED_DROPPED if int(d.get("team", 0)) == 0 else SF_TEX_FLAG_BLUE_DROPPED
+			else:
+				spr.texture = SF_TEX_FLAG_RED if int(d.get("team", 0)) == 0 else SF_TEX_FLAG_BLUE
+		if carrier >= 0:
+			var cp := players_node.get_node_or_null(str(carrier))
+			if cp != null:
+				(node as Node2D).position = cp.position + Vector2(0, -80)
+				continue
+		(node as Node2D).position = d.get("pos", d.get("home"))
+	# Host logic only — clients never move a flag.
+	if not multiplayer.is_server() or match_over or _countdown_active:
+		return
+	var changed := false
+	var ctf: Dictionary = MAPS[map_id].get("ctf", {})
+	for f in _ctf_flags:
+		var d: Dictionary = f
+		var team: int = int(d.get("team", 0))
+		var carrier: int = int(d.get("carrier", -1))
+		if carrier >= 0:
+			var cp := players_node.get_node_or_null(str(carrier))
+			if cp == null or not cp.alive:
+				# Carrier died (or left): the flag drops where
+				# they fell. Either team can recover it from here.
+				d["pos"] = cp.position if cp != null else d.get("pos")
+				d["carrier"] = -1
+				d["dropped"] = true
+				_ctf_dropped_timer[team] = 0.0
+				_ctf_feed("⚑ %s dropped the %s flag!" % [_player_name(carrier), "RED" if team == 0 else "BLUE"], _ctf_team_color(team))
+				changed = true
+				continue
+			# Capture: the carrier reached their OWN extraction
+			# zone while their own flag is home (no capture while
+			# your flag is away). The carrier stole flag `team`,
+			# so their own flag is the other one (1 - team), and
+			# their own extraction zone is the other side's.
+			var own: Dictionary = _ctf_flags[1 - team]
+			var own_home: bool = int(own.get("carrier", -1)) == -1 and not bool(own.get("dropped", false))
+			var zone: Vector2 = ctf.get("extract_red" if int(cp.team) == 0 else "extract_blue", Vector2.ZERO)
+			if own_home and cp.position.distance_to(zone) < 120.0:
+				var ct: int = int(cp.team)
+				_ctf_scores[ct] = int(_ctf_scores.get(ct, 0)) + GameData.CTF_CAPTURE_POINTS
+				_ctf_captures[carrier] = int(_ctf_captures.get(carrier, 0)) + 1
+				d["pos"] = d.get("home")
+				d["carrier"] = -1
+				d["dropped"] = false
+				_ctf_feed("⚑ %s captured the flag! +%d pts  RED %d — %d BLUE" % [_player_name(carrier), GameData.CTF_CAPTURE_POINTS, int(_ctf_scores.get(0, 0)), int(_ctf_scores.get(1, 0))], _ctf_team_color(ct))
+				changed = true
+				_check_match_end()
+			else:
+				# QA-114 (v3.9): PARTIAL SCORING — the carrier banks
+				# the flag at a relay station (levels 4 / 7) for +1
+				# point. The flag returns to the summit, so the run
+				# ends here (no double-banking the same run); the
+				# team must steal it again for the next bank or the
+				# full +3 capture. This breaks stalemates: a team
+				# that cannot finish the long run down still scores
+				# for getting halfway.
+				var relays: Array = MAPS[map_id].get("relay", [])
+				for ri in relays.size():
+					var rp: Vector2 = relays[ri]
+					if cp.position.distance_to(rp) < 140.0:
+						var ct2: int = int(cp.team)
+						_ctf_scores[ct2] = int(_ctf_scores.get(ct2, 0)) + GameData.CTF_RELAY_POINTS
+						d["pos"] = d.get("home")
+						d["carrier"] = -1
+						d["dropped"] = false
+						var lvl := 4 if ri == 0 else 7
+						_ctf_feed("⚑ %s banked the flag at the Level %d relay! +%d pt  RED %d — %d BLUE" % [_player_name(carrier), lvl, GameData.CTF_RELAY_POINTS, int(_ctf_scores.get(0, 0)), int(_ctf_scores.get(1, 0))], _ctf_team_color(ct2))
+						changed = true
+						_check_match_end()
+						break
+			continue
+		# Dropped flag: 15 s unretrieved and it returns to the summit.
+		if bool(d.get("dropped", false)):
+			var dt := float(_ctf_dropped_timer.get(team, 0.0)) + delta
+			_ctf_dropped_timer[team] = dt
+			if dt >= 15.0:
+				d["pos"] = d.get("home")
+				d["dropped"] = false
+				_ctf_dropped_timer[team] = 0.0
+				_ctf_feed("⚑ The %s flag returned to the summit!" % ("RED" if team == 0 else "BLUE"), _ctf_team_color(team))
+				changed = true
+		# Free flag: an enemy steals it with a 1.5 s hold; a
+		# teammate returns a dropped flag by walking over it.
+		# QA-114 (v3.9): the hold is keyed by (peer, flag) — the
+		# old peer-only key was wiped every frame by the OTHER
+		# flag's distance check (the player is always > 80 px from
+		# one flag), so the hold never reached 1.5 s and a flag
+		# could never be grabbed. The features test caught it.
+		for child in players_node.get_children():
+			if not child.alive:
+				continue
+			var ppos: Vector2 = child.position
+			var fpos: Vector2 = d.get("pos")
+			var gkey := int(child.peer_id) * 10 + team
+			if ppos.distance_to(fpos) > 80.0:
+				_ctf_grab.erase(gkey)
+				continue
+			if bool(d.get("dropped", false)) and int(child.team) == team:
+				d["pos"] = d.get("home")
+				d["dropped"] = false
+				_ctf_dropped_timer[team] = 0.0
+				_ctf_feed("⚑ %s returned the %s flag!" % [_player_name(child.peer_id), "RED" if team == 0 else "BLUE"], _ctf_team_color(team))
+				changed = true
+				break
+			if int(child.team) != team:
+				# Hold 1.5 s on the flag to grab it. Moving away
+				# resets the hold (the erase above, on distance).
+				var held := float(_ctf_grab.get(gkey, 0.0)) + delta
+				_ctf_grab[gkey] = held
+				if held >= 1.5:
+					d["carrier"] = int(child.peer_id)
+					_ctf_grab.erase(gkey)
+					_ctf_feed("⚑ %s took the %s flag!" % [_player_name(child.peer_id), "RED" if team == 0 else "BLUE"], _ctf_team_color(team))
+					changed = true
+				break
+	if changed:
+		_ctf_update_carrying_flags()
+	_ctf_sync_timer += delta
+	if changed or _ctf_sync_timer >= 0.5:
+		_ctf_sync_timer = 0.0
+		_ctf_send_sync()
+
+
+func skyfall_ladder_at(pos: Vector2) -> Rect2:
+	# Ladder rect containing pos (player.gd calls this every
+	# physics frame; empty rect = no ladder / not Skyfall).
+	if map_id != GameData.SKYFALL_MAP_ID:
+		return Rect2()
+	for r in MAPS[map_id].get("ladders", []):
+		if (r as Rect2).has_point(pos):
+			return r
+	return Rect2()
+
+
+func skyfall_wind_at(pos: Vector2) -> Vector2:
+	# Wind push at a position (player.gd applies it as extra
+	# acceleration). Zero outside the wind zones / off Skyfall.
+	if map_id != GameData.SKYFALL_MAP_ID:
+		return Vector2.ZERO
+	for w in MAPS[map_id].get("wind", []):
+		if (w["rect"] as Rect2).has_point(pos):
+			var wind: Vector2 = (w["dir"] as Vector2) * float(w.get("strength", 120.0))
+			# QA-114 (v3.9): a ROUTE SHIFT event reverses the wind
+			# for 20 s. Jetpack lines still shield the rider (the
+			# line wins over the wind — opposite-feature rule).
+			if _sf_event_wind_flip:
+				wind = -wind
+			return wind
+	return Vector2.ZERO
 
 
 func _build_nodes() -> void:
@@ -1570,10 +3416,13 @@ func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, team_
 	print("SPAWN: spawning peer ", pid, " (", pname, ") on ", "server" if multiplayer.is_server() else "client", " players_before=", players_node.get_child_count())
 	_spawned[pid] = true
 	var team := -1
-	if game_mode == 1:
+	if game_mode == 1 or game_mode == 4:
 		# QA-078: honour the lobby team pick when that team still
 		# has room (max 6 per team); otherwise fall back to the
-		# old alternating assignment.
+		# old alternating assignment. QA-112 (v3.9): CTF (mode 4)
+		# needs teams too — the old code only assigned them for
+		# TDM, so CTF players spawned team -1 and the flag logic
+		# (which checks child.team) never saw a RED or BLUE.
 		if team_pref == 0 or team_pref == 1:
 			var picked_count := 0
 			for child in players_node.get_children():
@@ -1858,6 +3707,71 @@ func _build_hud() -> void:
 	_centre_label.add_theme_font_size_override("font_size", 16)
 	_outline_label(_centre_label)
 	mid.add_child(_centre_label)
+	# QA-112 (v3.9): CTF flag status lines (Skyfall only — hidden
+	# on every other map/mode). "⚑ RED: home / carried / dropped".
+	for team in [0, 1]:
+		var fl := Label.new()
+		fl.text = ""
+		fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fl.add_theme_font_size_override("font_size", 16)
+		fl.add_theme_color_override("font_color", Color(0.95, 0.3, 0.25) if team == 0 else Color(0.25, 0.55, 0.95))
+		_outline_label(fl)
+		fl.visible = false
+		mid.add_child(fl)
+		_ctf_flag_labels.append(fl)
+	# QA-112 (v3.9): power-up slots (Skyfall only — hidden elsewhere).
+	# 3 slot backgrounds from the pack + the stored power-up's 64 px
+	# icon on top of each filled slot; the active boost shows below
+	# with its time left. Health/ammo/grenades apply instantly and
+	# never take a slot (user rule, 2026-11-20).
+	var slot_row := HBoxContainer.new()
+	slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	slot_row.add_theme_constant_override("separation", 6)
+	slot_row.visible = false
+	mid.add_child(slot_row)
+	for i in 3:
+		var slot := TextureRect.new()
+		slot.texture = SF_TEX_SLOT[i]
+		slot.custom_minimum_size = Vector2(44, 44)
+		slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		slot_row.add_child(slot)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(36, 36)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.position = Vector2(4, 4)
+		slot.add_child(icon)
+		_sf_slot_icons.append(icon)
+	_sf_active_boost_label = Label.new()
+	_sf_active_boost_label.text = ""
+	_sf_active_boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sf_active_boost_label.add_theme_font_size_override("font_size", 16)
+	_sf_active_boost_label.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
+	_outline_label(_sf_active_boost_label)
+	_sf_active_boost_label.visible = false
+	mid.add_child(_sf_active_boost_label)
+	# QA-114 (v3.9): comeback + random-event lines (Skyfall CTF).
+	# Both teams see the same lines, so the catch-up help is never
+	# a hidden buff and an event is never a surprise.
+	_sf_comeback_label = Label.new()
+	_sf_comeback_label.text = ""
+	_sf_comeback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sf_comeback_label.add_theme_font_size_override("font_size", 16)
+	_sf_comeback_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+	_outline_label(_sf_comeback_label)
+	_sf_comeback_label.visible = false
+	mid.add_child(_sf_comeback_label)
+	_sf_event_label = Label.new()
+	_sf_event_label.text = ""
+	_sf_event_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sf_event_label.add_theme_font_size_override("font_size", 16)
+	_sf_event_label.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+	_outline_label(_sf_event_label)
+	_sf_event_label.visible = false
+	mid.add_child(_sf_event_label)
+	# Keep the row handle for visibility toggling.
+	_sf_slot_row = slot_row
 
 	# QA-067 (v3.6) — COMPACT TOP-RIGHT. The v3.5 QA-057 panel was
 	# 284x268 px of always-on stats and the user said it BLOCKS THE
@@ -2019,7 +3933,10 @@ func _build_hud() -> void:
 	# QA-079: the top bar grew a 4th row (the K/D line), so the
 	# centre label's bottom is now ~y130 — 116 would overlap it
 	# again. 140 clears the taller stack.
-	message_label.offset_top = 140
+	# QA-114 (v3.9): the top bar grew a 5th row on Skyfall (the
+	# 3 power-up slots, bottom ~y175) — 140 now overlaps the
+	# slots. 185 clears the full 5-row stack.
+	message_label.offset_top = 185
 	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	message_label.add_theme_font_size_override("font_size", 24)
 	_outline_label(message_label)
@@ -2119,6 +4036,10 @@ func _build_hud() -> void:
 	_spectate_next_btn.pressed.connect(_on_spectate_next_pressed)
 	hud.add_child(_spectate_next_btn)
 
+	# QA-114 (v3.9): vertical HUD — the height bar (Skyfall only).
+	# A live tower map on the left edge: every player's height as
+	# a dot, team pings as gold diamonds, level ticks, route legend.
+	_build_height_bar()
 	_build_scoreboard()
 	_build_pause_menu()
 	_build_end_screen()
@@ -2195,55 +4116,179 @@ func _style_hud_button(b: Button, accent: bool = false) -> void:
 		b.add_theme_color_override("font_pressed_color", UI_ACCENT_DARK)
 
 
+var _sf_height_bar: Control # QA-114 (v3.9): vertical HUD height bar (Skyfall only)
+var _sf_height_dots: Array = [] # QA-114: 12 player dots on the height bar
+var _sf_height_ping_dots: Array = [] # QA-114: 4 ping dots on the height bar
+var _sf_comeback_label: Label # QA-114 (v3.9): comeback-help line under the score
+var _sf_event_label: Label # QA-114 (v3.9): random-event / storm line under the score
+
+
+func _build_height_bar() -> void:
+	# QA-114 (v3.9): VERTICAL HUD — a live tower map on the left
+	# edge (Skyfall only, hidden elsewhere). 360 px tall for the
+	# 7200 px tower: bar y = 360 * world_y / 7200 (summit at the
+	# top, base at the bottom). Dots: white = you, red/blue = teams,
+	# gold diamonds = team pings. Level ticks L1/L3/L5/L7 + the
+	# colour-coded route legend underneath.
+	# Top-anchored BELOW the kill feed (the feed sits at y108 and
+	# stacks up to 4 chips, bottom ~y228) — the old centre anchor
+	# put the bar at y~100 at 720p, so feed chips drew over it.
+	_sf_height_bar = Control.new()
+	_sf_height_bar.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_sf_height_bar.position = Vector2(12, 264)
+	_sf_height_bar.size = Vector2(100, 444)
+	_sf_height_bar.visible = false
+	# QA-118 (v3.9 fix round): the bar is THINNER — the bg panel
+	# was 56 px wide, now 34 px (~60%), the user asked for it.
+	# Dots re-centred (34/2 - 6 = 11), level ticks moved to x40.
+	hud.add_child(_sf_height_bar)
+	var title := Label.new()
+	title.text = "HEIGHT"
+	title.position = Vector2(0, -24)
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	_sf_height_bar.add_child(title)
+	var bg := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.07, 0.12, 0.75)
+	sb.border_color = Color(0.35, 0.4, 0.5, 0.8)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	bg.add_theme_stylebox_override("panel", sb)
+	bg.position = Vector2(0, 0)
+	bg.size = Vector2(34, 360)
+	_sf_height_bar.add_child(bg)
+	# Level ticks: L1/L3/L5/L7 at their checkpoint heights.
+	for lvl in [1, 3, 5, 7]:
+		var cy := 7200.0 - (float(lvl) - 0.5) * 900.0 # centre y of the level
+		var tl := Label.new()
+		tl.text = "L%d" % lvl
+		tl.position = Vector2(40, 360.0 * cy / 7200.0 - 10.0)
+		tl.add_theme_font_size_override("font_size", 16)
+		tl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+		_sf_height_bar.add_child(tl)
+	# Player dots (12 = room max) + ping dots (4).
+	for i in 12:
+		var dot := ColorRect.new()
+		dot.size = Vector2(12, 12)
+		dot.position = Vector2(11, 0)
+		dot.visible = false
+		_sf_height_bar.add_child(dot)
+		_sf_height_dots.append(dot)
+	for i in 4:
+		var pdot := ColorRect.new()
+		pdot.size = Vector2(12, 12)
+		pdot.position = Vector2(11, 0)
+		pdot.pivot_offset = Vector2(6, 6)
+		pdot.rotation = PI / 4.0
+		pdot.color = Color(1.0, 0.8, 0.2)
+		pdot.visible = false
+		_sf_height_bar.add_child(pdot)
+		_sf_height_ping_dots.append(pdot)
+	# Route legend: same colours as the platform strips.
+	var legend := VBoxContainer.new()
+	legend.position = Vector2(0, 372) # below the 360 px bar
+	legend.add_theme_constant_override("separation", 4)
+	_sf_height_bar.add_child(legend)
+	for ri in 3:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var sw := ColorRect.new()
+		sw.color = SF_ROUTE_COLORS[ri]
+		sw.custom_minimum_size = Vector2(14, 14)
+		row.add_child(sw)
+		var rl := Label.new()
+		rl.text = SF_ROUTE_NAMES[ri]
+		rl.add_theme_font_size_override("font_size", 15)
+		rl.add_theme_color_override("font_color", SF_ROUTE_COLORS[ri])
+		row.add_child(rl)
+		legend.add_child(row)
+	# QA-117 (v3.9 fix round): the bar is display-only — it must
+	# NEVER eat touches. Its old 170 px-wide rect overlapped the
+	# move stick (x90-240) and swallowed every press on the stick's
+	# left/centre, so pushing LEFT on Skyfall did nothing on a real
+	# phone (the sim calls _on_touch_press directly and never saw
+	# it). A parent's IGNORE does NOT cascade to children — every
+	# Control in the subtree (Panel, Labels, ColorRects, legend
+	# containers) defaults to STOP, so set IGNORE on all of them.
+	var _hb_stack: Array = [_sf_height_bar]
+	while not _hb_stack.is_empty():
+		var _hb_n: Node = _hb_stack.pop_back()
+		if _hb_n is Control:
+			(_hb_n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for _hb_ch in _hb_n.get_children():
+			_hb_stack.append(_hb_ch)
+
+
 func _build_scoreboard() -> void:
+	# QA-113 (v3.9): wider panel, bigger title, breathing room —
+	# the old 420 px panel with 30 px title cramped 10-player rows.
 	scoreboard_panel = PanelContainer.new()
 	scoreboard_panel.theme = GoUi.theme()
-	scoreboard_panel.custom_minimum_size = Vector2(420, 0)
+	scoreboard_panel.custom_minimum_size = Vector2(560, 0)
 	scoreboard_panel.add_theme_stylebox_override("panel", _panel_style())
 	scoreboard_panel.visible = false
 	_dialog_wrap().add_child(scoreboard_panel)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
+	box.add_theme_constant_override("separation", 8)
 	scoreboard_panel.add_child(box)
 	var title := Label.new()
 	title.text = "SCOREBOARD"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FONT_TITLE)
-	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_font_size_override("font_size", 36)
 	title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(title)
+	var sub := Label.new()
+	sub.text = "%s  •  %s" % [GameData.MODE_NAMES[game_mode], GameData.MAP_NAMES[map_id]]
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 18)
+	sub.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(sub)
 	scoreboard_list = VBoxContainer.new()
-	scoreboard_list.add_theme_constant_override("separation", 4)
+	scoreboard_list.add_theme_constant_override("separation", 6)
 	box.add_child(scoreboard_list)
 	var close_btn := Button.new()
 	close_btn.text = "Close"
 	_style_hud_button(close_btn)
+	close_btn.custom_minimum_size = Vector2(0, 56)
 	close_btn.pressed.connect(func() -> void: scoreboard_panel.visible = false)
 	box.add_child(close_btn)
 
 
 func _build_pause_menu() -> void:
+	# QA-113 (v3.9): same clean, spacious layout as the scoreboard —
+	# wider panel, section labels, slider value labels, match info
+	# line, 56 px buttons. Layout only, no logic changes.
 	pause_panel = PanelContainer.new()
 	pause_panel.theme = GoUi.theme()
-	pause_panel.custom_minimum_size = Vector2(420, 0)
+	pause_panel.custom_minimum_size = Vector2(520, 0)
 	pause_panel.add_theme_stylebox_override("panel", _panel_style())
 	pause_panel.visible = false
 	pause_panel.process_mode = Node.PROCESS_MODE_ALWAYS
 	_dialog_wrap().add_child(pause_panel)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
+	box.add_theme_constant_override("separation", 12)
 	pause_panel.add_child(box)
 	var title := Label.new()
 	title.text = "PAUSED"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FONT_TITLE)
-	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_font_size_override("font_size", 36)
 	title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(title)
+	_pause_info_label = Label.new()
+	_pause_info_label.text = ""
+	_pause_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pause_info_label.add_theme_font_size_override("font_size", 18)
+	_pause_info_label.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	_pause_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_pause_info_label)
 	var resume_btn := Button.new()
 	resume_btn.text = "Resume"
 	_style_hud_button(resume_btn, true)
-	resume_btn.custom_minimum_size = Vector2(0, 52)
+	resume_btn.custom_minimum_size = Vector2(0, 56)
 	resume_btn.pressed.connect(_toggle_pause)
 	box.add_child(resume_btn)
 	# Phase 4: weapon info — damage / fire rate / magazine / reload
@@ -2251,13 +4296,20 @@ func _build_pause_menu() -> void:
 	var weapons_btn := Button.new()
 	weapons_btn.text = "Weapons"
 	_style_hud_button(weapons_btn)
-	weapons_btn.custom_minimum_size = Vector2(0, 52)
+	weapons_btn.custom_minimum_size = Vector2(0, 56)
 	weapons_btn.pressed.connect(func() -> void: _show_weapon_panel(true))
 	box.add_child(weapons_btn)
+	var sound_lbl := Label.new()
+	sound_lbl.text = "SOUND"
+	sound_lbl.add_theme_font_size_override("font_size", 18)
+	sound_lbl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	box.add_child(sound_lbl)
 	var sfx_row := HBoxContainer.new()
+	sfx_row.add_theme_constant_override("separation", 8)
 	box.add_child(sfx_row)
 	var sfx_lbl := Label.new()
 	sfx_lbl.text = "Sound"
+	sfx_lbl.custom_minimum_size = Vector2(70, 0)
 	sfx_row.add_child(sfx_lbl)
 	var sfx_slider := HSlider.new()
 	sfx_slider.min_value = 0.0
@@ -2267,10 +4319,17 @@ func _build_pause_menu() -> void:
 	sfx_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sfx_slider.value_changed.connect(_on_sfx_volume_changed)
 	sfx_row.add_child(sfx_slider)
+	_sfx_value_label = Label.new()
+	_sfx_value_label.text = "%d%%" % int(GameData.sfx_volume * 100.0)
+	_sfx_value_label.custom_minimum_size = Vector2(52, 0)
+	_sfx_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	sfx_row.add_child(_sfx_value_label)
 	var mus_row := HBoxContainer.new()
+	mus_row.add_theme_constant_override("separation", 8)
 	box.add_child(mus_row)
 	var mus_lbl := Label.new()
 	mus_lbl.text = "Music"
+	mus_lbl.custom_minimum_size = Vector2(70, 0)
 	mus_row.add_child(mus_lbl)
 	var mus_slider := HSlider.new()
 	mus_slider.min_value = 0.0
@@ -2280,30 +4339,36 @@ func _build_pause_menu() -> void:
 	mus_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mus_slider.value_changed.connect(_on_music_volume_changed)
 	mus_row.add_child(mus_slider)
+	_music_value_label = Label.new()
+	_music_value_label.text = "%d%%" % int(GameData.music_volume * 100.0)
+	_music_value_label.custom_minimum_size = Vector2(52, 0)
+	_music_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	mus_row.add_child(_music_value_label)
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave Match"
 	_style_hud_button(leave_btn)
-	leave_btn.custom_minimum_size = Vector2(0, 52)
+	leave_btn.custom_minimum_size = Vector2(0, 56)
 	leave_btn.pressed.connect(_on_leave_pressed)
 	box.add_child(leave_btn)
 
 
 func _build_end_screen() -> void:
+	# QA-113 (v3.9): wider panel, bigger title, more breathing room.
 	end_panel = PanelContainer.new()
 	end_panel.theme = GoUi.theme()
-	end_panel.custom_minimum_size = Vector2(480, 0)
+	end_panel.custom_minimum_size = Vector2(560, 0)
 	end_panel.add_theme_stylebox_override("panel", _panel_style())
 	end_panel.visible = false
 	_dialog_wrap().add_child(end_panel)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
+	box.add_theme_constant_override("separation", 10)
 	end_panel.add_child(box)
 	_end_box = box
 	end_title = Label.new()
 	end_title.text = ""
 	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_title.add_theme_font_override("font", FONT_TITLE)
-	end_title.add_theme_font_size_override("font_size", 30)
+	end_title.add_theme_font_size_override("font_size", 34)
 	end_title.add_theme_color_override("font_color", UI_FONT)
 	box.add_child(end_title)
 	end_list = VBoxContainer.new()
@@ -2491,6 +4556,8 @@ func rematch_remote() -> void:
 func _on_sfx_volume_changed(v: float) -> void:
 	GameData.sfx_volume = v
 	GameData.save_settings()
+	if _sfx_value_label != null:
+		_sfx_value_label.text = "%d%%" % int(v * 100.0)
 	if audio != null:
 		audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
 
@@ -2498,6 +4565,8 @@ func _on_sfx_volume_changed(v: float) -> void:
 func _on_music_volume_changed(v: float) -> void:
 	GameData.music_volume = v
 	GameData.save_settings()
+	if _music_value_label != null:
+		_music_value_label.text = "%d%%" % int(v * 100.0)
 	if audio != null:
 		audio.set_volumes(GameData.sfx_volume, GameData.music_volume)
 
@@ -2508,6 +4577,10 @@ func _toggle_pause() -> void:
 	get_tree().paused = not get_tree().paused
 	pause_panel.visible = get_tree().paused
 	if get_tree().paused:
+		# QA-113 (v3.9): match info line — map, mode, time left.
+		if _pause_info_label != null:
+			var t := int(maxf(0.0, _time_left))
+			_pause_info_label.text = "%s  •  %s  •  %d:%02d left" % [GameData.MAP_NAMES[map_id], GameData.MODE_NAMES[game_mode], t / 60, t % 60]
 		# A finger held on the aim stick while pausing must not resume firing
 		# on unpause from a stale touch (QA-016 rule).
 		_reset_all_touch_state()
@@ -2602,6 +4675,22 @@ func _build_touch_controls() -> void:
 	scope_button.position = Vector2(-451, -420)
 	scope_button.pressed.connect(_on_scope_pressed)
 	hud.add_child(scope_button)
+
+	# QA-114 (v3.9): PING button — plain and simple like the other
+	# four, same column, directly above SCOPE. Pings the local
+	# player's position for their TEAM (a gold diamond marker in
+	# the world + a dot on the height bar + a feed line), 3 s
+	# cooldown so it cannot be spammed. Skyfall only — hidden on
+	# other maps (see _update_scope_button's neighbour, updated in
+	# _update_hud).
+	ping_button = Button.new()
+	ping_button.text = "PING"
+	_style_simple_button(ping_button)
+	ping_button.custom_minimum_size = Vector2(72, 72)
+	ping_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	ping_button.position = Vector2(-451, -500)
+	ping_button.pressed.connect(_on_ping_pressed)
+	hud.add_child(ping_button)
 
 	# QA-067 (v3.6): the buttons are gohud GoIconButtons now —
 	# icon-only (chart = scoreboard, pause = pause), 56x56 px each,
@@ -2726,13 +4815,21 @@ func _update_reload_button(lp) -> void:
 func _update_scope_button(lp) -> void:
 	if scope_button == null:
 		return
-	if lp == null or not lp.alive:
+	# QA-113 (v3.9): never over a dialog — the button drew over the
+	# pause/scoreboard/end panels. _set_touch_controls_visible
+	# hides it, but this runs every frame and would show it again.
+	var dialog_open := get_tree().paused or (scoreboard_panel != null and scoreboard_panel.visible) or (end_panel != null and end_panel.visible)
+	if lp == null or not lp.alive or dialog_open:
 		scope_button.visible = false
-		return
-	var can_scope: bool = int(lp.weapon) == 0 or int(lp.weapon) == 3
-	scope_button.visible = can_scope
-	if can_scope:
-		scope_button.text = "✓ SCOPE" if bool(lp.scoped) else "SCOPE"
+	else:
+		var can_scope: bool = int(lp.weapon) == 0 or int(lp.weapon) == 3
+		scope_button.visible = can_scope
+		if can_scope:
+			scope_button.text = "✓ SCOPE" if bool(lp.scoped) else "SCOPE"
+	# QA-114 (v3.9): PING is Skyfall-only, and only for a living
+	# local player.
+	if ping_button != null:
+		ping_button.visible = map_id == GameData.SKYFALL_MAP_ID and lp != null and lp.alive and not match_over and not dialog_open
 
 
 func _on_switch_pressed() -> void:
@@ -2751,6 +4848,52 @@ func _on_scope_pressed() -> void:
 	if lp.weapon != 0 and lp.weapon != 3:
 		return
 	lp.scoped = not lp.scoped
+
+
+func _on_ping_pressed() -> void:
+	# QA-114 (v3.9): ping the local player's position for their
+	# team. Skyfall only, 3 s cooldown, dead players cannot ping.
+	if map_id != GameData.SKYFALL_MAP_ID or match_over or _countdown_active:
+		return
+	var lp = _get_local_player()
+	if lp == null or not lp.alive:
+		return
+	if _sf_ping_cooldown > 0.0:
+		return
+	_sf_ping_cooldown = 3.0
+	var team := int(lp.team) if "team" in lp else -1
+	rpc("ping_remote", lp.position, team, lp.player_name)
+
+
+@rpc("any_peer", "call_local")
+func ping_remote(pos: Vector2, team: int, pname: String) -> void:
+	# A teammate's ping: a gold diamond in the world + a dot on the
+	# height bar + a feed line, for 5 s. Enemy pings are never
+	# shown (a ping only ever reaches its own team).
+	if map_id != GameData.SKYFALL_MAP_ID:
+		return
+	var lp = _get_local_player()
+	if lp == null:
+		return
+	var my_team := int(lp.team) if "team" in lp else -1
+	if team != my_team:
+		return
+	var lvl := _sf_level_of(pos.y)
+	var diamond := Polygon2D.new()
+	diamond.polygon = PackedVector2Array([Vector2(0, -22), Vector2(16, 0), Vector2(0, 22), Vector2(-16, 0)])
+	diamond.color = Color(1.0, 0.8, 0.2)
+	diamond.position = pos + Vector2(0, -90)
+	diamond.z_index = 50
+	add_child(diamond)
+	var plbl := Label.new()
+	plbl.text = "⚑ %s (L%d)" % [pname, lvl]
+	plbl.position = pos + Vector2(-60, -130)
+	plbl.add_theme_font_size_override("font_size", 20)
+	plbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+	plbl.z_index = 50
+	add_child(plbl)
+	_sf_pings.append({"node": diamond, "label": plbl, "pos": pos, "timer": 5.0})
+	_ctf_feed("⚑ %s pinged Level %d!" % [pname, lvl], Color(1.0, 0.8, 0.2))
 
 
 # v2.4 (QA-023): game touches go through _unhandled_input, NOT
@@ -2873,6 +5016,16 @@ func _set_touch_controls_visible(v: bool) -> void:
 	for c in [move_stick, aim_stick, reload_button, grenade_button, switch_button]:
 		if c != null:
 			c.visible = v
+	# QA-113 (v3.9): SCOPE (added v3.8) and PING (added v3.9) were
+	# never in this list, so they drew over the pause/scoreboard
+	# panels (the SCOPE button covered the K/D + ACC headers).
+	# Hide them too — but never show them here: _update_hud owns
+	# their visibility (scope only for sniper/rifle, ping
+	# Skyfall-only) and restores them on the next frame.
+	if not v:
+		for c in [scope_button, ping_button]:
+			if c != null:
+				c.visible = false
 
 
 func _on_touch_press(index: int, pos: Vector2) -> void:
@@ -3040,6 +5193,9 @@ func _process(delta: float) -> void:
 	elif _land_shots:
 		_update_touch_state()
 		_update_landshots(delta)
+	elif _skyfall_shots:
+		_update_touch_state()
+		_update_skyfallshots(delta)
 	else:
 		_update_touch_state()
 	# The flow test (or a button) may have started leaving mid-frame
@@ -3062,6 +5218,7 @@ func _process(delta: float) -> void:
 	_retry_spawn_if_needed(delta)
 	_update_match_timer(delta)
 	_update_lava(delta)
+	_update_skyfall(delta) # QA-112 (v3.9): CTF + mechanics, no-op off Skyfall
 
 
 # QA-073: dev-only network-stats display (spec §7). Hidden by
@@ -3237,8 +5394,13 @@ func _update_hud(delta: float) -> void:
 			elif child.team == 1:
 				blue += child.kills
 		score_label.text = "RED %d  -  %d BLUE" % [red, blue]
+	elif game_mode == 4:
+		# QA-112 (v3.9): CTF scores captures, not kills.
+		score_label.text = "⚑ RED %d  -  %d BLUE" % [int(_ctf_scores.get(0, 0)), int(_ctf_scores.get(1, 0))]
 	else:
 		score_label.text = "First to %d kills" % kill_limit
+	# QA-112 (v3.9): flag status + power-up slots (Skyfall only).
+	_update_skyfall_hud()
 	# Phase 5 — centre weapon status: "SNIPER HERE" while the pinned
 	# centre pickup is live, else a countdown to the next one.
 	if _centre_label != null:
@@ -3325,6 +5487,168 @@ func _get_local_player():
 	return null
 
 
+func _update_skyfall_hud() -> void:
+	# QA-112 (v3.9): CTF flag status + power-up slots. Everything
+	# here hides itself off Skyfall / outside CTF.
+	var is_sf := map_id == GameData.SKYFALL_MAP_ID
+	var is_ctf := game_mode == 4 and not _ctf_flags.is_empty()
+	for i in _ctf_flag_labels.size():
+		var fl: Label = _ctf_flag_labels[i]
+		fl.visible = is_ctf
+		if is_ctf and i < _ctf_flags.size():
+			var d: Dictionary = _ctf_flags[i]
+			var team_name := "RED" if i == 0 else "BLUE"
+			var carrier := int(d.get("carrier", -1))
+			if carrier >= 0:
+				fl.text = "⚑ %s: carried by %s" % [team_name, _player_name(carrier)]
+			elif bool(d.get("dropped", false)):
+				fl.text = "⚑ %s: DROPPED" % team_name
+			else:
+				fl.text = "⚑ %s: at summit" % team_name
+	if _sf_slot_row != null:
+		_sf_slot_row.visible = is_sf
+	if _sf_active_boost_label != null:
+		_sf_active_boost_label.visible = false
+	if not is_sf:
+		return
+	var lp = _get_local_player()
+	if lp == null:
+		return
+	# 3 slots: each filled slot shows the stored power-up's icon.
+	var stored: Array = lp.get("stored_boosts")
+	for i in _sf_slot_icons.size():
+		var icon: TextureRect = _sf_slot_icons[i]
+		if i < stored.size():
+			icon.texture = SF_TEX_PU64.get(int(stored[i]), null)
+		else:
+			icon.texture = null
+	# Active boost: name + seconds left (one active at a time).
+	var ab := int(lp.get("active_boost_kind"))
+	if ab != 0:
+		var t := 0.0
+		var nm := ""
+		match ab:
+			8:
+				t = float(lp.get("shield_timer"))
+				nm = "Shield"
+			9:
+				t = float(lp.get("speed_timer"))
+				nm = "Speed"
+			12:
+				t = float(lp.get("jetpack_boost_timer"))
+				nm = "Jetpack Boost"
+			13:
+				t = float(lp.get("radar_timer"))
+				nm = "Radar"
+		if t > 0.0 and _sf_active_boost_label != null:
+			_sf_active_boost_label.text = "%s %ds" % [nm, int(ceil(t))]
+			_sf_active_boost_label.visible = true
+	# QA-114 (v3.9): comeback + event lines (CTF, both teams see them).
+	if _sf_comeback_label != null:
+		var trail := _sf_trailing_team()
+		_sf_comeback_label.visible = is_sf and game_mode == 4 and trail >= 0
+		if _sf_comeback_label.visible:
+			_sf_comeback_label.text = "COMEBACK: %s gets help — elevator + extra power-ups" % ("RED" if trail == 0 else "BLUE")
+	if _sf_event_label != null:
+		var ev_txt := ""
+		if _sf_event_active == "route_shift":
+			ev_txt = "EVENT: ROUTE SHIFT — wind reversed! %ds" % int(ceil(_sf_event_time_left))
+		elif _sf_event_active != "":
+			ev_txt = "EVENT: %s!" % _sf_event_active.to_upper().replace("_", " ")
+		elif _sf_storm_active:
+			ev_txt = "SUMMIT STORM! %ds" % int(ceil(_sf_storm_time_left))
+		_sf_event_label.visible = is_sf and ev_txt != ""
+		_sf_event_label.text = ev_txt
+	# QA-114 (v3.9): height bar — live dots for every living player
+	# (white = you, red/blue = teams) + gold diamonds for pings.
+	if _sf_height_bar != null:
+		_sf_height_bar.visible = is_sf and not match_over
+		if _sf_height_bar.visible:
+			var my_id := multiplayer.get_unique_id()
+			var di := 0
+			for child in players_node.get_children():
+				if di >= _sf_height_dots.size():
+					break
+				var dot: ColorRect = _sf_height_dots[di]
+				if child.alive:
+					dot.visible = true
+					dot.position = Vector2(11, 360.0 * clampf(child.position.y, 0.0, 7200.0) / 7200.0 - 6.0)
+					if int(child.peer_id) == my_id:
+						dot.color = Color(1, 1, 1)
+					elif int(child.team) == 0:
+						dot.color = Color(0.95, 0.3, 0.25)
+					elif int(child.team) == 1:
+						dot.color = Color(0.25, 0.55, 0.95)
+					else:
+						dot.color = Color(0.85, 0.85, 0.85)
+				else:
+					dot.visible = false
+				di += 1
+			for j in range(di, _sf_height_dots.size()):
+				(_sf_height_dots[j] as ColorRect).visible = false
+			for pi in _sf_height_ping_dots.size():
+				var pdot: ColorRect = _sf_height_ping_dots[pi]
+				if pi < _sf_pings.size():
+					var ppos: Vector2 = (_sf_pings[pi] as Dictionary).get("pos", Vector2.ZERO)
+					pdot.visible = true
+					pdot.position = Vector2(11, 360.0 * clampf(ppos.y, 0.0, 7200.0) / 7200.0 - 6.0)
+				else:
+					pdot.visible = false
+
+
+# QA-113 (v3.9): statistics / pause redesign — clean, spacious
+# gohud style (same as the v3.7/v3.8 lobby). Stats rows are aligned
+# columns (rank / name / K / D / K-D / ACC) instead of one long
+# string, so nothing wraps or clips at 1280x720 or 2400x1080.
+# Layout only — no logic changes.
+func _stats_cell(text: String, width: float, align: HorizontalAlignment, font_size: int, color: Color) -> Label:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.custom_minimum_size = Vector2(width, 0)
+	lbl.horizontal_alignment = align
+	lbl.add_theme_font_size_override("font_size", font_size)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.clip_text = true
+	return lbl
+
+
+func _stats_header_row(extra: String = "") -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var muted := Color(0.62, 0.66, 0.72)
+	row.add_child(_stats_cell("#", 40, HORIZONTAL_ALIGNMENT_CENTER, 18, muted))
+	row.add_child(_stats_cell("PLAYER", 0, HORIZONTAL_ALIGNMENT_LEFT, 18, muted))
+	row.get_child(1).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_stats_cell("K", 48, HORIZONTAL_ALIGNMENT_CENTER, 18, muted))
+	row.add_child(_stats_cell("D", 48, HORIZONTAL_ALIGNMENT_CENTER, 18, muted))
+	row.add_child(_stats_cell("K/D", 64, HORIZONTAL_ALIGNMENT_CENTER, 18, muted))
+	row.add_child(_stats_cell("ACC", 56, HORIZONTAL_ALIGNMENT_CENTER, 18, muted))
+	if extra != "":
+		row.add_child(_stats_cell(extra, 72, HORIZONTAL_ALIGNMENT_CENTER, 18, muted))
+	return row
+
+
+func _stats_row(rank: int, name_txt: String, team_txt: String, kills: int, deaths: int, kd: float, acc: int, is_self: bool, color: Color, extra: String = "") -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name_color := Color(1, 1, 1) if is_self else color
+	row.add_child(_stats_cell(("► " if is_self else "") + str(rank), 40, HORIZONTAL_ALIGNMENT_CENTER, 20, name_color))
+	var nm := Label.new()
+	nm.text = name_txt + team_txt + ("  (YOU)" if is_self else "")
+	nm.add_theme_font_size_override("font_size", 20)
+	nm.add_theme_color_override("font_color", name_color)
+	nm.clip_text = true
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(nm)
+	row.add_child(_stats_cell(str(kills), 48, HORIZONTAL_ALIGNMENT_CENTER, 20, Color(0.92, 0.94, 0.96)))
+	row.add_child(_stats_cell(str(deaths), 48, HORIZONTAL_ALIGNMENT_CENTER, 20, Color(0.92, 0.94, 0.96)))
+	row.add_child(_stats_cell("%.2f" % kd, 64, HORIZONTAL_ALIGNMENT_CENTER, 20, Color(0.92, 0.94, 0.96)))
+	row.add_child(_stats_cell("%d%%" % acc, 56, HORIZONTAL_ALIGNMENT_CENTER, 20, Color(0.92, 0.94, 0.96)))
+	if extra != "":
+		row.add_child(_stats_cell(extra, 72, HORIZONTAL_ALIGNMENT_CENTER, 20, Color(0.92, 0.94, 0.96)))
+	return row
+
+
 func _update_scoreboard_rows(list: VBoxContainer) -> void:
 	for c in list.get_children():
 		c.queue_free()
@@ -3346,6 +5670,15 @@ func _update_scoreboard_rows(list: VBoxContainer) -> void:
 		totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		totals.add_theme_font_size_override("font_size", 22)
 		list.add_child(totals)
+	# QA-112 (v3.9): CTF totals are captures (points), not kills.
+	if game_mode == 4:
+		var totals := Label.new()
+		totals.text = "⚑ RED %d  —  %d BLUE" % [int(_ctf_scores.get(0, 0)), int(_ctf_scores.get(1, 0))]
+		totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		totals.add_theme_font_size_override("font_size", 22)
+		list.add_child(totals)
+	list.add_child(_stats_header_row())
+	list.add_child(HSeparator.new())
 	var rank := 1
 	var my_id := multiplayer.get_unique_id()
 	for p in rows:
@@ -3356,16 +5689,8 @@ func _update_scoreboard_rows(list: VBoxContainer) -> void:
 			team_txt = " [BLUE]"
 		var st: Dictionary = GameData.compute_stats(p.kills, p.deaths, p._shots_fired, p._shots_hit)
 		var is_self := int(p.peer_id) == my_id
-		var lbl := Label.new()
-		lbl.text = "%s%d. %s%s  —  K %d  D %d  K/D %.2f  ACC %d%%%s" % [
-			"► " if is_self else "", rank, p.player_name, team_txt,
-			p.kills, p.deaths, float(st["kd"]), int(st["accuracy"]),
-			"  (YOU)" if is_self else "",
-		]
-		lbl.add_theme_font_size_override("font_size", 20)
-		# Phase 4: highlight self in white; everyone else in their colour.
-		lbl.add_theme_color_override("font_color", Color(1, 1, 1) if is_self else p.player_color)
-		list.add_child(lbl)
+		list.add_child(_stats_row(rank, p.player_name, team_txt, p.kills, p.deaths, float(st["kd"]), int(st["accuracy"]), is_self, p.player_color))
+		rank += 1
 		rank += 1
 
 
@@ -3395,6 +5720,8 @@ func _match_goal_text() -> String:
 			return "Survival — last one standing wins the round  •  %s" % GameData.MAP_NAMES[map_id]
 		3:
 			return "Last Man Standing — one life, no respawns  •  %s" % GameData.MAP_NAMES[map_id]
+		4:
+			return "Capture the Flag — steal the flag from the summit, first to %d points (capture 3, relay bank 1)  •  %s" % [GameData.CTF_POINTS_LIMIT, GameData.MAP_NAMES[map_id]]
 		_:
 			return "Last Man Standing — one life, no respawns  •  %s" % GameData.MAP_NAMES[map_id]
 
@@ -3778,12 +6105,23 @@ func _spawn_pickup_at(spot_idx: int, kind: int) -> void:
 	var spots: Array = MAPS[map_id]["pickups"]
 	var pos: Vector2 = spots[spot_idx % spots.size()]
 	var pname := "pickup_" + str(Time.get_ticks_msec()) + "_" + str(spot_idx)
+	_test_weapon_spawns += 1
 	rpc("spawn_pickup_remote", pos, pname, kind, spot_idx)
 
 
 func on_pickup_gone(spot_idx: int) -> void:
 	# A pickup was collected or despawned: restart its per-spot
 	# 14 s timer (GAP-37). Only the server tracks this.
+	# QA-112: power-up spots (100+) restart the 35 s power-up
+	# timer instead — they must stay rarer than weapons.
+	if spot_idx >= 200:
+		# QA-114: comeback bonus (200+team) — the next bonus comes
+		# 25 s after this one is collected, via the comeback timer.
+		_sf_comeback_pu_timer = 25.0
+		return
+	if spot_idx >= 100:
+		_sf_pickup_timers[spot_idx - 100] = SF_POWERUP_COOLDOWN
+		return
 	_pickup_spot_timers[spot_idx] = 14.0
 
 
@@ -3797,14 +6135,20 @@ func _update_pickup_spawn(delta: float) -> void:
 	# pickup was collected/despawned; total active never exceeds the cap.
 	var spots: Array = MAPS[map_id]["pickups"]
 	var active_spots := {}
+	var weapon_active := 0
 	for child in pickups_node.get_children():
 		active_spots[int(child.get("spot_index"))] = true
+		if int(child.get("kind")) <= 6:
+			weapon_active += 1
 	for i in spots.size():
 		if active_spots.has(i):
 			continue
 		var t := float(_pickup_spot_timers.get(i, 0.0)) - delta
 		_pickup_spot_timers[i] = t
-		if t <= 0.0 and pickups_node.get_child_count() < 3:
+		# QA-112: the 3-active cap counts WEAPONS only — Skyfall
+		# power-ups (kind 7+) have their own cap (max 2), so a
+		# power-up on the field must never block a weapon spawn.
+		if t <= 0.0 and weapon_active < 3:
 			_pickup_spot_timers[i] = 14.0
 			if i == 3:
 				# Centre spot: pinned Sniper/Rocket, alternating.
@@ -5005,6 +7349,28 @@ func _check_match_end() -> void:
 		if _time_left <= 0.0:
 			_end_lms_on_time()
 		return
+	# QA-112 (v3.9): Capture the Flag ends on POINTS (first to
+	# CTF_POINTS_LIMIT = 9), or on the timer — most points wins.
+	# QA-114: full capture = 3 pts, relay bank = 1 pt, so 3 full
+	# captures still win (3 x 3 = 9), but relay banks count too.
+	if game_mode == 4:
+		var red_pts: int = int(_ctf_scores.get(0, 0))
+		var blue_pts: int = int(_ctf_scores.get(1, 0))
+		if red_pts >= GameData.CTF_POINTS_LIMIT:
+			_end_match("RED TEAM", "reached %d points!" % GameData.CTF_POINTS_LIMIT)
+			return
+		if blue_pts >= GameData.CTF_POINTS_LIMIT:
+			_end_match("BLUE TEAM", "reached %d points!" % GameData.CTF_POINTS_LIMIT)
+			return
+		if _time_left <= 0.0:
+			if red_pts > blue_pts:
+				_end_match("RED TEAM", "time up - most points wins!")
+			elif blue_pts > red_pts:
+				_end_match("BLUE TEAM", "time up - most points wins!")
+			else:
+				_end_match("DRAW", "time up - tied on points!")
+			return
+		return
 	var winner := ""
 	var reason := ""
 	if game_mode == 0:
@@ -5154,16 +7520,20 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 		mvp_row.add_theme_constant_override("separation", 8)
 		var star := TextureRect.new()
 		star.texture = preload("res://assets/skybrawl/pickups/pickup_012.png")
-		star.custom_minimum_size = Vector2(36, 36)
+		star.custom_minimum_size = Vector2(44, 44)
 		star.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		star.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		mvp_row.add_child(star)
 		var mvp_lbl := Label.new()
-		mvp_lbl.text = "MVP: %s — %d kills, %d%% accuracy, best streak %d" % [
-			String(mvp["name"]), int(mvp["kills"]), int(mvp_st["accuracy"]), int(mvp.get("streak", 0)),
+		# QA-113 (v3.9): the old text ("... best streak N") ran
+		# past the 560 px panel — the streak is already a column
+		# in the table below, so the banner keeps kills + accuracy
+		# only. clip_text is a safety net for very long names.
+		mvp_lbl.text = "MVP: %s — %d kills, %d%% accuracy" % [
+			String(mvp["name"]), int(mvp["kills"]), int(mvp_st["accuracy"]),
 		]
 		mvp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		mvp_lbl.add_theme_font_size_override("font_size", 22)
+		mvp_lbl.add_theme_font_size_override("font_size", 24)
 		mvp_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 		mvp_row.add_child(mvp_lbl)
 		_end_box.add_child(mvp_row)
@@ -5187,6 +7557,10 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 			_mvp_nodes.append(acc_lbl)
 	for c in end_list.get_children():
 		c.queue_free()
+	# QA-113 (v3.9): end-of-match rows use the same aligned columns
+	# as the scoreboard (Survival shows Rounds, other modes Streak).
+	end_list.add_child(_stats_header_row("ROUNDS" if game_mode == 2 else "STREAK"))
+	end_list.add_child(HSeparator.new())
 	var rank := 1
 	for r in rows:
 		var team_txt := ""
@@ -5195,14 +7569,8 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 		elif int(r["team"]) == 1:
 			team_txt = " [BLUE]"
 		var st2: Dictionary = GameData.compute_stats(int(r["kills"]), int(r["deaths"]), int(r.get("shots", 0)), int(r.get("hits", 0)))
-		var lbl := Label.new()
-		if game_mode == 2:
-			lbl.text = "%d. %s%s  -  Rounds: %d  Kills: %d  Deaths: %d  K/D: %.2f  ACC: %d%%" % [rank, String(r["name"]), team_txt, int(r.get("rounds", 0)), int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"])]
-		else:
-			lbl.text = "%d. %s%s  -  Kills: %d  Deaths: %d  K/D: %.2f  ACC: %d%%  Streak: %d" % [rank, String(r["name"]), team_txt, int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"]), int(r.get("streak", 0))]
-		lbl.add_theme_font_size_override("font_size", 22)
-		lbl.add_theme_color_override("font_color", r["color"])
-		end_list.add_child(lbl)
+		var extra := str(int(r.get("rounds", 0))) if game_mode == 2 else str(int(r.get("streak", 0)))
+		end_list.add_child(_stats_row(rank, String(r["name"]), team_txt, int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"]), false, r["color"], extra))
 		rank += 1
 	# QA-078: record this match in the local lifetime stats, once
 	# per match. The rows carry the peer id now, so each phone
@@ -5932,6 +8300,39 @@ func _update_mapshots(delta: float) -> void:
 			get_tree().quit()
 
 
+# QA-112 (v3.9) SKYFALL-SCREENSHOT MODE (--skyfall-shots): one
+# capture per level (8 levels, centre x1800), to
+# user://shot_sf_L1.png ... shot_sf_L8.png. Runs as auto-host
+# on map 5; the countdown is skipped. Odd stages move the player
+# to the level, even stages capture (1 s apart, so the camera
+# smoothing settles).
+func _update_skyfallshots(delta: float) -> void:
+	_sf_shot_timer += delta
+	var stage := int(_sf_shot_timer / 1.0)
+	if stage == _sf_shot_stage:
+		return
+	_sf_shot_stage = stage
+	var lp = _get_local_player()
+	if stage >= 1 and stage <= 16:
+		var lvl := (stage + 1) / 2 # 1-8
+		if stage % 2 == 1:
+			if lp != null:
+				var cy := 7200.0 - (float(lvl) - 0.5) * 900.0
+				lp.position = Vector2(1800, cy - 40.0)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+				if lp._camera != null:
+					lp._camera.reset_smoothing()
+			_smoke_set_move(null)
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+		else:
+			_capture_shot("user://shot_sf_L%d.png" % lvl)
+	elif stage >= 17:
+		print("SKYFALLSHOTS DONE")
+		get_tree().quit()
+
+
 # v3.8 QA-110 LAND-SCREENSHOT MODE (--land-shot): drops the
 # player from high (600 px, x1100 — a clean gap through every
 # tier to the floor) and captures the exact landing frame plus
@@ -6047,7 +8448,16 @@ func _joytest_build_steps() -> void:
 	_joy_steps = [
 		{"name": "PRESS-LEFT", "wait": 0.6, "setup": _jt_s_press_left, "check": _jt_c_press_left},
 		{"name": "PRESS-RIGHT", "wait": 0.6, "setup": _jt_s_press_right, "check": _jt_c_press_right},
-		{"name": "PRESS-UP-JUMP", "wait": 0.4, "setup": _jt_s_press_up, "check": _jt_c_press_up},
+		{"name": "PRESS-UP-JUMP", "wait": 0.6, "setup": _jt_s_press_up, "check": _jt_c_press_up},
+		# QA-117 (v3.9 fix round): wait 0.6 s, not 0.4 s. The jetpack
+		# only thrusts once the jump's velocity decays above -320
+		# (from -660, ~0.24 s of physics), so at 0.4 s of wall time
+		# the fuel has barely drained — and under xvfb load the
+		# physics lags wall time, so the 0.4 s check caught fuel
+		# exactly 100 (jetpack not yet engaged) in 2 of 3 map-0 runs.
+		# 0.6 s gives the thrust time to engage and drain fuel even
+		# with the lag. The check is unchanged (fuel < 100, risen
+		# > 20 px, not on floor).
 		# QA-099 (v3.7): wait 1.5 s, not 0.5 s. This step follows
 		# PRESS-UP-JUMP, and the jump's air time is ~1.0 s (155 px apex
 		# + brief jetpack thrust) — at 0.5 s the player is still
@@ -6079,6 +8489,17 @@ func _joytest_build_steps() -> void:
 		{"name": "RESOLUTION-2400", "wait": 0.5, "setup": _jt_s_resize_2400, "check": _jt_c_resolution_2400},
 		{"name": "MOVE-RELEASE-NO-LEFT-2400", "wait": 0.5, "setup": _jt_s_noop, "check": _jt_c_move_release_no_left_2400},
 		{"name": "AIM-RELEASE-NO-LEFT-2400", "wait": 0.8, "setup": _jt_s_aim_right_mouse_2400, "check": _jt_c_aim_release_no_left_2400},
+		# QA-117 (v3.9 fix round): the Skyfall height bar's 170 px-wide
+		# rect overlapped the move stick and swallowed real touches
+		# on it (the sim calls _on_touch_press directly, so the old
+		# steps never saw it). These two steps reproduce it through
+		# the real GUI/input pipeline.
+		{"name": "GUI-STICK-CLEAR", "wait": 0.3, "setup": _jt_s_noop, "check": _jt_c_gui_stick_clear},
+		{"name": "GUI-PRESS-LEFT", "wait": 0.6, "setup": _jt_s_gui_press_left, "check": _jt_c_gui_press_left},
+		# QA-117: left push through the real GUI pipeline on a
+		# middle level (L4 bridge) and the summit, not just the base.
+		{"name": "GUI-PRESS-LEFT-MID", "wait": 0.6, "setup": _jt_s_gui_press_left_mid, "check": _jt_c_gui_press_left},
+		{"name": "GUI-PRESS-LEFT-TOP", "wait": 0.6, "setup": _jt_s_gui_press_left_top, "check": _jt_c_gui_press_left},
 	]
 
 
@@ -6382,6 +8803,99 @@ func _jt_c_aim_release_no_left_2400() -> Array:
 	return [ok, "mouse_seen=%s mouse_pos=%s (want right of centre %.0f) facing=%d vel.x=%d firing=%s aim_vec=%s aim=%.2f at 2400x1080 (want facing 1, not firing, aim right)" % [_joy_mouse_seen, _joy_mouse_pos_seen, centre_x, lp.facing, round(lp.velocity.x), touch_firing, touch_aim, lp.aim_angle]]
 
 
+# --- QA-117: the Skyfall height bar ate real touches on the move stick ---
+# A Control with mouse_filter STOP consumes any touch landing in its
+# rect before _unhandled_input ever sees it. The height bar's rect
+# (x12-182, y264-708) covered the move stick's left 61% including its
+# centre (165, 555), so a real left-push press on Skyfall was eaten
+# by the bar and the player never moved. The old steps call
+# _on_touch_press directly, so they never saw it.
+
+func _jt_gui_blockers() -> Array:
+	# Every visible STOP control whose rect covers a point on the
+	# move stick where a real thumb press can land (centre, and
+	# 40 px left of centre — a left-push press point). The sticks
+	# themselves are MOUSE_FILTER_IGNORE, and the intended buttons
+	# (reload/grenade/switch/pause/score) sit far from the stick.
+	var pts: Array = [move_stick.get_global_rect().get_center(), move_stick.get_global_rect().get_center() + Vector2(-40, 0)]
+	var bad: Array = []
+	var stack: Array = [hud]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is Control:
+			var c := n as Control
+			if c.is_visible_in_tree() and c.mouse_filter == Control.MOUSE_FILTER_STOP:
+				var r := c.get_global_rect()
+				for p in pts:
+					if r.has_point(p):
+						bad.append("%s rect=%s covers %s" % [c.name, str(r), str(p)])
+						break
+		for ch in n.get_children():
+			stack.append(ch)
+	return bad
+
+
+func _jt_c_gui_stick_clear() -> Array:
+	var bad := _jt_gui_blockers()
+	var ok: bool = bad.is_empty()
+	return [ok, "blockers=%s" % ["none" if ok else "; ".join(bad)]]
+
+
+func _jt_gui_press_left() -> void:
+	# A REAL touch through the viewport input pipeline (GUI first,
+	# then _unhandled_input) — the exact path a phone finger takes.
+	# Press on the stick centre, drag 50 px left, index 903.
+	var centre: Vector2 = move_stick.get_global_rect().get_center()
+	var to_vp: Vector2 = hud.get_final_transform() * centre
+	var press := InputEventScreenTouch.new()
+	press.index = 903
+	press.pressed = true
+	press.position = to_vp
+	get_viewport().push_input(press)
+	var drag := InputEventScreenDrag.new()
+	drag.index = 903
+	drag.position = hud.get_final_transform() * (centre + Vector2(-50, 0))
+	get_viewport().push_input(drag)
+
+
+func _jt_s_gui_press_left() -> void:
+	_jt_teleport_clear_left()
+	_jt_gui_press_left()
+
+
+func _jt_s_gui_press_left_mid() -> void:
+	# L4 bridge platform (top y4092, x600-1500): stand at (1000,
+	# 4061) with 400 px of clear run left. Same real-GUI press.
+	var lp = _jt_lp()
+	lp.position = Vector2(1000, 4061)
+	lp.sync_position = lp.position
+	lp.velocity = Vector2.ZERO
+	_jt_gui_press_left()
+
+
+func _jt_s_gui_press_left_top() -> void:
+	# Summit platform (top y862, x1200-2400): stand at (1600, 831)
+	# with 400 px of clear run left, gate (x1800) to the right.
+	var lp = _jt_lp()
+	lp.position = Vector2(1600, 831)
+	lp.sync_position = lp.position
+	lp.velocity = Vector2.ZERO
+	_jt_gui_press_left()
+
+
+func _jt_c_gui_press_left() -> Array:
+	var lp = _jt_lp()
+	var v := touch_move_vec
+	var ok: bool = v.x < -0.5 and absf(v.y) < 0.15 and lp.velocity.x < -50.0 and lp.facing == -1
+	# Release the real touch through the same pipeline.
+	var rel := InputEventScreenTouch.new()
+	rel.index = 903
+	rel.pressed = false
+	rel.position = hud.get_final_transform() * move_stick.get_global_rect().get_center()
+	get_viewport().push_input(rel)
+	return [ok, "vec=%s vel.x=%d facing=%d stick_active=%s" % [v, round(lp.velocity.x), lp.facing, str(move_stick.is_active())]]
+
+
 func _jt_c_fuel_stable() -> Array:
 	var lp = _jt_lp()
 	# No thrust input: fuel must not decrease (it refills on the ground,
@@ -6392,7 +8906,14 @@ func _jt_c_fuel_stable() -> Array:
 
 func _jt_s_press_down() -> void:
 	var lp = _jt_lp()
-	lp.position = Vector2(2100, 900)
+	if map_id == GameData.SKYFALL_MAP_ID:
+		# Skyfall: (2100, 900) lands ON the summit platform, so the
+		# player is on the floor and vel.y stays 0. x100 is a clear
+		# shaft to the base floor (352 px of fall, no platform under
+		# it until y7152).
+		lp.position = Vector2(100, 6800)
+	else:
+		lp.position = Vector2(2100, 900)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
 	_jt_press_move(Vector2(0, 55))
@@ -6410,6 +8931,16 @@ func _jt_c_press_down() -> Array:
 
 func _jt_s_diag_up_right() -> void:
 	var lp = _jt_lp()
+	if map_id == GameData.SKYFALL_MAP_ID:
+		# Skyfall: (900, 1318) is mid-air here (no platform under it),
+		# so the up-press fires the jetpack instead of a jump and
+		# vel.y reads +81 at the check. Stand on the wide y1712
+		# platform instead (top y1712, x600-3000): centre y1681.
+		lp.position = Vector2(900, 1681)
+		lp.sync_position = lp.position
+		lp.velocity = Vector2.ZERO
+		_jt_press_move(Vector2(42, -42))
+		return
 	# Open sky above (900, 1318): (2100, 1350) sat under the 1180
 	# walkway (bottom 1228) — the 62-tall player's head bonks it at
 	# 59 px of rise, so vel.y reads 0 even though it is jetpacking;
@@ -6600,7 +9131,14 @@ func _jt_c_fire_after_match_end() -> Array:
 
 func _jt_s_hold_up_long() -> void:
 	var lp = _jt_lp()
-	lp.position = Vector2(300, 1350)
+	if map_id == GameData.SKYFALL_MAP_ID:
+		# Skyfall: (300, 1350) falls ~3900 px down the L1 shaft to
+		# the y5282 walkway — 4 s is not enough to land. Use the
+		# base floor with a clear shaft above (x100, no platform
+		# overhead): jump, jetpack, fall back to the floor.
+		lp.position = Vector2(100, 7118)
+	else:
+		lp.position = Vector2(300, 1350)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
 	# Hold the stick up for the whole 4 s: jump, jetpack until the fuel
@@ -9056,6 +11594,18 @@ func _phys_s_noop() -> void:
 
 
 func _phys_c_pickups_start() -> Array:
+	# Skyfall starts with 3 weapon pickups AND 1 power-up (the
+	# first power-up is the design: 1 at match start, then a 35 s
+	# cooldown). Every other map starts with exactly 3 weapons.
+	if map_id == GameData.SKYFALL_MAP_ID:
+		var w := 0
+		var p := 0
+		for child in pickups_node.get_children():
+			if int(child.get("kind")) >= 7:
+				p += 1
+			else:
+				w += 1
+		return [w == 3 and p == 1, "pickups at match start: %d weapons + %d power-up (want 3 + 1)" % [w, p]]
 	var n := pickups_node.get_child_count()
 	return [n == 3, "pickups at match start: %d (want 3)" % n]
 
@@ -9531,7 +12081,12 @@ func _phys_s_camera() -> void:
 	# Phase 5: stand on the highest platform at x=1600 — the fixed
 	# (1600, 1320) is INSIDE a platform on some maps
 	# ((1450,1280,300,48)), so the player wedged and look-ahead read 0.
-	_phys_teleport(_phys_top_at(1600.0))
+	# QA-112 (v3.9): on Skyfall x=1600 is the summit, and the summit
+	# gate (x 1742-1858) blocks the rightward run after ~120 px, so
+	# the player stops and look-ahead never builds. Use x=1000 there
+	# (the L7 left perch, a clear run right).
+	var cx := 1000.0 if map_id == GameData.SKYFALL_MAP_ID else 1600.0
+	_phys_teleport(_phys_top_at(cx))
 	_jt_press_move(Vector2(60, 0))
 
 
@@ -9890,6 +12445,425 @@ func _featurestest_build_steps() -> void:
 		{"name": "FIRE-LAYOUT", "wait": 0.2, "setup": _ft_s_firelayout, "check": _ft_c_firelayout},
 		{"name": "HUD-READOUTS", "wait": 0.3, "setup": _ft_s_noop, "check": _ft_c_hud},
 	]
+	# QA-112/114/115 (v3.9): Skyfall steps — only on map 5. The
+	# base steps above run first (countdown done, match running).
+	# Order matters: grab -> capture -> relay -> checkpoints ->
+	# death/respawn -> power-ups -> comeback -> events -> storm ->
+	# combos -> HUD -> routes -> scenery -> rarity -> 5v5 (last:
+	# it spawns 9 fake players, test-only, never in the real game).
+	if map_id == GameData.SKYFALL_MAP_ID:
+		_feat_steps += [
+			{"name": "FT-SF-MODE", "wait": 0.3, "setup": _ft_sf_s_mode, "check": _ft_sf_c_mode},
+			{"name": "FT-SF-MAP", "wait": 0.2, "setup": _ft_s_noop, "check": _ft_sf_c_map},
+			{"name": "FT-SF-GRAB", "wait": 2.0, "setup": _ft_sf_s_grab, "check": _ft_sf_c_grab},
+			{"name": "FT-SF-CAPTURE", "wait": 0.5, "setup": _ft_sf_s_capture, "check": _ft_sf_c_capture},
+			{"name": "FT-SF-RELAY-GRAB", "wait": 0.3, "setup": _ft_sf_s_relay_grab, "check": _ft_sf_c_relay_grab},
+			{"name": "FT-SF-RELAY-BANK", "wait": 0.5, "setup": _ft_sf_s_relay_bank, "check": _ft_sf_c_relay_bank},
+			{"name": "FT-SF-CHECKPOINT-UP", "wait": 0.5, "setup": _ft_sf_s_cp_up, "check": _ft_sf_c_cp_up},
+			{"name": "FT-SF-CHECKPOINT-DOWN", "wait": 0.5, "setup": _ft_sf_s_cp_down, "check": _ft_sf_c_cp_down},
+			{"name": "FT-SF-DIE-L7-SETUP", "wait": 0.5, "setup": _ft_sf_s_die_l7_setup, "check": _ft_sf_c_die_l7_setup},
+			{"name": "FT-SF-DIE-L7", "wait": 4.5, "setup": _ft_sf_s_die_l7, "check": _ft_sf_c_die_l7},
+			{"name": "FT-SF-POWERUP-SLOTS", "wait": 0.3, "setup": _ft_sf_s_slots, "check": _ft_sf_c_slots},
+			{"name": "FT-SF-POWERUP-ACTIVE", "wait": 0.3, "setup": _ft_sf_s_active, "check": _ft_sf_c_active},
+			{"name": "FT-SF-OPP-CARRIER-CTRL", "wait": 0.3, "setup": _ft_sf_s_carrier_ctrl, "check": _ft_sf_c_carrier_ctrl},
+			{"name": "FT-SF-OPP-CARRIER", "wait": 0.3, "setup": _ft_sf_s_carrier, "check": _ft_sf_c_carrier},
+			{"name": "FT-SF-OPP-SHIELD-STORM", "wait": 1.0, "setup": _ft_sf_s_shield_storm, "check": _ft_sf_c_shield_storm},
+			{"name": "FT-SF-COMEBACK", "wait": 6.0, "setup": _ft_sf_s_comeback, "check": _ft_sf_c_comeback},
+			{"name": "FT-SF-EVENT", "wait": 1.0, "setup": _ft_sf_s_event, "check": _ft_sf_c_event},
+			{"name": "FT-SF-STORM", "wait": 1.0, "setup": _ft_sf_s_storm, "check": _ft_sf_c_storm},
+			{"name": "FT-SF-COMBO-EVENT-STORM", "wait": 1.0, "setup": _ft_sf_s_combo_event_storm, "check": _ft_sf_c_combo_event_storm},
+			{"name": "FT-SF-COMBO-TRAP", "wait": 1.5, "setup": _ft_sf_s_combo_trap, "check": _ft_sf_c_combo_trap},
+			{"name": "FT-SF-HEIGHTBAR", "wait": 0.3, "setup": _ft_sf_s_heightbar, "check": _ft_sf_c_heightbar},
+			{"name": "FT-SF-PING", "wait": 0.3, "setup": _ft_sf_s_ping, "check": _ft_sf_c_ping},
+			{"name": "FT-SF-ROUTES", "wait": 0.2, "setup": _ft_s_noop, "check": _ft_sf_c_routes},
+			{"name": "FT-SF-SCENERY", "wait": 1.0, "setup": _ft_sf_s_scenery, "check": _ft_sf_c_scenery},
+			{"name": "FT-SF-RARITY", "wait": 0.2, "setup": _ft_sf_s_rarity, "check": _ft_sf_c_rarity},
+			{"name": "FT-SF-5V5", "wait": 0.5, "setup": _ft_sf_s_5v5, "check": _ft_sf_c_5v5},
+		]
+
+
+var _ft_sf_hp0: float = 0.0 # FT-SF-OPP-SHIELD-STORM: health before the storm
+var _ft_sf_heli_x0: float = 0.0 # FT-SF-SCENERY: helicopter x before the wait
+
+
+func _ft_sf_s_mode() -> void:
+	# The features test starts in FFA (mode 0); Skyfall CTF needs
+	# mode 4 + a real team. Switch the scene var (not just
+	# GameData) and rebuild the flags (idempotent).
+	game_mode = 4
+	var lp = _ft_lp()
+	lp.team = 0
+	_build_ctf_flags()
+
+
+func _ft_sf_c_mode() -> Array:
+	var lp = _ft_lp()
+	var ok := game_mode == 4 and _ctf_flags.size() == 2 and int(lp.team) == 0
+	return [ok, "mode=%d flags=%d team=%d" % [game_mode, _ctf_flags.size(), int(lp.team)]]
+
+
+func _ft_sf_c_map() -> Array:
+	var m: Dictionary = MAPS[map_id]
+	var ok := int(m.get("size", Vector2.ZERO).x) == 3600 and int(m.get("size", Vector2.ZERO).y) == 7200
+	ok = ok and (m.get("platforms", []) as Array).size() == 70
+	ok = ok and (m.get("spawns", []) as Array).size() == 12
+	ok = ok and (m.get("grapple", []) as Array).size() == 6
+	ok = ok and (m.get("jetpack_lines", []) as Array).size() == 2
+	ok = ok and (m.get("relay", []) as Array).size() == 2
+	ok = ok and (m.get("checkpoints", []) as Array).size() == 4
+	ok = ok and (m.get("pickups", []) as Array).size() == 6
+	ok = ok and (m.get("skyfall_pickups", []) as Array).size() == 7
+	return [ok, "size=%s platforms=%d spawns=%d grapple=%d lines=%d relay=%d cps=%d weapons=%d powerups=%d" % [str(m.get("size")), (m.get("platforms", []) as Array).size(), (m.get("spawns", []) as Array).size(), (m.get("grapple", []) as Array).size(), (m.get("jetpack_lines", []) as Array).size(), (m.get("relay", []) as Array).size(), (m.get("checkpoints", []) as Array).size(), (m.get("pickups", []) as Array).size(), (m.get("skyfall_pickups", []) as Array).size()]]
+
+
+func _ft_sf_s_grab() -> void:
+	_ft_teleport(Vector2(2200, 820)) # above the BLUE flag (2200,862)
+
+
+func _ft_sf_c_grab() -> Array:
+	var carrier := int((_ctf_flags[1] as Dictionary).get("carrier", -1))
+	var ok := carrier == multiplayer.get_unique_id()
+	return [ok, "blue flag carrier=%d (me=%d)" % [carrier, multiplayer.get_unique_id()]]
+
+
+func _ft_sf_s_capture() -> void:
+	_ft_teleport(Vector2(450, 7110)) # above RED extraction (450,7152)
+
+
+func _ft_sf_c_capture() -> Array:
+	var ok := int(_ctf_scores.get(0, 0)) == GameData.CTF_CAPTURE_POINTS and int((_ctf_flags[1] as Dictionary).get("carrier", -1)) == -1
+	return [ok, "RED=%d pts (capture=%d), blue flag carrier=%d" % [int(_ctf_scores.get(0, 0)), GameData.CTF_CAPTURE_POINTS, int((_ctf_flags[1] as Dictionary).get("carrier", -1))]]
+
+
+func _ft_sf_s_relay_grab() -> void:
+	_ft_teleport(Vector2(2200, 820))
+	# QA-114: the grab key is (peer, flag team) — BLUE flag is team 1.
+	_ctf_grab[multiplayer.get_unique_id() * 10 + 1] = 1.4 # nearly held — grabs on the next frame
+
+
+func _ft_sf_c_relay_grab() -> Array:
+	var carrier := int((_ctf_flags[1] as Dictionary).get("carrier", -1))
+	var ok := carrier == multiplayer.get_unique_id()
+	return [ok, "blue flag carrier=%d (me=%d)" % [carrier, multiplayer.get_unique_id()]]
+
+
+func _ft_sf_s_relay_bank() -> void:
+	_ft_teleport(Vector2(1800, 4040)) # above the Level 4 relay (1800,4092)
+
+
+func _ft_sf_c_relay_bank() -> Array:
+	var ok := int(_ctf_scores.get(0, 0)) == GameData.CTF_CAPTURE_POINTS + GameData.CTF_RELAY_POINTS
+	ok = ok and int((_ctf_flags[1] as Dictionary).get("carrier", -1)) == -1
+	ok = ok and not bool((_ctf_flags[1] as Dictionary).get("dropped", false))
+	return [ok, "RED=%d pts (3 capture + 1 relay), flag home=%s" % [int(_ctf_scores.get(0, 0)), str(not bool((_ctf_flags[1] as Dictionary).get("dropped", false)))]]
+
+
+func _ft_sf_s_cp_up() -> void:
+	_ft_teleport(Vector2(1800, 1640)) # Level 7 arena
+
+
+func _ft_sf_c_cp_up() -> Array:
+	var ok := int(_ctf_checkpoints.get(0, -1)) == 3
+	return [ok, "RED checkpoint=%d (want 3 = Level 7)" % int(_ctf_checkpoints.get(0, -1))]
+
+
+func _ft_sf_s_cp_down() -> void:
+	_ft_teleport(Vector2(1800, 7100)) # back to the base
+
+
+func _ft_sf_c_cp_down() -> Array:
+	var ok := int(_ctf_checkpoints.get(0, -1)) == 0
+	return [ok, "RED checkpoint=%d (want 0 = base)" % int(_ctf_checkpoints.get(0, -1))]
+
+
+func _ft_sf_s_die_l7_setup() -> void:
+	_ft_teleport(Vector2(1800, 1640)) # Level 7 arena — checkpoint must advance first
+
+
+func _ft_sf_c_die_l7_setup() -> Array:
+	var ok := int(_ctf_checkpoints.get(0, -1)) == 3
+	return [ok, "RED checkpoint=%d before dying (want 3)" % int(_ctf_checkpoints.get(0, -1))]
+
+
+func _ft_sf_s_die_l7() -> void:
+	var lp = _ft_lp()
+	lp._apply_damage(999, 1, Vector2.ZERO, 0.0, 0) # lethal — respawn takes 3 s
+
+
+func _ft_sf_c_die_l7() -> Array:
+	var lp = _ft_lp()
+	var ok := bool(lp.alive) and absf(lp.position.y - 1678.0) < 300.0
+	return [ok, "alive=%s y=%.0f (want alive near L7 y=1678)" % [str(bool(lp.alive)), lp.position.y]]
+
+
+func _ft_sf_s_slots() -> void:
+	var lp = _ft_lp()
+	lp.apply_powerup(9) # speed (timed)
+	lp.apply_powerup(8) # shield (timed)
+	lp.apply_powerup(7) # health (instant — never takes a slot)
+
+
+func _ft_sf_c_slots() -> Array:
+	var lp = _ft_lp()
+	var stored: Array = lp.get("stored_boosts")
+	var ab := int(lp.get("active_boost_kind"))
+	var total := stored.size() + (1 if ab != 0 else 0)
+	var ok := total == 2 and stored.size() <= 3
+	return [ok, "timed held=%d (want 2: speed+shield), slots used=%d (max 3), active=%d" % [total, stored.size(), ab]]
+
+
+func _ft_sf_s_active() -> void:
+	var lp = _ft_lp()
+	lp.apply_powerup(12) # jetpack boost (timed) while speed is active
+
+
+func _ft_sf_c_active() -> Array:
+	var lp = _ft_lp()
+	var stored: Array = lp.get("stored_boosts")
+	var ab := int(lp.get("active_boost_kind"))
+	var total := stored.size() + (1 if ab != 0 else 0)
+	var ok := total == 3 and stored.size() <= 3
+	return [ok, "timed held=%d (want 3: speed+shield+jetpack), slots used=%d, active=%d" % [total, stored.size(), ab]]
+
+
+func _ft_sf_s_carrier_ctrl() -> void:
+	# CONTROL: a free player (not carrying) activates a timed boost.
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("radar_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.apply_powerup(12)
+
+
+func _ft_sf_c_carrier_ctrl() -> Array:
+	var lp = _ft_lp()
+	var ab := int(lp.get("active_boost_kind"))
+	var ok := ab == 12
+	return [ok, "free player jetpack boost active=%d (want 12)" % ab]
+
+
+func _ft_sf_s_carrier() -> void:
+	# OPPOSITE: the flag carrier must NOT activate a timed boost —
+	# it stays stored until the flag is dropped/delivered.
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("radar_timer", 0.0)
+	lp.set("carrying_flag", 1)
+	lp.apply_powerup(12)
+
+
+func _ft_sf_c_carrier() -> Array:
+	var lp = _ft_lp()
+	var stored: Array = lp.get("stored_boosts")
+	var ab := int(lp.get("active_boost_kind"))
+	var ok := ab == 0 and 12 in stored
+	return [ok, "carrier jetpack boost active=%d (want 0), stored=%s (want [12])" % [ab, str(stored)]]
+
+
+func _ft_sf_s_shield_storm() -> void:
+	# OPPOSITE: shield active while the Summit Storm fires — the
+	# storm must not damage the player or break the shield.
+	var lp = _ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("radar_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	_ft_sf_hp0 = float(lp.health)
+	lp.apply_powerup(8) # shield
+	_sf_storm_timer = 0.01 # fire the storm now
+
+
+func _ft_sf_c_shield_storm() -> Array:
+	var lp = _ft_lp()
+	var stored: Array = lp.get("stored_boosts")
+	var ab := int(lp.get("active_boost_kind"))
+	var shield_held := ab == 8 or 8 in stored
+	var ok := bool(_sf_storm_active) and shield_held and float(lp.health) >= _ft_sf_hp0
+	return [ok, "storm=%s shield held=%s health=%.0f (was %.0f)" % [str(bool(_sf_storm_active)), str(shield_held), float(lp.health), _ft_sf_hp0]]
+
+
+func _ft_sf_s_comeback() -> void:
+	var lp = _ft_lp()
+	lp.set("carrying_flag", 0)
+	_ctf_scores = {0: 4, 1: 0} # RED leads by 4 — BLUE trails
+
+
+func _ft_sf_c_comeback() -> Array:
+	var bonus := false
+	for child in pickups_node.get_children():
+		if int(child.get("spot_index")) == 201: # BLUE's comeback bonus spot
+			bonus = true
+			break
+	var ok := _sf_comeback_team == 1 and _sf_summit_timer > 0.0 and bool(_sf_comeback_label.visible) and bonus
+	return [ok, "trailing=%d (want 1=BLUE) elevator timer=%.1fs label=%s bonus pickup=%s" % [_sf_comeback_team, _sf_summit_timer, str(bool(_sf_comeback_label.visible)), str(bonus)]]
+
+
+func _ft_sf_s_event() -> void:
+	_sf_event_timer = 0.01 # fire a random event now
+
+
+func _ft_sf_c_event() -> Array:
+	var ok := _sf_event_active != "" or _sf_event_timer >= 45.0
+	return [ok, "event=%s timer=%.1fs (an event fired at a random time)" % [_sf_event_active, _sf_event_timer]]
+
+
+func _ft_sf_s_storm() -> void:
+	_sf_storm_timer = 0.01 # fire the storm now
+
+
+func _ft_sf_c_storm() -> Array:
+	var ok := bool(_sf_storm_active)
+	return [ok, "storm active=%s" % str(bool(_sf_storm_active))]
+
+
+func _ft_sf_s_combo_event_storm() -> void:
+	# COINCIDENCE: a random event fires WHILE the storm is active.
+	# If the storm is already running, refresh its duration — the
+	# timer alone does nothing while it is active (and the storm's
+	# end resets the timer to 90, which would swallow a fresh 0.01).
+	_sf_storm_timer = 0.01
+	if _sf_storm_active:
+		_sf_storm_time_left = 10.0
+	_sf_event_timer = 0.01
+
+
+func _ft_sf_c_combo_event_storm() -> Array:
+	var ok := bool(_sf_storm_active) and (_sf_event_active != "" or _sf_event_timer >= 45.0) and _ctf_flags.size() == 2
+	return [ok, "storm=%s event=%s flags=%d (both systems live, no crash)" % [str(bool(_sf_storm_active)), _sf_event_active, _ctf_flags.size()]]
+
+
+func _ft_sf_s_combo_trap() -> void:
+	# COINCIDENCE: falling onto a trap door — it must open under
+	# the player after 1 s standing.
+	var rect: Rect2 = (MAPS[map_id].get("platforms", []) as Array)[20]
+	_ft_teleport(rect.get_center() + Vector2(0, -40))
+
+
+func _ft_sf_c_combo_trap() -> Array:
+	var lp = _ft_lp()
+	var td: Dictionary = _sf_trapdoors[0]
+	var rect: Rect2 = td["rect"]
+	var py: float = lp.position.y
+	var ok: bool = str(td.get("state", "")) == "open" and py > rect.position.y + 50.0
+	return [ok, "trapdoor=%s player y=%.0f (platform y=%.0f, want player below it)" % [str(td.get("state", "")), py, rect.position.y]]
+
+
+func _ft_sf_s_heightbar() -> void:
+	_ft_teleport(Vector2(1800, 2660)) # Level 5
+
+
+func _ft_sf_c_heightbar() -> Array:
+	var want_y := 360.0 * 2660.0 / 7200.0 - 6.0
+	var dot: ColorRect = _sf_height_dots[0]
+	var ok := bool(_sf_height_bar.visible) and dot.visible and absf(dot.position.y - want_y) < 15.0
+	return [ok, "height bar=%s dot0 y=%.1f (want %.1f)" % [str(bool(_sf_height_bar.visible)), dot.position.y, want_y]]
+
+
+func _ft_sf_s_ping() -> void:
+	_on_ping_pressed()
+
+
+func _ft_sf_c_ping() -> Array:
+	var bar_dot := false
+	for pd in _sf_height_ping_dots:
+		if (pd as ColorRect).visible:
+			bar_dot = true
+			break
+	var ok := _sf_pings.size() >= 1 and bar_dot
+	return [ok, "pings=%d height-bar ping dot=%s" % [_sf_pings.size(), str(bar_dot)]]
+
+
+func _ft_sf_c_routes() -> Array:
+	var ok := skyfall_route_of(500.0) == 0 and skyfall_route_of(1800.0) == 1 and skyfall_route_of(3000.0) == 2
+	var legend_n := 0
+	for c in _sf_height_bar.get_children():
+		if c is VBoxContainer:
+			legend_n = c.get_child_count()
+			break
+	ok = ok and legend_n == 3
+	return [ok, "routes WEST/CENTRE/EAST=%d/%d/%d legend rows=%d" % [skyfall_route_of(500.0), skyfall_route_of(1800.0), skyfall_route_of(3000.0), legend_n]]
+
+
+func _ft_sf_s_scenery() -> void:
+	_ft_sf_heli_x0 = float((_sf_scenery.get("heli") as Node2D).position.x)
+
+
+func _ft_sf_c_scenery() -> Array:
+	var heli: Node2D = _sf_scenery.get("heli")
+	var ok := heli != null and heli.position.x > _ft_sf_heli_x0
+	ok = ok and (_sf_scenery.get("clouds", []) as Array).size() == 5
+	ok = ok and (_sf_scenery.get("gears", []) as Array).size() == 2
+	ok = ok and (_sf_scenery.get("puffs", []) as Array).size() == 4
+	ok = ok and (_sf_scenery.get("streaks", []) as Array).size() == 5
+	ok = ok and _sf_scenery.get("flash") != null
+	return [ok, "heli moved %.0f -> %.0f, clouds=%d gears=%d puffs=%d streaks=%d flash=%s" % [_ft_sf_heli_x0, heli.position.x if heli != null else -1.0, (_sf_scenery.get("clouds", []) as Array).size(), (_sf_scenery.get("gears", []) as Array).size(), (_sf_scenery.get("puffs", []) as Array).size(), (_sf_scenery.get("streaks", []) as Array).size(), str(_sf_scenery.get("flash") != null)]]
+
+
+func _ft_sf_s_rarity() -> void:
+	# Simulate 300 s of the spawn loops (1 s steps) and count.
+	# Start from an empty field (as at match start) and clear the
+	# field every 10 s — in a real match players grab pickups, and
+	# without that the field sits at its cap and nothing respawns
+	# (the first version of this test measured 0 power-ups for
+	# exactly that reason). free() is immediate here (queue_free
+	# would wait for the next frame, which never comes mid-loop).
+	_test_weapon_spawns = 0
+	_test_powerup_spawns = 0
+	for child in pickups_node.get_children():
+		child.free()
+	_pickup_spot_timers.clear()
+	_sf_pickup_timers.clear()
+	_initial_pickups_done = false
+	_sf_initial_powerups_done = false
+	for i in 300:
+		_update_pickup_spawn(1.0)
+		_update_skyfall_powerups(1.0)
+		if i % 10 == 9:
+			for child in pickups_node.get_children():
+				child.free()
+
+
+func _ft_sf_c_rarity() -> Array:
+	var ok := _test_weapon_spawns > _test_powerup_spawns and _test_powerup_spawns > 0
+	return [ok, "300 s sim: weapons=%d power-ups=%d (power-ups must be rarer)" % [_test_weapon_spawns, _test_powerup_spawns]]
+
+
+func _ft_sf_s_5v5() -> void:
+	# 10 players in the game scene (test-only fake peers — never in
+	# the real game, which has no bots). Remove the TestBot left by
+	# the base KILLFEED/SPECTATOR steps first, then spawn 9 fakes
+	# with explicit teams: local (RED) + 4 RED + 5 BLUE = 5v5.
+	GameData.max_players = 10
+	for child in players_node.get_children():
+		if String(child.player_name).begins_with("TestBot"):
+			child.queue_free()
+	for i in range(1, 5):
+		_do_spawn(100 + i, "TestBot%d" % i, i % 4, 0, 0)
+	for i in range(5, 10):
+		_do_spawn(100 + i, "TestBot%d" % i, i % 4, 0, 1)
+
+
+func _ft_sf_c_5v5() -> Array:
+	var red := 0
+	var blue := 0
+	for child in players_node.get_children():
+		if int(child.team) == 0:
+			red += 1
+		elif int(child.team) == 1:
+			blue += 1
+	var ok := players_node.get_child_count() == 10 and red == 5 and blue == 5
+	return [ok, "players=%d RED=%d BLUE=%d (want 10 / 5 / 5)" % [players_node.get_child_count(), red, blue]]
 
 
 func _ft_s_release_all() -> void:
@@ -9970,6 +12944,21 @@ func _ft_s_endstats() -> void:
 	show_end_screen("Player", "reached 10 kills!", rows)
 
 
+func _ft_collect_label_texts(list: VBoxContainer) -> Array:
+	# QA-113 (v3.9): the stats redesign puts rows in HBoxContainers
+	# with one Label per column — collect every Label's text, direct
+	# children and one level inside row boxes.
+	var out: Array = []
+	for c in list.get_children():
+		if c is Label:
+			out.append(String(c.text))
+		elif c is HBoxContainer:
+			for sub in c.get_children():
+				if sub is Label:
+					out.append(String(sub.text))
+	return out
+
+
 func _ft_c_endstats() -> Array:
 	var mvp_ok := false
 	for n in _mvp_nodes:
@@ -9977,10 +12966,20 @@ func _ft_c_endstats() -> Array:
 			for c in n.get_children():
 				if c is Label and String(c.text).contains("MVP: Player") and String(c.text).contains("60%"):
 					mvp_ok = true
+	# QA-113: rows are column HBoxes now — a row holds the K/D cell
+	# ("2.50") and the ACC cell ("60%") as separate Labels.
 	var row_ok := false
 	for c in end_list.get_children():
-		if c is Label and String(c.text).contains("K/D: 2.50") and String(c.text).contains("ACC: 60%"):
-			row_ok = true
+		if c is HBoxContainer:
+			var has_kd := false
+			var has_acc := false
+			for sub in c.get_children():
+				if sub is Label and String(sub.text) == "2.50":
+					has_kd = true
+				if sub is Label and String(sub.text) == "60%":
+					has_acc = true
+			if has_kd and has_acc:
+				row_ok = true
 	var stats_ok := false
 	var st: Dictionary = GameData.compute_stats(10, 4, 20, 12)
 	stats_ok = absf(float(st["kd"]) - 2.5) < 0.01 and absf(float(st["accuracy"]) - 60.0) < 0.01
@@ -10141,20 +13140,21 @@ func _ft_s_scoreboard() -> void:
 
 
 func _ft_c_scoreboard() -> Array:
-	var kd_ok := false
+	# QA-113: the header row holds "K/D" and "ACC" as separate
+	# column Labels, and the self row holds "(YOU)" in its name
+	# cell — collect all Label texts (direct + inside row HBoxes).
+	var texts: Array = _ft_collect_label_texts(scoreboard_list)
+	var kd_ok := "K/D" in texts and "ACC" in texts
 	var self_ok := false
+	for t in texts:
+		if String(t).contains("(YOU)"):
+			self_ok = true
 	var team_ok := false # TDM totals header: must be found below
-	for c in scoreboard_list.get_children():
-		if c is Label:
-			if String(c.text).contains("K/D") and String(c.text).contains("ACC"):
-				kd_ok = true
-			if String(c.text).contains("(YOU)"):
-				self_ok = true
 	# TDM totals header: flip the mode, rebuild, check, restore.
 	game_mode = 1
 	_update_scoreboard_rows(scoreboard_list)
-	for c in scoreboard_list.get_children():
-		if c is Label and String(c.text).contains("RED") and String(c.text).contains("BLUE"):
+	for t in _ft_collect_label_texts(scoreboard_list):
+		if String(t).contains("RED") and String(t).contains("BLUE"):
 			team_ok = true
 	game_mode = 0
 	_update_scoreboard_rows(scoreboard_list)

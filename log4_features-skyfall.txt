@@ -1,0 +1,72 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:372)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.4 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1342:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5731:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:97)
+WARNING: All audio drivers failed, falling back to the dummy driver.
+     at: initialize (servers/audio/audio_server.cpp:258)
+
+SPAWN: spawning peer 1 (Player) on server players_before=0
+FEATTEST COUNTDOWN-FREEZE: PASS — frozen=true label=3/true sub=First to 10 kills  •  Skyfall
+FEATTEST COUNTDOWN-END: PASS — countdown_active=false label=FIGHT!
+SPAWN: spawning peer 99 (TestBot) on server players_before=1
+FEATTEST KILLFEED-HITMARKER: PASS — feed='Player  ☠  TestBot   —  Pistol|' hitmark_seq=1 shots_hit=1 kills=1 best_streak=1
+FEATTEST END-STATS-MVP: PASS — end_visible=true mvp=true row=true stats=true
+FEATTEST SETTINGS-PERSIST: PASS — persist_ok=true fps_label_visible=true (restored real settings)
+FEATTEST MAP-VOTE: PASS — tally 2-1=1 tie=0 none=2 off-ballot=0 voted_map=Jungle Ruins spawns=12
+FEATTEST PICKUPS-HEALTH-GRENADE: PASS — health 40->90 grenades 0->2 pickup_node=true icon=true
+FEATTEST MUSIC: PASS — battle=true stream=true menu_loop=true menu=true off=true back=true credits=true stop=true
+SPAWN: spawning peer 98 (TestBot2) on server players_before=2
+FEATTEST SPECTATOR: PASS — spectating=true cam=true target=TestBot label=true
+FEATTEST SCOREBOARD: PASS — kd_col=true self=true tdm_totals=true
+FEATTEST FIRE-LAYOUT: PASS — move_stick=true aim_stick=true (fixed layout, no FIRE button)
+FEATTEST HUD-READOUTS: PASS — kd='K 1 • D 0' ammo='Assault Rifle 30/90' hp_ink_green=true
+FEATTEST FT-SF-MODE: PASS — mode=4 flags=2 team=0
+FEATTEST FT-SF-MAP: PASS — size=(3600.0, 7200.0) platforms=70 spawns=12 grapple=6 lines=2 relay=2 cps=4 weapons=6 powerups=7
+FEATTEST FT-SF-GRAB: PASS — blue flag carrier=1 (me=1)
+FEATTEST FT-SF-CAPTURE: PASS — RED=3 pts (capture=3), blue flag carrier=-1
+FEATTEST FT-SF-RELAY-GRAB: PASS — blue flag carrier=1 (me=1)
+FEATTEST FT-SF-RELAY-BANK: PASS — RED=4 pts (3 capture + 1 relay), flag home=true
+FEATTEST FT-SF-CHECKPOINT-UP: PASS — RED checkpoint=3 (want 3 = Level 7)
+FEATTEST FT-SF-CHECKPOINT-DOWN: PASS — RED checkpoint=0 (want 0 = base)
+FEATTEST FT-SF-DIE-L7-SETUP: PASS — RED checkpoint=3 before dying (want 3)
+FEATTEST FT-SF-DIE-L7: PASS — alive=true y=1681 (want alive near L7 y=1678)
+FEATTEST FT-SF-POWERUP-SLOTS: PASS — timed held=2 (want 2: speed+shield), slots used=2 (max 3), active=0
+FEATTEST FT-SF-POWERUP-ACTIVE: PASS — timed held=3 (want 3: speed+shield+jetpack), slots used=3, active=0
+FEATTEST FT-SF-OPP-CARRIER-CTRL: PASS — free player jetpack boost active=12 (want 12)
+FEATTEST FT-SF-OPP-CARRIER: PASS — carrier jetpack boost active=0 (want 0), stored=[12] (want [12])
+FEATTEST FT-SF-OPP-SHIELD-STORM: PASS — storm=true shield held=true health=100 (was 100)
+FEATTEST FT-SF-COMEBACK: PASS — trailing=1 (want 1=BLUE) elevator timer=5.0s label=true bonus pickup=true
+FEATTEST FT-SF-EVENT: PASS — event=supply_drop timer=-0.1s (an event fired at a random time)
+FEATTEST FT-SF-STORM: PASS — storm active=true
+FEATTEST FT-SF-COMBO-EVENT-STORM: PASS — storm=true event=route_shift flags=2 (both systems live, no crash)
+FEATTEST FT-SF-COMBO-TRAP: PASS — trapdoor=open player y=5358 (platform y=5282, want player below it)
+FEATTEST FT-SF-HEIGHTBAR: PASS — height bar=true dot0 y=128.5 (want 127.0)
+FEATTEST FT-SF-PING: PASS — pings=1 height-bar ping dot=true
+FEATTEST FT-SF-ROUTES: PASS — routes WEST/CENTRE/EAST=0/1/2 legend rows=3
+FEATTEST FT-SF-SCENERY: PASS — heli moved 1569 -> 1622, clouds=5 gears=2 puffs=4 streaks=5 flash=true
+FEATTEST FT-SF-RARITY: PASS — 300 s sim: weapons=93 power-ups=41 (power-ups must be rarer)
+SPAWN: spawning peer 101 (TestBot1) on server players_before=2
+SPAWN: spawning peer 102 (TestBot2) on server players_before=3
+SPAWN: spawning peer 103 (TestBot3) on server players_before=4
+SPAWN: spawning peer 104 (TestBot4) on server players_before=5
+SPAWN: spawning peer 105 (TestBot5) on server players_before=6
+SPAWN: spawning peer 106 (TestBot6) on server players_before=7
+SPAWN: spawning peer 107 (TestBot7) on server players_before=8
+SPAWN: spawning peer 108 (TestBot8) on server players_before=9
+SPAWN: spawning peer 109 (TestBot9) on server players_before=10
+FEATTEST FT-SF-5V5: PASS — players=10 RED=5 BLUE=5 (want 10 / 5 / 5)
+FEATTEST DONE: 38/38 passed
+WARNING: 4 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 2 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

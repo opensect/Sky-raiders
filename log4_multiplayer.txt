@@ -37,7 +37,3 @@ NETTEST HOST-LEFT-SAFE-EXIT: PASS — error panel visible=true last_host_ip=192.
 NETTEST DOUBLE-CREDIT: PASS — first=true second=false kills A 1->2 (want +1)
 NETTEST DOUBLE-CREDIT-EXPIRE: PASS — third credit after 1.2 s=true kills A 2->3 (want +1)
 NETTEST DONE: 15/15 passed
-WARNING: 6 ObjectDB instances were leaked at exit (run with `--verbose` for details).
-   at: cleanup (core/object/object.cpp:2536)
-ERROR: 2 resources still in use at exit (run with --verbose for details).
-   at: clear (core/io/resource.cpp:822)

@@ -189,6 +189,18 @@ func _physics_process(delta: float) -> void:
 			if game_b != null and game_b.try_barrel_hit(hit_pos, damage, owner_id):
 				_despawn()
 				return
+			# QA-112 (v3.9): Skyfall's destructible barricades break
+			# the same way (host-authorised, same call pattern).
+			if game_b != null and game_b.try_barricade_hit(hit_pos, damage):
+				_despawn()
+				return
+			_impact(hit_pos)
+			return
+		if collider is AnimatableBody2D:
+			# QA-112 (v3.9): Skyfall's moving elevators / rotating
+			# platform are solid — a bullet stops at them like at
+			# any other platform (they are not StaticBody2D, so
+			# they need their own branch instead of flying through).
 			_impact(hit_pos)
 			return
 		if collider is CharacterBody2D and collider.is_in_group("players"):

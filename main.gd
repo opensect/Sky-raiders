@@ -31,6 +31,7 @@ const MAP_CARD_ART := {
 	2: preload("res://assets/skybrawl/maps/bg_neon.png"),
 	3: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
 	4: preload("res://assets/thumbs/thumb_pirate.png"),
+	5: preload("res://assets/thumbs/thumb_skyfall.png"), # QA-112 (v3.9): Skyfall map card art
 }
 # v3.5 QA-059: the menu background is arena_clean.png — a plain
 # starry navy sky with mountain silhouettes and NO panel shapes.
@@ -61,6 +62,28 @@ const HELMET_ICONS := {
 	6: preload("res://assets/headgear/helmet_camo.png"),
 }
 const HELMET_NAMES := ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"]
+
+# QA-112 (v3.9 Skyfall lobby: CTF gating + roles + team banners).
+# Capture the Flag (mode 4) is back, but ONLY on the Skyfall map
+# (map 5) — see _ctf_available() below. The role picker shows only
+# on Skyfall, and the team banners show only for Skyfall CTF.
+# Roles are LABELS ONLY — no gameplay effect, just an icon in the
+# lobby player list. Role icons come from the Skyfall asset pack,
+# one set per team colour (red = team 0, blue = team 1).
+const ROLE_ICONS_RED := {
+	0: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_red_attacker.png"),
+	1: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_red_defender.png"),
+	2: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_red_sniper.png"),
+	3: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_red_support.png"),
+}
+const ROLE_ICONS_BLUE := {
+	0: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_blue_attacker.png"),
+	1: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_blue_defender.png"),
+	2: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_blue_sniper.png"),
+	3: preload("res://assets/skyfall/SKYFALL_assets/ui/role_icon_blue_support.png"),
+}
+const TEAM_BANNER_RED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/ui/team_banner_red.png")
+const TEAM_BANNER_BLUE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/ui/team_banner_blue.png")
 
 var _audio
 var _peer: ENetMultiplayerPeer
@@ -112,6 +135,10 @@ var _profile_level_lbl: Label
 var _profile_stats_lbl: Label
 var _team_buttons: Array = [] # QA-078: RED / BLUE / AUTO team pick (team modes only)
 var _team_section_label: Label # QA-078: hidden with the team row in FFA modes
+var _role_buttons: Array = [] # QA-112 (v3.9): Skyfall role pick (Attacker / Defender / Sniper / Support)
+var _role_section_label: Label # QA-112: hidden with the role row when the map is not Skyfall
+var _role_row: HBoxContainer # QA-112: the role button row (Skyfall only)
+var _skyfall_banner_row: HBoxContainer # QA-112: red + blue team banners (Skyfall CTF only)
 var _lobby_color_buttons: Array = [] # QA-078: in-lobby appearance
 var _lobby_helmet_buttons: Array = []
 var _limit_label: Label # "Kill limit:" label in the lobby room strip
@@ -1326,15 +1353,31 @@ func _build_multiplayer() -> void:
 	_refresh_create_mode_buttons()
 
 
+# QA-112 (v3.9): Capture the Flag (mode 4) is only on Skyfall.
+# Every mode refresh and mode press goes through this check, so
+# CTF can never be picked — or stay picked — on the other 5 maps.
+func _ctf_available() -> bool:
+	return GameData.map_id == GameData.SKYFALL_MAP_ID
+
+
 func _refresh_create_mode_buttons() -> void:
+	# QA-112: a saved mode 4 on a non-Skyfall map falls back to
+	# Free-for-All (the create page has no map pick — the map is
+	# still Ironfall by default here, so this only fires on a
+	# stale saved setting).
+	if not _ctf_available() and GameData.game_mode == 4:
+		GameData.game_mode = 0
 	for i in _create_mode_buttons.size():
 		var b: Button = _create_mode_buttons[i]
+		b.visible = _ctf_available() or i != 4
 		b.text = ("✓ " if i == GameData.game_mode else "") + GameData.MODE_NAMES[i]
 		_style_selected(b, i == GameData.game_mode, 20)
 
 
 func _on_create_mode_pressed(i: int) -> void:
 	_click()
+	if i == 4 and not _ctf_available():
+		return
 	GameData.game_mode = i
 	_refresh_create_mode_buttons()
 
@@ -1482,6 +1525,27 @@ func _build_lobby() -> void:
 	_host_ip_label.add_theme_font_size_override("font_size", 22)
 	_host_ip_label.add_theme_color_override("font_color", UI_ACCENT)
 	_host_ip_chip.add_child(_host_ip_label)
+	# QA-112 (v3.9): Skyfall CTF team banners — red and blue side
+	# by side, full width under the host IP chip and above the
+	# player list / map cards (the lobby header area). The pack
+	# banners are 640x160, shown at ~300 px wide each so the pair
+	# fits without squeezing the columns below. Hidden unless the
+	# map is Skyfall AND the mode is Capture the Flag (see
+	# _refresh_lobby_buttons).
+	_skyfall_banner_row = HBoxContainer.new()
+	_skyfall_banner_row.add_theme_constant_override("separation", 16)
+	_skyfall_banner_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(_skyfall_banner_row)
+	for banner_tex in [TEAM_BANNER_RED, TEAM_BANNER_BLUE]:
+		var banner := TextureRect.new()
+		banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		banner.texture = banner_tex
+		banner.custom_minimum_size = Vector2(300, 75)
+		banner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_skyfall_banner_row.add_child(banner)
+	_skyfall_banner_row.visible = false
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 20)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1606,6 +1670,29 @@ func _build_lobby() -> void:
 		team_row.add_child(tb)
 		_team_buttons.append(tb)
 		_connect_scroll_button(tb, _lobby_left_scroll)
+	# QA-112 (v3.9): role picker — Skyfall only. Four plain buttons
+	# (Attacker / Defender / Sniper / Support) with the role icon
+	# in the LOCAL player's team colour. Roles are LABELS ONLY —
+	# no gameplay effect; they show as icons next to each name in
+	# the player list. Anyone in the room can pick their own role
+	# (like the team pick); the choice syncs like team/color/helmet
+	# (see _on_role_pressed / set_role).
+	left_inner.add_child(_section_label("Your role (Skyfall):"))
+	_role_section_label = left_inner.get_child(left_inner.get_child_count() - 1) as Label
+	_role_row = HBoxContainer.new()
+	_role_row.add_theme_constant_override("separation", 8)
+	left_inner.add_child(_role_row)
+	for i in GameData.ROLE_NAMES.size():
+		var rb := Button.new()
+		rb.text = GameData.ROLE_NAMES[i]
+		rb.custom_minimum_size = Vector2(0, 56)
+		rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rb.expand_icon = true
+		_style_button(rb, 18, 56)
+		rb.pressed.connect(_on_role_pressed.bind(i))
+		_role_row.add_child(rb)
+		_role_buttons.append(rb)
+		_connect_scroll_button(rb, _lobby_left_scroll)
 	# QA-078: change appearance without leaving the room — colour
 	# and helmet, same choices as Customization. The change syncs
 	# to every phone in the room at once (host broadcast, see
@@ -1843,9 +1930,17 @@ func _on_map_pressed(i: int) -> void:
 	if not _is_host:
 		return
 	_click()
+	# QA-112 (v3.9): leaving Skyfall drops Capture the Flag. The
+	# mode reset itself happens in _refresh_lobby_buttons (called
+	# by _broadcast_lobby below); this only adds the short hint.
+	# Set AFTER the broadcast: the refresh rewrites the status
+	# line, so setting it before would be overwritten at once.
+	var was_ctf: bool = GameData.game_mode == 4
 	GameData.map_id = i
 	GameData.save_settings()
 	_broadcast_lobby()
+	if was_ctf and not _ctf_available() and _lobby_status != null:
+		_lobby_status.text = "CTF is only on Skyfall"
 
 
 # Phase 4 — map vote: the ballot is the host's pick + the next two
@@ -1904,6 +1999,8 @@ func _refresh_vote_buttons() -> void:
 func _on_mode_pressed(i: int) -> void:
 	if not _is_host:
 		return
+	if i == 4 and not _ctf_available():
+		return
 	_click()
 	GameData.game_mode = i
 	GameData.save_settings()
@@ -1955,6 +2052,43 @@ func set_team(t: int) -> void:
 		_broadcast_lobby()
 
 
+# QA-112 (v3.9): Skyfall role icon for a team + role. Team 1 is
+# blue, team 0 and AUTO (-1 / unset) fall back to the red icons.
+# Roles are LABELS ONLY — no gameplay effect.
+func _role_icon(team: int, role: int) -> Texture2D:
+	var r: int = clampi(role, 0, GameData.ROLE_NAMES.size() - 1)
+	if team == 1:
+		return ROLE_ICONS_BLUE[r]
+	return ROLE_ICONS_RED[r]
+
+
+# QA-112: role pick (Skyfall only). Same sync pattern as the team
+# pick: the host writes my lobby entry and broadcasts; a joiner
+# sends set_role to the host, which clamps it to 0-3 and broadcasts.
+func _on_role_pressed(i: int) -> void:
+	_click()
+	GameData.role = clampi(i, 0, GameData.ROLE_NAMES.size() - 1)
+	var my_id := multiplayer.get_unique_id()
+	if _is_host:
+		if _lobby_players.has(my_id):
+			_lobby_players[my_id]["role"] = GameData.role
+		_broadcast_lobby()
+	else:
+		rpc_id(1, "set_role", GameData.role)
+	_refresh_lobby_buttons()
+	_refresh_lobby_list()
+
+
+@rpc("any_peer")
+func set_role(r: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _lobby_players.has(sender):
+		_lobby_players[sender]["role"] = clampi(r, 0, GameData.ROLE_NAMES.size() - 1)
+		_broadcast_lobby()
+
+
 # QA-078: in-lobby appearance change. Updates my saved settings
 # AND my lobby entry, then syncs to the whole room at once.
 func _on_lobby_color_pressed(i: int) -> void:
@@ -1997,7 +2131,44 @@ func update_appearance(color_idx: int, helmet_style: int) -> void:
 		_broadcast_lobby()
 
 
+# QA-112 (v3.9): minimum to start a match — a match starts with
+# whoever is in the room, NEVER a full team (5v5 = 10). At least 2
+# players total; in team modes (TDM mode 1, CTF mode 4) at least 1
+# player on EACH team (RED 0 / BLUE 1). AUTO (-1) counts as able to
+# fill either side: the minimum is met when (red + auto) >= 1 AND
+# (blue + auto) >= 1 AND total >= 2. No maximum / full-team check.
+func _start_minimum_reason() -> String:
+	var total := _lobby_players.size()
+	if total < 2:
+		return "NEED 2 PLAYERS"
+	if GameData.game_mode == 1 or GameData.game_mode == 4:
+		var red := 0
+		var blue := 0
+		var auto := 0
+		for id in _lobby_players.keys():
+			match int((_lobby_players[id] as Dictionary).get("team", -1)):
+				0:
+					red += 1
+				1:
+					blue += 1
+				_:
+					auto += 1
+		if red + auto < 1 or blue + auto < 1:
+			return "NEED RED + BLUE"
+	return ""
+
+
+func _start_minimum_met() -> bool:
+	return _start_minimum_reason() == ""
+
+
 func _refresh_lobby_buttons() -> void:
+	# QA-112 (v3.9): CTF (mode 4) only lives on Skyfall. If the map
+	# is anything else and the mode is still 4 (stale save, old
+	# host, vote tally), fall back to Free-for-All before any
+	# button is drawn, so CTF never shows as the picked mode.
+	if not _ctf_available() and GameData.game_mode == 4:
+		GameData.game_mode = 0
 	# v3.5 QA-059: map buttons are invisible hit areas over the map
 	# cards — no text or button style on them. The selected state
 	# lives on the CARD: cyan border + teal fill + ✓ badge.
@@ -2012,6 +2183,7 @@ func _refresh_lobby_buttons() -> void:
 			(_map_card_badges[i] as Control).visible = selected # v3.6 QA-069: GoBadge now, was a Label
 	for i in _mode_buttons.size():
 		var ob: Button = _mode_buttons[i]
+		ob.visible = _ctf_available() or i != 4 # QA-112: hide CTF unless the map is Skyfall
 		ob.text = ("✓ " if i == GameData.game_mode else "") + GameData.MODE_NAMES[i]
 		ob.disabled = not _is_host
 		_style_selected(ob, i == GameData.game_mode, 20)
@@ -2029,16 +2201,24 @@ func _refresh_lobby_buttons() -> void:
 		_style_selected(tb, mins == GameData.match_minutes, 20)
 	if _lobby_start_btn != null:
 		_lobby_start_btn.visible = _is_host
-		# Force-start is explicit: the host may start with players not
-		# ready, but the button says so.
-		var ready_count := 0
-		for id in _lobby_players.keys():
-			if bool(_lobby_players[id].get("ready", false)):
-				ready_count += 1
-		if ready_count < _lobby_players.size():
-			_lobby_start_btn.text = "START ANYWAY (%d/%d ready)" % [ready_count, _lobby_players.size()]
+		# QA-112 (v3.9): minimum to start — never a full team. Below
+		# the minimum the button is disabled and says why.
+		var min_reason := _start_minimum_reason()
+		if min_reason != "":
+			_lobby_start_btn.disabled = true
+			_lobby_start_btn.text = min_reason
 		else:
-			_lobby_start_btn.text = "START MATCH"
+			_lobby_start_btn.disabled = false
+			# Force-start is explicit: the host may start with players not
+			# ready, but the button says so.
+			var ready_count := 0
+			for id in _lobby_players.keys():
+				if bool(_lobby_players[id].get("ready", false)):
+					ready_count += 1
+			if ready_count < _lobby_players.size():
+				_lobby_start_btn.text = "START ANYWAY (%d/%d ready)" % [ready_count, _lobby_players.size()]
+			else:
+				_lobby_start_btn.text = "START MATCH"
 	if _ready_btn != null:
 		var my_id := multiplayer.get_unique_id()
 		var me_ready: bool = bool(_lobby_players.get(my_id, {}).get("ready", false))
@@ -2095,7 +2275,9 @@ func _refresh_lobby_buttons() -> void:
 		_strip_limit_cap.text = "KILL LIMIT"
 	# QA-078: team pick row only exists for team modes; the
 	# appearance rows always show the current saved choice.
-	var team_mode := GameData.game_mode == 1
+	# QA-112: CTF (mode 4) is a team mode too, so the team row
+	# shows for it as well (it was TDM-only while CTF was removed).
+	var team_mode := GameData.game_mode == 1 or GameData.game_mode == 4
 	if _team_section_label != null:
 		_team_section_label.visible = team_mode
 	for i in _team_buttons.size():
@@ -2104,6 +2286,23 @@ func _refresh_lobby_buttons() -> void:
 		var tv: int = [-1, 0, 1][i]
 		tb.text = ("✓ " if tv == _my_team else "") + ("AUTO" if tv == -1 else ("RED" if tv == 0 else "BLUE"))
 		_style_selected(tb, tv == _my_team, 20)
+	# QA-112 (v3.9): the role row shows on Skyfall (any mode); the
+	# team banners show only for Skyfall CTF. Role icons use the
+	# local player's team colour, so they refresh here too (the
+	# team pick calls this refresh). Roles are labels only.
+	var on_skyfall := GameData.map_id == GameData.SKYFALL_MAP_ID
+	if _role_section_label != null:
+		_role_section_label.visible = on_skyfall
+	if _role_row != null:
+		_role_row.visible = on_skyfall
+	for i in _role_buttons.size():
+		var rb: Button = _role_buttons[i]
+		rb.visible = on_skyfall
+		rb.icon = _role_icon(_my_team, i)
+		rb.text = ("✓ " if i == GameData.role else "") + GameData.ROLE_NAMES[i]
+		_style_selected(rb, i == GameData.role, 18)
+	if _skyfall_banner_row != null:
+		_skyfall_banner_row.visible = on_skyfall and GameData.game_mode == 4
 	for i in _lobby_color_buttons.size():
 		var cb: Button = _lobby_color_buttons[i]
 		cb.text = ("✓ " if i == GameData.color_index else "") + GameData.COLOR_NAMES[i]
@@ -2171,6 +2370,18 @@ func _refresh_lobby_list() -> void:
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(lbl)
+		# QA-112 (v3.9): each player's Skyfall role icon, small
+		# (~32 px), next to their name. The icon matches THAT
+		# player's team + role; team -1 / unset falls back to red.
+		# Roles are labels only — no gameplay effect.
+		var role_icon := TextureRect.new()
+		role_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		role_icon.texture = _role_icon(int(info.get("team", -1)), int(info.get("role", 0)))
+		role_icon.custom_minimum_size = Vector2(32, 32)
+		role_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		role_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		role_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(role_icon)
 		if int(id) == 1:
 			row.add_child(_lobby_chip("HOST", UI_WARNING))
 		elif int(id) == multiplayer.get_unique_id():
@@ -2181,7 +2392,8 @@ func _refresh_lobby_list() -> void:
 		else:
 			row.add_child(_lobby_chip("NOT READY", UI_FONT_MUTED))
 		# QA-078: team chip in team modes (RED / BLUE / AUTO).
-		if GameData.game_mode == 1:
+		# QA-112: CTF (mode 4) is a team mode too.
+		if GameData.game_mode == 1 or GameData.game_mode == 4:
 			var pt: int = int(info.get("team", -1))
 			if pt == 0:
 				row.add_child(_lobby_chip("RED", UI_DANGER))
@@ -2422,6 +2634,7 @@ func _my_lobby_info() -> Dictionary:
 		"ready": ready,
 		"vote": _my_vote,
 		"team": _my_team, # QA-078: RED 0 / BLUE 1 / AUTO -1 (team modes)
+		"role": GameData.role, # QA-112 (v3.9): Skyfall role 0-3, label only
 		# Only used by register_lobby_player on the host; stripped
 		# before the player list is broadcast to anyone else.
 		"password": _join_password,
@@ -2571,12 +2784,22 @@ func _on_start_pressed() -> void:
 	_click()
 	if not _is_host or _starting_match:
 		return
+	# QA-112 (v3.9): minimum to start — never require full teams.
+	# The button is disabled below the minimum, but do not trust
+	# the button alone (scripted / timer starts reach here too).
+	if not _start_minimum_met():
+		return
 	# Phase 4: the map vote decides the map (host's pick on ties /
 	# no votes, per GameData.tally_map_vote).
 	var votes := {}
 	for id in _lobby_players.keys():
 		votes[id] = int((_lobby_players[id] as Dictionary).get("vote", -1))
 	GameData.map_id = GameData.tally_map_vote(votes, _vote_candidates_now(), GameData.map_id)
+	# QA-112 (v3.9): the vote can pick a non-Skyfall map while the
+	# mode is CTF — CTF is only on Skyfall, so fall back to FFA
+	# before the match starts instead of starting CTF elsewhere.
+	if not _ctf_available() and GameData.game_mode == 4:
+		GameData.game_mode = 0
 	_starting_match = true
 	rpc("start_match", GameData.map_id, GameData.game_mode, GameData.kill_limit, GameData.match_minutes)
 
@@ -2595,6 +2818,10 @@ func start_match(map_id: int, mode: int, kill_limit: int, minutes: int) -> void:
 	# QA-107 (v3.8): clamp — a v3.7 host could still send mode 4
 	# (Capture the Flag, removed); it falls back to FFA (0).
 	GameData.game_mode = clampi(mode, 0, GameData.MODE_NAMES.size() - 1)
+	# QA-112 (v3.9): CTF is only on Skyfall — a stale start_match
+	# for mode 4 on any other map falls back to FFA too.
+	if GameData.map_id != GameData.SKYFALL_MAP_ID and GameData.game_mode == 4:
+		GameData.game_mode = 0
 	GameData.kill_limit = kill_limit
 	GameData.match_minutes = minutes
 	_room_status = "playing"
@@ -3421,10 +3648,26 @@ func _update_flowtest(delta: float) -> void:
 		_flow_timer = 0.0
 
 
+# QA-112 (v3.9): test-only fake lobby players (flow test /
+# restart test). Same dictionary shape as _my_lobby_info, fixed
+# ids 9001+ so adding twice just overwrites instead of duplicating.
+func _add_fake_lobby_players(red: int, blue: int) -> void:
+	var n := 0
+	for i in red:
+		n += 1
+		_lobby_players[9000 + n] = {"name": "FakeRed%d" % n, "color": 0, "helmet": 0, "portrait": 0, "ready": true, "vote": -1, "team": 0, "role": 0}
+	for i in blue:
+		n += 1
+		_lobby_players[9000 + n] = {"name": "FakeBlue%d" % (n - red), "color": 1, "helmet": 0, "portrait": 0, "ready": true, "vote": -1, "team": 1, "role": 0}
+
+
 func _flowtest_build_steps() -> void:
 	_flow_steps = [
 		{"name": "MENU-VISIBLE", "wait": 0.3, "setup": _flm_s_noop, "check": _flm_c_menu},
 		{"name": "CREATE-ROOM", "wait": 0.5, "setup": _flm_s_create, "check": _flm_c_lobby},
+		{"name": "MIN-START-SOLO", "wait": 0.3, "setup": _flm_s_noop, "check": _flm_c_min_solo},
+		{"name": "MIN-START-CASES", "wait": 0.3, "setup": _flm_s_noop, "check": _flm_c_min_cases},
+		{"name": "MIN-START-3V2", "wait": 0.3, "setup": _flm_s_half_full, "check": _flm_c_half_full},
 		{"name": "START-MATCH", "wait": 0.3, "setup": _flm_s_start, "check": _flm_c_started},
 	]
 
@@ -3457,6 +3700,10 @@ func _flm_c_lobby() -> Array:
 
 
 func _flm_s_start() -> void:
+	# QA-112 (v3.9): the 5 fake players (3 RED, 2 BLUE) from the
+	# MIN-START-3V2 step are still in the room; re-adding is a
+	# no-op (fixed ids), so START runs from a half-full room.
+	_add_fake_lobby_players(3, 2)
 	# Hand over to the game scene: it runs the rest of the check.
 	GameData.flow_test = true
 	GameData.flow_phase = 1
@@ -3467,6 +3714,68 @@ func _flm_c_started() -> Array:
 	# The scene change happens in start_match; this check is only
 	# reached if the match did not start.
 	return [false, "still in the menu after START MATCH"]
+
+
+func _flm_c_min_solo() -> Array:
+	# QA-112 (v3.9): solo host (1 player) — START disabled, says why.
+	var ok: bool = not _start_minimum_met() and _lobby_start_btn.disabled and _lobby_start_btn.text == "NEED 2 PLAYERS"
+	return [ok, "min met=%s btn disabled=%s text='%s'" % [_start_minimum_met(), _lobby_start_btn.disabled, _lobby_start_btn.text]]
+
+
+func _flm_s_half_full() -> void:
+	# QA-112 (v3.9): half-full room — 5 fake players (3 RED, 2 BLUE)
+	# on top of the host. START must work without full teams (5v5 = 10).
+	_add_fake_lobby_players(3, 2)
+	_refresh_lobby_buttons()
+
+
+func _flm_c_half_full() -> Array:
+	# QA-112 (v3.9): half-full room — minimum met, START enabled.
+	var ok: bool = _start_minimum_met() and not _lobby_start_btn.disabled and _lobby_players.size() == 6
+	return [ok, "players=%d min met=%s btn disabled=%s text='%s'" % [_lobby_players.size(), _start_minimum_met(), _lobby_start_btn.disabled, _lobby_start_btn.text]]
+
+
+func _flm_min_case(mode: int, teams: Array, want_met: bool, want_reason: String) -> String:
+	GameData.game_mode = mode
+	_lobby_players.clear()
+	var n := 0
+	for t in teams:
+		n += 1
+		_lobby_players[8000 + n] = {"name": "Case%d" % n, "color": 0, "helmet": 0, "portrait": 0, "ready": true, "vote": -1, "team": int(t), "role": 0}
+	var got_met := _start_minimum_met()
+	var got_reason := _start_minimum_reason()
+	if got_met != want_met or got_reason != want_reason:
+		return "mode %d teams %s: met=%s reason='%s' (want met=%s reason='%s')" % [mode, str(teams), got_met, got_reason, want_met, want_reason]
+	return ""
+
+
+func _flm_c_min_cases() -> Array:
+	# QA-112 (v3.9): direct rule cases on temp lobby state; the real
+	# room (solo host) and mode are restored before returning.
+	var saved_players: Dictionary = _lobby_players.duplicate()
+	var saved_mode: int = GameData.game_mode
+	var failures: Array[String] = []
+	for args in [
+		[0, [], false, "NEED 2 PLAYERS"],
+		[0, [0], false, "NEED 2 PLAYERS"],
+		[0, [0, 1], true, ""],
+		[1, [0, 0], false, "NEED RED + BLUE"],
+		[1, [0, 1], true, ""],
+		[1, [0, -1], true, ""],
+		[1, [-1, -1], true, ""],
+		[1, [0, 0, 0, 1, 1], true, ""],
+		[4, [0, 0], false, "NEED RED + BLUE"],
+		[4, [0, 1], true, ""],
+	]:
+		var err := _flm_min_case(int(args[0]), args[1], bool(args[2]), String(args[3]))
+		if err != "":
+			failures.append(err)
+	_lobby_players = saved_players
+	GameData.game_mode = saved_mode
+	_refresh_lobby_buttons()
+	if failures.is_empty():
+		return [true, "10/10 minimum cases pass (FFA/TDM/CTF, incl. AUTO fills either side)"]
+	return [false, "; ".join(failures)]
 
 
 # =====================================================================
@@ -3486,6 +3795,10 @@ func _restarttest_begin() -> void:
 	_room_name_input.text = "RestartTest"
 	_create_room()
 	GameData.restart_phase = 1
+	# QA-112 (v3.9): solo host cannot start any more (2-player
+	# minimum) — the restart test is about restarting, not the
+	# minimum, so it runs from a half-full room like the flow test.
+	_add_fake_lobby_players(3, 2)
 	_on_start_pressed()
 
 
@@ -3503,4 +3816,7 @@ func _restarttest_second_start() -> void:
 		GameData.restart_failed += 1
 	print("RESTARTTEST %s: %s" % ["SECOND-LOBBY", "PASS" if ok else "FAIL"])
 	GameData.restart_phase = 3
+	# QA-112 (v3.9): same as _restarttest_begin — half-full room so
+	# the 2-player minimum is met.
+	_add_fake_lobby_players(3, 2)
 	_on_start_pressed()

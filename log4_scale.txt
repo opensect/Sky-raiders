@@ -32,7 +32,7 @@ SCALETEST 1280x720-AIM-RELEASE: PASS — aim=(0.0, 0.0)
 SCALETEST 1280x720-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
 SCALETEST 1280x720-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
 SCALETEST 2400x1080-RESIZE: PASS — win=(2400, 1080)
-SCALETEST DIAG win=(2400, 1080) vis=(1600.0, 720.0) canvas_t origin=(0.0, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(800.0, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 555.0)
+SCALETEST DIAG win=(2400, 1080) vis=(1600.0, 720.0) canvas_t origin=(-0.000061, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(800.0001, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0001, 1235.0) rect_centre=(165.0, 555.0)
 SCALETEST 2400x1080-DIAG: PASS — see DIAG line above
 SCALETEST 2400x1080-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
 SCALETEST 2400x1080-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
@@ -47,7 +47,7 @@ SCALETEST 2400x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
 SCALETEST 2400x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
 SCALETEST 2400x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
 SCALETEST 1920x1080-RESIZE: PASS — win=(1920, 1080)
-SCALETEST DIAG win=(1920, 1080) vis=(1280.0, 720.0) canvas_t origin=(0.0, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 555.0)
+SCALETEST DIAG win=(1920, 1080) vis=(1280.0, 720.0) canvas_t origin=(-0.000305, -680.0) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0003, 1040.0) move_rect=[P: (90.0, 480.0), S: (150.0, 150.0)] move_gt origin=(90.0, 480.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 555.0) converted=(165.0, 555.0) buggy_viewport_canvas=(165.0003, 1235.0) rect_centre=(165.0, 555.0)
 SCALETEST 1920x1080-DIAG: PASS — see DIAG line above
 SCALETEST 1920x1080-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
 SCALETEST 1920x1080-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)
@@ -62,7 +62,7 @@ SCALETEST 1920x1080-AIM-RELEASE: PASS — aim=(0.0, 0.0)
 SCALETEST 1920x1080-AIM-FIRE-CENTRE: PASS — firing=true aim_active=true
 SCALETEST 1920x1080-AIM-FIRE-RELEASE: PASS — firing=false aim=(0.0, 0.0)
 SCALETEST 800x480-RESIZE: PASS — win=(800, 480)
-SCALETEST DIAG win=(800, 480) vis=(1280.0, 768.0) canvas_t origin=(0.0, -632.0001) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1016.0) move_rect=[P: (90.0, 528.0), S: (150.0, 150.0)] move_gt origin=(90.0, 528.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 603.0) converted=(165.0, 603.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 603.0)
+SCALETEST DIAG win=(800, 480) vis=(1280.0, 768.0) canvas_t origin=(0.0, -631.9999) x=(1.0, 0.0) y=(0.0, 1.0) hud_final=[X: (1.0, 0.0), Y: (0.0, 1.0), O: (0.0, 0.0)] cam_center=(640.0, 1016.0) move_rect=[P: (90.0, 528.0), S: (150.0, 150.0)] move_gt origin=(90.0, 528.0) x=(1.0, 0.0) y=(0.0, 1.0) screen_centre=(165.0, 603.0) converted=(165.0, 603.0) buggy_viewport_canvas=(165.0, 1235.0) rect_centre=(165.0, 603.0)
 SCALETEST 800x480-DIAG: PASS — see DIAG line above
 SCALETEST 800x480-MOVE-CENTRE: PASS — vec=(0.0, 0.0) knob=(0.0, 0.0)
 SCALETEST 800x480-MOVE-UP: PASS — vec=(0.0, -1.0) knob=(0.0, -60.0)

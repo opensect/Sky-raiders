@@ -19,6 +19,9 @@ FLOW SHOT NOW: user://shot_menu.png err=0 size=(1280, 720)
 FLOWTEST MENU-VISIBLE: PASS — main menu visible=true
 FLOW SHOT NOW: user://shot_lobby.png err=0 size=(1280, 720)
 FLOWTEST CREATE-ROOM: PASS — lobby visible=true host=true host-ip label ok=true (lan_ip='198.19.0.2')
+FLOWTEST MIN-START-SOLO: PASS — min met=false btn disabled=true text='NEED 2 PLAYERS'
+FLOWTEST MIN-START-CASES: PASS — 10/10 minimum cases pass (FFA/TDM/CTF, incl. AUTO fills either side)
+FLOWTEST MIN-START-3V2: PASS — players=6 min met=true btn disabled=false text='START ANYWAY (5/6 ready)'
 SPAWN: spawning peer 1 (Player) on server players_before=0
 FLOWTEST MATCH-LOADED: PASS — local player alive=true match_over=false
 FLOWTEST PLAY-FIRE: PASS — shots fired in the match: 4
@@ -31,7 +34,3 @@ FLOW SHOT NOW: user://shot_end.png err=0 size=(1280, 720)
 FLOWTEST END-MATCH: PASS — match_over=true end panel visible=true
 FLOWTEST BACK-AT-MENU: PASS — main menu visible again after leaving the match
 FLOWTEST DONE: menu → create room → lobby → start match → play → pause → scoreboard → end screen → back
-WARNING: 4 ObjectDB instances were leaked at exit (run with `--verbose` for details).
-   at: cleanup (core/object/object.cpp:2536)
-ERROR: 2 resources still in use at exit (run with --verbose for details).
-   at: clear (core/io/resource.cpp:822)

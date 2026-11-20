@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "3.7" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "3.9" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
@@ -72,7 +72,7 @@ const PLAYER_COLORS: Array[Color] = [
 
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
 const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"] # QA-090 (v3.7): +3 headgear, indices 1-3 unchanged
-const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volcanic Cavern", "Pirate Island"] # QA-095 (v3.7): 5 maps; the vote ballot in main.gd already uses MAP_NAMES.size() for its mod arithmetic
+const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volcanic Cavern", "Pirate Island", "Skyfall"] # QA-095 (v3.7): 5 maps; QA-112 (v3.9): Skyfall added as a 6th map (vertical, 3600x7200)
 # v3.5 QA-059: one info line per map for the lobby map cards —
 # real size (from game.gd MAPS) + platform count. Kept here (not
 # in game.gd) because the menu scene builds the cards and game.gd
@@ -82,19 +82,33 @@ const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volc
 const MAP_CARD_INFO: Array[String] = [
 	"3200 × 1400 • 23 platforms", "3200 × 1400 • 24 platforms",
 	"3400 × 1800 • 16 platforms", "3000 × 1500 • 21 platforms",
-	"3000 × 1500 • 16 platforms",
+	"3000 × 1500 • 16 platforms", "3600 × 7200 • 8 levels",
 ]
-const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing"]
+const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"] # QA-112 (v3.9): mode 4 CTF is BACK, but ONLY on the Skyfall map (see _ctf_available in main.gd / game.gd) — it stays removed everywhere else (QA-107 v3.8)
 # Music attribution (Phase 6, CC BY 4.0 — must appear in-game, settings/credits).
 # Exact text from gen_assets_v3/music/LICENCE.md.
 const MUSIC_CREDITS := "\"At Rest\" Kevin MacLeod (incompetech.com)\n\"Five Armies\" Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 4.0 License\nhttp://creativecommons.org/licenses/by/4.0/"
 const MUSIC_CREDITS_SHORT := "Music: \"At Rest\" + \"Five Armies\" — Kevin MacLeod (incompetech.com), CC BY 4.0"
-# Mode ids: 0 FFA (first to kill limit), 1 TDM (team kills), 2 Survival
+# Role ids (Skyfall only, QA-112 v3.9): 0 Attacker, 1 Defender, 2 Sniper,
+# 3 Support. Roles are DYNAMIC labels only — no fixed classes, no
+# gameplay effect; they show as icons in the lobby/HUD/scoreboard.
+# The local player's pick lives in `role` and syncs through the
+# lobby player data dict ("role" key) like color/helmet/team.
+const ROLE_NAMES: Array[String] = ["Attacker", "Defender", "Sniper", "Support"]
+const SKYFALL_MAP_ID: int = 5 # Skyfall is map index 5 (6th map)
+const CTF_CAPTURE_LIMIT: int = 3 # QA-112 (v3.9): full flag captures to win — 3 captures x 3 pts = 9 points
+const CTF_POINTS_LIMIT: int = 9 # QA-114 (v3.9): first to 9 points wins (full capture 3 pts, relay bank 1 pt)
+const CTF_CAPTURE_POINTS: int = 3 # QA-114 (v3.9): carrying the flag all the way to your base
+const CTF_RELAY_POINTS: int = 1 # QA-114 (v3.9): banking the flag at a relay station (levels 4 / 7)
+const SF_CHECKPOINT_LEVELS: Array[int] = [0, 3, 5, 7] # QA-114 (v3.9): respawn checkpoints by cps index (0 = base, then levels 3, 5, 7 — user-confirmed 2026-11-20 ~18:11) # first to 3 captures wins a CTF match
+static var role: int = 0 # local player's Skyfall role (0 Attacker)
 # (round-based: one life per round, last alive wins the round, first
 # to the round limit wins the match), 3 Last Man Standing (one life
-# for the whole match, last alive wins; no respawns).
-# (QA-107 v3.8: mode 4 Capture the Flag was removed at the user's
-# request — see BUGS.md. The ids above are unchanged.)
+# for the whole match, last alive wins; no respawns), 4 Capture the
+# Flag — SKYFALL ONLY (QA-112 v3.9): vertical CTF, flags at the summit,
+# carry to your own base. On any other map mode 4 falls back to FFA.
+# (QA-107 v3.8: mode 4 was removed at the user's request — see BUGS.md.
+# It is back only for Skyfall; the ids above are unchanged.)
 
 
 static func player_color() -> Color:

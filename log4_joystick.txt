@@ -18,31 +18,36 @@ WARNING: All audio drivers failed, falling back to the dummy driver.
 SPAWN: spawning peer 1 (Player) on server players_before=0
 JOYTEST PRESS-LEFT: PASS — vec=(-0.791667, 0.0) vel.x=-277 facing=-1 anim=run
 JOYTEST PRESS-RIGHT: PASS — vec=(0.791667, 0.0) vel.x=277 facing=1 anim=run
-JOYTEST PRESS-UP-JUMP: PASS — vec=(0.0, -0.895833) on_floor=false y=1188 (was 1321) fuel=98 jetpacking=true
+JOYTEST PRESS-UP-JUMP: PASS — vec=(0.0, -0.895833) on_floor=false y=1178 (was 1321) fuel=96 jetpacking=true
 JOYTEST RELEASE-STOPS: PASS — vec=(0.0, 0.0) knob=0.0 jetpacking=false vel.x=0 fuel=100
-JOYTEST MOVE-RELEASE-NO-LEFT: PASS — mouse_seen=true mouse_pos=(225.0, 555.0) (want left of centre 640) facing=1 vel.x=135 vec=(0.0, 0.0) knob=0.0 aim=0.00 (want facing 1, no leftward vel, vec 0, aim right)
+JOYTEST MOVE-RELEASE-NO-LEFT: PASS — mouse_seen=true mouse_pos=(225.0, 555.0) (want left of centre 640) facing=1 vel.x=169 vec=(0.0, 0.0) knob=0.0 aim=0.00 (want facing 1, no leftward vel, vec 0, aim right)
 JOYTEST AIM-RELEASE-NO-LEFT: PASS — mouse_seen=true mouse_pos=(1075.0, 555.0) (want right of centre 640) facing=1 vel.x=-1 firing=false aim_vec=(0.0, 0.0) aim=0.00 (want facing 1, not firing, aim right)
 JOYTEST FUEL-STABLE: PASS — fuel=100 (was 100)
-JOYTEST PRESS-DOWN-FAST-FALL: PASS — vec=(0.0, 0.895833) vel.y=993
-JOYTEST DIAG-UP-RIGHT: PASS — vec=(0.698223, -0.698223) len=0.99 vel=(246,-7)
+JOYTEST PRESS-DOWN-FAST-FALL: PASS — vec=(0.0, 0.895833) vel.y=1147
+JOYTEST DIAG-UP-RIGHT: PASS — vec=(0.698223, -0.698223) len=0.99 vel=(246,-15)
 JOYTEST DIAG-SPEED: PASS — vec.len=0.99 vel.x=246
 JOYTEST KNOB-CLAMP: PASS — knob=60.0 vec=(1.0, 0.0)
 JOYTEST MULTI-TOUCH: PASS — move_active=true aim_active=true firing=true shots=7 (was 3)
 JOYTEST RELEASE-MOVE-ONLY: PASS — move_vec=(0.0, 0.0) move_active=false aim_active=true firing=true
 JOYTEST RELEASE-FIRE-STOPS-FIRE: PASS — firing=false aim_active=false shots=11 (was 11)
-JOYTEST FOCUS-OUT-SETUP: PASS — firing=true aim_active=true shots=14
+JOYTEST FOCUS-OUT-SETUP: PASS — firing=true aim_active=true shots=15
 JOYTEST FOCUS-OUT-RESET: PASS — firing=false move_vec=(0.0, 0.0) aim_vec=(0.0, 0.0) move_active=false aim_active=false shots=15 (was 15)
 JOYTEST FIRE-AFTER-DEATH: PASS — alive=false shots=15 (was 15)
 JOYTEST WAIT-RESPAWN: PASS — alive=true health=100
 JOYTEST FIRE-WHILE-PAUSED-SETUP: PASS — firing=true aim_active=true shots=18
 JOYTEST FIRE-WHILE-PAUSED: PASS — shots=18 (was 18) paused_resumed_ok
 JOYTEST FIRE-AFTER-MATCH-END: PASS — shots=18 (was 18)
-JOYTEST STICK-UP-NO-REJUMP: PASS — on_floor=true vel.y=0 fuel=53
+STUCK-RECOVERY: player 1 was inside solid geometry, moved to (900.0, 1318.0)
+JOYTEST STICK-UP-NO-REJUMP: FAIL — on_floor=false vel.y=-703 fuel=0
 JOYTEST RESOLUTION-1920: PASS — viewport=(1280.0, 720.0) vec=(-0.791667, 0.0) vel.x=-277
 JOYTEST RESOLUTION-2400: PASS — viewport=(1600.0, 720.0) vec=(1.0, 0.0) vel.x=350
-JOYTEST MOVE-RELEASE-NO-LEFT-2400: PASS — mouse_seen=true mouse_pos=(224.6667, 554.6667) (want left of centre 800) facing=1 vel.x=19 vec=(0.0, 0.0) knob=0.0 aim=-0.79 at 2400x1080 (want facing 1, no leftward vel, vec 0, aim right)
+JOYTEST MOVE-RELEASE-NO-LEFT-2400: PASS — mouse_seen=true mouse_pos=(224.6667, 554.6667) (want left of centre 800) facing=1 vel.x=14 vec=(0.0, 0.0) knob=0.0 aim=-0.79 at 2400x1080 (want facing 1, no leftward vel, vec 0, aim right)
 JOYTEST AIM-RELEASE-NO-LEFT-2400: PASS — mouse_seen=true mouse_pos=(852.6667, 554.6667) (want right of centre 800) facing=1 vel.x=-1 firing=false aim_vec=(0.0, 0.0) aim=0.00 at 2400x1080 (want facing 1, not firing, aim right)
-JOYTEST DONE: 26/26 passed
+JOYTEST GUI-STICK-CLEAR: PASS — blockers=none
+JOYTEST GUI-PRESS-LEFT: PASS — vec=(-0.791667, 0.0) vel.x=-277 facing=-1 stick_active=false
+JOYTEST GUI-PRESS-LEFT-MID: PASS — vec=(-0.791667, 0.0) vel.x=-277 facing=-1 stick_active=false
+JOYTEST GUI-PRESS-LEFT-TOP: PASS — vec=(-0.791667, 0.0) vel.x=-279 facing=-1 stick_active=false
+JOYTEST DONE: 29/30 passed
 WARNING: 4 ObjectDB instances were leaked at exit (run with `--verbose` for details).
    at: cleanup (core/object/object.cpp:2536)
 ERROR: 2 resources still in use at exit (run with --verbose for details).
