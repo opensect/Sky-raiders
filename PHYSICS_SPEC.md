@@ -672,3 +672,21 @@ optimization, crash prevention and release testing.
 
 ---
 SPEC COMPLETE: points 1–28 all received (2026-11-19 ~01:35 IST).
+
+## QA-141 note (2026-11-21) — Mini Militia Classic constants, extracted from the real binary
+
+The reconstruction above is superseded for the values actually ported: the real
+constants were extracted by disassembly from Mini Militia Classic v0.14.4
+(`libcocos2dcpp.so`) — see `~/workspace/mini-militia-classic/QA141_EXTRACTION_A.md`
+and `QA141_EXTRACTION_B.md` — and ported into the game in QA-141 (commit to be
+added). Full table, per-file changes, could-not-extract list and known conflicts:
+BUGS.md, QA-141 entry. Headline values now live in the game: move base 300,
+headroom accel 3.0× (1.5× thrusting), damping 0.598/s, gravity 300 (50 thrusting),
+jump Δv 220, fuel 100 / drain 21/s, jetpack rise cap 190, grenade fuse 1.75 /
+gravity 250 / radius 125, explosion damage max(10, 100 − 0.8×dist) / knockback
+cap 600, weapon stats = AK47/MP5/SPAS-12/M93BA/SMAW/D.EAGLE builder rows, LCG
+spread counter=(41c+37)%100, joystick dead zone 0.0, fire at aim deflection ≥0.98,
+stick opacity 0.5. NOT ported (could not extract): grenade throw speed, jetpack
+fuel regen, rocket blast radius, bullet gravity, per-weapon arm angle / firing
+point / weight (gun hold stays QA-127). Known conflict: MMC fuel ≈ 4.76 s full
+thrust supersedes the user's v3.12 request for a 9 s tank.

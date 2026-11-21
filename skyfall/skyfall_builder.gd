@@ -17,7 +17,7 @@ func _init(game) -> void:
 
 
 func _draw_tiles(map: Dictionary, platforms: Array) -> void:
-	var tex: Texture2D = g.TILE_TEX[clampi(int(map["tile"]), 0, g.TILE_TEX.size() - 1)]
+	var tex: Texture2D = GameAssets.TILE_TEX[clampi(int(map["tile"]), 0, GameAssets.TILE_TEX.size() - 1)]
 	var tile_w := float(tex.get_width())
 	var tile_h := float(tex.get_height())
 	for rect in platforms:
@@ -90,7 +90,7 @@ func _build_skyfall(map: Dictionary) -> void:
 	for w in map.get("wind", []):
 		var wr: Rect2 = w["rect"]
 		var ov := Sprite2D.new()
-		ov.texture = g.SF_TEX_WIND
+		ov.texture = GameAssets.SF_TEX_WIND
 		ov.position = wr.get_center()
 		ov.scale = Vector2(wr.size.x / 384.0, wr.size.y / 384.0)
 		ov.modulate = Color(1, 1, 1, 0.55)
@@ -101,7 +101,7 @@ func _build_skyfall(map: Dictionary) -> void:
 	for team in [0, 1]:
 		var zpos: Vector2 = ctf.get("extract_red" if team == 0 else "extract_blue", Vector2.ZERO)
 		var zspr := Sprite2D.new()
-		zspr.texture = g.SF_TEX_ZONE_RED if team == 0 else g.SF_TEX_ZONE_BLUE
+		zspr.texture = GameAssets.SF_TEX_ZONE_RED if team == 0 else GameAssets.SF_TEX_ZONE_BLUE
 		zspr.position = zpos + Vector2(0, -10)
 		zspr.scale = Vector2(0.9, 0.9)
 		zspr.z_index = 1
@@ -298,12 +298,12 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 func _build_skyfall_themes(map: Dictionary) -> void:
 	# [top image, bottom image, platform tint, light overlay, name]
 	var themes := [
-		[g.SF_TEX_LVL_2, g.SF_TEX_LVL_1, Color(0.95, 0.85, 0.70), Color(1.0, 0.90, 0.70, 0.06), "Twin Base Camp + Broken Cliffs"],
-		[g.SF_TEX_LVL_3, g.SF_TEX_LVL_3, Color(0.55, 0.55, 0.65), Color(0.0, 0.0, 0.10, 0.30), "Underground Tunnels"],
-		[g.SF_TEX_LVL_4, g.SF_TEX_LVL_4, Color(1.0, 0.80, 0.55), Color(0.10, 0.10, 0.15, 0.08), "Hanging Bridge"],
-		[g.SF_TEX_LVL_5, g.SF_TEX_LVL_5, Color(0.70, 0.85, 0.70), Color(0.05, 0.10, 0.20, 0.10), "Sniper Territory"],
-		[g.SF_TEX_LVL_6, g.SF_TEX_LVL_6, Color(0.75, 0.80, 0.90), Color(1.0, 0.60, 0.30, 0.07), "Mechanical Ascent"],
-		[g.SF_TEX_LVL_8, g.SF_TEX_LVL_7, Color(0.90, 0.95, 1.0), Color(0.10, 0.15, 0.35, 0.16), "The Last Stand + Flag Summit"],
+		[GameAssets.SF_TEX_LVL_2, GameAssets.SF_TEX_LVL_1, Color(0.95, 0.85, 0.70), Color(1.0, 0.90, 0.70, 0.06), "Twin Base Camp + Broken Cliffs"],
+		[GameAssets.SF_TEX_LVL_3, GameAssets.SF_TEX_LVL_3, Color(0.55, 0.55, 0.65), Color(0.0, 0.0, 0.10, 0.30), "Underground Tunnels"],
+		[GameAssets.SF_TEX_LVL_4, GameAssets.SF_TEX_LVL_4, Color(1.0, 0.80, 0.55), Color(0.10, 0.10, 0.15, 0.08), "Hanging Bridge"],
+		[GameAssets.SF_TEX_LVL_5, GameAssets.SF_TEX_LVL_5, Color(0.70, 0.85, 0.70), Color(0.05, 0.10, 0.20, 0.10), "Sniper Territory"],
+		[GameAssets.SF_TEX_LVL_6, GameAssets.SF_TEX_LVL_6, Color(0.75, 0.80, 0.90), Color(1.0, 0.60, 0.30, 0.07), "Mechanical Ascent"],
+		[GameAssets.SF_TEX_LVL_8, GameAssets.SF_TEX_LVL_7, Color(0.90, 0.95, 1.0), Color(0.10, 0.15, 0.35, 0.16), "The Last Stand + Flag Summit"],
 	]
 	for li in 6:
 		var lvl := li + 1
@@ -392,7 +392,7 @@ func _build_skyfall_weather(map: Dictionary) -> void:
 	var dust: Array = []
 	for i in 4:
 		var d := Sprite2D.new()
-		d.texture = g.FX_TEX_DUST
+		d.texture = GameAssets.FX_TEX_DUST
 		d.position = Vector2(400.0 + float(i) * 800.0, 9900.0 + float(i % 2) * 500.0)
 		d.scale = Vector2(0.5, 0.5)
 		d.modulate = Color(1, 1, 1, 0.35)
@@ -403,7 +403,7 @@ func _build_skyfall_weather(map: Dictionary) -> void:
 	var drips: Array = []
 	for i in 4:
 		var d := Sprite2D.new()
-		d.texture = g.FX_TEX_RAIN
+		d.texture = GameAssets.FX_TEX_RAIN
 		d.position = Vector2(500.0 + float(i) * 800.0, 7400.0 + float(i % 2) * 600.0)
 		d.scale = Vector2(0.35, 0.35)
 		d.modulate = Color(1, 1, 1, 0.4)
@@ -418,7 +418,7 @@ func _build_skyfall_weather(map: Dictionary) -> void:
 	var rain: Array = []
 	for i in 8:
 		var r := Sprite2D.new()
-		r.texture = g.FX_TEX_RAIN
+		r.texture = GameAssets.FX_TEX_RAIN
 		r.position = Vector2(200.0 + float(i) * 420.0, 200.0 + float(i % 4) * 500.0)
 		r.scale = Vector2(0.8, 0.8)
 		r.modulate = Color(1, 1, 1, 0.6)
@@ -465,7 +465,7 @@ func _build_skyfall_weather(map: Dictionary) -> void:
 	var gust_pos := [Vector2(600, 6200), Vector2(1500, 6500), Vector2(2400, 6200), Vector2(1500, 5600), Vector2(2100, 5750)]
 	for i in gust_pos.size():
 		var local_g := Sprite2D.new()
-		local_g.texture = g.FX_TEX_GUST_R if i % 2 == 0 else g.FX_TEX_GUST_L
+		local_g.texture = GameAssets.FX_TEX_GUST_R if i % 2 == 0 else GameAssets.FX_TEX_GUST_L
 		local_g.position = gust_pos[i]
 		local_g.scale = Vector2(0.9, 0.9)
 		local_g.modulate = Color(1, 1, 1, 0.0)
@@ -493,11 +493,11 @@ func _build_skyfall_hazards(map: Dictionary) -> void:
 			# is anchored by its grate at the rect bottom (the
 			# flame rises from the vent), so the position is set
 			# from the frame height there, not here.
-			flame.texture = g.TRAP_TEX_FIRE_VENT[1]
+			flame.texture = GameAssets.TRAP_TEX_FIRE_VENT[1]
 			flame.scale = Vector2(r.size.x / 220.0, 1.0)
 			flame.position = Vector2(r.get_center().x, r.end.y - 79.0)
 		else:
-			flame.texture = g.FX_TEX_LAVA
+			flame.texture = GameAssets.FX_TEX_LAVA
 			flame.position = r.get_center()
 			flame.scale = Vector2(r.size.x / 512.0, 0.6)
 		flame.modulate = Color(1, 1, 1, 0.85)
@@ -506,7 +506,7 @@ func _build_skyfall_hazards(map: Dictionary) -> void:
 		var magma: Sprite2D = null
 		if kind == "lava":
 			magma = Sprite2D.new()
-			magma.texture = g.FX_TEX_MAGMA
+			magma.texture = GameAssets.FX_TEX_MAGMA
 			magma.position = r.get_center() + Vector2(0, -30)
 			magma.scale = Vector2(0.5, 0.5)
 			magma.modulate = Color(1, 1, 1, 0.0)
@@ -543,7 +543,7 @@ func _build_skyfall_pendulums(map: Dictionary) -> void:
 		chain.points = PackedVector2Array([Vector2.ZERO, Vector2(0, plen)])
 		node.add_child(chain)
 		var ball := Sprite2D.new()
-		ball.texture = g.TRAP_TEX_BALL
+		ball.texture = GameAssets.TRAP_TEX_BALL
 		ball.position = Vector2(0, plen)
 		ball.z_index = 2
 		node.add_child(ball)
@@ -565,7 +565,7 @@ func _build_skyfall_movers(map: Dictionary) -> void:
 		shape.shape = box
 		body.add_child(shape)
 		var spr := Sprite2D.new()
-		spr.texture = g.SF_TEX_ELEVATOR
+		spr.texture = GameAssets.SF_TEX_ELEVATOR
 		spr.position = Vector2(0, 24) # slab art is 96 tall; top aligns with the collision top
 		body.add_child(spr)
 		var y_mid := (float(cfg["y_top"]) + float(cfg["y_bottom"])) * 0.5
@@ -586,7 +586,7 @@ func _build_skyfall_movers(map: Dictionary) -> void:
 		shape.shape = box
 		body.add_child(shape)
 		var spr := Sprite2D.new()
-		spr.texture = g.SF_TEX_ELEVATOR
+		spr.texture = GameAssets.SF_TEX_ELEVATOR
 		spr.region_enabled = true
 		spr.region_rect = Rect2(0, 0, float(rot.get("w", 400)), 96)
 		spr.position = Vector2(0, 24)
@@ -609,7 +609,7 @@ func _build_skyfall_movers(map: Dictionary) -> void:
 		shape.shape = box
 		body.add_child(shape)
 		var spr := Sprite2D.new()
-		spr.texture = g.SF_TEX_ELEVATOR
+		spr.texture = GameAssets.SF_TEX_ELEVATOR
 		spr.region_enabled = true
 		spr.region_rect = Rect2(0, 0, float(se.get("w", 300)), 96)
 		spr.position = Vector2(0, 24)
@@ -630,7 +630,7 @@ func _build_skyfall_gate(map: Dictionary) -> void:
 	var gx := float(local_g.get("x", 1800))
 	var gy := float(local_g.get("y", 862))
 	var spr := Sprite2D.new()
-	spr.texture = g.SF_TEX_GATE
+	spr.texture = GameAssets.SF_TEX_GATE
 	spr.position = Vector2(gx, gy - 192)
 	spr.z_index = 2
 	g.add_child(spr)
@@ -656,7 +656,7 @@ func _build_skyfall_switch(map: Dictionary) -> void:
 		return
 	var pos: Vector2 = sw.get("pos", Vector2(1800, 1712))
 	var spr := Sprite2D.new()
-	spr.texture = g.SF_TEX_SWITCH
+	spr.texture = GameAssets.SF_TEX_SWITCH
 	spr.position = pos + Vector2(0, -128)
 	spr.z_index = 2
 	g.add_child(spr)
@@ -675,7 +675,7 @@ func _build_skyfall_barricades(map: Dictionary) -> void:
 	for b in map.get("barricades", []):
 		var pos: Vector2 = b.get("pos", Vector2.ZERO)
 		var spr := Sprite2D.new()
-		spr.texture = g.SF_TEX_BARRICADE
+		spr.texture = GameAssets.SF_TEX_BARRICADE
 		spr.position = pos + Vector2(0, -96)
 		spr.z_index = 2
 		g.add_child(spr)
@@ -706,7 +706,7 @@ func _build_skyfall_platform_refs(map: Dictionary) -> void:
 		for s in sprs:
 			var sp := s as Sprite2D
 			var seg_w := minf(512.0, r.end.x - sp.position.x)
-			sp.texture = g.TRAP_TEX_GRATE
+			sp.texture = GameAssets.TRAP_TEX_GRATE
 			sp.region_enabled = true
 			sp.region_rect = Rect2(0, 0, 164, 48)
 			sp.scale = Vector2(seg_w / 164.0, 1.0)
@@ -715,7 +715,7 @@ func _build_skyfall_platform_refs(map: Dictionary) -> void:
 		var r: Rect2 = plats[int(idx)]
 		var sprs: Array = _sf_tile_sprites_at(r)
 		for s in sprs:
-			(s as Sprite2D).texture = g.SF_TEX_TRAPDOOR_CLOSED
+			(s as Sprite2D).texture = GameAssets.SF_TEX_TRAPDOOR_CLOSED
 			(s as Sprite2D).region_enabled = true
 			(s as Sprite2D).region_rect = Rect2(0, 0, minf(512.0, r.size.x), 48)
 		g._sf_trapdoors.append({"idx": int(idx), "rect": r, "shape": _sf_arena_shape_at(r.get_center()), "sprites": sprs, "state": "closed", "timer": 0.0})
@@ -729,3 +729,4 @@ func _build_skyfall_platform_refs(map: Dictionary) -> void:
 # 15% slower with no jetpack (player.gd reads carrying_flag).
 # Host-authoritative; clients only render what ctf_sync sends.
 # ---------------------------------------------------------------------------
+

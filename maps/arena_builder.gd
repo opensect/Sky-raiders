@@ -39,7 +39,7 @@ func _build_background(map: Dictionary) -> void:
 	# still matches the map palette. Maps without a "bg" key (the 5
 	# POOR-fit day maps) keep the full procedural gradient.
 	var bg_idx := int(map.get("bg", -1))
-	if bg_idx >= 0 and bg_idx < g.BG_TEX.size():
+	if bg_idx >= 0 and bg_idx < GameAssets.BG_TEX.size():
 		sky.modulate = Color(1, 1, 1, 0.5)
 		var pb := ParallaxBackground.new()
 		pb.layer = -100
@@ -49,7 +49,7 @@ func _build_background(map: Dictionary) -> void:
 		player_layer.motion_mirroring = Vector2(1286, 0)
 		pb.add_child(player_layer)
 		var bg_spr := Sprite2D.new()
-		bg_spr.texture = g.BG_TEX[bg_idx]
+		bg_spr.texture = GameAssets.BG_TEX[bg_idx]
 		bg_spr.scale = Vector2(1286.0 / 960.0, 723.0 / 540.0)
 		bg_spr.position = Vector2(643, 362)
 		player_layer.add_child(bg_spr)
@@ -171,7 +171,7 @@ func _build_arena(map: Dictionary) -> void:
 	# Decorations (visual only, behind the players).
 	var decor: Array = map["decor"]
 	for d in decor:
-		var tex: Texture2D = g.DECOR_TEX[d[0]]
+		var tex: Texture2D = GameAssets.DECOR_TEX[d[0]]
 		var spr := Sprite2D.new()
 		spr.texture = tex
 		spr.position = Vector2(float(d[1]), float(d[2]) - tex.get_height() * 0.5)
@@ -187,7 +187,7 @@ func _build_arena(map: Dictionary) -> void:
 		if String(d[0]) in g.SOLID_DECOR_KINDS:
 			var shape := CollisionShape2D.new()
 			var box := RectangleShape2D.new()
-			var inset = float(g.DECOR_INSETS.get(String(d[0]), 6))
+			var inset = float(GameAssets.DECOR_INSETS.get(String(d[0]), 6))
 			# Sides and top are inset (transparent sprite edges);
 			# the bottom sits ON the ground point. An inset bottom
 			# floats 6-10 px above the floor and the capsule's
@@ -220,7 +220,7 @@ func _build_arena(map: Dictionary) -> void:
 		for d in decor:
 			if String(d[0]) == "if_bunker":
 				var bx := float(d[1])
-				var btop = float(d[2]) - float(g.DECOR_IF_BUNKER.get_height())
+				var btop = float(d[2]) - float(GameAssets.DECOR_IF_BUNKER.get_height())
 				var pole := Polygon2D.new()
 				pole.polygon = PackedVector2Array([Vector2(bx - 2, btop + 6), Vector2(bx + 2, btop + 6), Vector2(bx + 2, btop - 32), Vector2(bx - 2, btop - 32)])
 				pole.color = Color(0.15, 0.15, 0.18)
@@ -317,7 +317,7 @@ func try_barrel_hit(hit_pos: Vector2, dmg: int, owner_id: int) -> bool:
 				(b["shape"] as CollisionShape2D).set_deferred("disabled", true)
 				g.rpc("barrel_destroyed_remote", g._barrels.find(b))
 				g.request_explosion(r.get_center(), PhysicsConfig.BARREL_BLAST_RADIUS,
-					int(PhysicsConfig.BARREL_BLAST_DAMAGE), owner_id)
+					int(PhysicsConfig.EXPLOSION_DAMAGE_MAX), owner_id)
 			return true
 	return false
 
@@ -436,4 +436,78 @@ func _build_ambient_fx(map: Dictionary) -> void:
 			p.scale_amount_min = 2.0
 			p.scale_amount_max = 4.0
 	g.add_child(p)
+
+
+func _update_lava(delta: float) -> void:
+	# Server-side only: standing in lava hurts (20 hp per second, no kill
+	# credit). Spawn protection covers fresh spawns; pools are shallow and
+	# flanked by safe platforms, so a player can always jetpack out.
+	if not g.multiplayer.is_server() or g.match_over:
+		return
+	var pools: Array = g.MAPS[g.map_id].get("lava", [])
+	if pools.is_empty():
+		return
+	for child in g.players_node.get_children():
+		if not child.alive:
+			continue
+		var feet: Vector2 = child.position + Vector2(0, 24) # QA-071b: was 20, taller player (24 = 20 * 1.20)
+		var in_lava := false
+		for r in pools:
+			var rect: Rect2 = r
+			if rect.has_point(feet):
+				in_lava = true
+				break
+		if not in_lava:
+			continue
+		var cd: float = float(g._lava_cd.get(child.peer_id, 0.0))
+		cd -= delta
+		if cd <= 0.0:
+			g._lava_cd[child.peer_id] = 0.5
+			# v2.4 BUG FIX: lava damage used to call take_damage()
+			# directly on the server's copy of a remote player — the
+			# owner's synchronizer then overwrote the health, so lava
+			# only ever hurt the host. Route it to the victim's owning
+			# peer like bullet damage.
+			if child.get_multiplayer_authority() == g.multiplayer.get_unique_id():
+				child.take_damage(10, 0)
+			elif g.multiplayer.get_peers().has(child.get_multiplayer_authority()):
+				child.rpc_id(child.get_multiplayer_authority(), "take_damage", 10, 0)
+		else:
+			g._lava_cd[child.peer_id] = cd
+
+
+func _build_nodes() -> void:
+	# The game root is PROCESS_MODE_ALWAYS (so Esc / HUD input works while
+	# paused); these gameplay containers are explicitly pausable so the
+	# match itself freezes on pause.
+	g.players_node = Node2D.new()
+	g.players_node.name = "Players"
+	g.players_node.process_mode = Node.PROCESS_MODE_PAUSABLE
+	g.add_child(g.players_node)
+
+	g.bullets_node = Node2D.new()
+	g.bullets_node.name = "Bullets"
+	g.bullets_node.process_mode = Node.PROCESS_MODE_PAUSABLE
+	g.bullets_node.add_to_group("bullets_container")
+	g.add_child(g.bullets_node)
+
+	g.pickups_node = Node2D.new()
+	g.pickups_node.name = "Pickups"
+	g.pickups_node.process_mode = Node.PROCESS_MODE_PAUSABLE
+	g.add_child(g.pickups_node)
+
+	g.grenades_node = Node2D.new()
+	g.grenades_node.name = "Grenades"
+	g.grenades_node.process_mode = Node.PROCESS_MODE_PAUSABLE
+	g.add_child(g.grenades_node)
+
+	g.fx_node = Node2D.new()
+	g.fx_node.name = "FX"
+	g.fx_node.process_mode = Node.PROCESS_MODE_PAUSABLE
+	g.add_child(g.fx_node)
+
+	g.spawner = MultiplayerSpawner.new()
+	g.spawner.spawn_path = NodePath("../Players")
+	g.spawner.spawn_function = g.game_spawn._spawn_player_node
+	g.add_child(g.spawner)
 

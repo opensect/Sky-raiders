@@ -28,7 +28,7 @@ func _ctf_flag_visual(team: int) -> Node2D:
 	node.name = "Flag%d" % team
 	node.z_index = 5
 	var spr := Sprite2D.new()
-	spr.texture = g.SF_TEX_FLAG_RED if team == 0 else g.SF_TEX_FLAG_BLUE
+	spr.texture = GameAssets.SF_TEX_FLAG_RED if team == 0 else GameAssets.SF_TEX_FLAG_BLUE
 	spr.scale = Vector2(0.5, 0.5)
 	spr.position = Vector2(0, -64)
 	node.add_child(spr)
@@ -178,9 +178,9 @@ func _update_ctf(delta: float) -> void:
 		var carrier: int = int(d.get("carrier", -1))
 		if spr != null:
 			if bool(d.get("dropped", false)):
-				spr.texture = g.SF_TEX_FLAG_RED_DROPPED if int(d.get("team", 0)) == 0 else g.SF_TEX_FLAG_BLUE_DROPPED
+				spr.texture = GameAssets.SF_TEX_FLAG_RED_DROPPED if int(d.get("team", 0)) == 0 else GameAssets.SF_TEX_FLAG_BLUE_DROPPED
 			else:
-				spr.texture = g.SF_TEX_FLAG_RED if int(d.get("team", 0)) == 0 else g.SF_TEX_FLAG_BLUE
+				spr.texture = GameAssets.SF_TEX_FLAG_RED if int(d.get("team", 0)) == 0 else GameAssets.SF_TEX_FLAG_BLUE
 		if carrier >= 0:
 			var cp = g.players_node.get_node_or_null(str(carrier))
 			if cp != null:

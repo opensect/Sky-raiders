@@ -281,7 +281,7 @@ func _build_hud() -> void:
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(56, 56)
 		btn.expand_icon = true
-		btn.icon = g.SF_TEX_SLOT[i]
+		btn.icon = GameAssets.SF_TEX_SLOT[i]
 		_style_hud_button(btn)
 		btn.pressed.connect(g._on_slot_pressed.bind(i))
 		slot_row.add_child(btn)
@@ -509,18 +509,18 @@ func _build_hud() -> void:
 	g._spectate_next_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	g._spectate_next_btn.position = Vector2(-100, -90)
 	g._spectate_next_btn.visible = false
-	g._spectate_next_btn.pressed.connect(g._on_spectate_next_pressed)
+	g._spectate_next_btn.pressed.connect(g.game_feed._on_spectate_next_pressed)
 	g.hud.add_child(g._spectate_next_btn)
 
 	# QA-114 (v3.9): vertical HUD — the height bar (Skyfall only).
 	# A live tower map on the left edge: every player's height as
 	# a dot, team pings as gold diamonds, level ticks, route legend.
 	_build_height_bar()
-	_build_scoreboard()
-	_build_pause_menu()
-	_build_end_screen()
-	_build_error_panel()
-	_build_weapon_panel()
+	g.hud_screens._build_scoreboard()
+	g.hud_screens._build_pause_menu()
+	g.hud_screens._build_end_screen()
+	g.hud_screens._build_error_panel()
+	g.hud_screens._build_weapon_panel()
 
 
 # v2.3: dialogs are centred by a full-rect CenterContainer, not by manual
@@ -689,264 +689,16 @@ func _build_height_bar() -> void:
 			_hb_stack.append(_hb_ch)
 
 
-func _build_scoreboard() -> void:
-	# QA-113 (v3.9): wider panel, bigger title, breathing room —
-	# the old 420 px panel with 30 px title cramped 10-player rows.
-	g.scoreboard_panel = PanelContainer.new()
-	g.scoreboard_panel.theme = GoUi.theme()
-	g.scoreboard_panel.custom_minimum_size = Vector2(560, 0)
-	g.scoreboard_panel.add_theme_stylebox_override("panel", _panel_style())
-	g.scoreboard_panel.visible = false
-	_dialog_wrap().add_child(g.scoreboard_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
-	g.scoreboard_panel.add_child(box)
-	var title := Label.new()
-	title.text = "SCOREBOARD"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", g.FONT_TITLE)
-	title.add_theme_font_size_override("font_size", 36)
-	title.add_theme_color_override("font_color", g.UI_FONT)
-	box.add_child(title)
-	var sub := Label.new()
-	sub.text = "%s  •  %s" % [GameData.MODE_NAMES[g.game_mode], GameData.MAP_NAMES[g.map_id]]
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 18)
-	sub.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
-	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(sub)
-	g.scoreboard_list = VBoxContainer.new()
-	g.scoreboard_list.add_theme_constant_override("separation", 6)
-	box.add_child(g.scoreboard_list)
-	var close_btn := Button.new()
-	close_btn.text = "Close"
-	_style_hud_button(close_btn)
-	close_btn.custom_minimum_size = Vector2(0, 56)
-	close_btn.pressed.connect(func() -> void: g.scoreboard_panel.visible = false)
-	box.add_child(close_btn)
 
 
-func _build_pause_menu() -> void:
-	# QA-113 (v3.9): same clean, spacious layout as the scoreboard —
-	# wider panel, section labels, slider value labels, match info
-	# line, 56 px buttons. Layout only, no logic changes.
-	g.pause_panel = PanelContainer.new()
-	g.pause_panel.theme = GoUi.theme()
-	g.pause_panel.custom_minimum_size = Vector2(520, 0)
-	g.pause_panel.add_theme_stylebox_override("panel", _panel_style())
-	g.pause_panel.visible = false
-	g.pause_panel.process_mode = Node.PROCESS_MODE_ALWAYS
-	_dialog_wrap().add_child(g.pause_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	g.pause_panel.add_child(box)
-	var title := Label.new()
-	title.text = "PAUSED"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", g.FONT_TITLE)
-	title.add_theme_font_size_override("font_size", 36)
-	title.add_theme_color_override("font_color", g.UI_FONT)
-	box.add_child(title)
-	g._pause_info_label = Label.new()
-	g._pause_info_label.text = ""
-	g._pause_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	g._pause_info_label.add_theme_font_size_override("font_size", 18)
-	g._pause_info_label.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
-	g._pause_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(g._pause_info_label)
-	var resume_btn := Button.new()
-	resume_btn.text = "Resume"
-	_style_hud_button(resume_btn, true)
-	resume_btn.custom_minimum_size = Vector2(0, 56)
-	resume_btn.pressed.connect(g._toggle_pause)
-	box.add_child(resume_btn)
-	# Phase 4: weapon info — damage / fire rate / magazine / reload
-	# per weapon, straight from weapons.gd (read-only display).
-	var weapons_btn := Button.new()
-	weapons_btn.text = "Weapons"
-	_style_hud_button(weapons_btn)
-	weapons_btn.custom_minimum_size = Vector2(0, 56)
-	weapons_btn.pressed.connect(func() -> void: _show_weapon_panel(true))
-	box.add_child(weapons_btn)
-	var sound_lbl := Label.new()
-	sound_lbl.text = "SOUND"
-	sound_lbl.add_theme_font_size_override("font_size", 18)
-	sound_lbl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
-	box.add_child(sound_lbl)
-	var sfx_row := HBoxContainer.new()
-	sfx_row.add_theme_constant_override("separation", 8)
-	box.add_child(sfx_row)
-	var sfx_lbl := Label.new()
-	sfx_lbl.text = "Sound"
-	sfx_lbl.custom_minimum_size = Vector2(70, 0)
-	sfx_row.add_child(sfx_lbl)
-	var sfx_slider := HSlider.new()
-	sfx_slider.min_value = 0.0
-	sfx_slider.max_value = 1.0
-	sfx_slider.step = 0.05
-	sfx_slider.value = GameData.sfx_volume
-	sfx_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sfx_slider.value_changed.connect(g._on_sfx_volume_changed)
-	sfx_row.add_child(sfx_slider)
-	g._sfx_value_label = Label.new()
-	g._sfx_value_label.text = "%d%%" % int(GameData.sfx_volume * 100.0)
-	g._sfx_value_label.custom_minimum_size = Vector2(52, 0)
-	g._sfx_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	sfx_row.add_child(g._sfx_value_label)
-	var mus_row := HBoxContainer.new()
-	mus_row.add_theme_constant_override("separation", 8)
-	box.add_child(mus_row)
-	var mus_lbl := Label.new()
-	mus_lbl.text = "Music"
-	mus_lbl.custom_minimum_size = Vector2(70, 0)
-	mus_row.add_child(mus_lbl)
-	var mus_slider := HSlider.new()
-	mus_slider.min_value = 0.0
-	mus_slider.max_value = 1.0
-	mus_slider.step = 0.05
-	mus_slider.value = GameData.music_volume
-	mus_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mus_slider.value_changed.connect(g._on_music_volume_changed)
-	mus_row.add_child(mus_slider)
-	g._music_value_label = Label.new()
-	g._music_value_label.text = "%d%%" % int(GameData.music_volume * 100.0)
-	g._music_value_label.custom_minimum_size = Vector2(52, 0)
-	g._music_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	mus_row.add_child(g._music_value_label)
-	var leave_btn := Button.new()
-	leave_btn.text = "Leave Match"
-	_style_hud_button(leave_btn)
-	leave_btn.custom_minimum_size = Vector2(0, 56)
-	leave_btn.pressed.connect(g._on_leave_pressed)
-	box.add_child(leave_btn)
 
 
-func _build_end_screen() -> void:
-	# QA-113 (v3.9): wider panel, bigger title, more breathing room.
-	g.end_panel = PanelContainer.new()
-	g.end_panel.theme = GoUi.theme()
-	g.end_panel.custom_minimum_size = Vector2(560, 0)
-	g.end_panel.add_theme_stylebox_override("panel", _panel_style())
-	g.end_panel.visible = false
-	_dialog_wrap().add_child(g.end_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	g.end_panel.add_child(box)
-	g._end_box = box
-	g.end_title = Label.new()
-	g.end_title.text = ""
-	g.end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	g.end_title.add_theme_font_override("font", g.FONT_TITLE)
-	g.end_title.add_theme_font_size_override("font_size", 34)
-	g.end_title.add_theme_color_override("font_color", g.UI_FONT)
-	box.add_child(g.end_title)
-	g.end_list = VBoxContainer.new()
-	g.end_list.add_theme_constant_override("separation", 4)
-	box.add_child(g.end_list)
-	g.end_rematch_btn = Button.new()
-	g.end_rematch_btn.text = "Rematch"
-	_style_hud_button(g.end_rematch_btn, true)
-	g.end_rematch_btn.custom_minimum_size = Vector2(0, 56)
-	g.end_rematch_btn.pressed.connect(g._on_rematch_pressed)
-	box.add_child(g.end_rematch_btn)
-	var back_btn := Button.new()
-	# QA-060: this used to say "Back to Lobby" but it goes to the
-	# main menu (_on_leave_pressed changes scene to main.tscn).
-	back_btn.text = "Back to Menu"
-	_style_hud_button(back_btn)
-	back_btn.custom_minimum_size = Vector2(0, 56)
-	back_btn.pressed.connect(g._on_leave_pressed)
-	box.add_child(back_btn)
 
 
-func _build_weapon_panel() -> void:
-	g._weapon_panel = PanelContainer.new()
-	g._weapon_panel.theme = GoUi.theme()
-	g._weapon_panel.custom_minimum_size = Vector2(520, 0)
-	g._weapon_panel.add_theme_stylebox_override("panel", _panel_style())
-	g._weapon_panel.visible = false
-	g._weapon_panel.process_mode = Node.PROCESS_MODE_ALWAYS
-	_dialog_wrap().add_child(g._weapon_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
-	g._weapon_panel.add_child(box)
-	var title := Label.new()
-	title.text = "WEAPONS"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", g.FONT_TITLE)
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", g.UI_FONT)
-	box.add_child(title)
-	var hint := Label.new()
-	hint.text = "Damage is per hit. Rate is shots per second. Pick up weapons on the map — the pistol is your starting sidearm."
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.add_theme_font_size_override("font_size", 18)
-	hint.add_theme_color_override("font_color", Color(0.78, 0.82, 0.88))
-	box.add_child(hint)
-	g._weapon_list = VBoxContainer.new()
-	g._weapon_list.add_theme_constant_override("separation", 4)
-	box.add_child(g._weapon_list)
-	for id in WeaponData.TABLE.keys():
-		var w: Dictionary = WeaponData.TABLE[id]
-		var rate: float = 1.0 / float(w["rate"]) if float(w["rate"]) > 0.0 else 0.0
-		var lbl := Label.new()
-		lbl.text = "%s — DMG %d  •  %.1f/s  •  Mag %d  •  Reload %.1fs%s%s" % [
-			String(w["name"]), int(w["damage"]), rate, int(w["mag"]),
-			float(w["reload"]),
-			"  •  Auto" if bool(w["auto"]) else "  •  Tap to fire",
-			"  •  Explosive" if bool(w["explosive"]) else "",
-		]
-		lbl.add_theme_font_size_override("font_size", 20)
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		g._weapon_list.add_child(lbl)
-	var close_btn := Button.new()
-	close_btn.text = "Close"
-	_style_hud_button(close_btn, true)
-	close_btn.custom_minimum_size = Vector2(0, 56)
-	close_btn.pressed.connect(func() -> void: _show_weapon_panel(false))
-	box.add_child(close_btn)
 
 
-func _show_weapon_panel(show: bool) -> void:
-	g._weapon_panel.visible = show
-	# The pause menu stays behind it; closing returns to pause.
 
 
-func _build_error_panel() -> void:
-	g.error_panel = PanelContainer.new()
-	g.error_panel.theme = GoUi.theme()
-	g.error_panel.custom_minimum_size = Vector2(520, 0)
-	g.error_panel.add_theme_stylebox_override("panel", _panel_style())
-	g.error_panel.visible = false
-	_dialog_wrap().add_child(g.error_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	g.error_panel.add_child(box)
-	g.error_label = Label.new()
-	g.error_label.text = ""
-	g.error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	g.error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	g.error_label.add_theme_font_override("font", g.FONT_BODY_MEDIUM)
-	g.error_label.add_theme_font_size_override("font_size", 22)
-	g.error_label.add_theme_color_override("font_color", g.UI_FONT)
-	box.add_child(g.error_label)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	box.add_child(row)
-	var retry_btn := Button.new()
-	retry_btn.text = "Retry"
-	_style_hud_button(retry_btn, true)
-	retry_btn.custom_minimum_size = Vector2(0, 56)
-	retry_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	retry_btn.pressed.connect(g._on_retry_pressed)
-	row.add_child(retry_btn)
-	var back_btn := Button.new()
-	back_btn.text = "Back"
-	_style_hud_button(back_btn)
-	back_btn.custom_minimum_size = Vector2(0, 56)
-	back_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	back_btn.pressed.connect(g._on_leave_pressed)
-	row.add_child(back_btn)
 
 
 func _build_touch_controls() -> void:

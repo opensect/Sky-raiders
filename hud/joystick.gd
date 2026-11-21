@@ -21,10 +21,10 @@ signal vector_changed(vector: Vector2)
 @export var joystick_radius: float = 60.0
 @export var knob_radius: float = 34.0
 @export var max_movement_speed: float = 330.0
-@export var dead_zone: float = 0.20 # GAP-09: THE single dead zone (was 0.12 here + 0.25 in game.gd + 0.25 in player.gd)
+@export var dead_zone: float = 0.0 # QA-141: MMC Joypad has NO dead zone (B §9, was 0.20 — GAP-09's single dead zone is now none)
 @export var horizontal_sensitivity: float = 1.0
 @export var vertical_sensitivity: float = 1.0
-@export var joystick_opacity: float = 0.85
+@export var joystick_opacity: float = 0.5 # QA-141: MMC stick opacity 0.5 (Joypad::init 0x68720c, was 0.85)
 @export var return_duration: float = 0.08
 # QA-137 (v3.14): the sticks wear the user's HUD kit art now
 # (assets/user_assets_v3/hud/hud_stick_*.png) instead of the
@@ -152,8 +152,9 @@ func _update_from_point(global_pos: Vector2) -> void:
 	var vec := Vector2(raw.x * horizontal_sensitivity, raw.y * vertical_sensitivity)
 	if vec.length() > 1.0:
 		vec = vec.normalized()
-	# Dead zone: below it the stick reports nothing; above it the
-	# remaining range is rescaled so full deflection is still 1.0.
+	# Dead zone: QA-141 — MMC has none, so dead_zone is 0.0 and this
+	# block is a no-op pass-through (kept so a future dead zone, if
+	# ever re-added, lands in this one place only).
 	var mag := vec.length()
 	if mag < dead_zone:
 		vec = Vector2.ZERO
