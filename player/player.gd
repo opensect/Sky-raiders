@@ -84,8 +84,8 @@ const FAST_FALL_EXTRA := 1600.0
 # so a camper cannot kill a player the instant they appear.
 const SPAWN_PROTECTION := 2.0
 
-const BULLET_SCENE: PackedScene = preload("res://bullet.tscn")
-const GRENADE_SCENE: PackedScene = preload("res://grenade.tscn")
+const BULLET_SCENE: PackedScene = preload("res://weapons/bullet.tscn")
+const GRENADE_SCENE: PackedScene = preload("res://weapons/grenade.tscn")
 
 # weapon: 0 rifle, 1 smg, 2 shotgun, 3 sniper, 4 rocket, 5 pistol.
 # The full table (fire rate, damage, mag, reload, speed, spread,

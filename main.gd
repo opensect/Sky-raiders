@@ -6,7 +6,7 @@ extends Control
 const GAME_SCENE := "res://game.tscn"
 const PORT := 7777
 const JOIN_TIMEOUT := 8.0
-const AUDIO_SCRIPT: Script = preload("res://audio.gd")
+const AUDIO_SCRIPT: Script = preload("res://audio/audio.gd")
 
 # QA-095 (v3.7): 5 maps only — 0 Ironfall (new), 1 Jungle Ruins,
 # 2 Neon City (new thumb, drawn for v3.7), 3 Volcanic Cavern,

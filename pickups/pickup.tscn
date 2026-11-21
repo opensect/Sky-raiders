@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://lanarenapickup"]
 
-[ext_resource type="Script" path="res://pickup.gd" id="1_pickup"]
+[ext_resource type="Script" path="res://pickups/pickup.gd" id="1_pickup"]
 
 [node name="Pickup" type="Area2D"]
 collision_layer = 7
