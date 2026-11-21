@@ -27,7 +27,7 @@ var _game_shots: bool = false # v3.2: --game-shots captures HUD/countdown/pause/
 var _v37_shots: bool = false # v3.7: --v37-shots captures jetpack flame + muzzle flash, pickups, hit flash to user://shot_v37_*.png
 var _v37_timer: float = 0.0
 var _v37_stage: int = -1
-var _v38_shots: bool = false # v3.8 QA-105: --v38-shots captures sniper scope + sight line (clear/blocked), rifle scope, SMG no-scope to user://shot_v38_*.png
+var _v38_shots: bool = false # v3.8 QA-105: --v38-shots captures sniper sight line (clear/blocked), rifle, SMG to user://shot_v38_*.png (QA-143: no scope any more)
 var _v38_timer: float = 0.0
 var _v38_stage: int = -1
 var _glitch_shots: bool = false # v3.8 QA-108: --glitch-shots captures gun hold (6 weapons) + headgear (7) in every state to user://shot_glitch_*.png
@@ -213,7 +213,7 @@ func _update_gameshots(delta: float) -> void:
 			if lp4 != null and g.map_id == GameData.SKYFALL_MAP_ID:
 				lp4.apply_powerup(8)
 				lp4.apply_powerup(10)
-				lp4.apply_powerup(7)
+				lp4.apply_powerup(13) # QA-143 (v4.0): Health Potion (7) removed — Invisibility fills the third slot
 				g._do_spawn(201, "InvisBot", 1, 0, -1)
 				var bot4 = g.players_node.get_node_or_null("201")
 				if bot4 != null:
@@ -290,15 +290,16 @@ func _update_v37shots(delta: float) -> void:
 			g.get_tree().quit()
 
 
-# v3.8 SCOPE-SCREENSHOT MODE (--v38-shots, QA-105): staged captures
-# of the sniper scope + sight line and the rifle scope. Runs as
+# v3.8 SIGHT-LINE-SCREENSHOT MODE (--v38-shots, QA-105): staged captures
+# of the sniper sight line. QA-143: scoping was removed, so the
+# stages no longer zoom — they capture the sight line only. Runs as
 # auto-host; the countdown is skipped. Stage 1: sniper, open sky,
-# aim LEFT from the right y670 tower tier, scoped — the sight line
+# aim LEFT from the right y670 tower tier — the sight line
 # is GREEN (clear). Stage 3: same sniper, aim straight down at
 # the platform below — the line is RED (blocked). Stage 5: rifle
-# scoped (1.5x, no sight line). Stage 7: SMG — the SCOPE button
-# hides (no scope). Each capture waits a full second so the camera
-# zoom eases in. QA-111: stage 1 used to stand at (1500,300)
+# (no zoom, no sight line). Stage 7: SMG — no sight line.
+# Each capture waits a full second so the scene settles.
+# QA-111: stage 1 used to stand at (1500,300)
 # aiming right, but the Ironfall peak (y330 platform + bunker +
 # comms tower) now blocks that path, so the "clear" line came out
 # red — moved to (2950,639) aiming left, where the y645 band is
@@ -319,7 +320,6 @@ func _update_v38shots(delta: float) -> void:
 				lp.position = Vector2(2950, 639)
 				lp.sync_position = lp.position
 				lp.velocity = Vector2.ZERO
-				lp.scoped = true
 			_smoke_set_move(null)
 			_smoke_set_aim(Vector2(-60, 0))
 			_smoke_set_fire(true)
@@ -330,7 +330,6 @@ func _update_v38shots(delta: float) -> void:
 				lp.position = Vector2(1500, 700)
 				lp.sync_position = lp.position
 				lp.velocity = Vector2.ZERO
-				lp.scoped = true
 			_smoke_set_aim(Vector2(0, 60))
 			_smoke_set_fire(true)
 		4:
@@ -343,7 +342,6 @@ func _update_v38shots(delta: float) -> void:
 				lp.position = Vector2(1500, 300)
 				lp.sync_position = lp.position
 				lp.velocity = Vector2.ZERO
-				lp.scoped = true
 			_smoke_set_aim(Vector2(60, 0))
 			_smoke_set_fire(true)
 		6:
@@ -353,7 +351,6 @@ func _update_v38shots(delta: float) -> void:
 				lp.weapon = 1
 				lp.mag_ammo = int(lp.WEAPONS[1]["mag"])
 				lp._update_gun_texture()
-				lp.scoped = false
 			_smoke_set_aim(Vector2(60, 0))
 			_smoke_set_fire(true)
 		8:
@@ -504,7 +501,9 @@ func _update_mapshots(delta: float) -> void:
 	match stage:
 		1:
 			if lp != null:
-				lp.position = Vector2(800, 800)
+				# QA-143: stand on the new y840 left shelf (185-800),
+				# centre-ish, so the y670 tower is in frame.
+				lp.position = Vector2(600, 800)
 				lp.sync_position = lp.position
 				lp.velocity = Vector2.ZERO
 				if lp._camera != null:
@@ -540,10 +539,12 @@ func _update_mapshots(delta: float) -> void:
 			_capture_shot("user://shot_map_waterfall.png")
 		7:
 			if lp != null:
-				# QA-111: stand on the (2800,840) perch — the camera
+				# QA-111: stand on the (2831,840) perch — the camera
 				# sits ~190 px left of the player, so standing on the
-				# (2150,840) perch put the (3030,670) tower off-frame.
-				lp.position = Vector2(2950, 800)
+				# (2277,840) perch put the (2900,670) tower off-frame.
+				# QA-143: perch moved 2800-3176 -> 2831-2954, tower
+				# 3030 -> 2900; stand at its centre (2890,800).
+				lp.position = Vector2(2890, 800)
 				lp.sync_position = lp.position
 				lp.velocity = Vector2.ZERO
 				if lp._camera != null:
@@ -611,7 +612,7 @@ func _update_skyfallshots(delta: float) -> void:
 			if stage == 1 and lp != null:
 				lp.apply_powerup(8)
 				lp.apply_powerup(10)
-				lp.apply_powerup(7)
+				lp.apply_powerup(13) # QA-143 (v4.0): Health Potion (7) removed — Invisibility fills the third slot
 				# QA-132: activate the shield (slot 0) so the L1
 				# shot shows a live effect (shield ring + active
 				# boost label), not just filled slots.

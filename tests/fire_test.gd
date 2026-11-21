@@ -133,7 +133,7 @@ func _firetest_build_steps() -> void:
 		{"name": "RIFLE-STRAIGHT-2S-HOLD", "wait": 2.5, "setup": _ft_s_rifle_straight, "check": _ft_c_rifle_straight},
 		{"name": "SMG-SPREAD-TIGHT", "wait": 0.7, "setup": _ft_s_smg_spread, "check": _ft_c_smg_spread},
 		{"name": "ROCKET-STRAIGHT", "wait": 0.5, "setup": _ft_s_rocket_straight, "check": _ft_c_rocket_straight},
-		{"name": "SNIPER-SCOPE-ZOOM", "wait": 0.8, "setup": _ft_s_sniper_scope, "check": _ft_c_sniper_scope},
+		{"name": "SNIPER-SIGHT-LINE", "wait": 0.8, "setup": _ft_s_sniper_scope, "check": _ft_c_sniper_scope},
 		{"name": "BULLET-INSIDE-GEOMETRY", "wait": 0.3, "setup": _ft_s_bullet_inside, "check": _ft_c_bullet_inside},
 		{"name": "BULLET-SIZE-80PCT", "wait": 0.15, "setup": _ft_s_bullet_size, "check": _ft_c_bullet_size},
 		{"name": "MAG-MEMORY", "wait": 0.3, "setup": _ft_s_mag_memory, "check": _ft_c_mag_memory},
@@ -473,6 +473,15 @@ func _ft_c_reload_done() -> Array:
 
 func _ft_s_reload_moving() -> void:
 	var lp = _ft_lp()
+	# QA-143: teleport to a clear stretch (spawn, with 300 px of
+	# open floor ahead) like FIRE-WHILE-MOVING — the setup used to
+	# rely on wherever the previous step left the player, and the
+	# Outpost rebuild now leaves it at x1928, 35 px short of the
+	# solid column at x2000, so the move check measured being
+	# blocked by the column instead of running.
+	lp.position = Vector2(300, 1318) # QA-071: floor 1352, centre top-34
+	lp.sync_position = lp.position
+	lp.velocity = Vector2.ZERO
 	lp.mag_ammo = 10
 	lp.reloading = false
 	_fire_pos_before = lp.position
@@ -784,10 +793,9 @@ func _ft_c_rocket_straight() -> Array:
 	return [ok, detail]
 
 
-# QA-105 (v3.8): scoping the sniper zooms the camera to 2.0x and
-# shows the sight line while aiming. Set scoped directly (the same
-# flag the HUD SCOPE button toggles) and check the eased zoom and
-# the line after 0.8 s.
+# QA-105 (v3.8): aiming the sniper shows the sight line. QA-143:
+# scoping was removed, so this now checks the camera stays at 1.0x
+# (no zoom) and the sight line shows after 0.8 s.
 func _ft_s_sniper_scope() -> void:
 	var lp0 = _ft_lp()
 	if not lp0.alive:
@@ -796,26 +804,26 @@ func _ft_s_sniper_scope() -> void:
 	_ft_set_weapon(3)
 	_ft_teleport(Vector2(1500, 300))
 	_ft_press_aim(Vector2(60, 0))
-	lp0.scoped = true
 
 
 func _ft_c_sniper_scope() -> Array:
 	var lp = _ft_lp()
 	var zoom := float(lp._camera.zoom.x) if lp._camera != null else 0.0
 	var line_ok := lp._sight_line != null and bool(lp._sight_line.visible)
-	var ok := zoom > 1.8 and line_ok
-	lp.scoped = false
+	var ok := zoom < 1.05 and line_ok
 	_ft_release_aim()
 	_ft_release_fire()
-	return [ok, "sniper scoped zoom=%.2f sight line visible=%s (want >1.8 / true)" % [zoom, str(line_ok)]]
+	return [ok, "sniper zoom=%.2f sight line visible=%s (want ~1.0 / true) - QA-143: scoping removed, sight line kept" % [zoom, str(line_ok)]]
 
 
 func _ft_s_bullet_inside() -> void:
 	# QA-055: a bullet whose muzzle starts INSIDE solid geometry
 	# (player flush against a wall, aiming into it) must impact at
-	# once, not fly through the wall. The muzzle sits 60 px ahead
-	# of the player centre, so standing at x=72 aiming left puts
-	# it at x=12 — 12 px inside the 24 px left boundary wall.
+	# once, not fly through the wall. The muzzle sits 43.7 px ahead
+	# of the player centre for the pistol (QA-143: MMC design
+	# firing point, 1.53 x half gun length + grip-forward), so
+	# standing at x=56 aiming left puts it at x=12.3 - 12 px
+	# inside the 24 px left boundary wall.
 	# The left wall is used because the right wall has sandbags at
 	# x=3120 on the fire-test map (map 0).
 	var lp = _ft_lp()
@@ -824,7 +832,7 @@ func _ft_s_bullet_inside() -> void:
 	lp.health = 100
 	_ft_set_weapon(5) # pistol: semi-auto, exactly one bullet
 	var floor_top = float((g.MAPS[g.map_id]["platforms"] as Array)[0].position.y)
-	_ft_teleport(Vector2(72.0, floor_top - 43.0))
+	_ft_teleport(Vector2(56.0, floor_top - 43.0))
 	_ft_inside_shots0 = lp._shots_fired
 	# Bullets from earlier steps may still be flying: remember them
 	# so the check counts only the bullet fired in this step. (The

@@ -15,7 +15,8 @@ enum WeaponState { READY, FIRING, RELOADING }
 var p # the owner (player/player.gd)
 
 # QA-119 (v3.11 power-up set, REPLACE - user 2026-11-20 ~20:51):
-# 7 kinds, 7-13. 7 Health Potion, 8 Shield, 9 Speed Boost,
+# QA-143 (v4.0): Health Potion (7) REMOVED entirely (user
+# 2026-11-21) - 6 kinds, 8-13. 8 Shield, 9 Speed Boost,
 # 10 Jetpack Boost, 11 Wind Blast, 12 Thunder Strike,
 # 13 Invisibility. Old Ammo Crate (10), Grenade Pack (11),
 # Jetpack Boost (12) and Radar (13) are GONE - Radar is removed
@@ -26,7 +27,7 @@ var p # the owner (player/player.gd)
 # and WAITS - it does nothing until the player taps its slot.
 # Timed kinds (8, 9, 10, 13): ONE active at a time; tapping a
 # timed slot while a boost is active does nothing. Instant kinds
-# (7 health, 11 wind, 12 thunder) fire at once on tap, even while
+# (11 wind, 12 thunder) fire at once on tap, even while
 # a timed boost is active. A carrier CANNOT activate a timed
 # boost while carrying the flag (the carrier rule wins) - instant
 # kinds are still allowed for carriers. Same kind twice, or full
@@ -39,8 +40,12 @@ const SPEED_DURATION := 8.0 # QA-132: was 7.0 (speed is now x1.5, see below)
 const JETPACK_BOOST_DURATION := 15.0 # QA-119: was 7.0 (user 2026-11-20 ~20:48)
 const INVISIBILITY_DURATION := 10.0 # QA-119: user corrected 4 -> 10 s (2026-11-20 ~20:49)
 const MAX_STORED_BOOSTS := 3
+# QA-143: MMC gun slots - the rifle plus at most ONE extra gun
+# (SLC::addWeapon 0x8e6934: primary + secondary, then the pistol
+# sidearm). A second extra drops the first one as a world pickup.
+const MAX_SLOT_EXTRAS := 1
 const TIMED_BOOST_KINDS: Array[int] = [8, 9, 10, 13] # shield, speed, jetpack, invisibility
-const PU_NAMES := {7: "Health Potion", 8: "Shield", 9: "Speed Boost", 10: "Jetpack Boost", 11: "Wind Blast", 12: "Thunder Strike", 13: "Invisibility"} # QA-132: feed messages
+const PU_NAMES := {8: "Shield", 9: "Speed Boost", 10: "Jetpack Boost", 11: "Wind Blast", 12: "Thunder Strike", 13: "Invisibility"} # QA-132: feed messages
 const WIND_SWEEP_TIME := 0.7 # QA-135: tornado pulls the victim in for 0.7 s, then throws them down
 const WIND_THROW_DOWN := 950.0 # QA-135: throw-down velocity (falls below the platform)
 const WIND_THROW_SIDE := 700.0 # QA-135: throw sideways velocity — toward the NEAREST platform edge, so the victim actually leaves the platform (a downward velocity alone is blocked by the floor)
@@ -59,6 +64,30 @@ func give_pickup(kind: int) -> void:
 		return
 	# 1 SMG, 2 Shotgun, 3 Sniper, 4 Rocket, 5 Health, 6 Grenades
 	if kind >= 1 and kind <= 4:
+		# QA-143: MMC weapon slots (SLC::addWeapon 0x8e6934). Two
+		# gun slots - the rifle (0, the spawn gun) plus ONE extra -
+		# and the pistol (5) as the permanent sidearm outside the
+		# slots. _owned_extra holds the extra (at most one). The
+		# rifle is never dropped: it is Frag Arena's respawn
+		# fallback and the fire test assumes it is always owned
+		# (MMC has no permanent weapon - recorded difference, see
+		# the QA-143 notes). Pickup routing, MMC order:
+		# - already owned: refill + equip, no slot change (Frag
+		#   Arena keeps one instance per kind; MMC would hold a
+		#   second copy, which our id-based mag memory cannot).
+		# - secondary slot free: add + auto-equip (MMC adds as
+		#   secondary, then switchWeapons, so the new gun is in
+		#   hand at once - the old code already auto-equipped).
+		# - both slots full: drop the old extra as a world pickup
+		#   (MMC removePrimaryWeapon 0x8eade4) and the new gun
+		#   takes its place. The dropped gun is the extra, never
+		#   the rifle: when the rifle is in hand MMC would drop
+		#   the primary (the rifle), but the rifle is protected
+		#   here, so the secondary goes instead.
+		if not p._owned_extra.has(kind) and p._owned_extra.size() >= MAX_SLOT_EXTRAS:
+			var drop_kind: int = int(p._owned_extra[0])
+			p._owned_extra.erase(drop_kind)
+			_drop_weapon_pickup(drop_kind)
 		if not p._owned_extra.has(kind):
 			p._owned_extra.append(kind)
 		# QA-075: picking up a weapon while reloading the old one
@@ -71,30 +100,34 @@ func give_pickup(kind: int) -> void:
 		p._reserve[kind] = int(p.RESERVE_DEFAULT.get(kind, 0))
 		p.reloading = false
 		p.weapon_state = WeaponState.READY
+		# QA-143: MMC sets the view's weapon-angle offset when a
+		# primary is equipped (SLC::addPrimaryWeapon 0x8e6ebc).
+		p._weapon_angle_offset = float(p.player_visuals.WEAPON_ARM_ANGLE.get(kind, 0.0))
 		p._update_gun_texture()
 	elif kind == 5:
 		p.health = mini(100, p.health + 50)
 	elif kind == 6:
 		p.grenades = mini(4, p.grenades + 2)
-	elif kind >= 7 and kind <= 13:
-		# QA-112: Skyfall power-ups (7-13) - kinds 1-6 above are unchanged.
+	elif kind >= 8 and kind <= 13:
+		# QA-112: Skyfall power-ups (8-13) - kinds 1-6 above are unchanged.
 		apply_powerup(kind)
 	p._play_sound("pickup")
 
 
-# QA-119 (v3.11): 7 kinds, 7-13 - Health Potion (7), Shield (8),
+# QA-119 (v3.11): 6 kinds, 8-13 - Shield (8),
 # Speed Boost (9), Jetpack Boost (10), Wind Blast (11), Thunder
-# Strike (12), Invisibility (13). Pickup STORES the power-up in a
-# slot - it NEVER activates on pickup (user rule, 2026-11-20
-# ~21:00, IMMEDIATE). Every kind goes to a free slot (max 3,
-# distinct kinds); a duplicate kind, or full slots, consumes the
-# pickup with no effect. The player activates by tapping the slot
-# button (see activate_slot). Timed kinds (8, 9, 10, 13): ONE
-# active at a time; a carrier cannot activate one while carrying
-# the flag. Instant kinds (7, 11, 12) fire at once on tap.
+# Strike (12), Invisibility (13). QA-143 (v4.0): Health Potion (7)
+# REMOVED. Pickup STORES the power-up in a slot - it NEVER
+# activates on pickup (user rule, 2026-11-20 ~21:00, IMMEDIATE).
+# Every kind goes to a free slot (max 3, distinct kinds); a
+# duplicate kind, or full slots, consumes the pickup with no
+# effect. The player activates by tapping the slot button (see
+# activate_slot). Timed kinds (8, 9, 10, 13): ONE active at a time;
+# a carrier cannot activate one while carrying the flag. Instant
+# kinds (11, 12) fire at once on tap.
 # The old auto-activate / instant-on-pickup behaviour is GONE.
 func apply_powerup(kind: int) -> void:
-	if kind < 7 or kind > 13:
+	if kind < 8 or kind > 13:
 		return
 	if p.stored_boosts.has(kind):
 		_pu_feed("Already carrying %s" % PU_NAMES.get(kind, "power-up"))
@@ -120,8 +153,8 @@ func _pu_feed(text: String) -> void:
 # Timed kinds (8, 9, 10, 13): ONE active at a time, and a carrier
 # CANNOT activate one while carrying the flag (the carrier rule
 # wins - the tap does nothing and the power-up stays in its slot).
-# Instant kinds (7 health, 11 wind, 12 thunder) fire at once and
-# work even while a timed boost is active or the flag is carried.
+# Instant kinds (11 wind, 12 thunder) fire at once and work even
+# while a timed boost is active or the flag is carried.
 # QA-135 (v3.13): Wind (11) / Thunder (12) need a live enemy on
 # the SAME PLATFORM at the SAME HEIGHT — no target, no fire, and
 # the power-up STAYS in its slot (never wasted on thin air).
@@ -141,20 +174,17 @@ func activate_slot(idx: int) -> bool:
 		var game0 = p.get_tree().get_first_node_in_group("game")
 		var tgt: Node2D = null
 		if game0 != null and game0.has_method("_sf_find_powerup_target"):
-			tgt = game0._sf_find_powerup_target(p)
+			tgt = game0._sf_find_powerup_target(p, kind)
 		if tgt == null:
 			_pu_feed("No enemy on your platform")
 			return false
 		p.stored_boosts.remove_at(idx)
 		_apply_instant(kind, tgt)
 		return true
-	p.stored_boosts.remove_at(idx)
-	_apply_instant(kind, null)
-	return true
+	return false # unknown kind (e.g. the removed Health Potion 7): never stored, never fires
 
 
-# Fire an instant power-up. Health restores 50 HP (QA-132: was
-# 35 — it competes with 4 HP/s regen now); Wind Blast sweeps the
+# Fire an instant power-up. Wind Blast sweeps the
 # enemy on the activator's platform into a tornado and throws them
 # down (no damage); Thunder Strike halves that enemy's current
 # health. Wind/thunder are host-authoritative: a client asks the
@@ -162,22 +192,26 @@ func activate_slot(idx: int) -> bool:
 # the sim the peer IS the host).
 # QA-132: wind + thunder announce themselves in the feed, so the
 # player sees the activation even when no enemy is in range.
-func _apply_instant(kind: int, target: Node2D = null) -> void:
+# QA-143 (v4.0): _apply_instant returns whether the blast actually
+# fired. If the host re-validates the target and it moved off the
+# platform in the meantime, the slot is REFUNDED (see below) — the
+# power-up must never be lost with no effect.
+func _apply_instant(kind: int, target: Node2D = null) -> bool:
 	match kind:
-		7:
-			p.health = mini(100, p.health + 50)
-			p._fx_flash_kind = 7
-			p._fx_flash_timer = 0.8
-			p._play_sound("heal")
 		11:
 			p._fx_flash_kind = 11
 			p._fx_flash_timer = 0.8
 			p._play_sound("wind")
 			_pu_feed("Wind Blast!")
 			if p.multiplayer.is_server():
-				_do_wind_blast(target)
+				if _do_wind_blast(target):
+					return true
+				p.apply_powerup(kind) # host validation failed: refund the slot
+				return false
 			elif target != null:
 				p.rpc_id(1, "request_wind_blast", int(target.peer_id))
+				return true
+			return false
 		12:
 			p._fx_flash_kind = 12
 			p._fx_flash_timer = 0.8
@@ -186,16 +220,61 @@ func _apply_instant(kind: int, target: Node2D = null) -> void:
 			# would hear the crack twice.
 			_pu_feed("Thunder Strike!")
 			if p.multiplayer.is_server():
-				_do_thunder_strike(target)
+				if _do_thunder_strike(target):
+					return true
+				p.apply_powerup(kind) # host validation failed: refund the slot
+				return false
 			elif target != null:
 				p.rpc_id(1, "request_thunder_strike", int(target.peer_id))
+				return true
+			return false
+	return false
+
+
+# QA-143: spawn the world pickup for a gun dropped when its slot
+# was taken by a new pickup (MMC removePrimaryWeapon 0x8eade4 -
+# the dropped weapon becomes a world pickup, thrown forward along
+# the fire angle). Host-only: only the server spawns pickups.
+# The pickup lands 70 px ahead of the player so it is not
+# re-collected the same frame (pickups have no grace period).
+# spot_idx -1: a dropped pickup never restarts a spot timer
+# (pickup.gd only calls on_pickup_gone for spot_index >= 0) and
+# despawns after its 20 s life like any weapon pickup.
+func _drop_weapon_pickup(drop_kind: int) -> void:
+	var drop_pos: Vector2 = p.global_position + Vector2(cos(p.aim_angle), sin(p.aim_angle)) * 70.0
+	if p.multiplayer.is_server():
+		var game = p.get_tree().get_first_node_in_group("game")
+		if game != null:
+			game.game_pickups.spawn_dropped_pickup(drop_pos, drop_kind)
+	else:
+		p.rpc_id(1, "request_weapon_drop", drop_kind, drop_pos)
+
+
+func request_weapon_drop(kind: int, pos: Vector2) -> void:
+	# Only the host runs it, and only for the player that asked
+	# (the sender must be this node's owner). The kind is
+	# re-validated: a dropped pickup is a gun only (0-4).
+	if not p.multiplayer.is_server():
+		return
+	var sender = p.multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != p.get_multiplayer_authority():
+		return
+	if kind < 0 or kind > 4:
+		return
+	var game = p.get_tree().get_first_node_in_group("game")
+	if game == null:
+		return
+	game.game_pickups.spawn_dropped_pickup(pos, kind)
 
 
 func request_wind_blast(target_peer: int) -> void:
 	# Only the host runs it, and only for the player that asked
 	# (the sender must be this node's owner). The target the tap
 	# picked is re-validated on the host (same platform + height)
-	# before anything happens.
+	# before anything happens. QA-143 (v4.0): if the re-validation
+	# fails, the power-up is REFUNDED to the activator — the tap
+	# already consumed their slot, and losing it to a target that
+	# moved in the last few ms is a silent loss.
 	if not p.multiplayer.is_server():
 		return
 	var sender = p.multiplayer.get_remote_sender_id()
@@ -205,7 +284,11 @@ func request_wind_blast(target_peer: int) -> void:
 	if game == null:
 		return
 	var target: Node2D = game.players_node.get_node_or_null(str(target_peer))
-	_do_wind_blast(target)
+	if _do_wind_blast(target):
+		return
+	var activator: Node2D = game.players_node.get_node_or_null(str(sender))
+	if activator != null and activator.alive:
+		activator.rpc_id(sender, "give_pickup", 11)
 
 
 func request_thunder_strike(target_peer: int) -> void:
@@ -218,7 +301,11 @@ func request_thunder_strike(target_peer: int) -> void:
 	if game == null:
 		return
 	var target: Node2D = game.players_node.get_node_or_null(str(target_peer))
-	_do_thunder_strike(target)
+	if _do_thunder_strike(target):
+		return
+	var activator: Node2D = game.players_node.get_node_or_null(str(sender))
+	if activator != null and activator.alive:
+		activator.rpc_id(sender, "give_pickup", 12)
 
 
 # Host only: the Wind Blast tornado. The target (same platform +
@@ -232,17 +319,27 @@ func request_thunder_strike(target_peer: int) -> void:
 # The sweep itself runs on the victim's owning peer (see
 # apply_wind_sweep) so it works for remote victims too; a test bot
 # (fake peer, no live connection) is driven on the host copy.
-func _do_wind_blast(target: Node2D) -> void:
+# Returns true when the blast fired, false when the target failed
+# re-validation (the caller refunds the slot — QA-143).
+func _do_wind_blast(target: Node2D) -> bool:
 	var game = p.get_tree().get_first_node_in_group("game")
 	if game == null or target == null or not is_instance_valid(target):
-		return
-	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(p, target):
-		return
+		return false
+	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(p, target, 11):
+		return false
 	var centre := target.global_position
 	if game.has_method("show_wind_tornado_fx"):
 		game.rpc("show_wind_tornado_fx", centre)
 	var side := 1.0
-	if game.has_method("_sf_platform_under"):
+	# QA-143: nearest edge of the surface the TARGET stands on
+	# (merged run / mover rect) — the old raw-rect centre could sit
+	# far from the victim on a seamed floor and throw the wrong way.
+	var srect: Rect2 = Rect2()
+	if game.has_method("_sf_surface_rect_under"):
+		srect = game._sf_surface_rect_under(target.global_position)
+	if srect != Rect2():
+		side = -1.0 if target.global_position.x < srect.get_center().x else 1.0
+	elif game.has_method("_sf_platform_under"):
 		var plat_idx: int = int(game._sf_platform_under(p.global_position))
 		if plat_idx >= 0:
 			var rect: Rect2 = game.MAPS[game.map_id]["platforms"][plat_idx]
@@ -253,6 +350,7 @@ func _do_wind_blast(target: Node2D) -> void:
 		target.apply_wind_sweep(centre, throw_vec)
 	else:
 		target.rpc_id(auth, "apply_wind_sweep", centre, throw_vec)
+	return true
 
 
 func apply_wind_sweep(centre: Vector2, throw_vec: Vector2) -> void:
@@ -276,12 +374,14 @@ func apply_wind_sweep(centre: Vector2, throw_vec: Vector2) -> void:
 # height (picked at tap time, re-validated here). Shield absorbs
 # the strike (take_hit -> _apply_damage zeroes it); the bolt
 # visual is drawn by the game (show_thunder_strike_fx).
-func _do_thunder_strike(target: Node2D) -> void:
+# Returns true when the strike fired, false when the target failed
+# re-validation (the caller refunds the slot — QA-143).
+func _do_thunder_strike(target: Node2D) -> bool:
 	var game = p.get_tree().get_first_node_in_group("game")
 	if game == null or target == null or not is_instance_valid(target):
-		return
-	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(p, target):
-		return
+		return false
+	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(p, target, 12):
+		return false
 	if game.has_method("show_thunder_strike_fx"):
 		game.rpc("show_thunder_strike_fx", target.global_position)
 	var dmg := maxi(1, int(ceil(float(target.health) * 0.5)))
@@ -295,6 +395,7 @@ func _do_thunder_strike(target: Node2D) -> void:
 		target.take_hit(dmg, p.peer_id, dir, 150.0, game.next_damage_event_id())
 	else:
 		target.rpc_id(auth, "take_hit", dmg, p.peer_id, dir, 150.0, game.next_damage_event_id())
+	return true
 
 
 # Start a timed boost now: set its timer (and refill the fuel for

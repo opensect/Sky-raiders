@@ -13,7 +13,7 @@ var g # the owner (game.gd)
 var _ft_sf_hp0: float = 0.0 # FT-SF-OPP-SHIELD-STORM: health before the storm
 var _ft_sf_heli_x0: float = 0.0 # FT-SF-SCENERY: helicopter x before the wait
 var _ft_sf_wind_x0: float = 0.0 # FT-SF-TRAP-WIND-L3: player x before the wait
-var _ft_sf_path_kind: int = 0 # FT-SF-PATH-*: the kind under test (7-13)
+var _ft_sf_path_kind: int = 0 # FT-SF-PATH-*: the kind under test (8-13)
 
 
 func _init(owner) -> void:
@@ -46,7 +46,7 @@ func _ft_sf_c_map() -> Array:
 	ok = ok and (m.get("relay", []) as Array).size() == 2
 	ok = ok and (m.get("checkpoints", []) as Array).size() == 4
 	ok = ok and (m.get("pickups", []) as Array).size() == 6
-	ok = ok and (m.get("skyfall_pickups", []) as Array).size() == 7
+	ok = ok and (m.get("skyfall_pickups", []) as Array).size() == 6
 	return [ok, "size=%s platforms=%d spawns=%d grapple=%d lines=%d relay=%d cps=%d weapons=%d powerups=%d" % [str(m.get("size")), (m.get("platforms", []) as Array).size(), (m.get("spawns", []) as Array).size(), (m.get("grapple", []) as Array).size(), (m.get("jetpack_lines", []) as Array).size(), (m.get("relay", []) as Array).size(), (m.get("checkpoints", []) as Array).size(), (m.get("pickups", []) as Array).size(), (m.get("skyfall_pickups", []) as Array).size()]]
 
 
@@ -133,11 +133,12 @@ func _ft_sf_c_die_l6() -> Array:
 func _ft_sf_s_slots() -> void:
 	# QA-119 slot rule (user 2026-11-20 ~21:00): pickup NEVER
 	# activates — every kind goes to a free slot and waits for a
-	# tap, INCLUDING Health (7). So all three are stored, none active.
+	# tap. So all three are stored, none active. QA-143 (v4.0):
+	# Health Potion (7) removed — Jetpack (10) is the third kind.
 	var lp = g.fire_test._ft_lp()
 	lp.apply_powerup(9) # speed (timed)
 	lp.apply_powerup(8) # shield (timed)
-	lp.apply_powerup(7) # health — takes a slot too, no instant heal
+	lp.apply_powerup(10) # jetpack boost (timed) — takes a slot too, no instant boost
 
 
 func _ft_sf_c_slots() -> Array:
@@ -146,7 +147,7 @@ func _ft_sf_c_slots() -> Array:
 	var ab := int(lp.get("active_boost_kind"))
 	var total := stored.size() + (1 if ab != 0 else 0)
 	var ok := total == 3 and stored.size() == 3 and ab == 0
-	return [ok, "held=%d (want 3: speed+shield+health, all stored), slots used=%d (max 3), active=%d (want 0)" % [total, stored.size(), ab]]
+	return [ok, "held=%d (want 3: speed+shield+jetpack, all stored), slots used=%d (max 3), active=%d (want 0)" % [total, stored.size(), ab]]
 
 
 func _ft_sf_s_active() -> void:
@@ -295,7 +296,7 @@ func _ft_sf_c_slot_tap() -> Array:
 	return [ok, "real-touch tap on slot 0: active=%d shield=%.1fs (want 8 / >0)" % [ab, st]]
 
 
-# QA-132: shared FT-SF-PATH-<kind> setup (7-13) — clean slate,
+# QA-132: shared FT-SF-PATH-<kind> setup (8-13) — clean slate,
 # spawn the kind's own power-up on its spot, teleport the player
 # onto it. Wind/thunder need a live enemy in range to prove the
 # effect, so a BLUE bot stands 300 px to the right of the spot
@@ -312,10 +313,9 @@ func _ft_sf_s_path(kind: int) -> void:
 	lp.set("jetpack_boost_timer", 0.0)
 	lp.set("invisibility_timer", 0.0)
 	lp.set("carrying_flag", 0)
-	lp.set("health", 50.0) # kind 7 must heal visibly; harmless for the rest
 	lp.set("fuel", PhysicsConfig.FUEL_MAX)
 	for child in g.pickups_node.get_children():
-		if int(child.get("kind")) >= 7:
+		if int(child.get("kind")) >= 8:
 			child.free() # leftover power-ups from earlier steps
 	for pid in [201, 202]:
 		var old = g.players_node.get_node_or_null(str(pid))
@@ -343,9 +343,6 @@ func _ft_sf_s_path(kind: int) -> void:
 			b.health = 100
 			b.set("_spawn_protect_timer", 0.0) # else take_hit ignores the blast
 	g.fire_test._ft_teleport(Vector2(float(spot[0]), float(spot[1]) - 40.0))
-
-
-func _ft_sf_s_path7() -> void: _ft_sf_s_path(7)
 
 
 func _ft_sf_s_path8() -> void: _ft_sf_s_path(8)
@@ -378,10 +375,6 @@ func _ft_sf_c_path() -> Array:
 	var ab0 := int(lp.get("active_boost_kind"))
 	var cf0 := int(lp.get("carrying_flag"))
 	match kind:
-		7:
-			var tapped7 := bool(lp.call("activate_slot", idx))
-			ok = float(lp.health) >= 99.0
-			detail = "tap=%s health=%.0f (want 100 after +50 from 50)" % [str(tapped7), float(lp.health)]
 		8:
 			var tapped8 := bool(lp.call("activate_slot", idx))
 			ok = int(lp.get("active_boost_kind")) == 8 and float(lp.get("shield_timer")) > 0.0
@@ -476,7 +469,7 @@ func _ft_sf_s_slot_grey_active() -> void:
 	lp.set("invisibility_timer", 0.0)
 	lp.set("carrying_flag", 0)
 	lp.apply_powerup(8) # shield (timed) — must grey out
-	lp.apply_powerup(7) # health (instant) — must stay tappable
+	lp.apply_powerup(11) # wind blast (instant) — must stay tappable
 
 
 func _ft_sf_c_slot_grey_active() -> Array:
@@ -486,7 +479,7 @@ func _ft_sf_c_slot_grey_active() -> Array:
 	var lp = g.fire_test._ft_lp()
 	lp.set("active_boost_kind", 0)
 	lp.set("speed_timer", 0.0)
-	return [ok, "shield disabled=%s (want true), health disabled=%s (want false) while Speed active" % [str(b0.disabled), str(b1.disabled)]]
+	return [ok, "shield disabled=%s (want true), wind disabled=%s (want false) while Speed active" % [str(b0.disabled), str(b1.disabled)]]
 
 
 func _ft_sf_s_slot_grey_carrier() -> void:
@@ -508,7 +501,7 @@ func _ft_sf_s_slot_grey_carrier() -> void:
 	if g._ctf_flags.size() > 1:
 		(g._ctf_flags[1] as Dictionary)["carrier"] = int(lp.peer_id)
 	lp.apply_powerup(8) # shield (timed) — must grey out
-	lp.apply_powerup(7) # health (instant) — must stay tappable
+	lp.apply_powerup(11) # wind blast (instant) — must stay tappable
 
 
 func _ft_sf_c_slot_grey_carrier() -> Array:
@@ -519,7 +512,7 @@ func _ft_sf_c_slot_grey_carrier() -> Array:
 	lp.set("carrying_flag", 0)
 	if g._ctf_flags.size() > 1:
 		(g._ctf_flags[1] as Dictionary)["carrier"] = -1 # QA-133: give the flag back
-	return [ok, "shield disabled=%s (want true), health disabled=%s (want false) while carrying" % [str(b0.disabled), str(b1.disabled)]]
+	return [ok, "shield disabled=%s (want true), wind disabled=%s (want false) while carrying" % [str(b0.disabled), str(b1.disabled)]]
 
 
 func _ft_sf_s_invis_warn() -> void:
@@ -684,7 +677,7 @@ func _ft_sf_s_pu_target(kind: int, bot_y: float) -> void:
 	lp.set("health", 100.0)
 	lp.set("fuel", PhysicsConfig.FUEL_MAX)
 	for child in g.pickups_node.get_children():
-		if int(child.get("kind")) >= 7:
+		if int(child.get("kind")) >= 8:
 			child.free()
 	for pid in [201, 202]:
 		var old = g.players_node.get_node_or_null(str(pid))
@@ -826,6 +819,348 @@ func _ft_sf_c_thunder_height() -> Array:
 	var kept: bool = 12 in lp.get("stored_boosts")
 	var ok := not tapped and kept
 	return [ok, "tap=%s slot kept=%s (want tap=false, kept — bot 150 px above the platform)" % [str(tapped), str(kept)]]
+
+
+# QA-143 (v4.0): the reported real-phone bug — Wind Blast said "No
+# enemy on your platform" while the enemy stood on the SAME floor.
+# Root cause 1 (SEAM): the L2 boundary row (y 8764) is FIVE adjacent
+# rects (indices 19-23) tiling one continuous floor, and the old
+# check compared raw rect indices — two players 8 px apart across
+# the x=650 seam (640 on piece 20, 660 on piece 21) got different
+# indices. The merged-surface fix must see one platform.
+# Wait 0.5 s: the pieces are trapdoors, which open after 1.0 s of
+# continuous standing — 0.5 s keeps the floor solid.
+# Test-harness note: get_node_or_null("202") is NOT reliable here —
+# the 5v5 test leaves 9 bots in the tree and the height/shield
+# tests never free theirs, so several nodes can share peer 202
+# (the spawner suffixes duplicates) and the first "202" is a stale
+# one. These setups free ALL peer 201/202 nodes, find the fresh bot
+# BY PEER ID (last match), and force team 1 — _do_spawn's team pick
+# falls back to alternating once the 5 BLUE 5v5 slots are full, and
+# a same-team bot would be skipped by targeting.
+func _ft_sf_bot_by_peer(pid: int) -> Node2D:
+	var found: Node2D = null
+	for child in g.players_node.get_children():
+		if int(child.get("peer_id")) == pid:
+			found = child
+	return found
+
+
+func _ft_sf_s_pu_seam() -> void:
+	var lp = g.fire_test._ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.set("health", 100.0)
+	lp.set("fuel", PhysicsConfig.FUEL_MAX)
+	for child in g.pickups_node.get_children():
+		if int(child.get("kind")) >= 8:
+			child.free()
+	for child in g.players_node.get_children():
+		if int(child.get("peer_id")) in [201, 202]:
+			child.queue_free() # every stale test bot, not just the first "202"
+	for pid in [201, 202]:
+		g._spawned.erase(pid)
+	# L2 boundary row top y 8764; feet = pos.y + 31, so pos.y 8733.
+	lp.position = Vector2(640.0, 8733.0)
+	lp.velocity = Vector2.ZERO
+	lp.sync_position = lp.position
+	lp.call("apply_powerup", 11)
+	g._do_spawn(202, "PathBot", 1, 0, 1)
+	var b = _ft_sf_bot_by_peer(202)
+	if b != null:
+		b.team = 1 # enemy, whatever _do_spawn picked (see note above)
+		b.position = Vector2(660.0, 8733.0)
+		b.sync_position = b.position
+		b.velocity = Vector2.ZERO
+		b.health = 100
+		b.set("_spawn_protect_timer", 0.0)
+
+
+func _ft_sf_c_pu_seam() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var bot = _ft_sf_bot_by_peer(202)
+	var surf_lp: String = g._sf_surface_under(lp.position)
+	var surf_bot := ""
+	var bp := Vector2(-1, -1)
+	var bt := -1
+	if bot != null:
+		surf_bot = g._sf_surface_under(bot.position)
+		bp = bot.position
+		bt = int(bot.team)
+	var idx := int(lp.get("stored_boosts").find(11))
+	var tapped := false
+	if idx >= 0:
+		tapped = bool(lp.call("activate_slot", idx))
+	var torn_raw = g.get("_wind_tornado_node")
+	var torn_ok := torn_raw != null and is_instance_valid(torn_raw)
+	var sweep_t := 0.0
+	if bot != null:
+		sweep_t = float(bot.get("_wind_sweep_timer"))
+	var ok := surf_lp != "" and surf_lp == surf_bot and tapped and torn_ok and sweep_t > 0.0
+	if bot != null:
+		bot.queue_free()
+	return [ok, "surfaces lp=%s bot=%s (want equal, non-empty) bot pos=%s team=%d tap=%s tornado=%s sweep=%.2fs (want tap, tornado, sweep > 0)" % [surf_lp, surf_bot, str(bp), bt, str(tapped), str(torn_ok), sweep_t]]
+
+
+# QA-143 (v4.0): root cause 2 of the same report — a player riding
+# an elevator was on NO static platform, so Wind / Thunder could
+# never fire on a mover. Both players ride elevator 0 here; the
+# check re-places them on the elevator's CURRENT top (it moves
+# ~77 px/s) right before the tap, so the moving floor cannot drift
+# the test. Thunder (12) proves the second instant kind too.
+func _ft_sf_s_pu_mover() -> void:
+	var lp = g.fire_test._ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.set("health", 100.0)
+	lp.set("fuel", PhysicsConfig.FUEL_MAX)
+	for child in g.pickups_node.get_children():
+		if int(child.get("kind")) >= 8:
+			child.free()
+	for child in g.players_node.get_children():
+		if int(child.get("peer_id")) in [201, 202]:
+			child.queue_free() # every stale test bot, not just the first "202"
+	for pid in [201, 202]:
+		g._spawned.erase(pid)
+	lp.call("apply_powerup", 12)
+	g._do_spawn(202, "PathBot", 1, 0, 1)
+	var b = _ft_sf_bot_by_peer(202)
+	if b != null:
+		b.team = 1 # enemy, whatever _do_spawn picked (see note above)
+		# Parked on the L2 floor during the wait; the check moves
+		# both players onto the elevator's live top before tapping.
+		b.position = Vector2(1800.0, 8733.0)
+		b.sync_position = b.position
+		b.velocity = Vector2.ZERO
+		b.health = 100
+		b.set("_spawn_protect_timer", 0.0)
+	# Park the local player on the same L2 floor for the wait.
+	lp.position = Vector2(1600.0, 8733.0)
+	lp.velocity = Vector2.ZERO
+	lp.sync_position = lp.position
+
+
+func _ft_sf_c_pu_mover() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var bot = _ft_sf_bot_by_peer(202)
+	var ok := false
+	var detail := ""
+	if bot == null or g._sf_elevators.is_empty():
+		detail = "bot=%s elevators=%d (want a bot and built elevators)" % [str(bot != null), g._sf_elevators.size()]
+	else:
+		var e: Dictionary = g._sf_elevators[0]
+		var body := e.get("body") as Node2D
+		var top := body.position.y - 24.0
+		var cx := body.position.x
+		# Both players onto the elevator's live top, same height.
+		lp.position = Vector2(cx - 100.0, top - 31.0)
+		lp.velocity = Vector2.ZERO
+		lp.sync_position = lp.position
+		bot.position = Vector2(cx + 100.0, top - 31.0)
+		bot.sync_position = bot.position
+		bot.velocity = Vector2.ZERO
+		var surf_lp: String = g._sf_surface_under(lp.position)
+		var surf_bot: String = g._sf_surface_under(bot.position)
+		var idx := int(lp.get("stored_boosts").find(12))
+		var tapped := false
+		if idx >= 0:
+			tapped = bool(lp.call("activate_slot", idx))
+		var bh := float(bot.health)
+		ok = surf_lp != "" and surf_lp == surf_bot and tapped and bh == 50.0
+		detail = "surfaces lp=%s bot=%s (want equal, non-empty) bot team=%d tap=%s bot health=%.0f (want 50 after halving 100)" % [surf_lp, surf_bot, int(bot.team), str(tapped), bh]
+		bot.queue_free()
+	return [ok, "thunder on elevator 0: %s" % detail]
+
+
+# QA-143 (v4.0) ITEM 9 — shared setup for the thunder-rule tests:
+# local player + one enemy bot (peer 202, forced team 1) placed on
+# the given spots, local player holding a Thunder Strike (kind 12).
+# Positions are feet-on-platform (pos.y = platform top - 31).
+func _ft_sf_s_thunder_rule(lp_pos: Vector2, bot_pos: Vector2) -> void:
+	var lp = g.fire_test._ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.set("health", 100.0)
+	lp.set("fuel", PhysicsConfig.FUEL_MAX)
+	for child in g.pickups_node.get_children():
+		if int(child.get("kind")) >= 8:
+			child.free()
+	for child in g.players_node.get_children():
+		if int(child.get("peer_id")) in [201, 202]:
+			child.queue_free()
+	for pid in [201, 202]:
+		g._spawned.erase(pid)
+	lp.position = lp_pos
+	lp.velocity = Vector2.ZERO
+	lp.sync_position = lp.position
+	lp.call("apply_powerup", 12)
+	g._do_spawn(202, "PathBot", 1, 0, 1)
+	var b = _ft_sf_bot_by_peer(202)
+	if b != null:
+		b.team = 1
+		b.position = bot_pos
+		b.sync_position = b.position
+		b.velocity = Vector2.ZERO
+		b.health = 100
+		b.set("_spawn_protect_timer", 0.0)
+
+
+# ITEM 9 rule (B): a 5 s-stationary enemy on LEVEL 5 is a direct
+# hit even though the same-platform rule fails — the bot stands on
+# the L5 centre row (1500,2784) while the local player stands on
+# the L5 left row (900,2504, x1400 clears the lava at x950-1250):
+# different surfaces, 280 px apart in height. The still-time is
+# seeded IN THE CHECK, just before the tap, so the L5 trap (item
+# 11, which shares the tracker) cannot interpose during the wait.
+func _ft_sf_s_thunder_still() -> void:
+	_ft_sf_s_thunder_rule(Vector2(1400.0, 2473.0), Vector2(1800.0, 2753.0))
+
+
+func _ft_sf_c_thunder_still() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var bot = _ft_sf_bot_by_peer(202)
+	if bot == null:
+		return [false, "bot missing (want the spawned enemy bot)"]
+	var lvl: int = g._sf_level_of(bot.position.y)
+	g.skyfall_powerups._sf_seed_still(bot, 5.5)
+	var still: float = g.skyfall_powerups._sf_still_seconds(bot)
+	var pre := float(bot.health)
+	var idx := int(lp.get("stored_boosts").find(12))
+	var tapped := false
+	if idx >= 0:
+		tapped = bool(lp.call("activate_slot", idx))
+	var post := float(bot.health)
+	var want_post := pre - float(maxi(1, int(ceil(pre * 0.5))))
+	var ok: bool = lvl == 5 and still >= 5.0 and tapped and post == want_post
+	bot.queue_free()
+	return [ok, "still L5 direct hit: bot level=%d (want 5) still=%.1fs (want >=5) tap=%s bot health %.0f -> %.0f (want halved to %.0f)" % [lvl, still, str(tapped), pre, post, want_post]]
+
+
+# ITEM 9, other side: a 5 s-stationary enemy on LEVEL 3 is NOT a
+# direct hit — the stationary rule is level-5-only. The bot stands
+# on the L3 centre row (1500,6144) while the local player stands
+# on the L3 left row (900,5864): different surfaces, 280 px apart,
+# so the same-platform rule fails too and the tap must refuse.
+func _ft_sf_s_thunder_still_l3() -> void:
+	_ft_sf_s_thunder_rule(Vector2(1200.0, 5833.0), Vector2(1800.0, 6113.0))
+
+
+func _ft_sf_c_thunder_still_l3() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var bot = _ft_sf_bot_by_peer(202)
+	if bot == null:
+		return [false, "bot missing (want the spawned enemy bot)"]
+	var lvl: int = g._sf_level_of(bot.position.y)
+	g.skyfall_powerups._sf_seed_still(bot, 5.5)
+	var still: float = g.skyfall_powerups._sf_still_seconds(bot)
+	var idx := int(lp.get("stored_boosts").find(12))
+	var tapped := false
+	if idx >= 0:
+		tapped = bool(lp.call("activate_slot", idx))
+	var kept := int(lp.get("stored_boosts").find(12)) >= 0
+	var bh := float(bot.health)
+	var ok: bool = lvl == 3 and still >= 5.0 and not tapped and kept and bh == 100.0
+	bot.queue_free()
+	return [ok, "still L3 no hit: bot level=%d (want 3) still=%.1fs (want >=5) tap=%s slot kept=%s bot health=%.0f (want tap=false, kept, 100)" % [lvl, still, str(tapped), str(kept), bh]]
+
+
+# ITEM 9 rule (A) on a level other than 5: same platform + same
+# height on LEVEL 3 hits. Both players on the L3 centre row
+# (1500,6144), 200 px apart, same height.
+func _ft_sf_s_thunder_same_l3() -> void:
+	_ft_sf_s_thunder_rule(Vector2(1700.0, 6113.0), Vector2(1900.0, 6113.0))
+
+
+func _ft_sf_c_thunder_same_l3() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var bot = _ft_sf_bot_by_peer(202)
+	if bot == null:
+		return [false, "bot missing (want the spawned enemy bot)"]
+	var lvl: int = g._sf_level_of(bot.position.y)
+	var surf_lp: String = g._sf_surface_under(lp.position)
+	var surf_bot: String = g._sf_surface_under(bot.position)
+	var idx := int(lp.get("stored_boosts").find(12))
+	var tapped := false
+	if idx >= 0:
+		tapped = bool(lp.call("activate_slot", idx))
+	var bh := float(bot.health)
+	var ok: bool = lvl == 3 and surf_lp != "" and surf_lp == surf_bot and tapped and bh == 50.0
+	bot.queue_free()
+	return [ok, "same-platform L3 hit: bot level=%d (want 3) surfaces lp=%s bot=%s (want equal) tap=%s bot health=%.0f (want 50 after halving 100)" % [lvl, surf_lp, surf_bot, str(tapped), bh]]
+
+
+# QA-143 (v4.0) ITEM 11 — L5 thunder TRAP. No power-up is involved:
+# the local player stands still on the L5 centre row (1500,2784)
+# with a 5.5 s still-time seeded in the SETUP, so the trap arms
+# (0.6 s telegraph) and strikes during the 1.5 s wait. The enemy
+# bot stands on the L5 right row (2100,3064, x2600 clears the lava
+# at x2150-2450) with a FRESH still clock (it moved at setup), so
+# it must NOT be struck. Strike lands ~0.65 s in; health regen
+# restarts 1.0 s after the hit, so at the 1.5 s check the local
+# player is at exactly 85 (100 - 15 trap damage).
+func _ft_sf_s_thunder_trap_l5() -> void:
+	var lp = g.fire_test._ft_lp()
+	lp.get("stored_boosts").clear() # no power-up: the trap fires on its own
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("speed_timer", 0.0)
+	lp.set("jetpack_boost_timer", 0.0)
+	lp.set("invisibility_timer", 0.0)
+	lp.set("carrying_flag", 0)
+	lp.set("health", 100.0)
+	lp.set("fuel", PhysicsConfig.FUEL_MAX)
+	for child in g.pickups_node.get_children():
+		if int(child.get("kind")) >= 8:
+			child.free()
+	for child in g.players_node.get_children():
+		if int(child.get("peer_id")) in [201, 202]:
+			child.queue_free()
+	for pid in [201, 202]:
+		g._spawned.erase(pid)
+	lp.position = Vector2(1800.0, 2753.0)
+	lp.velocity = Vector2.ZERO
+	lp.sync_position = lp.position
+	g._do_spawn(202, "PathBot", 1, 0, 1)
+	var b = _ft_sf_bot_by_peer(202)
+	if b != null:
+		b.team = 1
+		b.position = Vector2(2600.0, 3033.0)
+		b.sync_position = b.position
+		b.velocity = Vector2.ZERO
+		b.health = 100
+		b.set("_spawn_protect_timer", 0.0)
+	g.skyfall_powerups._sf_seed_still(lp, 5.5)
+
+
+func _ft_sf_c_thunder_trap_l5() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var bot = _ft_sf_bot_by_peer(202)
+	var lvl: int = g._sf_level_of(lp.position.y)
+	var lp_hp := float(lp.health)
+	var slots: Array = lp.get("stored_boosts")
+	var bot_hp := -1.0
+	if bot != null:
+		bot_hp = float(bot.health)
+	var storm := bool(g.get("_sf_storm_active"))
+	var ok: bool = lvl == 5 and slots.is_empty() and lp_hp == 85.0 and bot_hp == 100.0 and not storm
+	if bot != null:
+		bot.queue_free()
+	return [ok, "trap L5: lp level=%d (want 5) slots=%d (want 0, no power-up) lp health=%.1f (want 85 = 100 - 15 trap) bot health=%.1f (want 100, moved at setup) storm=%s (want false)" % [lvl, slots.size(), lp_hp, bot_hp, str(storm)]]
 
 
 func _ft_sf_s_rarity() -> void:

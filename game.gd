@@ -92,7 +92,6 @@ const HUD_TEX_BTN_GRENADE: Texture2D = preload("res://assets/user_assets_v3/hud/
 const HUD_TEX_BTN_RELOAD: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_reload.png")
 const HUD_TEX_BTN_WEAPON: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_weapon.png")
 const HUD_TEX_BTN_WEAPON_SWITCH: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_weapon_switch.png")
-const HUD_TEX_BTN_SCOPE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_scope.png")
 const HUD_TEX_BTN_PAUSE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_pause.png")
 const HUD_TEX_MESSAGE_BOX: Texture2D = preload("res://assets/user_assets_v3/hud/hud_message_box.png")
 # QA-119 (v3.11): Thunder Strike bolt art (user's power-up effects pack).
@@ -177,7 +176,6 @@ var aim_stick
 var grenade_button: Button
 var switch_button: Button
 var reload_button: Button # v2.4
-var scope_button: Button # QA-105 (v3.8): SCOPE toggle, sniper/rifle only
 var pause_button: Button
 var score_button: Button
 var _topright_btn_row: HBoxContainer # QA-057: SCORE + pause live in the top-right panel
@@ -332,8 +330,19 @@ func _sf_platform_under(pos: Vector2) -> int:
 	return skyfall_powerups._sf_platform_under(pos)
 
 
-func _sf_find_powerup_target(activator: Node2D) -> Node2D:
-	return skyfall_powerups._sf_find_powerup_target(activator)
+# QA-143 (v4.0): merged-surface identity (see skyfall_powerups.gd)
+# — the "same platform" Wind Blast / Thunder Strike targeting
+# compares, seam- and mover-aware.
+func _sf_surface_under(pos: Vector2) -> String:
+	return skyfall_powerups._sf_surface_under(pos)
+
+
+func _sf_surface_rect_under(pos: Vector2) -> Rect2:
+	return skyfall_powerups._sf_surface_rect_under(pos)
+
+
+func _sf_find_powerup_target(activator: Node2D, kind: int = 0) -> Node2D:
+	return skyfall_powerups._sf_find_powerup_target(activator, kind)
 
 
 var _sf_barricades: Array = [] # {rect, sprite, shape, hp, alive, timer}
@@ -355,6 +364,13 @@ var _sf_strike: Dictionary = {} # pending strike {peer, pos, node, ring, timer}
 # and 15 HP as the storm strikes (QA-126).
 var _sf_strike_l4_timer: float = 6.0 # seconds until the next L4 lightning strike
 var _sf_strike_l4: Dictionary = {} # pending L4 strike {peer, pos, ring, bolt, timer}
+# QA-143 (v4.0) ITEM 9/11: still-tracking state (host only) —
+# peer id -> last-known position / match-time of the last move
+# (> 4 px). ITEM 11: pending L5 thunder-trap strike
+# {peer, pos, timer} — the 0.6 s telegraph is RPC'd to all peers.
+var _sf_still_pos: Dictionary = {}
+var _sf_still_since: Dictionary = {}
+var _sf_trap_l5: Dictionary = {}
 var _wind_tornado_node: Node2D = null # QA-135: the active Wind Blast tornado (tests read it)
 var _sf_hazard_fx: Array = [] # {kind, rect, flame, lava, magma} hazard visuals
 var _sf_pendulums: Array = [] # QA-137: {pivot, len, node, chain, ball, angle, tick} swinging wrecking balls
@@ -708,9 +724,11 @@ func show_wind_tornado_fx(pos: Vector2) -> void:
 # ---------------------------------------------------------------------------
 const SF_POWERUP_COOLDOWN := 30.0
 const SF_POWERUP_MAX_ACTIVE := 4
-# Match-start spread: one low (spot 0, Health, L1), one mid
-# (spot 4, Thunder, L3), one high (spot 6, Speed, L6).
-const SF_POWERUP_INITIAL_SPOTS: Array[int] = [0, 4, 6]
+# Match-start spread: one low (spot 0, Jetpack, L1), one mid
+# (spot 3, Thunder, L3), one high (spot 5, Speed, L6).
+# QA-143 (v4.0): Health Potion removed — the old [0, 4, 6] pointed
+# at the deleted kind-7 spot (0) and past the end of the 6-spot list.
+const SF_POWERUP_INITIAL_SPOTS: Array[int] = [0, 3, 5]
 
 
 func _update_skyfall_powerups(delta: float) -> void:
@@ -1230,10 +1248,6 @@ func _on_switch_pressed() -> void:
 	game_touch._on_switch_pressed()
 
 
-func _on_scope_pressed() -> void:
-	game_touch._on_scope_pressed()
-
-
 func _on_ping_pressed() -> void:
 	game_touch._on_ping_pressed()
 
@@ -1274,8 +1288,8 @@ func _update_reload_button(lp) -> void:
 	game_touch._update_reload_button(lp)
 
 
-func _update_scope_button(lp) -> void:
-	game_touch._update_scope_button(lp)
+func _update_ping_button(lp) -> void:
+	game_touch._update_ping_button(lp)
 
 
 func _update_grenade_button(lp) -> void:
@@ -1483,10 +1497,17 @@ func _sf_level_of(y: float) -> int:
 	return skyfall_helpers._sf_level_of(y)
 
 
-func _sf_validate_powerup_target(activator: Node2D, target: Node2D) -> bool:
-	return skyfall_helpers._sf_validate_powerup_target(activator, target)
+func _sf_validate_powerup_target(activator: Node2D, target: Node2D, kind: int = 0) -> bool:
+	return skyfall_helpers._sf_validate_powerup_target(activator, target, kind)
 
 
 @rpc("any_peer", "call_local")
 func show_thunder_strike_fx(pos: Vector2) -> void:
 	skyfall_helpers.show_thunder_strike_fx(pos)
+
+
+@rpc("any_peer", "call_local")
+func show_thunder_trap_telegraph(pos: Vector2) -> void:
+	# QA-143 ITEM 11: the L5 trap's 0.6 s warning, drawn on every
+	# peer (the host RPCs it when the trap arms).
+	skyfall_dynamics.show_thunder_trap_telegraph(pos)

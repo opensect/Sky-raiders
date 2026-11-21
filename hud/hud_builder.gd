@@ -784,31 +784,12 @@ func _build_touch_controls() -> void:
 	g.reload_button.pressed.connect(g._on_reload_pressed)
 	g.hud.add_child(g.reload_button)
 
-	# QA-105 (v3.8): SCOPE button — plain and simple like the other
-	# three, same column, directly above RELOAD. Only visible with
-	# the sniper or rifle equipped (see _update_scope_button).
-	# It toggles the scope zoom on the local player; it never
-	# touches the right stick, so aim + fire (QA-049) is
-	# unaffected. 72 px touch target like the others.
-	# QA-137: kit scope button (the kit's crosshair icon), icon-only.
-	g.scope_button = Button.new()
-	g.scope_button.text = ""
-	_style_simple_button(g.scope_button)
-	g.scope_button.icon = g.HUD_TEX_BTN_SCOPE
-	g.scope_button.expand_icon = true
-	g.scope_button.custom_minimum_size = Vector2(72, 72)
-	g.scope_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	g.scope_button.position = Vector2(-451, -420)
-	g.scope_button.pressed.connect(g._on_scope_pressed)
-	g.hud.add_child(g.scope_button)
-
 	# QA-114 (v3.9): PING button — plain and simple like the other
-	# four, same column, directly above SCOPE. Pings the local
+	# four, same column, directly above RELOAD. Pings the local
 	# player's position for their TEAM (a gold diamond marker in
 	# the world + a dot on the height bar + a feed line), 3 s
 	# cooldown so it cannot be spammed. Skyfall only — hidden on
-	# other maps (see _update_scope_button's neighbour, updated in
-	# _update_hud).
+	# other maps (see _update_ping_button, updated in _update_hud).
 	g.ping_button = Button.new()
 	g.ping_button.text = "PING"
 	_style_simple_button(g.ping_button)

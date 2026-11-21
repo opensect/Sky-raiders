@@ -14,77 +14,93 @@ const MAPS := [
 # The other 8 maps are deleted (map data, tiles, thumbs,
 # backgrounds, lobby entries — nothing references them).
 	{
-		# QA-096 (v3.7) — Operation Ironfall (user-shared design,
-		# OPERATION_IRONFALL.md). Medium 3200x1400, 5 zones:
-		# A Northern Watchtower (left, sniper perches y500/y670 +
-		# if_tower on the y670 perch, if_comms on the right floor),
-		# B Broken Bridges (bridge decor on the y1180/y1010
-		# platforms, gaps between levels), C Underground Tunnels
-		# (tunnel = floor under the y1180 roof platform x1150-1850,
-		# cave-arch entrances at both ends, lamps + concealed
-		# pickup inside), D Ironfall Central Base (if_bunker on the
-		# floor at the centre, perches y500/y670/y840), E Waterfall
-		# Cavern (right, if_fall + if_water pool, if_spikes).
-		# Jump rise 170 px between levels, like the other maps.
-		# QA-111 (v3.8): reworked to match the concept art
-		# (assets/ironfall/concept.jpg, layout reference
-		# 00_map_layout_reference.png) — the user confirmed the map
-		# must look like the TOP part of the concept:
-		# * Central PEAK: new y330 platform (1400-1800) above the
-		#   y500 centre perch — the highest point on the map.
-		#   The bunker moved OFF the floor onto the peak, with the
-		#   comms/dish tower beside it and a red flag on the
-		#   bunker roof (code-drawn in _build_arena) — the
-		#   fortress + satellite dish + red flag from the concept.
-		# * Waterfall moved from the right side to the BOTTOM
-		#   CENTRE (if_fall + if_water at x1600 on the floor),
-		#   flowing from under the y1180 tunnel roof into its pool.
-		# * Second watchtower on the RIGHT y670 perch (3030,670),
-		#   mirroring the left one — the concept has two towers.
-		# * Rope bridges at the UPPER tiers: if_bridge over the
-		#   y840 gap (1070) and if_bridge_metal over the y670 gap
-		#   (2730), linking the tower tiers toward the centre.
-		# * Palms on the tiers (620,670 and 2800,1010) + a third
-		#   cave arch under the left tier (450,1352).
-		# * The sun is now a pale full moon (top right) + a
-		#   helicopter silhouette in the dusk sky (both drawn in
-		#   _build_background for Ironfall only).
-		# Platforms 23 -> 24. No tier heights changed (still 170 px
-		# rises), no spawns/pickups moved — the suite's platform,
-		# spawn and pickup checks are unaffected.
+		# QA-143 (v4.0) — REBUILT from the real Mini Militia
+		# Outpost map (1outpost_new.tmx, unpacked from the classic
+		# APK: assets/hd/1outpost_new.tmx, 52x18 tiles of 128 px =
+		# 6656x2304). The TMX "tile" layer is the solid terrain;
+		# rows 2-11 are the platforms above the floor (floor top
+		# y1536), rows 12-17 the solid base mass with a central
+		# chasm (1 tile wide at the surface, widening below).
+		# Object coords in the TMX sit in the left half only on
+		# every classic map checked (Outpost, High Tower,
+		# Crossfire) — read as half-width space (x2 = full map),
+		# which puts team spawns at opposite ends (ctf_sp_1
+		# x155-736 vs ctf_sp_2 x2587-3093) and the flags at
+		# fp_1 x224 / fp_2 x2874.
+		# Mapping onto Ironfall's 3200x1400 (x * 3200/6656,
+		# y mapped floor 1536 -> 1352 and top platform 256 ->
+		# 330, then snapped to Ironfall's 170 px tiers):
+		# Outpost's per-row runs become the tier runs below —
+		# one high perch, a 4-spread tier, dense staggered
+		# mid tiers, long lower shelves. Two adjacent Outpost
+		# rows land on each 170 px tier and merge where they
+		# overlap; the 1180 tier's merged 862 px run is split
+		# back into two (1538-1908 / 2092-2400) so the gap
+		# stays a passage, and the 62 px nub is joined to the
+		# left shelf (492-800). Kept from Ironfall: the central
+		# peak fortress (1400-1800 @ 330, bunker + comms + red
+		# flag) — Outpost's highest platform is upper-left, so
+		# that perch is kept TOO (308-615 @ 330) as the second
+		# summit; the floor stays one full slab (Outpost's
+		# central chasm is NOT cut — the waterfall pool sits
+		# at bottom centre x1600 and the slab is only 48 px
+		# thick, so a pit would be a death hole). Spawns stay
+		# 6 left / 6 right, one per tier, re-anchored to the
+		# new platform tops; pickups re-anchored the same way
+		# (5 of 6 kept their exact spots; #0 moved 300 -> 750
+		# on the y1180 left shelf — its old floor spot sat on
+		# spawn#0's feet and the spawning player collected the
+		# SMG at once, tripping P00). All 30 platforms
+		# reachable from spawn#0 (validator: <=320 up,
+		# <=340 across, <=420 down); every tier step up has
+		# a zero-gap route. Size class unchanged (3200x1400).
 		"name": "Ironfall", "size": Vector2(3200, 1400), "tile": 0,
 		"bg": 0,
 		"sky_top": Color(0.13, 0.16, 0.28), "sky_bottom": Color(0.45, 0.30, 0.22),
 		"hill": Color(0.10, 0.12, 0.20), "sun": Color(1.00, 0.95, 0.80), "fx": "dust",
 		"platforms": [
 			Rect2(0, 1352, 3200, 48),
-			Rect2(150, 1180, 300, 48),
-			Rect2(700, 1180, 350, 48),
-			Rect2(1150, 1180, 700, 48),
-			Rect2(2000, 1180, 300, 48),
-			Rect2(2550, 1180, 350, 48),
-			Rect2(100, 1010, 240, 48),
-			Rect2(450, 1010, 600, 48),
-			Rect2(1350, 1010, 500, 48),
-			Rect2(2150, 1010, 400, 48),
-			Rect2(2750, 1010, 260, 48),
-			Rect2(650, 840, 340, 48),
-			Rect2(1150, 840, 260, 48),
-			Rect2(1500, 840, 260, 48),
-			Rect2(2150, 840, 340, 48),
-			Rect2(2800, 840, 376, 48),
-			Rect2(350, 670, 320, 48),
-			Rect2(1350, 670, 260, 48),
-			Rect2(2200, 670, 360, 48),
-			Rect2(2900, 670, 260, 48),
-			Rect2(200, 500, 320, 48),
-			Rect2(1450, 500, 300, 48),
-			Rect2(2100, 500, 300, 48),
+			# y330 — Outpost row 2 (upper-left high perch) + the
+			# Ironfall central peak fortress (kept, QA-111).
+			Rect2(308, 330, 307, 48),
 			Rect2(1400, 330, 400, 48),
+			# y500 — Outpost rows 3+4.
+			Rect2(308, 500, 307, 48),
+			Rect2(862, 500, 123, 48),
+			Rect2(1108, 500, 246, 48),
+			Rect2(2031, 500, 246, 48),
+			Rect2(2585, 500, 184, 48),
+			# y670 — Outpost rows 5+6 (long left shelf 185-677).
+			Rect2(185, 670, 492, 48),
+			Rect2(862, 670, 123, 48),
+			Rect2(1108, 670, 246, 48),
+			Rect2(1662, 670, 246, 48),
+			Rect2(2092, 670, 123, 48),
+			Rect2(2462, 670, 246, 48),
+			Rect2(2831, 670, 123, 48),
+			# y840 — Outpost row 7 (long left shelf 185-800).
+			Rect2(185, 840, 615, 48),
+			Rect2(1477, 840, 431, 48),
+			Rect2(2277, 840, 308, 48),
+			Rect2(2831, 840, 123, 48),
+			# y1010 — Outpost rows 8+9.
+			Rect2(246, 1010, 554, 48),
+			Rect2(985, 1010, 307, 48),
+			Rect2(1477, 1010, 369, 48),
+			Rect2(2154, 1010, 308, 48),
+			Rect2(2708, 1010, 123, 48),
+			Rect2(2892, 1010, 123, 48),
+			# y1180 — Outpost rows 10+11; the merged centre run
+			# is split (1538-1908 / 2092-2400) to keep the gap.
+			Rect2(492, 1180, 308, 48),
+			Rect2(862, 1180, 430, 48),
+			Rect2(1538, 1180, 370, 48),
+			Rect2(2092, 1180, 308, 48),
+			Rect2(2585, 1180, 492, 48),
 		],
-		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1300, 1146), Vector2(850, 976), Vector2(800, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2350, 636)],
-		"pickups": [Vector2(300, 1150), Vector2(2700, 1150), Vector2(1500, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
-		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["if_sandbags", 800, 1180], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1180], ["crate", 1500, 1010], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1180], ["if_tower", 500, 670], ["if_gantry", 900, 1180], ["if_rockledge", 600, 1010], ["if_bridge", 2300, 1010], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 1600, 1352], ["if_water", 1600, 1352], ["if_bunker", 1500, 330], ["if_comms", 1680, 330], ["if_tower", 3030, 670], ["if_bridge", 1070, 840], ["if_bridge_metal", 2730, 670], ["if_palm", 600, 670], ["if_palm", 2800, 1010], ["if_cave", 450, 1352]],
+		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1100, 1146), Vector2(600, 976), Vector2(700, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2550, 636)],
+		"pickups": [Vector2(750, 1150), Vector2(2700, 1150), Vector2(1500, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
+		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["if_sandbags", 650, 1180], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1180], ["crate", 1500, 1010], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1180], ["if_tower", 500, 670], ["if_gantry", 900, 1180], ["if_rockledge", 600, 1010], ["if_bridge", 2708, 840], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 1600, 1352], ["if_water", 1600, 1352], ["if_bunker", 1500, 330], ["if_comms", 1680, 330], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_palm", 2800, 1010], ["if_cave", 450, 1352]],
 	},
 	{
 		"name": "Jungle Ruins", "size": Vector2(3200, 1400), "tile": 1,
@@ -273,13 +289,14 @@ const MAPS := [
 		"decor": [["if_rock", 500, 10582], ["if_rock", 3100, 10582], ["crate", 1600, 10242], ["barrels", 2000, 10072], ["if_spikes", 2500, 9902]],
 		"skyfall": true,
 		# Power-up spots: [x, y, kind] — one per power-up, spread
-		# across the heights (kinds 7-13, see pickup.gd — kinds
+		# across the heights (kinds 8-13, see pickup.gd — kinds
 		# UNCHANGED by the rebuild, only positions moved). QA-132:
 		# every spot re-anchored to a platform top (y = top - 34)
 		# and OUT of the hazard rects — the old shield spot sat
 		# INSIDE the lava and the old invisibility spot floated
 		# 304 px above the nearest platform.
-		"skyfall_pickups": [[1000, 10378, 7], [2600, 10378, 10], [1350, 9358, 11], [1400, 2470, 8], [1200, 5830, 12], [1800, 6110, 13], [2600, 1678, 9]],
+		# QA-143 (v4.0): Health Potion (kind 7) REMOVED — 6 spots now.
+		"skyfall_pickups": [[2600, 10378, 10], [1350, 9358, 11], [1400, 2470, 8], [1200, 5830, 12], [1800, 6110, 13], [2600, 1678, 9]],
 		# Vertical CTF: both flags at the summit, extraction zones
 		# at the bases. Red steals the BLUE flag to the RED zone.
 		"ctf": {"flag_red": Vector2(1400, 862), "flag_blue": Vector2(2200, 862), "extract_red": Vector2(450, 10752), "extract_blue": Vector2(3150, 10752)},

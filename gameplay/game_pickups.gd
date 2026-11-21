@@ -39,6 +39,17 @@ func _spawn_pickup_at(spot_idx: int, kind: int) -> void:
 	g.rpc("spawn_pickup_remote", pos, pname, kind, spot_idx)
 
 
+# QA-143: spawn a weapon pickup a player dropped when picking up
+# a new gun with full slots (MMC removePrimaryWeapon 0x8eade4).
+# Host-only (the caller checks). spot_idx -1: no spot owns it, so
+# no per-spot timer restarts when it is taken or expires.
+func spawn_dropped_pickup(pos: Vector2, kind: int) -> void:
+	if not g.multiplayer.is_server():
+		return
+	var pname := "drop_" + str(Time.get_ticks_msec()) + "_" + str(kind) + "_" + str(randi())
+	g.rpc("spawn_pickup_remote", pos, pname, kind, -1)
+
+
 func on_pickup_gone(spot_idx: int) -> void:
 	# A pickup was collected or despawned: restart its per-spot
 	# 14 s timer (GAP-37). Only the server tracks this.
@@ -76,7 +87,7 @@ func _update_pickup_spawn(delta: float) -> void:
 		var t = float(g._pickup_spot_timers.get(i, 0.0)) - delta
 		g._pickup_spot_timers[i] = t
 		# QA-112: the 3-active cap counts WEAPONS only — Skyfall
-		# power-ups (kind 7+) have their own cap (max 2), so a
+		# power-ups (kind 8+) have their own cap (max 2), so a
 		# power-up on the field must never block a weapon spawn.
 		if t <= 0.0 and weapon_active < 3:
 			g._pickup_spot_timers[i] = 14.0

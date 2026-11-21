@@ -30,8 +30,8 @@ func _sf_level_of(y: float) -> int:
 	return clampi(6 - int(y / 1800.0), 1, 6)
 
 
-func _sf_validate_powerup_target(activator: Node2D, target: Node2D) -> bool:
-	return g.skyfall_powerups._sf_validate_powerup_target(activator, target)
+func _sf_validate_powerup_target(activator: Node2D, target: Node2D, kind: int = 0) -> bool:
+	return g.skyfall_powerups._sf_validate_powerup_target(activator, target, kind)
 
 
 func show_thunder_strike_fx(pos: Vector2) -> void:

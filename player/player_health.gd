@@ -217,6 +217,7 @@ func _respawn() -> void:
 	p._fuel_delay_timer = 0.0
 	p._spawn_protect_timer = p.SPAWN_PROTECTION
 	p.weapon = 0
+	p._weapon_angle_offset = 0.0 # QA-143: rifle arm angle is 0
 	p._owned_extra.clear()
 	p._reserve = p.RESERVE_DEFAULT.duplicate()
 	p.player_weapons._reset_mag_memory() # QA-075: respawn refills every remembered mag
@@ -227,7 +228,6 @@ func _respawn() -> void:
 	p._reload_timer = 0.0
 	p._recoil_accum = 0.0
 	p._jet_thrust_factor = 0.0 # QA-141: no thrust carries over a respawn
-	p.scoped = false # QA-105: no scope carries over a respawn
 	p._jet_thrust_factor = 0.0
 	p._muzzle_timer = 0.0 # QA-075: no flash carries over a respawn
 	p._switch_dip_timer = 0.0

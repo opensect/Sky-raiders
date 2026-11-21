@@ -63,27 +63,15 @@ func _update_reload_button(lp) -> void:
 	g.reload_button.disabled = lp.reloading or lp.mag_ammo >= mag_total
 
 
-# QA-105 (v3.8): SCOPE button state, refreshed every HUD frame.
-# Only the sniper (zoom 2.0x) and rifle (zoom 1.5x) have scopes —
-# the button hides for SMG / shotgun / pistol / rocket. A check
-# mark shows when the scope is on.
-func _update_scope_button(lp) -> void:
-	if g.scope_button == null:
-		return
+# QA-143: scoping removed - this used to be _update_scope_button;
+# now it only refreshes the PING button state every HUD frame.
+# QA-114 (v3.9): PING is Skyfall-only, and only for a living
+# local player.
+func _update_ping_button(lp) -> void:
 	# QA-113 (v3.9): never over a dialog — the button drew over the
 	# pause/scoreboard/end panels. _set_touch_controls_visible
 	# hides it, but this runs every frame and would show it again.
 	var dialog_open = g.get_tree().paused or (g.scoreboard_panel != null and g.scoreboard_panel.visible) or (g.end_panel != null and g.end_panel.visible)
-	if lp == null or not lp.alive or dialog_open:
-		g.scope_button.visible = false
-	else:
-		var can_scope: bool = int(lp.weapon) == 0 or int(lp.weapon) == 3
-		g.scope_button.visible = can_scope
-		# QA-137: the button is icon-only now (the kit's crosshair);
-		# the scope state reads from the zoom itself, so no text
-		# or check mark is set here any more.
-	# QA-114 (v3.9): PING is Skyfall-only, and only for a living
-	# local player.
 	if g.ping_button != null:
 		g.ping_button.visible = g.map_id == GameData.SKYFALL_MAP_ID and lp != null and lp.alive and not g.match_over and not dialog_open
 
@@ -92,18 +80,6 @@ func _on_switch_pressed() -> void:
 	var lp = g.game_hud._get_local_player()
 	if lp != null:
 		lp.switch_weapon()
-
-
-func _on_scope_pressed() -> void:
-	# QA-105 (v3.8): toggle the scope on the local player. Only the
-	# sniper (2.0x) and rifle (1.5x) have scopes; the button hides
-	# for other weapons, so this guard is belt-and-braces.
-	var lp = g.game_hud._get_local_player()
-	if lp == null or not lp.alive:
-		return
-	if lp.weapon != 0 and lp.weapon != 3:
-		return
-	lp.scoped = not lp.scoped
 
 
 func _on_ping_pressed() -> void:
@@ -257,16 +233,14 @@ func _set_touch_controls_visible(v: bool) -> void:
 	for c in [g.move_stick, g.aim_stick, g.reload_button, g.grenade_button, g.switch_button]:
 		if c != null:
 			c.visible = v
-	# QA-113 (v3.9): SCOPE (added v3.8) and PING (added v3.9) were
-	# never in this list, so they drew over the pause/scoreboard
-	# panels (the SCOPE button covered the K/D + ACC headers).
-	# Hide them too — but never show them here: _update_hud owns
-	# their visibility (scope only for sniper/rifle, ping
-	# Skyfall-only) and restores them on the next frame.
+	# QA-113 (v3.9): PING (added v3.9) was never in this list, so it
+	# drew over the pause/scoreboard panels. Hide it too — but
+	# never show it here: _update_hud owns its visibility (ping
+	# Skyfall-only) and restores it on the next frame. (SCOPE was
+	# removed in QA-143.)
 	if not v:
-		for c in [g.scope_button, g.ping_button]:
-			if c != null:
-				c.visible = false
+		if g.ping_button != null:
+			g.ping_button.visible = false
 
 
 func _on_touch_press(index: int, pos: Vector2) -> void:

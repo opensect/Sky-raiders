@@ -88,12 +88,11 @@ const SF_TEX_SLOT: Array[Texture2D] = [
 	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_3.png"),
 ]
 const SF_TEX_PU64 := {
-	7: preload("res://assets/powerups_new/03_health_potion_powerup.png"),
 	8: preload("res://assets/powerups_new/01_shield_powerup.png"),
 	9: preload("res://assets/powerups_new/02_speed_boost_powerup.png"),
 	10: preload("res://assets/skyfall/SKYFALL_assets/powerups/powerup_6_jetpack_boost_64.png"),
 	11: preload("res://assets/powerups_new/05_wind_blast_powerup.png"),
-	12: preload("res://assets/powerups_new/06_thunder_strike_powerup.png"),
+	12: preload("res://assets/user_assets_v3/thunder_strike.png"),
 	13: preload("res://assets/powerups_new/07_invisibility_powerup.png"),
 }
 const DECOR_CRATE: Texture2D = preload("res://assets/tiles/crate.png")

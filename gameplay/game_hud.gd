@@ -99,7 +99,7 @@ func _update_hud(delta: float) -> void:
 	# empty, so a low mag reads at a glance mid-fight.
 	g.weapon_label.add_theme_color_override("font_color", g.UI_DANGER if lp.mag_ammo <= maxi(1, mag_total / 4) else g.UI_FONT)
 	g._update_reload_button(lp) # QA-070: simple reload button (text label, no ring)
-	g._update_scope_button(lp) # QA-105: SCOPE toggle, sniper/rifle only
+	g._update_ping_button(lp) # QA-114: PING button (Skyfall only)
 	g.grenade_label.text = "Grenades: %d" % lp.grenades
 	g._update_grenade_button(lp) # QA-070: simple grenade button (text label, no ring/badge)
 	# Phase 4: FPS counter (settings toggle).
@@ -168,7 +168,7 @@ func _update_skyfall_hud() -> void:
 	# tappable only when it holds a power-up the player CAN use
 	# right now: timed kinds stay greyed out while another boost
 	# is active or while carrying the flag (carrier rule wins);
-	# instant kinds (health, wind, thunder) are always tappable.
+	# instant kinds (wind, thunder) are always tappable.
 	var stored: Array = lp.get("stored_boosts")
 	var ab0 := int(lp.get("active_boost_kind"))
 	var carrying := int(lp.get("carrying_flag")) != 0

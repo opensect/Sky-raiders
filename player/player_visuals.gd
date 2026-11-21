@@ -52,8 +52,8 @@ const MUZZLE_TEX := {
 const HIT_FLASH_SHADER: Shader = preload("res://addons/sprite_juice_lite/shaders/hit_flash.gdshader")
 # QA-082 (v3.7): jetpack flame sprite (was a plain orange Polygon2D
 # triangle). Drawn pointing DOWN from its top edge, 32x64 px, so
-# with centered=false the sprite's top sits at the old triangle's
-# top (y=22) and its length matches the old 29 px at scale 1.
+# with centered=false the sprite's top sits at the pack exhaust
+# (y=-10, QA-143) and its length matches the old 29 px at scale 1.
 const FLAME_TEX: Texture2D = preload("res://assets/user_assets_v3/jetpack_flame_normal.png")
 # QA-137: the boost flame (bigger, blue core) from the user's
 # jetpack sheet - shown while the Jetpack Boost power-up runs.
@@ -121,6 +121,37 @@ const HAND_JETPACK_FRAMES := [Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vecto
 # units). Measured from assets/weapons/*.png (trigger grip, not the
 # magazine - the magazine hangs lower but the hand holds the grip).
 const WEAPON_GRIP := {0: Vector2(0.34, 1.5), 1: Vector2(0.37, 2.0), 2: Vector2(0.23, 2.0), 3: Vector2(0.43, 3.0), 4: Vector2(0.47, 3.5), 5: Vector2(0.47, 5.0)}
+# QA-143 (v4.0): Mini Militia gun-hold data, extracted from
+# libcocos2dcpp.so (MMC Classic v0.14.4 build 88). Weapon object
+# field +0x2d0 is the design firing point (two doubles), read by
+# Weapon::getDesignFiringPoint 0x948eb8 and used by
+# SoldierController::getFiringPoint 0x8e2018 for the bullet spawn.
+# The firing X, as a fraction of the weapon sprite's HALF width
+# (MMC sprite sizes from menuTexture.plist): AK47 102/102 = 1.00,
+# MP5 98/87 = 1.13, SPAS-12 105/109 = 0.96, M93BA 125/130 = 0.96,
+# SMAW 40/164 = 0.24, D.EAGLE 85/55.5 = 1.53. Five of six sit at
+# the barrel tip (about 1.0); the SMAW value is the literal MMC
+# number even though it lands mid-tube - see the notes file,
+# QA143-workerB-notes.md, before "fixing" it. The firing Y could
+# NOT be mapped to our centred sprite (no single frame fits all
+# six - shotgun 53 and SMAW 45 fall outside their sprites), so it
+# is recorded in the notes and the muzzle stays on the barrel line
+# through the hands (QA-127), as before.
+const WEAPON_MUZZLE_FRAC := {0: 1.00, 1: 1.13, 2: 0.96, 3: 0.96, 4: 0.24, 5: 1.53}
+# QA-143: per-weapon arm angle in DEGREES, MMC Weapon field +0x2b0
+# (Weapon::getArmAngle 0x9487d8). Only five of 22 MMC classes
+# override the 0.0 default: FLAMETHROWER -25, MINIGUN -40, RG6 -25,
+# SHOTGUN -25, SMAW -40. MMC reads it when a primary is equipped
+# or switched (SLC::addPrimaryWeapon 0x8e6ebc, switchWeapons
+# 0x8ebea0) and stores it as the view's weapon-angle offset
+# (SoldierView::setWeaponAngleOffset 0x8fafec -> view +0x2a8). It
+# is NOT part of the firing angle (SoldierView::getFiringAngle
+# 0x8fb0ac uses only +0x2a0/+0x2a4/+0x298), so it must never tilt
+# the gun off the bullet path: Frag Arena has no separate arm
+# sprite, so the value is stored on the player
+# (p._weapon_angle_offset, set on equip/switch) and the gun keeps
+# following the aim angle exactly.
+const WEAPON_ARM_ANGLE := {0: 0.0, 1: 0.0, 2: -25.0, 3: 0.0, 4: -40.0, 5: 0.0}
 const INVISIBILITY_ALPHA := 0.1 # QA-119: 90% invisible - enemies see ~10% (user 2026-11-20 ~20:52)
 
 
@@ -190,7 +221,6 @@ func _build_sprite() -> void:
 	# ~154 px on-screen size. Same for the thunder bolt below.
 	p._fx_shield = _make_fx_sprite("res://assets/user_assets_v3/shield_dome.png", 0.11)
 	p._fx_speed = _make_fx_sprite("res://assets/powerups_effects/02_speed_boost_motion_trails_effect.png", 0.26)
-	p._fx_health = _make_fx_sprite("res://assets/powerups_effects/03_health_healing_aura_effect.png", 0.28)
 	p._fx_wind = _make_fx_sprite("res://assets/powerups_effects/05_wind_whirlpool_vortex_effect.png", 0.34)
 	p._fx_thunder = _make_fx_sprite("res://assets/user_assets_v3/thunder_strike.png", 0.15)
 	p._fx_invis = _make_fx_sprite("res://assets/powerups_effects/07_invisibility_shimmer_cloak_effect.png", 0.30)
@@ -207,14 +237,15 @@ func _build_sprite() -> void:
 	# 442x492, drawn 20x22 px (aspect kept); the boost flame is
 	# 616x926, drawn 30x33 px while the boost runs (see the scale
 	# code in _update_visuals). centered=false so the sprite grows
-	# DOWN from y=22 exactly like the triangle did.
+	# DOWN from the pack exhaust (y=-10, QA-143) exactly like the
+	# triangle did.
 	p._flame = Sprite2D.new()
 	p._flame.name = "JetFlame"
 	p._flame.texture = FLAME_TEX
 	p._flame.centered = false
-	p._flame.position = Vector2(-10, 22) # QA-071b: (0, 18) * 1.20, x centred on the 20 px wide flame
+	p._flame.position = Vector2(-20, -10) # QA-143: on the BACK - centre 10 px behind the body, nozzle at the pack exhaust (see _update_visuals)
 	p._flame.scale = Vector2(20.0 / 442.0, 22.0 / 492.0)
-	p._flame.z_index = 1
+	p._flame.z_index = -1 # QA-143: BEHIND the body - the pack sits on the back, so the flame must not draw over the sprite
 	p._flame.visible = false
 	p.add_child(p._flame)
 
@@ -325,6 +356,21 @@ func _muzzle_origin() -> Vector2:
 	return Vector2(hand.x * p.facing, hand.y)
 
 
+# QA-143: how far ahead of the hands the bullet spawns, along the
+# aim direction (MMC design firing point, WEAPON_MUZZLE_FRAC
+# above). The gun's centre sits (0.5 - grip.x) * GUN_LENGTH ahead
+# of the hands, and the muzzle sits frac * GUN_LENGTH/2 ahead of
+# the centre: rifle 36.3, SMG 38.2, shotgun 41.3, sniper 30.3,
+# rocket 8.3, pistol 43.7 px. This replaces the old flat
+# GUN_LENGTH + 6.0 (61 px) - bullets used to spawn ~25 px past
+# the visible barrel tip; MMC spawns them at the muzzle (or just
+# past it for the pistol/SMG).
+func muzzle_distance(weapon_id: int) -> float:
+	var grip: Vector2 = WEAPON_GRIP.get(weapon_id, Vector2(0.34, 1.5))
+	var frac: float = float(WEAPON_MUZZLE_FRAC.get(weapon_id, 1.0))
+	return (0.5 - grip.x) * p.GUN_LENGTH + frac * (p.GUN_LENGTH * 0.5)
+
+
 func _update_helmet() -> void:
 	if p._helmet_sprite == null:
 		return
@@ -352,8 +398,11 @@ func _update_gun_texture() -> void:
 	# tip is at half the texture width (27.5 px ahead after scaling),
 	# not the far edge (55 px). The flash used to float 27.5 px past
 	# the barrel in mid-air.
+	# QA-143: the flash sits at the MMC design firing point, not
+	# the tip: frac * half the texture width (WEAPON_MUZZLE_FRAC).
 	if p._muzzle != null:
-		p._muzzle.position = Vector2(tex.get_width() * 0.5, 0)
+		var mfrac: float = float(WEAPON_MUZZLE_FRAC.get(p.weapon, 1.0))
+		p._muzzle.position = Vector2(tex.get_width() * 0.5 * mfrac, 0)
 		# QA-083: the flash picture follows the weapon class.
 		p._muzzle.texture = MUZZLE_TEX[p.weapon]
 
@@ -558,7 +607,16 @@ func _update_visuals(delta: float) -> void:
 			var dw := 30.0 if boosting else 20.0
 			var dh := 33.0 if boosting else 22.0
 			p._flame.scale = Vector2((dw / fw) * (1.0 + 0.15 * sin(Time.get_ticks_msec() / 40.0)), (dh / fh) * frac)
-			p._flame.position = Vector2(-0.5 * fw * p._flame.scale.x, 22.0)
+			# QA-143: the flame sits on the BACK, under the jetpack
+			# pack - measured from the art (jetpack frames carry a
+			# baked flame at frame x 18-29, y 23-39, i.e. player
+			# x -17..-4, y -11..+8, facing right). Its centre sits
+			# 10 px behind the body and flips with facing; the
+			# nozzle (top edge) sits at y -10, at the pack exhaust.
+			# z_index -1 keeps it BEHIND the body, so it reads as
+			# mounted on the back instead of floating under the feet.
+			var back_centre = -10.0 * float(p.facing)
+			p._flame.position = Vector2(back_centre - 0.5 * fw * p._flame.scale.x, -10.0)
 			if p.fuel < PhysicsConfig.FUEL_LOW_WARN:
 				p._flame.modulate = Color(1.0, 1.0, 1.0, 0.5 + 0.5 * sin(Time.get_ticks_msec() / 60.0))
 			else:
@@ -599,9 +657,6 @@ func _update_visuals(delta: float) -> void:
 		p._fx_shield.scale = Vector2(0.11 * pulse, 0.11 * pulse) # QA-137: 1440 px dome art, was 0.30 for 512 px
 	if p._fx_speed != null:
 		p._fx_speed.visible = p.alive and p.speed_timer > 0.0
-	if p._fx_health != null:
-		p._fx_health.visible = p.alive and p._fx_flash_kind == 7 and p._fx_flash_timer > 0.0
-		p._fx_health.modulate = Color(1, 1, 1, clampf(p._fx_flash_timer / 0.8, 0.0, 1.0))
 	if p._fx_wind != null:
 		p._fx_wind.visible = p.alive and p._fx_flash_kind == 11 and p._fx_flash_timer > 0.0
 		p._fx_wind.rotation = Time.get_ticks_msec() / 1000.0 * 6.0
@@ -693,13 +748,7 @@ func _update_camera(delta: float) -> void:
 		look_target = signf(p.velocity.x) * PhysicsConfig.CAMERA_LOOKAHEAD * 0.5
 	p._cam_look = move_toward(p._cam_look, look_target, delta * 240.0)
 	var target = p._cam_anchor + Vector2(p._cam_look, 0)
-	# QA-105 (v3.8): while scoped, the view shifts toward the aim
-	# direction so the player sees further that way.
-	if p.scoped and p._aiming:
-		target += p._aim_dir * 150.0
 	# Clamp the view inside the map (hard limits, spec §19).
-	# QA-105: the clamp uses the EFFECTIVE view size (viewport /
-	# zoom) so a scoped (zoomed-in) camera still stays inside.
 	var vp = p.get_viewport().get_visible_rect().size / p._camera.zoom
 	var ms: Vector2 = game.map_size
 	var hx = minf(vp.x * 0.5, ms.x * 0.5)
@@ -707,13 +756,9 @@ func _update_camera(delta: float) -> void:
 	target.x = clampf(target.x, hx, maxf(hx, ms.x - hx))
 	target.y = clampf(target.y, hy, maxf(hy, ms.y - hy))
 	p._camera.position = target - p.global_position
-	# QA-105: scope zoom - sniper 2.0x, rifle 1.5x, everything else
-	# 1.0x. Eases at 3x/s so the zoom feels smooth, not a snap.
-	var zoom_target := 1.0
-	if p.scoped:
-		zoom_target = p.SCOPE_ZOOM_SNIPER if p.weapon == 3 else (p.SCOPE_ZOOM_RIFLE if p.weapon == 0 else 1.0)
-	var zoom_now = move_toward(p._camera.zoom.x, zoom_target, delta * 3.0)
-	p._camera.zoom = Vector2(zoom_now, zoom_now)
+	# QA-143: scoping removed - the camera zoom stays 1.0x always
+	# (no SCOPE button, no zoom code); the look-ahead above is the
+	# only camera motion left.
 
 
 func _update_sight_line() -> void:
@@ -728,7 +773,9 @@ func _update_sight_line() -> void:
 		p._sight_line.visible = false
 		return
 	var dir = Vector2(cos(p.aim_angle), sin(p.aim_angle))
-	var muzzle = p.global_position + _muzzle_origin() + dir * (p.GUN_LENGTH + 6.0)
+	# QA-143: the sight line starts at the true muzzle (MMC firing
+	# point), like the bullets - not the old flat 61 px.
+	var muzzle = p.global_position + _muzzle_origin() + dir * muzzle_distance(p.weapon)
 	var end = muzzle + dir * p.SIGHT_LINE_RANGE
 	var space = p.get_world_2d().direct_space_state
 	var query := PhysicsRayQueryParameters2D.create(muzzle, end, 1)

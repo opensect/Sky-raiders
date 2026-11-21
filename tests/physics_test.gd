@@ -148,7 +148,7 @@ func _phys_c_pickups_start() -> Array:
 		var w := 0
 		var p := 0
 		for child in g.pickups_node.get_children():
-			if int(child.get("kind")) >= 7:
+			if int(child.get("kind")) >= 8:
 				p += 1
 			else:
 				w += 1

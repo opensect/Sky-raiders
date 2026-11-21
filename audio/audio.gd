@@ -79,7 +79,6 @@ func _build_streams() -> void:
 	# so SFX never drowns the music (music plays at volume * 0.5).
 	_streams["shield"] = _make_hum(0.9, 0.6) # energy hum, detuned sines
 	_streams["speed"] = _make_noise_sweep(0.35, 0.7, 300.0, 3200.0) # whoosh up
-	_streams["heal"] = _make_melody([880.0, 1174.7], 0.14) # soft two-note chime
 	_streams["jetpack_boost"] = _make_noise_sweep(0.5, 0.7, 400.0, 2600.0) # fuel rush
 	_streams["wind"] = _make_gust(0.7, 0.8) # wind blast gust
 	_streams["thunder"] = _make_thunder() # crack + low rumble

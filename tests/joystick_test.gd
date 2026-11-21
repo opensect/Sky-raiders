@@ -577,16 +577,19 @@ func _jt_s_diag_up_right() -> void:
 	# ceil=true, pos.y pinned at 1259.065, vy=0.0 while
 	# jetpacking=true and fuel draining), so vel.y < 0 could
 	# never pass there. The old comment missed this platform
-	# (it listed only the 840/1010 rows). (2350, 1321) is the
-	# 1180-row gap (2300..2550): open sky up to the 1010 row
-	# (2150..2550, bottom 1058, 170 px above the head at full
-	# rise), and the rightward drift (~75 px in 0.5 s) stays
-	# inside the gap, 60 px clear of the spikes at x=2500.
-	# The physics is correct — MMC would bonk the same ceiling
-	# — the old spot was simply the wrong place to prove a
-	# diagonal jump.
+	# (it listed only the 840/1010 rows). (2350, 1321) was the
+	# 1180-row gap (2300..2550) in the OLD Ironfall.
+	# QA-143: the Outpost rebuild moved the 1180 runs — x2350 is
+	# now UNDER the (2092..2400) run, so the jump bonks again
+	# (full suite: vel=(148,0)). (1415, 1321) is the new 1180-row
+	# gap (1292..1538): open sky up to the 1010 row (1477..1846,
+	# bottom 1058, 148 px above the head at full rise), and the
+	# rightward drift (~75 px in 0.5 s) stays inside the gap,
+	# clear of the 1538 run. The physics is correct — MMC would
+	# bonk the same ceiling — the old spot was simply the wrong
+	# place to prove a diagonal jump.
 	# QA-141: (42,-55), not (42,-42) — see the Skyfall branch above.
-	# QA-141: teleport to (2350,1321), not (2350,1318) — the standing
+	# QA-141: teleport to (1415,1321), not (1415,1318) — the standing
 	# centre on the 1352 floor is 1352-31 = 1321, and 1318 leaves
 	# the player 3 px in the air. At MMC gravity 300 that 3 px
 	# fall takes ~0.14 s, longer than the 0.12 s jump buffer, so
@@ -594,7 +597,7 @@ func _jt_s_diag_up_right() -> void:
 	# (vel.y read 0). At the old gravity 1400 the same fall took
 	# 0.065 s, inside the buffer — that is why this only broke
 	# now. The buffer itself is KEPT (QA-141: no buffer change).
-	lp.position = Vector2(2350, 1321)
+	lp.position = Vector2(1415, 1321)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
 	_jt_press_move(Vector2(42, -55))

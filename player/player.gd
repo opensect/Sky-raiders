@@ -209,6 +209,13 @@ var _jet_thrust_factor: float = 0.0
 var _muzzle_timer: float = 0.0
 var _muzzle_flashes: int = 0
 var _switch_dip_timer: float = 0.0
+# QA-143: the MMC weapon-angle offset (degrees) for the equipped
+# gun (WEAPON_ARM_ANGLE in player_visuals.gd). MMC stores it on
+# the view when a primary is equipped or switched; it feeds the
+# arm sprite, which Frag Arena does not have, so nothing reads it
+# yet - the gun keeps following the aim angle exactly (MMC's
+# getFiringAngle proves the firing direction ignores it).
+var _weapon_angle_offset: float = 0.0
 var _mag_memory: Dictionary = {}
 var _current_anim: String = ""
 var _anim_locked: bool = false # death anim plays out
@@ -284,13 +291,10 @@ var player_weapons: PlayerWeapons # aim/fire, reload, weapon switch, grenades, b
 var player_health: PlayerHealth # damage, death/respawn, kills, hit confirm
 var player_powerups: PlayerPowerups # pickups, boost slots, wind blast, thunder strike
 var player_visuals: PlayerVisuals # sprite, anims, camera, sight line, sounds
-# QA-105 (v3.8): scopes + sniper line of sight. Sniper zooms 2.0x,
-# rifle 1.5x; SMG / shotgun / pistol / rocket have no scope. The
-# sight line is the sniper bullet's true range (1600 px/s * 1.6 s).
-const SCOPE_ZOOM_SNIPER := 2.0
-const SCOPE_ZOOM_RIFLE := 1.5
+# QA-105 (v3.8): sniper line of sight. The sight line is the
+# sniper bullet's true range (1600 px/s * 1.6 s). (Scoping was
+# removed in QA-143 - no zoom, no SCOPE button.)
 const SIGHT_LINE_RANGE := 2560.0
-var scoped: bool = false # scope toggle (HUD SCOPE button, sniper/rifle only)
 var _sight_line: Line2D # sniper sight line (local player only)
 
 var shield_timer: float = 0.0
@@ -305,11 +309,10 @@ var _shield_ring: Polygon2D # blue ring, shown while the shield is up
 var _regen_timer: float = 0.0 # QA-120: counts down after taking damage; regen starts at 0
 var _fx_shield: Sprite2D # QA-119: power-up effect layers (assets/powerups_effects/)
 var _fx_speed: Sprite2D
-var _fx_health: Sprite2D
 var _fx_wind: Sprite2D
 var _fx_thunder: Sprite2D
 var _fx_invis: Sprite2D
-var _fx_flash_kind: int = 0 # instant-effect flash (health/wind/thunder), 0 = none
+var _fx_flash_kind: int = 0 # instant-effect flash (wind/thunder), 0 = none
 var _fx_flash_timer: float = 0.0
 var _wind_sweep_timer: float = 0.0 # QA-135: Wind Blast tornado sweep — seconds left being pulled into the funnel
 var _wind_sweep_center: Vector2 = Vector2.ZERO # QA-135: tornado centre the victim is pulled toward
@@ -774,16 +777,17 @@ func give_pickup(kind: int) -> void:
 	return player_powerups.give_pickup(kind)
 
 
-# QA-119 (v3.11): 7 kinds, 7-13 - Health Potion (7), Shield (8),
+# QA-119 (v3.11): 6 kinds, 8-13 - Shield (8),
 # Speed Boost (9), Jetpack Boost (10), Wind Blast (11), Thunder
-# Strike (12), Invisibility (13). Pickup STORES the power-up in a
-# slot - it NEVER activates on pickup (user rule, 2026-11-20
-# ~21:00, IMMEDIATE). Every kind goes to a free slot (max 3,
-# distinct kinds); a duplicate kind, or full slots, consumes the
-# pickup with no effect. The player activates by tapping the slot
-# button (see activate_slot). Timed kinds (8, 9, 10, 13): ONE
-# active at a time; a carrier cannot activate one while carrying
-# the flag. Instant kinds (7, 11, 12) fire at once on tap.
+# Strike (12), Invisibility (13). QA-143 (v4.0): Health Potion (7)
+# REMOVED. Pickup STORES the power-up in a slot - it NEVER
+# activates on pickup (user rule, 2026-11-20 ~21:00, IMMEDIATE).
+# Every kind goes to a free slot (max 3, distinct kinds); a
+# duplicate kind, or full slots, consumes the pickup with no
+# effect. The player activates by tapping the slot button (see
+# activate_slot). Timed kinds (8, 9, 10, 13): ONE active at a time;
+# a carrier cannot activate one while carrying the flag. Instant
+# kinds (11, 12) fire at once on tap.
 # The old auto-activate / instant-on-pickup behaviour is GONE.
 func apply_powerup(kind: int) -> void:
 	return player_powerups.apply_powerup(kind)
@@ -819,7 +823,7 @@ func activate_slot(idx: int) -> bool:
 # the sim the peer IS the host).
 # QA-132: wind + thunder announce themselves in the feed, so the
 # player sees the activation even when no enemy is in range.
-func _apply_instant(kind: int, target: Node2D = null) -> void:
+func _apply_instant(kind: int, target: Node2D = null) -> bool:
 	return player_powerups._apply_instant(kind, target)
 
 
@@ -833,6 +837,15 @@ func request_thunder_strike(target_peer: int) -> void:
 	return player_powerups.request_thunder_strike(target_peer)
 
 
+# QA-143: a client asks the host to spawn the gun it dropped when
+# picking up a weapon with full slots (MMC removePrimaryWeapon
+# 0x8eade4 drops the old primary as a world pickup). Host-only
+# spawn - a client must never spawn pickups itself.
+@rpc("any_peer", "call_local")
+func request_weapon_drop(kind: int, pos: Vector2) -> void:
+	return player_powerups.request_weapon_drop(kind, pos)
+
+
 # Host only: the Wind Blast tornado. The target (same platform +
 # same height as the activator, picked at tap time and re-validated
 # here) gets a tornado at their feet, is swept into it (pulled to
@@ -844,7 +857,7 @@ func request_thunder_strike(target_peer: int) -> void:
 # The sweep itself runs on the victim's owning peer (see
 # apply_wind_sweep) so it works for remote victims too; a test bot
 # (fake peer, no live connection) is driven on the host copy.
-func _do_wind_blast(target: Node2D) -> void:
+func _do_wind_blast(target: Node2D) -> bool:
 	return player_powerups._do_wind_blast(target)
 
 
@@ -859,7 +872,7 @@ func apply_wind_sweep(centre: Vector2, throw_vec: Vector2) -> void:
 # height (picked at tap time, re-validated here). Shield absorbs
 # the strike (take_hit -> _apply_damage zeroes it); the bolt
 # visual is drawn by the game (show_thunder_strike_fx).
-func _do_thunder_strike(target: Node2D) -> void:
+func _do_thunder_strike(target: Node2D) -> bool:
 	return player_powerups._do_thunder_strike(target)
 
 

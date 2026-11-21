@@ -100,7 +100,10 @@ func _fire() -> void:
 	p.mag_ammo -= 1
 	p.weapon_state = WeaponState.FIRING
 	var dir := Vector2(cos(p.aim_angle), sin(p.aim_angle))
-	var muzzle = p.global_position + p._muzzle_origin() + dir * (p.GUN_LENGTH + 6.0)
+	# QA-143: bullets leave from the MMC design firing point
+	# (muzzle_distance: grip-forward + frac * half gun length),
+	# not the old flat GUN_LENGTH + 6.0 (61 px past the hands).
+	var muzzle = p.global_position + p._muzzle_origin() + dir * p.player_visuals.muzzle_distance(p.weapon)
 	# Recoil accumulation (GAP-40, spec §16): R_n = R_0 + n*K; the
 	# accumulated spread widens the group and the gun kick grows.
 	p._recoil_accum += float(w.get("recoil_k", 0.06))
@@ -239,7 +242,6 @@ func ammo_reserve() -> int:
 func switch_weapon() -> void:
 	if not p.alive or owned_weapons().size() <= 1:
 		return
-	p.scoped = false # QA-105: scoping ends when the weapon changes
 	var owned: Array = owned_weapons()
 	var idx := owned.find(p.weapon)
 	var next_w: int = owned[(idx + 1) % owned.size()]
@@ -258,6 +260,12 @@ func switch_weapon() -> void:
 	p.mag_ammo = int(p._mag_memory.get(next_w, int(p.WEAPONS[next_w]["mag"])))
 	p.reloading = false
 	p.weapon_state = WeaponState.READY
+	# QA-143: MMC refreshes the view's weapon-angle offset on every
+	# switch (SLC::switchWeapons 0x8ebea0 -> Weapon::getArmAngle
+	# 0x9487d8 -> SoldierView::setWeaponAngleOffset 0x8fafec). The
+	# switch itself is INSTANT in MMC - no delay literal exists in
+	# switchWeapons, so the 0.15 s dip below stays visual only.
+	p._weapon_angle_offset = float(p.player_visuals.WEAPON_ARM_ANGLE.get(next_w, 0.0))
 	# QA-075: the gun dips briefly on switch (visual only - firing
 	# is never blocked; SWITCH-WHILE-FIRING still shoots straight
 	# through the switch). Remote copies dip too (see

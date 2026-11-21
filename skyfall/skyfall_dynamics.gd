@@ -88,6 +88,9 @@ func _update_skyfall(delta: float) -> void:
 	# --- QA-135 (v3.13): L4 storm lightning — its own strike
 	# cadence (every 6 s) at a random living player in L4. ---
 	_sf_update_strike_l4(delta)
+	# --- QA-143 (v4.0) ITEM 11: L5 thunder trap — any player
+	# still 5 s on level 5 is struck automatically (no power-up). ---
+	_sf_update_thunder_trap_l5(delta)
 	# --- QA-126 (v3.11): lava / fire hazard damage ticks. ---
 	g.skyfall_hazards._sf_update_hazards(delta)
 	# --- QA-137 (v3.14): swinging wrecking-ball pendulums. ---
@@ -247,7 +250,7 @@ func _sf_update_comeback(delta: float) -> void:
 			break
 	if active:
 		return
-	var kind := randi_range(7, 13)
+	var kind := randi_range(8, 13)
 	var pos := Vector2(700, 10548) if trail == 0 else Vector2(2900, 10548)
 	var pname := "sfcomeback_" + str(Time.get_ticks_msec()) + "_" + str(trail)
 	g.rpc("spawn_pickup_remote", pos, pname, kind, spot)
@@ -300,7 +303,7 @@ func _sf_event_supply_drop() -> void:
 		return
 	var r: Rect2 = plats[randi() % plats.size()]
 	var pos := r.get_center() + Vector2(0, -60)
-	var kind := randi_range(1, 6) if randi() % 2 == 0 else randi_range(7, 13)
+	var kind := randi_range(1, 6) if randi() % 2 == 0 else randi_range(8, 13)
 	var pname := "sfsupply_" + str(Time.get_ticks_msec())
 	# Event drops do NOT count toward the FT-SF-RARITY test — that
 	# test measures the regular spawn loop only.
@@ -626,6 +629,99 @@ func _sf_clear_strike_l4_marker() -> void:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 	g._sf_strike_l4 = {}
+
+
+func _sf_update_thunder_trap_l5(delta: float) -> void:
+	# QA-143 (v4.0) ITEM 11 — Level 5 thunder TRAP. Separate from
+	# the Thunder Strike power-up (item 9): no power-up is involved
+	# and no one activates anything. Any living player, either
+	# team, who stands still in the same place for 5 s on level 5
+	# (Mechanical Ascent) is struck automatically. Two phases, same
+	# shape as the L4 strike: TELEGRAPH (0.6 s — red ground ring +
+	# latest-asset bolt, RPC'd so every peer sees the warning) then
+	# HIT (15 HP — the QA-126 storm-lightning value, NOT the
+	# power-up's health-halving — if the target is still within
+	# 200 px; step away and it misses; shield absorbs it via
+	# _sf_damage_player). Host-authoritative: only the host picks
+	# the victim and lands the damage. The still clock restarts
+	# after a strike, so a player who keeps standing still is
+	# struck again after another full 5 s. One victim at a time
+	# (the longest-still); a second still player is picked next.
+	if g.map_id != GameData.SKYFALL_MAP_ID:
+		return
+	if g.match_over or g._countdown_active:
+		return
+	if not g._sf_trap_l5.is_empty():
+		var t = float(g._sf_trap_l5.get("timer", 0.0)) - delta
+		g._sf_trap_l5["timer"] = t
+		if t <= 0.0:
+			var pos: Vector2 = g._sf_trap_l5["pos"]
+			var peer: int = int(g._sf_trap_l5.get("peer", -1))
+			g._sf_trap_l5 = {}
+			if g.multiplayer.is_server() and peer >= 0:
+				for child in g.players_node.get_children():
+					if not child.alive:
+						continue
+					if int(child.get_multiplayer_authority()) != peer:
+						continue
+					if child.position.distance_to(pos) <= 200.0:
+						g.skyfall_hazards._sf_damage_player(child, 15)
+					break
+				g.skyfall_powerups._sf_reset_still(peer)
+				if g.has_method("show_thunder_strike_fx"):
+					g.rpc("show_thunder_strike_fx", pos + Vector2(0, -31))
+		return
+	if not g.multiplayer.is_server():
+		return
+	var best: Node = null
+	var best_still := 0.0
+	for child in g.players_node.get_children():
+		if not child.alive:
+			continue
+		if g.skyfall_helpers._sf_level_of(child.position.y) != 5:
+			continue
+		var s: float = g.skyfall_powerups._sf_still_seconds(child)
+		if s >= 5.0 and s > best_still:
+			best_still = s
+			best = child
+	if best == null:
+		return
+	var pos: Vector2 = best.position + Vector2(0, 31)
+	var peer := int(best.get_multiplayer_authority())
+	g._sf_trap_l5 = {"peer": peer, "pos": pos, "timer": 0.6}
+	if g.has_method("show_thunder_trap_telegraph"):
+		g.rpc("show_thunder_trap_telegraph", pos)
+
+
+func show_thunder_trap_telegraph(pos: Vector2) -> void:
+	# QA-143 ITEM 11: the trap's 0.6 s warning — red ground ring
+	# + the LATEST thunder asset (assets/user_assets_v3/
+	# thunder_strike.png, 1252x1568, so scale 0.25 keeps the bolt
+	# ~310 px tall like the L4 telegraph). RPC'd by the host, so
+	# every peer draws it; it frees itself after 0.6 s, in step
+	# with the host's strike countdown.
+	var ring := Line2D.new()
+	ring.width = 5.0
+	ring.default_color = Color(1.0, 0.25, 0.2, 0.9)
+	var pts := PackedVector2Array()
+	for i in 24:
+		var a := TAU * float(i) / 24.0
+		pts.append(pos + Vector2(cos(a), sin(a)) * 60.0)
+	pts.append(pos + Vector2(60.0, 0))
+	ring.points = pts
+	ring.z_index = 4
+	g.add_child(ring)
+	var bolt := Sprite2D.new()
+	bolt.texture = GameAssets.FX_TEX_THUNDER
+	bolt.position = pos + Vector2(0, -120)
+	bolt.scale = Vector2(0.25, 0.25)
+	bolt.modulate = Color(1, 1, 1, 0.9)
+	bolt.z_index = 4
+	g.add_child(bolt)
+	var tw = g.create_tween()
+	tw.tween_interval(0.6)
+	tw.tween_callback(ring.queue_free)
+	tw.tween_callback(bolt.queue_free)
 
 
 func show_wind_tornado_fx(pos: Vector2) -> void:
