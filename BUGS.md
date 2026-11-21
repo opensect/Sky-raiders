@@ -8140,3 +8140,23 @@ No paid library or asset was used.
 - Coordinator: `player/player_visuals.gd` (ITEM 1 flame-to-back + ITEM 6 camera zoom/shift removal), `player/player.gd` (SCOPE consts + `scoped` var out), `player/player_weapons.gd` (`scoped = false` out), `player/player_health.gd` (`scoped = false` out), `hud/hud_builder.gd` (SCOPE button out, PING comment), `gameplay/game_touch.gd` (`_update_scope_button` → `_update_ping_button`, `_on_scope_pressed` out, `_set_touch_controls_visible` scope case out), `game.gd` (HUD_TEX_BTN_SCOPE preload + `scope_button` var + `_on_scope_pressed` wrapper out, `_update_scope_button` → `_update_ping_button`), `gameplay/game_hud.gd` (call site renamed), `tests/fire_test.gd` (SNIPER-SCOPE-ZOOM → SNIPER-SIGHT-LINE + RELOAD-WHILE-MOVING teleport), `tests/joystick_test.gd` (DIAG-UP-RIGHT anchor (2350,1321)→(1415,1321)), `tests/smoke_test.gd` (v38-shots: `scoped` lines out), `assets/user_assets_v3/hud/hud_button_scope.png` (+ `.import`) DELETED.
 - Deleted files total: `assets/powerups_effects/06_thunder_strike_lightning_impact_effect.png` (+ `.import` + `.ctex` + `.md5`), `assets/powerups_new/06_thunder_strike_powerup.png` (+ `.import` + `.ctex` + `.md5`), `assets/user_assets_v3/hud/hud_button_scope.png` (+ `.import` + `.ctex` + `.md5`).
 - Worker notes (full detail): `~/workspace/mini-militia-lan-v317-proof/QA143-workerB-notes.md`, `QA143-workerC-notes.md`, `QA143-workerD-notes.md`.
+
+## v4.0 delivery record (2026-11-22, BUILD_VERSION 4.0, versionCode 22)
+
+### APK
+- `mini-militia-lan.apk` — 46,811,939 bytes, md5 `ad2449cf77fe7c274ee26c2aeae127eb` (unsigned export 46,566,834 bytes, md5 `00b96befcd358050d376166845ac07d7`). Godot 4.7.2 (`--export-release Android` under xvfb; export log 0 script errors — only ALSA/adb-daemon environmental noise).
+- `apksigner verify` passes (v2 + v3 schemes); signer cert SHA-256 `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11` — matches v3.11/v3.13/v3.14 (same debug keystore `~/.local/share/godot/keystores/debug.keystore`, alias `androiddebugkey`), installs over v3.14. `zipalign -c` passes.
+- aapt2: package `com.lanarena.shooter`, versionCode 22, versionName 4.0, minSdk 24, targetSdk 36, arm64-v8a only, exactly the 3 permissions (INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE).
+- Bloat check (QA-138 lesson): zip listing shows 0 entries from `assets/user_assets_v3/originals/` — the `.gdignore` holds; no original JPEG sheets ship. 2,308 files in the APK.
+- Download link: https://muse.ai/files/1393810153814235/4613093172236165/gfzq138l1wnsi8gn46zclvoi/mini-militia-lan.apk — expires Tue Nov 24, 2026, 01:13 AM IST.
+
+### Tests (full suite once, every test exactly once; log `~/workspace/mini-militia-lan-v40-proof/v40_full_suite.log`, runner `run_full_suite.sh`)
+- collision 8/8 × 6 maps; joystick 30/30; fire 35/35; scale 70/70; physics 34/34 maps 0/1/2/5, 33/34 maps 3/4 on the first pass; features 12/12; features-skyfall 73/73; multiplayer 15/15; menu-net 8/8; flow OK; smoke ×6 OK; 0 script errors.
+- First-pass failures (2, both boundary/timing flakes — no code change, re-ran ONLY those two files): physics-map3 P06-terminal-velocity FAIL (max fall vel.y=350, want 350-600 — the value printed as 350 but sat just under the 350.0 threshold; re-run reads 353, PASS); physics-map4 P07b-jump-tap-apex FAIL (tap apex 6 px, want 10-60 — the known wall-clock timing flake, same as v3.11; re-run reads 17 px, PASS). Re-runs: physics-map3 34/34, physics-map4 34/34, 0 errors (logs `v40_physics_map3_rerun.log`, `v40_physics_map4_rerun.log`).
+- Screenshots: SKIPPED — user said "Noneed screenshot" (2026-11-22 ~00:55). No visual verification for this build.
+- Honest limits (unchanged): real two-phone LAN sync only provable by the user's phones; 5v5 untested live; hazard sounds never heard on a real device.
+
+### Version + GitHub
+- Local commits: `89b0d70` QA-143 v4.0 major upgrade (27 files, +1,246/−335) → `c7df16c` v4.0 version bump (BUILD_VERSION 4.0, versionCode 22, versionName 4.0).
+- Pushed to GitHub dandydos/frag-arena as a clean linear commit on top of `7993a0b` (v3.14): `14f38b913bf02602c31719bd0d57d977836ecc08` ("Frag Arena v4.0 - QA-143 major upgrade"), verified from the server (HEAD + 1,449 files; 126 files changed vs v3.14, +24,811/−21,164 — includes the never-pushed QA-139/140/141 rounds).
+- Backup of the last shipped version: `~/workspace/mini-militia-lan-backup-v3.14/` (703 MB; v3.14 APK inside verified md5 `0278760b3b87d7036236754bc4264d9c`).
