@@ -129,8 +129,48 @@ const FX_TEX_GUST_L: Texture2D = preload("res://assets/dynamic_effects/19_wind_g
 const FX_TEX_GUST_R: Texture2D = preload("res://assets/dynamic_effects/20_wind_gust_right.png")
 const FX_TEX_CRACK: Texture2D = preload("res://assets/dynamic_effects/33_ground_crack_energy.png")
 const FX_TEX_SHOCKWAVE: Texture2D = preload("res://assets/dynamic_effects/34_ground_shockwave.png")
+# QA-137 (v3.14): trap art from the user's trap sheet
+# (assets/user_assets_v3/trap_new_*.png). The fire-vent frames
+# (row 4) animate the fire-jet hazards; the intact grate (row 1)
+# is the collapsing-platform texture and the broken grate (row 6)
+# is its falling visual; the spiked ball (cropped from row 1)
+# is the new swinging pendulum trap.
+const TRAP_TEX_GRATE: Texture2D = preload("res://assets/user_assets_v3/trap_new_r1_c1.png")
+const TRAP_TEX_GRATE_BROKEN: Texture2D = preload("res://assets/user_assets_v3/trap_new_r6_c1.png")
+const TRAP_TEX_BALL: Texture2D = preload("res://assets/user_assets_v3/trap_ball.png")
+const TRAP_TEX_FIRE_VENT: Array[Texture2D] = [
+	preload("res://assets/user_assets_v3/trap_new_r4_c1.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c2.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c3.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c4.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c5.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c6.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c7.png"),
+	preload("res://assets/user_assets_v3/trap_new_r4_c8.png"),
+]
+# QA-137 (v3.14): HUD kit art (assets/user_assets_v3/hud/).
+# Bars are sliced into frame (empty track) + fill so the fill can
+# be clipped to the live value (see HudBar). Buttons are the kit's
+# flat square buttons (143 px); the radar and shield icons are
+# deliberately NOT wired (radar was removed in QA-130; the shield
+# icon has no matching HUD element - see BUGS.md QA-137).
+const HUD_TEX_BAR_HEALTH_FRAME: Texture2D = preload("res://assets/user_assets_v3/hud/hud_bar_health_frame.png")
+const HUD_TEX_BAR_HEALTH_FILL: Texture2D = preload("res://assets/user_assets_v3/hud/hud_bar_health_fill.png")
+const HUD_TEX_BAR_JETPACK_FRAME: Texture2D = preload("res://assets/user_assets_v3/hud/hud_bar_jetpack_frame.png")
+const HUD_TEX_BAR_JETPACK_FILL: Texture2D = preload("res://assets/user_assets_v3/hud/hud_bar_jetpack_fill.png")
+const HUD_TEX_STICK_MOVE_BASE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_move_base.png")
+const HUD_TEX_STICK_MOVE_KNOB: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_move_knob.png")
+const HUD_TEX_STICK_AIM_BASE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_aim_base.png")
+const HUD_TEX_STICK_AIM_KNOB: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_aim_knob.png")
+const HUD_TEX_BTN_GRENADE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_grenade.png")
+const HUD_TEX_BTN_RELOAD: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_reload.png")
+const HUD_TEX_BTN_WEAPON: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_weapon.png")
+const HUD_TEX_BTN_WEAPON_SWITCH: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_weapon_switch.png")
+const HUD_TEX_BTN_SCOPE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_scope.png")
+const HUD_TEX_BTN_PAUSE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_pause.png")
+const HUD_TEX_MESSAGE_BOX: Texture2D = preload("res://assets/user_assets_v3/hud/hud_message_box.png")
 # QA-119 (v3.11): Thunder Strike bolt art (user's power-up effects pack).
-const FX_TEX_THUNDER: Texture2D = preload("res://assets/powerups_effects/06_thunder_strike_lightning_impact_effect.png")
+const FX_TEX_THUNDER: Texture2D = preload("res://assets/user_assets_v3/thunder_strike.png")
 # QA-114 (v3.9): colour-coded climbing routes — WEST (left third),
 # CENTRE (middle third), EAST (right third). Same colours on the
 # map platforms, the HUD height bar, and the legend.
@@ -586,6 +626,16 @@ const MAPS := [
 		# per 1 s tick while HOT (QA-126); both leave room to walk
 		# around them and the climb stays completable.
 		"hazards": [{"rect": Rect2(950, 2420, 300, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(1750, 2140, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(2150, 2980, 300, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(1750, 3260, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}],
+		# QA-137 (v3.14): swinging spiked wrecking-ball pendulums
+		# (the user's trap sheet). Each hangs from a pivot in open
+		# air and swings across the platform below it - L4 over the
+		# (2100,4184) platform, L2 over the (1500,7864) platform.
+		# Both platforms are STATIC (not collapsing, not trapdoors)
+		# and the pivots sit in the gaps between the platforms
+		# above, so the chain never clips a platform; the ball
+		# sweeps just above the platform below (25 HP on hit,
+		# QA-126 rules - dodgeable, telegraphed, no one-hit kill).
+		"pendulums": [{"pivot": Vector2(2400, 3930), "len": 220.0}, {"pivot": Vector2(1800, 7610), "len": 220.0}],
 	},
 
 ]
@@ -674,8 +724,8 @@ var match_over: bool = false
 var _leaving: bool = false # set when leaving for the menu or rematching: _process must stop (multiplayer is torn down / the instance is detached before the scene change lands)
 
 var hud: CanvasLayer
-var hp_bar: GoBar # v3.2: gohud bar (label + VALUE readout built in)
-var fuel_bar: GoBar
+var hp_bar: HudBar # QA-137: kit bar (frame + clipped fill), was gohud GoBar
+var fuel_bar: HudBar # QA-137: kit bar (frame + clipped fill), was gohud GoBar
 var kills_label: Label
 var deaths_label: Label
 var players_label: Label
@@ -909,6 +959,7 @@ var _sf_strike_l4_timer: float = 6.0 # seconds until the next L4 lightning strik
 var _sf_strike_l4: Dictionary = {} # pending L4 strike {peer, pos, ring, bolt, timer}
 var _wind_tornado_node: Node2D = null # QA-135: the active Wind Blast tornado (tests read it)
 var _sf_hazard_fx: Array = [] # {kind, rect, flame, lava, magma} hazard visuals
+var _sf_pendulums: Array = [] # QA-137: {pivot, len, node, chain, ball, angle, tick} swinging wrecking balls
 # QA-129 (v3.11): bridge wind gusts — every 15 s the bridge wind
 # doubles for 3 s (pure function of the match clock, so every peer
 # agrees; see skyfall_wind_at).
@@ -1964,6 +2015,8 @@ func _update_skyfall(delta: float) -> void:
 	_sf_update_strike_l4(delta)
 	# --- QA-126 (v3.11): lava / fire hazard damage ticks. ---
 	_sf_update_hazards(delta)
+	# --- QA-137 (v3.14): swinging wrecking-ball pendulums. ---
+	_sf_update_pendulums(delta)
 	# --- Dynamic scenery (QA-115): clouds, waterfall, helicopter,
 	# gears, steam, storm lightning — scenery only. ---
 	_update_skyfall_scenery(delta)
@@ -2299,6 +2352,14 @@ func _sf_update_collapsing(delta: float) -> void:
 			if t <= 0.0:
 				c["state"] = "falling"
 				c["timer"] = 0.6
+				# QA-137: the grate breaks as it falls - swap the
+				# tile sprites to the broken-grate art (trap sheet
+				# row 6, 164x50) so the break reads clearly. Only
+				# the built-in grate platforms (grate=true); the
+				# random-event platforms keep their own tile art.
+				if bool(c.get("grate", false)):
+					for s in c["sprites"]:
+						(s as Sprite2D).texture = TRAP_TEX_GRATE_BROKEN
 				if c["shape"] != null:
 					(c["shape"] as CollisionShape2D).set_deferred("disabled", true)
 		elif state == "falling":
@@ -2320,6 +2381,11 @@ func _sf_update_collapsing(delta: float) -> void:
 				if c["shape"] != null:
 					(c["shape"] as CollisionShape2D).set_deferred("disabled", false)
 				for s in c["sprites"]:
+					# QA-137: the platform comes back whole - swap
+					# the tile sprites back to the intact grate
+					# (built-in grate platforms only).
+					if bool(c.get("grate", false)):
+						(s as Sprite2D).texture = TRAP_TEX_GRATE
 					(s as Sprite2D).visible = true
 					(s as Sprite2D).modulate.a = 1.0
 					(s as Sprite2D).offset = Vector2.ZERO
@@ -2739,11 +2805,13 @@ func show_thunder_strike_fx(pos: Vector2) -> void:
 	var bolt := Sprite2D.new()
 	bolt.texture = FX_TEX_THUNDER
 	bolt.position = pos
-	bolt.scale = Vector2(0.55, 0.55)
+	# QA-137: the new bolt art is 1252x1568 (was 512x512), so the
+	# scale drops to 0.22->0.30 to keep the same ~280-380 px strike.
+	bolt.scale = Vector2(0.22, 0.22)
 	bolt.z_index = 6
 	add_child(bolt)
 	var tw := create_tween()
-	tw.tween_property(bolt, "scale", Vector2(0.75, 0.75), 0.15)
+	tw.tween_property(bolt, "scale", Vector2(0.30, 0.30), 0.15)
 	tw.tween_property(bolt, "modulate:a", 0.0, 0.45)
 	tw.tween_callback(bolt.queue_free)
 
@@ -2780,7 +2848,19 @@ func _sf_update_hazards(delta: float) -> void:
 			flame.visible = hot
 			if hot:
 				var pulse := 0.55 + 0.15 * sin(_sf_match_time * 9.0)
-				flame.scale.y = pulse
+				if str(hd.get("kind", "")) == "fire":
+					# QA-137: cycle the fire-vent frames (8 fps,
+					# so the vent plays twice per 2 s hot phase)
+					# and keep the grate pinned to the rect bottom
+					# as the frame height changes (158-227 px).
+					var fi := int(_sf_match_time * 8.0) % TRAP_TEX_FIRE_VENT.size()
+					var ftex: Texture2D = TRAP_TEX_FIRE_VENT[fi]
+					flame.texture = ftex
+					flame.scale.y = pulse * 1.6
+					var r: Rect2 = hd["rect"]
+					flame.position = Vector2(r.get_center().x, r.end.y - float(ftex.get_height()) * 0.5 * flame.scale.y)
+				else:
+					flame.scale.y = pulse
 		var magma: Sprite2D = hd.get("magma")
 		if magma != null:
 			magma.visible = hot
@@ -3036,6 +3116,7 @@ func _build_skyfall(map: Dictionary) -> void:
 	# QA-126 (v3.11): hazard visuals (lava pool, fire jets) — the
 	# damage itself runs in _sf_update_hazards.
 	_build_skyfall_hazards(map)
+	_build_skyfall_pendulums(map)
 	_build_skyfall_movers(map)
 	_build_skyfall_gate(map)
 	_build_skyfall_switch(map)
@@ -3444,9 +3525,20 @@ func _build_skyfall_hazards(map: Dictionary) -> void:
 		var r: Rect2 = hz["rect"]
 		var kind: String = str(hz.get("kind", "lava"))
 		var flame := Sprite2D.new()
-		flame.texture = FX_TEX_LAVA if kind == "lava" else FX_TEX_FIRE_PILLAR
-		flame.position = r.get_center()
-		flame.scale = Vector2(r.size.x / 512.0, 0.6)
+		if kind == "fire":
+			# QA-137: the fire jet is the user's fire-vent art
+			# (trap sheet row 4) - the texture cycles through the
+			# 8 frames in _sf_update_hazards while HOT. The frame
+			# is anchored by its grate at the rect bottom (the
+			# flame rises from the vent), so the position is set
+			# from the frame height there, not here.
+			flame.texture = TRAP_TEX_FIRE_VENT[1]
+			flame.scale = Vector2(r.size.x / 220.0, 1.0)
+			flame.position = Vector2(r.get_center().x, r.end.y - 79.0)
+		else:
+			flame.texture = FX_TEX_LAVA
+			flame.position = r.get_center()
+			flame.scale = Vector2(r.size.x / 512.0, 0.6)
 		flame.modulate = Color(1, 1, 1, 0.85)
 		flame.z_index = 1
 		add_child(flame)
@@ -3460,6 +3552,73 @@ func _build_skyfall_hazards(map: Dictionary) -> void:
 			magma.z_index = 1
 			add_child(magma)
 		_sf_hazard_fx.append({"kind": kind, "rect": r, "flame": flame, "magma": magma, "cycle": float(hz.get("cycle", 4.0))})
+
+
+func _build_skyfall_pendulums(map: Dictionary) -> void:
+	# QA-137 (v3.14): swinging spiked wrecking-ball pendulums
+	# (the user's trap sheet). A pivot Node2D holds a chain
+	# (Line2D) and the ball sprite; the swing is a pure function
+	# of the match clock, so every peer agrees with no sync.
+	for cfg in map.get("pendulums", []):
+		var pivot: Vector2 = cfg.get("pivot", Vector2(1800, 3650))
+		var plen := float(cfg.get("len", 220.0))
+		var node := Node2D.new()
+		node.name = "Pendulum_%d_%d" % [int(pivot.x), int(pivot.y)]
+		node.position = pivot
+		node.z_index = 2
+		add_child(node)
+		# Anchor bolt at the pivot so the chain reads as mounted.
+		var mount := Polygon2D.new()
+		var mpts := PackedVector2Array()
+		for i in 8:
+			var a := TAU * float(i) / 8.0
+			mpts.append(Vector2(cos(a), sin(a)) * 10.0)
+		mount.polygon = mpts
+		mount.color = Color(0.25, 0.25, 0.28)
+		node.add_child(mount)
+		var chain := Line2D.new()
+		chain.width = 4.0
+		chain.default_color = Color(0.35, 0.35, 0.38)
+		chain.points = PackedVector2Array([Vector2.ZERO, Vector2(0, plen)])
+		node.add_child(chain)
+		var ball := Sprite2D.new()
+		ball.texture = TRAP_TEX_BALL
+		ball.position = Vector2(0, plen)
+		ball.z_index = 2
+		node.add_child(ball)
+		_sf_pendulums.append({"pivot": pivot, "len": plen, "node": node, "chain": chain, "ball": ball, "phase": float(_sf_pendulums.size()) * 1.3, "tick": {}})
+
+
+func _sf_update_pendulums(delta: float) -> void:
+	# QA-137: the ball swings +-40 deg on a 5.7 s period (a pure
+	# function of the match clock, so every peer agrees). The ball
+	# is telegraphed - the chain shows exactly where it sweeps -
+	# and it deals 25 HP on contact (QA-126, like a falling rock:
+	# dodgeable, no one-hit kill, shield blocks it, host-only).
+	# A per-player 1 s cooldown stops one swing from multi-hitting.
+	for p in _sf_pendulums:
+		var pd: Dictionary = p
+		var plen := float(pd.get("len", 220.0))
+		var ang := 0.7 * sin(_sf_match_time * 1.1 + float(pd.get("phase", 0.0)))
+		var dir := Vector2(sin(ang), cos(ang))
+		var ball_pos: Vector2 = (pd["pivot"] as Vector2) + dir * plen
+		(pd["ball"] as Sprite2D).position = dir * plen
+		(pd["chain"] as Line2D).points = PackedVector2Array([Vector2.ZERO, dir * plen])
+		if not multiplayer.is_server() or match_over:
+			continue
+		var tick: Dictionary = pd.get("tick", {})
+		for child in players_node.get_children():
+			if not child.alive:
+				continue
+			var pid := int(child.get_multiplayer_authority())
+			var cd := float(tick.get(pid, 0.0)) - delta
+			tick[pid] = cd
+			if cd > 0.0:
+				continue
+			if child.position.distance_to(ball_pos) < 48.0:
+				tick[pid] = 1.0
+				_sf_damage_player(child, 25)
+		pd["tick"] = tick
 
 
 func _build_skyfall_movers(map: Dictionary) -> void:
@@ -3650,7 +3809,19 @@ func _build_skyfall_platform_refs(map: Dictionary) -> void:
 	var plats: Array = map["platforms"]
 	for idx in map.get("collapsing", []):
 		var r: Rect2 = plats[int(idx)]
-		_sf_collapsing.append({"idx": int(idx), "rect": r, "shape": _sf_arena_shape_at(r.get_center()), "sprites": _sf_tile_sprites_at(r), "state": "idle", "timer": 0.0})
+		var sprs: Array = _sf_tile_sprites_at(r)
+		# QA-137: the collapsing platforms wear the user's grate
+		# art (trap sheet row 1, 164x48 - exactly the platform
+		# height). Each tile sprite shows one grate stretched to
+		# its segment width, so the platform reads as a grate.
+		for s in sprs:
+			var sp := s as Sprite2D
+			var seg_w := minf(512.0, r.end.x - sp.position.x)
+			sp.texture = TRAP_TEX_GRATE
+			sp.region_enabled = true
+			sp.region_rect = Rect2(0, 0, 164, 48)
+			sp.scale = Vector2(seg_w / 164.0, 1.0)
+		_sf_collapsing.append({"idx": int(idx), "rect": r, "shape": _sf_arena_shape_at(r.get_center()), "sprites": sprs, "state": "idle", "timer": 0.0, "grate": true})
 	for idx in map.get("trapdoors", []):
 		var r: Rect2 = plats[int(idx)]
 		var sprs: Array = _sf_tile_sprites_at(r)
@@ -4406,7 +4577,7 @@ func _build_hud() -> void:
 	bars_panel.offset_left = 12
 	bars_panel.offset_right = 300
 	bars_panel.offset_top = 8
-	bars_panel.offset_bottom = 80
+	bars_panel.offset_bottom = 94 # QA-137: kit bars are 34 px tall (was 80 for the 26/18 px gohud bars)
 	bars_panel.theme = GoUi.theme()
 	var bars_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
 	if bars_sb != null:
@@ -4425,7 +4596,7 @@ func _build_hud() -> void:
 	left.offset_left = 16
 	left.offset_top = 12
 	left.offset_right = 296
-	left.offset_bottom = 72
+	left.offset_bottom = 86 # QA-137: two 34 px kit bars + 6 px separation (was 72)
 	left.add_theme_constant_override("separation", 6)
 	hud.add_child(left)
 
@@ -4437,15 +4608,15 @@ func _build_hud() -> void:
 	hp_row.add_theme_constant_override("separation", 8)
 	left.add_child(hp_row)
 
-	hp_bar = GoBar.new()
+	# QA-137 (v3.14): health and jetpack bars are the user's HUD kit
+	# art now (HudBar: kit frame + kit fill clipped to the value).
+	# The kit bar is 628x97 (aspect 6.5), so at 220 px wide it is
+	# 34 px tall; the panel grows to fit (was 72 px for the 26/18
+	# px gohud bars). Label + number ride centred on the bar.
+	hp_bar = HudBar.new()
+	hp_bar.setup(HUD_TEX_BAR_HEALTH_FRAME, HUD_TEX_BAR_HEALTH_FILL)
 	hp_bar.label_text = "HP"
-	hp_bar.readout = GoBar.Readout.VALUE
-	hp_bar.thickness = 28
-	hp_bar.ease_seconds = 0.0
-	hp_bar.segments = 0
-	hp_bar.label_size = 18
-	hp_bar.ink = UI_SUCCESS
-	hp_bar.custom_minimum_size = Vector2(220, 26)
+	hp_bar.custom_minimum_size = Vector2(220, 34)
 	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hp_bar.set_values(100, 100, false)
 	hp_row.add_child(hp_bar)
@@ -4454,15 +4625,10 @@ func _build_hud() -> void:
 	fuel_row.add_theme_constant_override("separation", 8)
 	left.add_child(fuel_row)
 
-	fuel_bar = GoBar.new()
+	fuel_bar = HudBar.new()
+	fuel_bar.setup(HUD_TEX_BAR_JETPACK_FRAME, HUD_TEX_BAR_JETPACK_FILL)
 	fuel_bar.label_text = "JETPACK"
-	fuel_bar.readout = GoBar.Readout.VALUE
-	fuel_bar.thickness = 20
-	fuel_bar.ease_seconds = 0.0
-	fuel_bar.segments = 0
-	fuel_bar.label_size = 16
-	fuel_bar.ink = UI_ACCENT
-	fuel_bar.custom_minimum_size = Vector2(220, 18)
+	fuel_bar.custom_minimum_size = Vector2(220, 34)
 	fuel_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fuel_bar.set_values(PhysicsConfig.FUEL_MAX, PhysicsConfig.FUEL_MAX, false) # QA-132: full 405 tank
 	fuel_row.add_child(fuel_bar)
@@ -4742,6 +4908,26 @@ func _build_hud() -> void:
 	_outline_label(_net_stats_label)
 	_net_stats_label.visible = _net_stats_visible
 	hud.add_child(_net_stats_label)
+
+	# QA-137 (v3.14): the message sits on the kit's message-box
+	# panel now (a 9-slice StyleBoxTexture so the chamfered corners
+	# stay intact while the panel stretches to the message width).
+	# The panel is 425 px wide, 40 px tall, centred at the top;
+	# the message label draws on top of it, unchanged.
+	var msg_box := PanelContainer.new()
+	msg_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	msg_box.offset_left = -212
+	msg_box.offset_right = 212
+	msg_box.offset_top = 178
+	msg_box.offset_bottom = 218
+	var msg_sb := StyleBoxTexture.new()
+	msg_sb.texture = HUD_TEX_MESSAGE_BOX
+	msg_sb.texture_margin_left = 24
+	msg_sb.texture_margin_right = 24
+	msg_sb.texture_margin_top = 24
+	msg_sb.texture_margin_bottom = 24
+	msg_box.add_theme_stylebox_override("panel", msg_sb)
+	hud.add_child(msg_box)
 
 	message_label = Label.new()
 	message_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -5449,9 +5635,17 @@ func _build_touch_controls() -> void:
 	# no badges, no icons, no effects, no decorations. Same column,
 	# same positions, same 72 px touch targets, same handlers —
 	# only the look changed. Throw behaviour unchanged.
+	# QA-137 (v3.14): the button wears the user's HUD kit art now
+	# (the kit's flat square grenade button). Icon-only - the
+	# grenade icon IS the label; the count lives in the top-right
+	# ammo line (grenades_label), so the button text is empty.
+	# Plain and simple per the standing rule: 72 px, no rings,
+	# no badges, no progress effects. Same handler, same position.
 	grenade_button = Button.new()
-	grenade_button.text = "GRENADE"
+	grenade_button.text = ""
 	_style_simple_button(grenade_button)
+	grenade_button.icon = HUD_TEX_BTN_GRENADE
+	grenade_button.expand_icon = true
 	grenade_button.custom_minimum_size = Vector2(72, 72)
 	grenade_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	grenade_button.position = Vector2(-451, -260)
@@ -5459,22 +5653,26 @@ func _build_touch_controls() -> void:
 	hud.add_child(grenade_button)
 
 	switch_button = Button.new()
-	# QA-070: simple like the others — text label, no icon. The
-	# current weapon already shows (icon + name) in the top-right
-	# HUD panel. Behaviour unchanged.
-	switch_button.text = "WEAPON"
+	# QA-137: kit weapon-switch button (the kit's SMG icon).
+	# Icon-only like grenade; the current weapon already shows
+	# (icon + name) in the top-right HUD panel. Behaviour unchanged.
+	switch_button.text = ""
 	_style_simple_button(switch_button)
+	switch_button.icon = HUD_TEX_BTN_WEAPON_SWITCH
+	switch_button.expand_icon = true
 	switch_button.custom_minimum_size = Vector2(72, 72)
 	switch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	switch_button.position = Vector2(-451, -180)
 	switch_button.pressed.connect(_on_switch_pressed)
 	hud.add_child(switch_button)
 
-	# QA-070: simple reload button — text label, no icon, no ring.
-	# Ammo count stays in the weapon label. Behaviour unchanged.
+	# QA-137: kit reload button (the kit's circular-arrows icon).
+	# Icon-only; ammo count stays in the weapon label. Behaviour unchanged.
 	reload_button = Button.new()
-	reload_button.text = "RELOAD"
+	reload_button.text = ""
 	_style_simple_button(reload_button)
+	reload_button.icon = HUD_TEX_BTN_RELOAD
+	reload_button.expand_icon = true
 	reload_button.custom_minimum_size = Vector2(72, 72)
 	reload_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	reload_button.position = Vector2(-451, -340)
@@ -5487,9 +5685,12 @@ func _build_touch_controls() -> void:
 	# It toggles the scope zoom on the local player; it never
 	# touches the right stick, so aim + fire (QA-049) is
 	# unaffected. 72 px touch target like the others.
+	# QA-137: kit scope button (the kit's crosshair icon), icon-only.
 	scope_button = Button.new()
-	scope_button.text = "SCOPE"
+	scope_button.text = ""
 	_style_simple_button(scope_button)
+	scope_button.icon = HUD_TEX_BTN_SCOPE
+	scope_button.expand_icon = true
 	scope_button.custom_minimum_size = Vector2(72, 72)
 	scope_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	scope_button.position = Vector2(-451, -420)
@@ -5534,7 +5735,10 @@ func _build_touch_controls() -> void:
 
 	pause_button = GoIconButton.new()
 	(pause_button as GoIconButton).visual_size = 56
-	(pause_button as GoIconButton).icon_name = GoIconSet.PAUSE
+	# QA-137: the pause button is the kit's pause art (the GoIconButton
+	# `art` property makes the picture the whole button and darkens
+	# it while pressed). The kit's pause icon replaces the gohud glyph.
+	(pause_button as GoIconButton).art = HUD_TEX_BTN_PAUSE
 	(pause_button as GoIconButton).keyboard_focus = false
 	pause_button.focus_mode = Control.FOCUS_NONE
 	pause_button.tooltip_text = "Pause"
@@ -5611,11 +5815,9 @@ func _update_grenade_button(lp) -> void:
 	if grenade_button == null or lp == null:
 		return
 	grenade_button.disabled = int(lp.grenades) <= 0
-	# QA-079: the count rides on the button itself, so the thumb
-	# sees it without looking at the top-right ammo line. Two
-	# lines — "GRENADE (2)" on one line is wider than the 72 px
-	# button and would clip.
-	grenade_button.text = "GRENADE\n(%d)" % int(lp.grenades)
+	# QA-137: the button is icon-only now (the kit's grenade icon);
+	# the count rides in the top-right ammo line (grenades_label),
+	# so no text is set here any more.
 
 
 # QA-070 (v3.6): simple button, no loading visuals. Disabled
@@ -5644,8 +5846,9 @@ func _update_scope_button(lp) -> void:
 	else:
 		var can_scope: bool = int(lp.weapon) == 0 or int(lp.weapon) == 3
 		scope_button.visible = can_scope
-		if can_scope:
-			scope_button.text = "✓ SCOPE" if bool(lp.scoped) else "SCOPE"
+		# QA-137: the button is icon-only now (the kit's crosshair);
+		# the scope state reads from the zoom itself, so no text
+		# or check mark is set here any more.
 	# QA-114 (v3.9): PING is Skyfall-only, and only for a living
 	# local player.
 	if ping_button != null:
@@ -9225,7 +9428,93 @@ func _update_skyfallshots(delta: float) -> void:
 				_ctf_feed("⚑ BLUE: at summit", Color(0.25, 0.55, 0.95))
 		else:
 			_capture_shot("user://shot_sf_L%d.png" % lvl)
-	elif stage >= 13:
+	elif stage >= 13 and stage <= 22:
+		# QA-137 (v3.14): FX proof stages — fire vent (L5), thunder
+		# strike, normal + boost jetpack flames, pendulum (L4).
+		# Odd stages move/set up, even stages capture (1 s apart).
+		if stage == 13:
+			# Fire vent (L5): stand on the (1500,2224) platform in
+			# the fire jet (1750,2140,200,84); the match clock is
+			# set so the vent is HOT through the capture (2 s on /
+			# 2 s off per 4 s cycle).
+			_sf_match_time = 0.5
+			if lp != null:
+				lp.position = Vector2(1850, 2193)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+				if lp._camera != null:
+					lp._camera.reset_smoothing()
+			_smoke_set_move(null)
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+		elif stage == 14:
+			_capture_shot("user://shot_sf_fire.png")
+		elif stage == 15:
+			# Thunder: stand clear on the L1 base; the bolt is
+			# triggered in the capture stage (it only lives 0.6 s).
+			if lp != null:
+				lp.position = Vector2(1800, 10721)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+				if lp._camera != null:
+					lp._camera.reset_smoothing()
+			_smoke_set_move(null)
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+		elif stage == 16:
+			if lp != null:
+				show_thunder_strike_fx(lp.position + Vector2(0, -150))
+			_capture_shot("user://shot_sf_thunder.png")
+		elif stage == 17:
+			# Normal jetpack flame: hold the stick up while
+			# airborne (thrusting, no boost). The flame shows
+			# below the player as they rise.
+			if lp != null:
+				lp.position = Vector2(1800, 10500)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+				lp.set("jetpack_boost_timer", 0.0)
+				lp.set("fuel", 405.0)
+				if lp._camera != null:
+					lp._camera.reset_smoothing()
+			_smoke_set_move(Vector2(0, -60))
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+		elif stage == 18:
+			_capture_shot("user://shot_sf_flame.png")
+		elif stage == 19:
+			# Boost flame: same thrust, but the Jetpack Boost
+			# power-up runs (the bigger blue-core flame).
+			if lp != null:
+				lp.position = Vector2(1800, 10500)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+				lp.set("jetpack_boost_timer", 30.0)
+				lp.set("fuel", 405.0)
+				if lp._camera != null:
+					lp._camera.reset_smoothing()
+			_smoke_set_move(Vector2(0, -60))
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+		elif stage == 20:
+			_capture_shot("user://shot_sf_flame_boost.png")
+		elif stage == 21:
+			# Pendulum (L4): stand on the (2100,4184) platform
+			# where the ball sweeps; the clock is reset so the
+			# ball starts at the bottom of its swing.
+			_sf_match_time = 0.0
+			if lp != null:
+				lp.position = Vector2(2400, 4153)
+				lp.sync_position = lp.position
+				lp.velocity = Vector2.ZERO
+				if lp._camera != null:
+					lp._camera.reset_smoothing()
+			_smoke_set_move(null)
+			_smoke_set_aim(null)
+			_smoke_set_fire(false)
+		elif stage == 22:
+			_capture_shot("user://shot_sf_pendulum.png")
+	elif stage >= 23:
 		print("SKYFALLSHOTS DONE")
 		get_tree().quit()
 
@@ -13468,6 +13757,7 @@ func _featurestest_build_steps() -> void:
 			{"name": "FT-SF-TRAP-LIGHTNING-L4", "wait": 1.5, "setup": _ft_sf_s_trap_lightning_l4, "check": _ft_sf_c_trap_lightning_l4},
 			{"name": "FT-SF-TRAP-COLLAPSE-L6", "wait": 1.0, "setup": _ft_sf_s_trap_collapse_l6, "check": _ft_sf_c_trap_collapse_l6},
 			{"name": "FT-SF-TRAP-WIND-L3", "wait": 1.0, "setup": _ft_sf_s_trap_wind_l3, "check": _ft_sf_c_trap_wind_l3},
+			{"name": "FT-SF-TRAP-PENDULUM", "wait": 1.0, "setup": _ft_sf_s_trap_pendulum, "check": _ft_sf_c_trap_pendulum},
 		]
 
 
@@ -13841,23 +14131,30 @@ func _ft_sf_c_path() -> Array:
 			var tapped10 := bool(lp.call("activate_slot", idx))
 			var ab := int(lp.get("active_boost_kind"))
 			var fuel_ok := absf(float(lp.fuel) - PhysicsConfig.FUEL_MAX) < 1.0
-			# 1.5x jetpack flame while the boost runs (v3.11
-			# fallback): force one visual update at full thrust
-			# and read the flame — 1.5x gives scale.y ~0.82,
-			# plain thrust tops out at ~0.54.
+			# QA-137 (v3.14): the boost flame is a SEPARATE
+			# texture now (the user's sheet), not a 1.5x stretch
+			# of the normal flame — so the flame's scale factor
+			# no longer proves the boost (the boost texture is
+			# 616x926 drawn 30x33, scale.y ~0.04). The DRAWN
+			# height is the proof: boost draws 33 px tall, plain
+			# thrust 22 px. Force one visual update at full
+			# thrust and read the drawn height.
 			lp.set("_jetpacking", true)
 			lp.velocity = Vector2(0, -320)
 			lp.set("_jet_thrust_factor", 1.0)
 			lp.call("_update_visuals", 0.016)
 			var flame = lp.get("_flame")
-			var fscale := 0.0
+			var fdrawn := 0.0
 			var fvis := false
+			var fboost := false
 			if flame != null:
-				fscale = float((flame as Sprite2D).scale.y)
+				var ftex = (flame as Sprite2D).texture
+				fdrawn = float((flame as Sprite2D).scale.y) * float(ftex.get_height()) if ftex != null else 0.0
 				fvis = bool((flame as Sprite2D).visible)
+				fboost = ftex != null and ftex.resource_path == "res://assets/user_assets_v3/jetpack_flame_boost.png"
 			lp.set("_jetpacking", false)
-			ok = ab == 10 and float(lp.get("jetpack_boost_timer")) > 0.0 and fuel_ok and fvis and fscale > 0.7
-			detail = "tap=%s pre_active=%d pre_flag=%d active=%d timer=%.1fs fuel=%.0f flame visible=%s scale.y=%.2f (want >0.7)" % [str(tapped10), ab0, cf0, ab, float(lp.get("jetpack_boost_timer")), float(lp.fuel), str(fvis), fscale]
+			ok = ab == 10 and float(lp.get("jetpack_boost_timer")) > 0.0 and fuel_ok and fvis and fboost and fdrawn > 28.0
+			detail = "tap=%s pre_active=%d pre_flag=%d active=%d timer=%.1fs fuel=%.0f flame visible=%s boost_tex=%s drawn_h=%.1f (want >28)" % [str(tapped10), ab0, cf0, ab, float(lp.get("jetpack_boost_timer")), float(lp.fuel), str(fvis), str(fboost), fdrawn]
 		11:
 			var bot = players_node.get_node_or_null("202")
 			var tapped11 := bool(lp.call("activate_slot", idx))
@@ -14578,6 +14875,27 @@ func _ft_sf_c_trap_wind_l3() -> Array:
 	var lp = _ft_lp()
 	var ok: bool = lp.position.x < _ft_sf_wind_x0 - 20.0
 	return [ok, "player x=%.0f (was %.0f, want <%.0f — pushed left by the new L3 wind zone)" % [lp.position.x, _ft_sf_wind_x0, _ft_sf_wind_x0 - 20.0]]
+
+
+# Pendulum (L4, QA-137): the swinging wrecking ball must exist,
+# swing, and deal 25 HP on contact (QA-126 rules). The match clock
+# is reset to 0 so the L4 ball (phase 0) sits at the bottom of its
+# swing; the player stands on the (2100,4184) platform right where
+# the ball passes (ball centre 2400,4150; player centre 2400,4153).
+func _ft_sf_s_trap_pendulum() -> void:
+	var lp = _ft_lp()
+	lp.set("health", 100.0)
+	lp.set("shield_timer", 0.0)
+	_sf_match_time = 0.0
+	_ft_teleport(Vector2(2400.0, 4153.0))
+
+
+func _ft_sf_c_trap_pendulum() -> Array:
+	var lp = _ft_lp()
+	var hp := float(lp.get("health"))
+	var n := _sf_pendulums.size()
+	var ok := n == 2 and hp <= 75.0
+	return [ok, "pendulums=%d (want 2) player health=%.0f (want <=75 after a 25 HP ball hit)" % [n, hp]]
 
 
 func _ft_sf_s_rarity() -> void:

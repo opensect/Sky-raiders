@@ -26,9 +26,22 @@ signal vector_changed(vector: Vector2)
 @export var vertical_sensitivity: float = 1.0
 @export var joystick_opacity: float = 0.85
 @export var return_duration: float = 0.08
-# v3.2 (CONTROLS_CHANGE.md §3): set on the AIM stick only — draws the
-# cyan ring + crosshair cue in _draw() so the player can see the right
-# stick is also the fire control. Visual only; never affects input.
+# QA-137 (v3.14): the sticks wear the user's HUD kit art now
+# (assets/user_assets_v3/hud/hud_stick_*.png) instead of the
+# code-drawn circles. The base is the kit's ring (the knob is
+# erased from it, so it never doubles up) and the knob is the
+# kit's round knob; both are drawn as textures, scaled to the
+# stick's radius. The aim base already has the cyan ring + d-pad
+# arrows baked in, so the code-drawn aim cue is retired.
+const STICK_MOVE_BASE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_move_base.png")
+const STICK_MOVE_KNOB: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_move_knob.png")
+const STICK_AIM_BASE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_aim_base.png")
+const STICK_AIM_KNOB: Texture2D = preload("res://assets/user_assets_v3/hud/hud_stick_aim_knob.png")
+
+# v3.2 (CONTROLS_CHANGE.md §3): set on the AIM stick only — picks
+# the aim (cyan d-pad) base/knob art in _draw() so the player can
+# see the right stick is also the fire control. Visual only; never
+# affects input.
 var is_aim: bool = false
 
 var _touch_id: int = -1
@@ -160,27 +173,20 @@ func _draw() -> void:
 	var base_r := joystick_radius + 10.0
 	var active := _touch_id != -1
 	var at_max := _vector.length() >= 0.98
-	# Outer base: semi-transparent dark navy circle + ice border.
-	var base_col := Color(0.05, 0.10, 0.18, 0.55 * joystick_opacity) if active else Color(0.02, 0.03, 0.06, 0.32 * joystick_opacity)
-	var border_col := Color(0.847, 0.957, 1.0, 0.70 * joystick_opacity) if active else Color(0.847, 0.957, 1.0, 0.30 * joystick_opacity)
-	draw_circle(center, base_r, base_col)
-	draw_arc(center, base_r, 0, TAU, 48, border_col, 3.0)
-	# v3.2 aim cue (visual only): cyan ring + small crosshair in the
-	# base so the right stick reads as the fire control too. The ring
-	# brightens while the stick is held (firing).
-	if is_aim:
-		var cue_col := Color(0.0, 0.898, 1.0, 0.85 * joystick_opacity) if active else Color(0.0, 0.898, 1.0, 0.45 * joystick_opacity)
-		draw_arc(center, base_r + 5.0, 0, TAU, 48, cue_col, 3.0)
-		var ch := 10.0
-		var ch_col := Color(0.0, 0.898, 1.0, 0.65 * joystick_opacity) if active else Color(0.0, 0.898, 1.0, 0.35 * joystick_opacity)
-		draw_line(center + Vector2(-ch, 0), center + Vector2(ch, 0), ch_col, 2.0)
-		draw_line(center + Vector2(0, -ch), center + Vector2(0, ch), ch_col, 2.0)
+	# QA-137: the kit's base ring + knob, drawn as textures and
+	# scaled to the stick's radius. The base brightens while held
+	# (the old code did the same with alpha); the aim base's cyan
+	# ring + d-pad arrows are baked into the art.
+	var base_tex := STICK_AIM_BASE if is_aim else STICK_MOVE_BASE
+	var knob_tex := STICK_AIM_KNOB if is_aim else STICK_MOVE_KNOB
+	var base_alpha := joystick_opacity if active else joystick_opacity * 0.65
+	draw_texture_rect(base_tex, Rect2(center - Vector2(base_r, base_r), Vector2(base_r * 2.0, base_r * 2.0)), false, Color(1, 1, 1, base_alpha))
 	# Subtle feedback at maximum displacement: brighter ring.
 	if at_max:
 		draw_arc(center, base_r - 4.0, 0, TAU, 48, Color(1.0, 0.85, 0.3, 0.8 * joystick_opacity), 3.0)
 	# Inner knob: distinct from the base, brighter + slightly larger
 	# while touched, biggest at maximum displacement.
 	var knob_r := knob_radius * (1.12 if at_max else 1.0)
-	var knob_col := Color(1, 1, 1, 0.72 * joystick_opacity) if active else Color(1, 1, 1, 0.42 * joystick_opacity)
-	draw_circle(center + _knob_offset, knob_r, knob_col)
-	draw_arc(center + _knob_offset, knob_r, 0, TAU, 32, Color(1, 1, 1, 0.55 * joystick_opacity), 2.0)
+	var knob_alpha := joystick_opacity if active else joystick_opacity * 0.7
+	var knob_c := center + _knob_offset
+	draw_texture_rect(knob_tex, Rect2(knob_c - Vector2(knob_r, knob_r), Vector2(knob_r * 2.0, knob_r * 2.0)), false, Color(1, 1, 1, knob_alpha))

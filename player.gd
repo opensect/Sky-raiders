@@ -137,7 +137,10 @@ const HIT_FLASH_SHADER: Shader = preload("res://addons/sprite_juice_lite/shaders
 # triangle). Drawn pointing DOWN from its top edge, 32x64 px, so
 # with centered=false the sprite's top sits at the old triangle's
 # top (y=22) and its length matches the old 29 px at scale 1.
-const FLAME_TEX: Texture2D = preload("res://assets/effects/jetpack_flame.png")
+const FLAME_TEX: Texture2D = preload("res://assets/user_assets_v3/jetpack_flame_normal.png")
+# QA-137: the boost flame (bigger, blue core) from the user's
+# jetpack sheet - shown while the Jetpack Boost power-up runs.
+const FLAME_TEX_BOOST: Texture2D = preload("res://assets/user_assets_v3/jetpack_flame_boost.png")
 
 const GUN_LENGTH := 55.0 # QA-071b: 46 * 1.20 - gun scales with the player
 
@@ -585,11 +588,15 @@ func _build_sprite() -> void:
 	# The wind whirlpool is a flat solid disc, so it is drawn small
 	# and faded and spins fast; if it ever looks wrong in-game it is
 	# replaced by the code-drawn wind effect.
-	_fx_shield = _make_fx_sprite("res://assets/powerups_effects/01_shield_energy_dome_effect.png", 0.30)
+	# QA-137: the shield dome is the user's energy-dome art
+	# (assets/user_assets_v3/shield_dome.png, 1440 px wide), so the
+	# scale drops from 0.30 (512 px art) to 0.11 to keep the same
+	# ~154 px on-screen size. Same for the thunder bolt below.
+	_fx_shield = _make_fx_sprite("res://assets/user_assets_v3/shield_dome.png", 0.11)
 	_fx_speed = _make_fx_sprite("res://assets/powerups_effects/02_speed_boost_motion_trails_effect.png", 0.26)
 	_fx_health = _make_fx_sprite("res://assets/powerups_effects/03_health_healing_aura_effect.png", 0.28)
 	_fx_wind = _make_fx_sprite("res://assets/powerups_effects/05_wind_whirlpool_vortex_effect.png", 0.34)
-	_fx_thunder = _make_fx_sprite("res://assets/powerups_effects/06_thunder_strike_lightning_impact_effect.png", 0.36)
+	_fx_thunder = _make_fx_sprite("res://assets/user_assets_v3/thunder_strike.png", 0.15)
 	_fx_invis = _make_fx_sprite("res://assets/powerups_effects/07_invisibility_shimmer_cloak_effect.png", 0.30)
 
 	# Rotated weapon sprite at the hands (pivot = stock).
@@ -599,18 +606,18 @@ func _build_sprite() -> void:
 	_gun.z_index = 3
 	add_child(_gun)
 
-	# QA-082: the flame is a drawn sprite now (was a plain orange
-	# triangle). Same position / visibility / thrust behaviour as
-	# before: top of the flame at the old triangle's top (y=22),
-	# length 29 px at scale 1 (sprite is 32x64, so base scale is
-	# 14/32 wide, 29/64 long); centered=false so the sprite grows
+	# QA-137: the flame is the user's jetpack art now (was a plain
+	# orange triangle, then a 32x64 flame sprite). Normal flame is
+	# 442x492, drawn 20x22 px (aspect kept); the boost flame is
+	# 616x926, drawn 30x33 px while the boost runs (see the scale
+	# code in _update_visuals). centered=false so the sprite grows
 	# DOWN from y=22 exactly like the triangle did.
 	_flame = Sprite2D.new()
 	_flame.name = "JetFlame"
 	_flame.texture = FLAME_TEX
 	_flame.centered = false
-	_flame.position = Vector2(-7, 22) # QA-071b: (0, 18) * 1.20, x centred on the 14 px wide flame
-	_flame.scale = Vector2(14.0 / 32.0, 29.0 / 64.0)
+	_flame.position = Vector2(-10, 22) # QA-071b: (0, 18) * 1.20, x centred on the 20 px wide flame
+	_flame.scale = Vector2(20.0 / 442.0, 22.0 / 492.0)
 	_flame.z_index = 1
 	_flame.visible = false
 	add_child(_flame)
@@ -665,6 +672,30 @@ func _build_sprite() -> void:
 	_helmet_sprite.material = _hit_flash_mat
 
 
+# QA-137: the soldier frames now come from the user's character
+# sheet (assets/user_assets_v3/soldier_new_r<R>_c<C>.png, 5 rows x
+# 6 cols, labels excluded at slice time). Each row holds one
+# animation group; the game needs 11 frames per animation (5 for
+# die), so the source frames ping-pong: [0,1,2,3,4,5,4,3,2,1,0],
+# wrapped modulo the group's frame count. Row 5 col 1 is empty
+# (the label only), so die uses cols 4-6 (damage, fall, lying
+# down, held). The gun is NOT in the art (only the row-4 aim poses
+# hold a rifle), so the gun sprite still rides the hand anchor
+# (QA-127). The game has NO slide animation - the slide frames in
+# row 5 are unused (see BUGS.md QA-137).
+const _QA137_PINGPONG := [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0]
+const _QA137_ANIM_CELLS := {
+	"idle": [Vector2i(1, 1), Vector2i(1, 2)],
+	"run": [Vector2i(1, 3), Vector2i(1, 4), Vector2i(1, 5), Vector2i(1, 6)],
+	"jump": [Vector2i(2, 1), Vector2i(2, 2), Vector2i(2, 3)],
+	"fall": [Vector2i(2, 4), Vector2i(2, 5), Vector2i(2, 6)],
+	"jetpack": [Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 4), Vector2i(3, 5), Vector2i(3, 6)],
+	"shoot": [Vector2i(4, 3), Vector2i(4, 6)],
+	"aim": [Vector2i(4, 3), Vector2i(4, 6)],
+	"die": [Vector2i(5, 4), Vector2i(5, 5), Vector2i(5, 6), Vector2i(5, 6), Vector2i(5, 6)],
+}
+
+
 func _make_sprite_frames() -> SpriteFrames:
 	var sf := SpriteFrames.new()
 	var anims := {
@@ -672,45 +703,56 @@ func _make_sprite_frames() -> SpriteFrames:
 		# fps) so the bigger, more visible character moves smoothly
 		# instead of visibly stepping frame-to-frame. Speeds are
 		# unchanged; only the animation rate moves.
-		"idle": ["idle", 11, 7.0, true],
-		"run": ["run", 11, 12.0, true],
-		"jump": ["jump", 11, 12.0, true],
-		"fall": ["fall", 11, 8.0, true],
-		"shoot": ["shoot", 11, 12.0, true],
-		"aim": ["aim", 11, 6.0, true],
-		"jetpack": ["jetpack", 11, 12.0, true],
-		"die": ["die", 5, 7.0, false],
+		"idle": [7.0, true],
+		"run": [12.0, true],
+		"jump": [12.0, true],
+		"fall": [8.0, true],
+		"shoot": [12.0, true],
+		"aim": [6.0, true],
+		"jetpack": [12.0, true],
+		"die": [7.0, false],
 	}
 	for key in anims.keys():
 		var spec: Array = anims[key]
-		var base: String = spec[0]
-		var count: int = spec[1]
-		var fps: float = spec[2]
-		var loop: bool = spec[3]
+		var fps: float = spec[0]
+		var loop: bool = spec[1]
 		sf.add_animation(key)
 		sf.set_animation_speed(key, fps)
 		sf.set_animation_loop(key, loop)
+		var cells: Array = _QA137_ANIM_CELLS[key]
+		var count: int = 5 if key == "die" else 11
 		for i in count:
-			var tex: Texture2D = load("res://assets/characters/soldier_%s_%02d.png" % [base, i])
+			# die plays its 5 cells straight through; every other
+			# animation ping-pongs the source frames to 11 game
+			# frames, wrapping the index for groups with fewer
+			# than 6 source frames (idle/shoot/aim have 2).
+			var idx: int = i if key == "die" else _QA137_PINGPONG[i] % cells.size()
+			var cell: Vector2i = cells[idx]
+			var tex: Texture2D = load("res://assets/user_assets_v3/soldier_new_r%d_c%d.png" % [cell.x, cell.y])
 			sf.add_frame(key, tex)
 	return sf
 
 
 # QA-094: per-animation helmet height. The helmet rides the body
 # sprite at a fixed offset, but the art frames do not share one
-# head height (measured hair-top, 64px frame: idle 8, run 10,
-# jump 7, shoot 10, aim 10, fall 14, jetpack 25, die 36). Without
+# head height (measured hair-top, 64px frame: idle 8, run 9,
+# jump 5, shoot 6, aim 6, fall 8, jetpack 6, die 15). Without
 # this the helmet floats ~20px above the head while jetpacking.
 # Helmet centre = hair_top - 33 in sprite-local units.
-const HELMET_Y_BY_ANIM := {"idle": -25.0, "run": -23.0, "jump": -25.0, "shoot": -23.0, "aim": -23.0, "fall": -19.0, "jetpack": -8.0, "die": 3.0}
+# QA-137: re-measured on the user's character sheet (the jetpack
+# frames now put the head near the top of the frame, so jetpack
+# is -27, not the old -8; the die frames are more upright, so die
+# is -18, not the old 3).
+const HELMET_Y_BY_ANIM := {"idle": -26.0, "run": -25.0, "jump": -28.0, "shoot": -27.0, "aim": -27.0, "fall": -25.0, "jetpack": -27.0, "die": -18.0}
 # QA-094: per-frame helmet centre (sprite-local) for the jetpack
-# animation - the flying pose sways the head side-to-side (face
-# centre x 21..47 across frames 00..10), so a fixed offset floats
-# off the head at the extremes. Measured from the art (helmet
-# centre = face centre, y = face top - 13); verified by overlaying
-# the helmet on all 11 frames. The negative parent scale mirrors
-# these automatically when the player faces left.
-const HELMET_JETPACK_FRAMES := [Vector2(-11, -22), Vector2(0, -9), Vector2(3, -7), Vector2(1, -6), Vector2(-3, -9), Vector2(-1, -9), Vector2(11, -10), Vector2(9, -11), Vector2(2, -11), Vector2(13, -11), Vector2(15, -9)]
+# animation - the flying pose sways the head side-to-side, so a
+# fixed offset floats off the head at the extremes. Measured from
+# the art (helmet centre = face centre, y = face top - 33);
+# verified by overlaying the helmet on all 11 frames. The negative
+# parent scale mirrors these automatically when the player faces
+# left. QA-137: re-measured on the user's sheet - the new flying
+# pose is nearly upright, so the sway is only -2..+1 px.
+const HELMET_JETPACK_FRAMES := [Vector2(1, -28), Vector2(-1, -27), Vector2(1, -27), Vector2(1, -26), Vector2(1, -26), Vector2(-2, -29), Vector2(1, -26), Vector2(1, -26), Vector2(1, -27), Vector2(-1, -27), Vector2(1, -28)]
 var _helmet_y: float = -25.0 # QA-094: current per-animation helmet height
 
 # QA-127 (v3.11): hand anchors - where the TRIGGER hand grips the
@@ -720,14 +762,15 @@ var _helmet_y: float = -25.0 # QA-094: current per-animation helmet height
 # sprite, not a child of it (the helmet rides the sprite, the gun
 # does not). The gun's GRIP sits on the anchor and the gun rotates
 # to the aim angle around it, so the weapon reads as HELD instead
-# of floating (the old fixed anchor (10, 6) sat on the FRONT hand,
-# ~10 px ahead of the trigger hand). Idle lowers the gun to the hip
-# in frames 04-10 (at ease, hands at the sides); jetpack sways, so
-# it has a per-frame table like the helmet. Verified by overlaying
-# the gun on the frames - see BUGS.md QA-127.
-const HAND_ANCHOR_BY_ANIM := {"idle": Vector2(-2, 10), "run": Vector2(0, 8), "jump": Vector2(3, 6), "shoot": Vector2(3, 7), "aim": Vector2(3, 7), "fall": Vector2(2, 6), "die": Vector2(0, 8)}
-const HAND_IDLE_FRAMES := [Vector2(-2, 10), Vector2(-2, 10), Vector2(-2, 10), Vector2(-4, 12), Vector2(-6, 14), Vector2(-6, 14), Vector2(-6, 14), Vector2(-6, 14), Vector2(-6, 14), Vector2(-6, 14), Vector2(-6, 14)]
-const HAND_JETPACK_FRAMES := [Vector2(2, 8), Vector2(-2, 12), Vector2(-4, 10), Vector2(-2, 10), Vector2(2, 8), Vector2(4, 8), Vector2(2, 10), Vector2(4, 10), Vector2(4, 10), Vector2(4, 10), Vector2(2, 10)]
+# of floating. QA-137: re-measured on the user's sheet. The new
+# soldier holds NO gun in most poses (only the row-4 aim poses
+# hold a rifle), so the anchor is the torso at waist height
+# (y 7) for idle/run/jump/fall/jetpack/die, and the chest-height
+# rifle grip (5, -6) for shoot/aim. Verified by overlaying the gun
+# on the frames - see BUGS.md QA-137.
+const HAND_ANCHOR_BY_ANIM := {"idle": Vector2(0, 7), "run": Vector2(0, 7), "jump": Vector2(0, 7), "shoot": Vector2(5, -6), "aim": Vector2(5, -6), "fall": Vector2(0, 7), "die": Vector2(0, 6)}
+const HAND_IDLE_FRAMES := [Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7)]
+const HAND_JETPACK_FRAMES := [Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 6), Vector2(-1, 7), Vector2(0, 6), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7)]
 # QA-127: per-weapon grip - (x fraction along the weapon texture
 # where the trigger hand sits, y px below the barrel line in game
 # units). Measured from assets/weapons/*.png (trigger grip, not the
@@ -3199,13 +3242,22 @@ func _update_visuals(delta: float) -> void:
 		_flame.visible = thrusting and alive
 		if thrusting:
 			var frac := (0.6 + 0.6 * clampf(absf(velocity.y) / MAX_JET_RISE, 0.0, 1.0)) * (0.7 + 0.3 * _jet_thrust_factor)
-			# QA-119: Jetpack Boost has NO effect image in either
-			# pack (and Gemini is 429-rate-limited, so no generated
-			# one) — the boost reads through a bigger flame instead:
-			# 1.5x while jetpack_boost_timer runs.
-			var boost_mult := 1.5 if jetpack_boost_timer > 0.0 else 1.0
-			_flame.scale = Vector2((14.0 / 32.0) * (1.0 + 0.15 * sin(Time.get_ticks_msec() / 40.0)) * boost_mult, (29.0 / 64.0) * frac * boost_mult)
-			_flame.position = Vector2(-16.0 * _flame.scale.x, 22.0)
+			# QA-137: the flame is the user's jetpack art now. The
+			# boost flame is a separate, bigger texture (blue core)
+			# shown while the Jetpack Boost power-up runs - it
+			# replaces the old 1.5x stretch of the single flame.
+			# Normal: 442x492 drawn 20x22 px; boost: 616x926 drawn
+			# 30x33 px. The flicker (sin) and the thrust-length
+			# (frac) still apply; the x centres the flame on the
+			# jetpack (half the texture width x scale).
+			var boosting := jetpack_boost_timer > 0.0
+			_flame.texture = FLAME_TEX_BOOST if boosting else FLAME_TEX
+			var fw := 616.0 if boosting else 442.0
+			var fh := 926.0 if boosting else 492.0
+			var dw := 30.0 if boosting else 20.0
+			var dh := 33.0 if boosting else 22.0
+			_flame.scale = Vector2((dw / fw) * (1.0 + 0.15 * sin(Time.get_ticks_msec() / 40.0)), (dh / fh) * frac)
+			_flame.position = Vector2(-0.5 * fw * _flame.scale.x, 22.0)
 			if fuel < PhysicsConfig.FUEL_LOW_WARN:
 				_flame.modulate = Color(1.0, 1.0, 1.0, 0.5 + 0.5 * sin(Time.get_ticks_msec() / 60.0))
 			else:
@@ -3243,7 +3295,7 @@ func _update_visuals(delta: float) -> void:
 	if _fx_shield != null:
 		_fx_shield.visible = alive and shield_timer > 0.0
 		var pulse := 1.0 + 0.06 * sin(Time.get_ticks_msec() / 180.0)
-		_fx_shield.scale = Vector2(0.30 * pulse, 0.30 * pulse)
+		_fx_shield.scale = Vector2(0.11 * pulse, 0.11 * pulse) # QA-137: 1440 px dome art, was 0.30 for 512 px
 	if _fx_speed != null:
 		_fx_speed.visible = alive and speed_timer > 0.0
 	if _fx_health != null:
