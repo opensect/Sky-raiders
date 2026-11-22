@@ -1,4 +1,4 @@
-# Frag Arena
+# Sky Raiders
 
 A Mini Militia-style 2D multiplayer shooter for Android, played over local
 Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.

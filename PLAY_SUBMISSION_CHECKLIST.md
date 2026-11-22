@@ -1,4 +1,4 @@
-# Google Play submission checklist — Frag Arena
+# Google Play submission checklist — Sky Raiders
 
 **Status (19 Nov 2026, v3.2): the app is Play-ready in code and
 policy. NOTHING has been published or submitted — there is no Play
@@ -103,7 +103,7 @@ apksigner v2+v3 verified (debug keystore cert SHA-256
   account ($25 one-time fee, user's own Google account). No account
   is connected here; nobody here can publish.
 - [ ] **App listing:** create the app (package `com.lanarena.shooter`,
-  title "Frag Arena"), upload the signed AAB, fill the store
+  title "Sky Raiders"), upload the signed AAB, fill the store
   listing: short + full description, screenshots (phone + 7" tablet
   minimum), feature graphic 1024×500, app icon 512×512.
 - [ ] **Content rating:** complete the rating questionnaire

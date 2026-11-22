@@ -225,20 +225,31 @@ func _sf_update_hazards(delta: float) -> void:
 		if flame != null:
 			flame.visible = hot
 			if hot:
-				var pulse = 0.55 + 0.15 * sin(g._sf_match_time * 9.0)
+				var base_sc: Vector2 = hd.get("base_scale", Vector2.ONE)
 				if str(hd.get("kind", "")) == "fire":
-					# QA-137: cycle the fire-vent frames (8 fps,
-					# so the vent plays twice per 2 s hot phase)
-					# and keep the grate pinned to the rect bottom
-					# as the frame height changes (158-227 px).
-					var fi = int(g._sf_match_time * 8.0) % GameAssets.TRAP_TEX_FIRE_VENT.size()
-					var ftex: Texture2D = GameAssets.TRAP_TEX_FIRE_VENT[fi]
+					# QA-145 (v4.1): flame_jet frames replace the old
+					# fire-vent art. Growth sequence — ping-pong at
+					# 8 fps so the snap back to the small frame
+					# never pops. All frames share the 305 px
+					# canvas, bottom-aligned, so the flame stays
+					# pinned to the rect bottom as it grows.
+					var step := int(g._sf_match_time * 8.0) % 16
+					var fi = step if step < 8 else 15 - step
+					var ftex: Texture2D = GameAssets.FX_TEX_FLAME_JET[fi]
 					flame.texture = ftex
-					flame.scale.y = pulse * 1.6
+					flame.scale = Vector2(base_sc.x, base_sc.y * (0.73 + 0.27 * sin(g._sf_match_time * 9.0)))
 					var r: Rect2 = hd["rect"]
 					flame.position = Vector2(r.get_center().x, r.end.y - float(ftex.get_height()) * 0.5 * flame.scale.y)
 				else:
-					flame.scale.y = pulse
+					# QA-145 (v4.1): lava pools cycle the ground_fire
+					# frames (forward loop, 8 fps) instead of the
+					# static lava splash. Bottom-anchored like fire.
+					var lfi := int(g._sf_match_time * 8.0) % GameAssets.FX_TEX_GROUND_FIRE.size()
+					var lftex: Texture2D = GameAssets.FX_TEX_GROUND_FIRE[lfi]
+					flame.texture = lftex
+					flame.scale = Vector2(base_sc.x, base_sc.y * (0.85 + 0.15 * sin(g._sf_match_time * 9.0)))
+					var lr: Rect2 = hd["rect"]
+					flame.position = Vector2(lr.get_center().x, lr.end.y - float(lftex.get_height()) * 0.5 * flame.scale.y)
 		var magma: Sprite2D = hd.get("magma")
 		if magma != null:
 			magma.visible = hot
@@ -296,6 +307,76 @@ func _sf_update_pendulums(delta: float) -> void:
 				tick[pid] = 1.0
 				_sf_damage_player(child, 25)
 		pd["tick"] = tick
+
+
+func _sf_update_mines(delta: float) -> void:
+	# QA-145 (v4.1, Worker T): proximity mines. The blink is a pure
+	# function of the match clock (2 Hz armed, 8 Hz fusing) so every
+	# peer agrees with no sync. Trigger detection is host-only: a
+	# living player within 70 px starts the 1.0 s fuse (RPC'd so
+	# every peer counts the same fuse), then every peer detonates
+	# together — explosion FX via game_fx (visual + shake + sound
+	# on every peer) and host-only 25 HP to every living player
+	# within 120 px (QA-126 rock/pendulum number: dodgeable inside
+	# the 1.0 s fuse, no one-hit kill, shield blocks it via
+	# take_damage). The mine re-arms 30 s later (barricade
+	# standard), on every peer's own clock. NOT routed through
+	# request_explosion on purpose: that uses the MMC blast formula
+	# (100 HP at the centre — a one-hit kill), which breaks the
+	# QA-126 trap rule.
+	if g.map_id != GameData.SKYFALL_MAP_ID:
+		return
+	for i in g._sf_mines.size():
+		var m: Dictionary = g._sf_mines[i]
+		var state: String = str(m.get("state", "armed"))
+		var dot: Polygon2D = m.get("dot")
+		if state == "armed":
+			if dot != null:
+				dot.visible = fmod(g._sf_match_time * 2.0, 1.0) < 0.5
+			if g.multiplayer.is_server() and not g.match_over and not g._countdown_active:
+				for child in g.players_node.get_children():
+					if not child.alive:
+						continue
+					if child.position.distance_to(m["pos"] as Vector2) <= 70.0:
+						m["state"] = "triggered"
+						m["timer"] = 1.0
+						g.rpc("sf_mine_trigger_remote", i)
+						break
+		elif state == "triggered":
+			if dot != null:
+				dot.visible = fmod(g._sf_match_time * 8.0, 1.0) < 0.5
+			var t := float(m.get("timer", 0.0)) - delta
+			m["timer"] = t
+			if t <= 0.0:
+				m["state"] = "gone"
+				m["timer"] = 30.0
+				(m["node"] as Node2D).visible = false
+				g.game_fx._spawn_explosion_fx(m["pos"], 120.0)
+				if g.multiplayer.is_server() and not g.match_over:
+					for child in g.players_node.get_children():
+						if not child.alive:
+							continue
+						if child.position.distance_to(m["pos"] as Vector2) <= 120.0:
+							_sf_damage_player(child, 25)
+		elif state == "gone":
+			var t2 := float(m.get("timer", 0.0)) - delta
+			m["timer"] = t2
+			if t2 <= 0.0:
+				m["state"] = "armed"
+				(m["node"] as Node2D).visible = true
+
+
+func sf_mine_trigger_remote(idx: int) -> void:
+	# Host saw a player step on mine idx — every peer starts the
+	# same 1.0 s fuse. Idempotent: a late or duplicate RPC on an
+	# already-triggered mine changes nothing.
+	if idx < 0 or idx >= g._sf_mines.size():
+		return
+	var m: Dictionary = g._sf_mines[idx]
+	if str(m.get("state", "armed")) != "armed":
+		return
+	m["state"] = "triggered"
+	m["timer"] = 1.0
 
 
 func try_barricade_hit(hit_pos: Vector2, dmg: int) -> bool:

@@ -1,8 +1,8 @@
-# Privacy Policy — Frag Arena
+# Privacy Policy — Sky Raiders
 
 **Last updated: 20 November 2026 — version 3.7**
 
-Frag Arena is a local-multiplayer arena game. It is played
+Sky Raiders is a local-multiplayer arena game. It is played
 entirely on your own Wi-Fi network (LAN). This policy explains what
 the app does and does not do with your information.
 

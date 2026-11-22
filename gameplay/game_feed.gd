@@ -58,6 +58,28 @@ func announce_kill(killer_id: int, victim_id: int, weapon_id: int) -> void:
 		var s = int(g._kill_streaks.get(killer_id, 0)) + 1
 		g._kill_streaks[killer_id] = s
 		g._best_streaks[killer_id] = maxi(int(g._best_streaks.get(killer_id, 0)), s)
+		# QA-145 (v4.1, Worker T): First Blood + multi-kill callouts.
+		# The streaks were already tracked (and shown on the end
+		# screen) but never announced mid-match — a 2nd/3rd kill in
+		# a row without dying now gets its own gold feed line, and
+		# the very first real kill of the match gets FIRST BLOOD.
+		# Feed-only: no scores, no rules change. announce_kill
+		# runs on every peer from the same RPC, so every phone
+		# shows the same line.
+		if not g._first_blood_done:
+			g._first_blood_done = true
+			g._ctf_feed("FIRST BLOOD! %s drew first blood!" % g.game_match._player_name(killer_id), Color(1.0, 0.85, 0.3))
+		var callout := ""
+		if s == 2:
+			callout = "DOUBLE KILL!"
+		elif s == 3:
+			callout = "TRIPLE KILL!"
+		elif s == 4:
+			callout = "RAMPAGE!"
+		elif s >= 5:
+			callout = "UNSTOPPABLE!"
+		if callout != "":
+			g._ctf_feed("%s %s — %d in a row!" % [callout, g.game_match._player_name(killer_id), s], Color(1.0, 0.85, 0.3))
 	g._kill_streaks[victim_id] = 0
 	# Mark this death as fed so the host's death watcher (lava, falls,
 	# anything without a killer) does not post a second line for it.
@@ -85,17 +107,10 @@ func _add_kill_feed_entry(killer_id: int, victim_id: int, weapon_id: int) -> voi
 	# QA-130 (v3.11): feed chips restyled to the gohud pill look
 	# (same dark navy + rounded corners as the top-right pill and
 	# the slot panel) so the message area reads as one clean unit.
+	# QA-145 (Worker F): the chip wears the UI-frames blue bar now
+	# (same content margins as before; nothing else changed here).
 	var chip := PanelContainer.new()
-	var chip_bg := StyleBoxFlat.new()
-	chip_bg.bg_color = Color(0.03, 0.07, 0.13, 0.88)
-	chip_bg.corner_radius_top_left = 8
-	chip_bg.corner_radius_top_right = 8
-	chip_bg.corner_radius_bottom_left = 8
-	chip_bg.corner_radius_bottom_right = 8
-	chip_bg.content_margin_left = 10
-	chip_bg.content_margin_right = 10
-	chip_bg.content_margin_top = 4
-	chip_bg.content_margin_bottom = 4
+	var chip_bg: StyleBoxTexture = g.hud_builder._ui_frame_stylebox(g.hud_builder.TEX_UI_BAR_BLUE_MED, 12, 10, 10, 4, 4)
 	chip.add_theme_stylebox_override("panel", chip_bg)
 	chip.add_child(lbl)
 	g._kill_feed_list.add_child(chip)

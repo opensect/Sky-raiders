@@ -819,11 +819,17 @@ func _ft_c_sniper_scope() -> Array:
 func _ft_s_bullet_inside() -> void:
 	# QA-055: a bullet whose muzzle starts INSIDE solid geometry
 	# (player flush against a wall, aiming into it) must impact at
-	# once, not fly through the wall. The muzzle sits 43.7 px ahead
-	# of the player centre for the pistol (QA-143: MMC design
-	# firing point, 1.53 x half gun length + grip-forward), so
-	# standing at x=56 aiming left puts it at x=12.3 - 12 px
-	# inside the 24 px left boundary wall.
+	# once, not fly through the wall. Muzzle = player pos +
+	# hand-anchor offset + dir * muzzle_distance: the shoot anchor
+	# is x=11 (QA-145 new sheet, x1.20 scale = 13.2) and the pistol
+	# muzzle_distance is 43.7 (QA-143 MMC firing point), so
+	# standing at x=63 aiming left puts the muzzle at
+	# 63 - 13.2 - 43.7 = 6.1, ~6 px inside the 24 px left boundary
+	# wall — the same margin the old x=56 setup had with the old
+	# anchor x=5 (56 - 6.0 - 43.7 = 6.3). Do NOT move the teleport
+	# back to 56: with the new anchor the muzzle would sit at -0.9,
+	# past the wall's outer face, and the bullet would (correctly)
+	# spawn past the wall instead of impacting it.
 	# The left wall is used because the right wall has sandbags at
 	# x=3120 on the fire-test map (map 0).
 	var lp = _ft_lp()
@@ -832,7 +838,7 @@ func _ft_s_bullet_inside() -> void:
 	lp.health = 100
 	_ft_set_weapon(5) # pistol: semi-auto, exactly one bullet
 	var floor_top = float((g.MAPS[g.map_id]["platforms"] as Array)[0].position.y)
-	_ft_teleport(Vector2(56.0, floor_top - 43.0))
+	_ft_teleport(Vector2(63.0, floor_top - 43.0))
 	_ft_inside_shots0 = lp._shots_fired
 	# Bullets from earlier steps may still be flying: remember them
 	# so the check counts only the bullet fired in this step. (The

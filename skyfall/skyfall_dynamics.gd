@@ -95,6 +95,8 @@ func _update_skyfall(delta: float) -> void:
 	g.skyfall_hazards._sf_update_hazards(delta)
 	# --- QA-137 (v3.14): swinging wrecking-ball pendulums. ---
 	g.skyfall_hazards._sf_update_pendulums(delta)
+	# --- QA-145 (v4.1, Worker T): proximity mines. ---
+	g.skyfall_hazards._sf_update_mines(delta)
 	# --- Dynamic scenery (QA-115): clouds, waterfall, helicopter,
 	# gears, steam, storm lightning — scenery only. ---
 	_update_skyfall_scenery(delta)
@@ -179,6 +181,9 @@ func _update_skyfall(delta: float) -> void:
 	# --- Comeback help + random events (QA-114, host only). ---
 	_sf_update_comeback(delta)
 	_sf_update_random_events(delta)
+	# --- QA-145 (v4.1, Worker T): supply-drop beacon countdown
+	# (runs on every peer — each counts its own 10 s from the RPC). ---
+	_sf_update_beacon(delta)
 	# --- Extraction-zone pulse. ---
 	var pulse = 0.9 + 0.1 * sin(g._sf_match_time * 3.0)
 	for z in g._ctf_extract_nodes:
@@ -308,7 +313,68 @@ func _sf_event_supply_drop() -> void:
 	# Event drops do NOT count toward the FT-SF-RARITY test — that
 	# test measures the regular spawn loop only.
 	g.rpc("spawn_pickup_remote", pos, pname, kind, -1)
+	# QA-145 (v4.1, Worker T): the drop was announced in the feed
+	# but invisible across the tower — RPC the beacon too, so every
+	# peer sees the green pillar marking the landing spot.
+	g.rpc("sf_beacon_remote", pos)
 	g._ctf_feed("EVENT: SUPPLY DROP! Something landed on the tower — go get it!", Color(0.6, 1.0, 0.6))
+
+
+func _sf_build_beacon(pos: Vector2) -> void:
+	# QA-145 (v4.1, Worker T): supply-drop beacon — a green light
+	# pillar (600 px tall) + a pulsing ground ring marking the
+	# landing spot for 10 s. Code-drawn, no new art. Replaces any
+	# live beacon (only one drop at a time — the event timer blocks
+	# overlap). Called on every peer via sf_beacon_remote.
+	_sf_clear_beacon()
+	var beam := Polygon2D.new()
+	beam.polygon = PackedVector2Array([Vector2(-20, 0), Vector2(20, 0), Vector2(20, -600), Vector2(-20, -600)])
+	beam.color = Color(0.4, 1.0, 0.5, 0.30)
+	beam.position = pos
+	beam.z_index = 1
+	g.add_child(beam)
+	var ring := Polygon2D.new()
+	var rpts := PackedVector2Array()
+	for i in 24:
+		var a := TAU * float(i) / 24.0
+		rpts.append(Vector2(cos(a), sin(a)) * 60.0)
+	ring.polygon = rpts
+	ring.color = Color(0.4, 1.0, 0.5, 0.5)
+	ring.position = pos + Vector2(0, 8)
+	ring.z_index = 1
+	g.add_child(ring)
+	g._sf_beacon = {"pos": pos, "beam": beam, "ring": ring, "timer": 10.0}
+
+
+func _sf_update_beacon(delta: float) -> void:
+	if g._sf_beacon.is_empty():
+		return
+	var beam: Node = g._sf_beacon.get("beam")
+	if beam == null or not is_instance_valid(beam):
+		g._sf_beacon = {}
+		return
+	var t := float(g._sf_beacon.get("timer", 0.0)) - delta
+	g._sf_beacon["timer"] = t
+	if t <= 0.0:
+		_sf_clear_beacon()
+		return
+	# The ring breathes (alpha 0.3-0.65) so the spot reads at a
+	# glance from two levels down.
+	var ring: Polygon2D = g._sf_beacon.get("ring")
+	if ring != null and is_instance_valid(ring):
+		var c: Color = ring.color
+		c.a = 0.3 + 0.35 * (0.5 + 0.5 * sin(g._sf_match_time * 4.0))
+		ring.color = c
+
+
+func _sf_clear_beacon() -> void:
+	if g._sf_beacon.is_empty():
+		return
+	for k in ["beam", "ring"]:
+		var n: Node = g._sf_beacon.get(k)
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	g._sf_beacon = {}
 
 
 func _sf_event_collapse() -> void:
@@ -725,12 +791,16 @@ func show_thunder_trap_telegraph(pos: Vector2) -> void:
 
 
 func show_wind_tornado_fx(pos: Vector2) -> void:
-	# QA-135 (v3.13): Wind Blast tornado — a code-drawn funnel
-	# (stacked ellipses, wide top -> narrow base) + a dust ring
-	# at the base. Spins for ~1 s (the 0.7 s sweep + the throw),
-	# then fades. The host RPCs it, so every peer sees the same
-	# tornado at the same spot. Sender guard: only the host
-	# (id 1, or 0 in a local sim) may trigger it.
+	# QA-145 (v4.1): Wind Blast tornado — the user's fire-tornado
+	# frames (3 rotation variants) as an AnimatedSprite2D at ~8 fps,
+	# replacing the QA-135 code-drawn funnel (4 ellipses + dust
+	# sprite — the tornado frames already carry embers/dust at the
+	# base, so the dust sprite is dropped). Mechanics untouched
+	# (pull 0.7 s, throw down, no damage, shield does not stop it).
+	# The tornado is now FIRE-coloured for a wind power-up — a
+	# slight thematic mismatch, but exactly what the user asked.
+	# Sender guard: only the host (id 1, or 0 in a local sim) may
+	# trigger it. Spins for ~1 s, then fades.
 	var sender = g.multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != 1:
 		return
@@ -738,27 +808,21 @@ func show_wind_tornado_fx(pos: Vector2) -> void:
 	if g._wind_tornado_node != null and is_instance_valid(g._wind_tornado_node):
 		g._wind_tornado_node.queue_free()
 	var n := Node2D.new()
-	n.position = pos + Vector2(0, -20)
+	n.position = pos + Vector2(0, -90)
 	n.z_index = 6
 	g.add_child(n)
-	var radii := [70.0, 55.0, 38.0, 22.0]
-	var offs := [-95.0, -55.0, -15.0, 25.0]
-	for i in radii.size():
-		var e := Polygon2D.new()
-		var pts := PackedVector2Array()
-		for k in 20:
-			var a := TAU * float(k) / 20.0
-			pts.append(Vector2(cos(a) * radii[i], sin(a) * radii[i] * 0.45))
-		e.polygon = pts
-		e.color = Color(0.92, 0.93, 0.96, 0.5)
-		e.position = Vector2(0, offs[i])
-		n.add_child(e)
-	var dust := Sprite2D.new()
-	dust.texture = GameAssets.FX_TEX_DUST
-	dust.position = Vector2(0, 30)
-	dust.scale = Vector2(0.9, 0.9)
-	dust.modulate = Color(1, 1, 1, 0.55)
-	n.add_child(dust)
+	var frames := SpriteFrames.new()
+	frames.add_animation("spin")
+	frames.set_animation_speed("spin", 8.0)
+	frames.set_animation_loop("spin", true)
+	for ftex in GameAssets.FX_TEX_FIRE_TORNADO:
+		frames.add_frame("spin", ftex)
+	var torn := AnimatedSprite2D.new()
+	torn.sprite_frames = frames
+	torn.animation = "spin"
+	torn.scale = Vector2(0.8, 0.8)
+	torn.play()
+	n.add_child(torn)
 	g._wind_tornado_node = n
 	var tw = g.create_tween()
 	tw.tween_property(n, "rotation", TAU, 0.55)

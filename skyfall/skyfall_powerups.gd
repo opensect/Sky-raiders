@@ -356,13 +356,13 @@ func _update_invis_warning(lp) -> void:
 		lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
 		g._outline_label(lbl)
 		var chip := PanelContainer.new()
-		var chip_bg := StyleBoxFlat.new()
-		chip_bg.bg_color = Color(0.35, 0.05, 0.08, 0.88)
-		chip_bg.set_corner_radius_all(8)
-		chip_bg.content_margin_left = 10
-		chip_bg.content_margin_right = 10
-		chip_bg.content_margin_top = 4
-		chip_bg.content_margin_bottom = 4
+		# QA-145 (Worker F): the chip wears the UI-frames red bar
+		# now (same content margins as before; red label text and
+		# all warning logic unchanged). bar_red_med, not strip_red:
+		# strip_red.png is actually the BLUE strip (phase 1
+		# misread the sheet), and bar_red_med was the PLAN's own
+		# fallback for this chip.
+		var chip_bg: StyleBoxTexture = g.hud_builder._ui_frame_stylebox(g.hud_builder.TEX_UI_BAR_RED_MED, 12, 10, 10, 4, 4)
 		chip.add_theme_stylebox_override("panel", chip_bg)
 		chip.add_child(lbl)
 		g._invis_warning_chip = chip

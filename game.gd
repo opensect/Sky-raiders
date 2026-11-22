@@ -50,8 +50,8 @@ const JOIN_TIMEOUT := 8.0
 # Phase 5 — Sky Brawl arena backgrounds as a FAR parallax layer
 # (viewport scale ~1.3x, parallax 0.25, never stretched over a map).
 # QA-095 (v3.7): 3 left — Index matches the map's "bg" key:
-# 0 Ironfall (new, code-drawn dusk factory skyline), 1 Volcanic
-# Cavern, 2 Neon City. Jungle Ruins and Pirate Island keep the
+# 0 Ironfall + Outpost (new, code-drawn dusk factory skyline),
+# 1 Volcanic Cavern, 2 Neon City. Pirate Island keeps the
 # procedural gradient (no "bg" key), as before.
 # QA-112 (v3.9): 3 Skyfall dusk sky (pack's bg_sky_dusk.png,
 # 1920x1080 landscape — used as the far parallax layer only,
@@ -169,6 +169,7 @@ var end_list: VBoxContainer
 var _end_box: VBoxContainer # Phase 4: MVP banner is inserted here
 var _mvp_nodes: Array = [] # Phase 4: banner widgets, cleared per match
 var end_rematch_btn: Button
+var end_hint: Label # QA-145 (v4.1, Worker V): what-happens-next line under Rematch (host vs non-host text set in game_match.gd)
 var error_panel: PanelContainer
 var error_label: Label
 var move_stick
@@ -199,6 +200,9 @@ var game_spawn: GameSpawn # QA-140 (v3.15): spawn, player list, peer handlers, b
 var game_pickups: GamePickups # QA-140 (v3.15): pickup spawning + join timeout
 var skyfall_helpers: SkyfallHelpers # QA-140 (v3.15): skyfall route/level/powerup-target helpers
 var smoke_test: SmokeTest # QA-140 (v3.15): smoke test + screenshot drivers
+var workerS_shots: WorkerSShots # QA-145 (v4.1, Worker S): staged trap/route screenshots
+var workerT_shots: WorkerTShots # QA-145 (v4.1, Worker T): staged mine/beacon/streak screenshots
+var workerV_shots: WorkerVShots # QA-145 (v4.1, Worker V): staged end-screen + capture-feed screenshots
 var joystick_test: JoystickTest # QA-140 (v3.15): joystick acceptance test
 var scale_test: ScaleTest # QA-140 (v3.15): scale + collision acceptance test
 var fire_test: FireTest # QA-140 (v3.15): fire acceptance test
@@ -346,6 +350,8 @@ func _sf_find_powerup_target(activator: Node2D, kind: int = 0) -> Node2D:
 
 
 var _sf_barricades: Array = [] # {rect, sprite, shape, hp, alive, timer}
+var _sf_mines: Array = [] # QA-145 (v4.1, Worker T): {pos, node, dot, state, timer} proximity mines
+var _sf_beacon: Dictionary = {} # QA-145 (v4.1, Worker T): supply-drop beacon {pos, beam, ring, timer}
 var _sf_rocks: Array = [] # {node, vel} falling rocks (host spawns)
 var _sf_rock_timer: float = 0.0
 var _sf_storm_timer: float = 90.0 # Summit Storm every 90 s
@@ -396,6 +402,16 @@ var _time_sync_timer: float = 0.0
 var _end_shown: bool = false
 var _hint_timer: float = 10.0
 var _lava_cd: Dictionary = {} # peer id -> seconds until next lava damage tick
+# QA-145 (v4.1): Volcanic Cavern fire traps (QA-126 rules, built +
+# updated in arena_builder.gd — this is state only, no logic).
+# _fire_trap_fx: {rect, kind, flame, base, cycle} visuals;
+# _fire_trap_tick: peer id -> seconds until next 10 HP trap tick;
+# _fire_trap_time: local match clock driving the 4 s HOT/safe cycle
+# (same pattern as _sf_match_time — visuals are pure functions of
+# it so every peer sees the same telegraph).
+var _fire_trap_fx: Array = []
+var _fire_trap_tick: Dictionary = {}
+var _fire_trap_time: float = 0.0
 var _round_wins: Dictionary = {} # v2.4 Survival: peer id -> rounds won
 # Phase 4 — kill feed, streaks, countdown, hitmarkers, spectator.
 var _kill_feed_list: VBoxContainer
@@ -403,6 +419,7 @@ var _invis_warning_chip: PanelContainer = null # QA-121 (v3.11): red "Enemy is i
 var _kill_feed_entries: Array = [] # {label, expiry}
 var _kill_streaks: Dictionary = {} # peer id -> current kill streak
 var _best_streaks: Dictionary = {} # peer id -> best kill streak this match
+var _first_blood_done: bool = false # QA-145 (v4.1, Worker T): first real kill of the match already announced
 var _fed_deaths: Dictionary = {} # peer id -> true once this death was fed (no double entries)
 var _alive_watch: Dictionary = {} # peer id -> was alive last frame (host death watcher)
 var _countdown_active: bool = false
@@ -511,6 +528,9 @@ func _ready() -> void:
 	# below, so the flags (which now live on the test modules)
 	# can be set here.
 	smoke_test = SmokeTest.new(self)
+	workerS_shots = WorkerSShots.new(self)
+	workerT_shots = WorkerTShots.new(self)
+	workerV_shots = WorkerVShots.new(self)
 	joystick_test = JoystickTest.new(self)
 	scale_test = ScaleTest.new(self)
 	fire_test = FireTest.new(self)
@@ -538,6 +558,10 @@ func _ready() -> void:
 	smoke_test._map_shots = "--map-shot" in OS.get_cmdline_user_args()
 	smoke_test._land_shots = "--land-shot" in OS.get_cmdline_user_args()
 	smoke_test._skyfall_shots = "--skyfall-shots" in OS.get_cmdline_user_args() # QA-112 (v3.9): --skyfall-shots captures the 6 Skyfall levels
+	smoke_test._qa145_shots = "--qa145-shots" in OS.get_cmdline_user_args() # QA-145: --qa145-shots captures the reload magazine drop (rifle + sniper) + the MMC camera offset while aiming
+	workerS_shots._workerS_shots = "--workerS-shots" in OS.get_cmdline_user_args() # QA-145 (v4.1, Worker S): --workerS-shots + --shot-pos=x,y captures staged trap/route views
+	workerT_shots._workerT_shots = "--workerT-shots" in OS.get_cmdline_user_args() # QA-145 (v4.1, Worker T): --workerT-shots + --shot-pos=x,y [--shot-beacon=x,y] [--shot-streak] captures staged mine/beacon/streak views
+	workerV_shots._workerV_shots = "--workerV-shots" in OS.get_cmdline_user_args() # QA-145 (v4.1, Worker V): --workerV-shots captures the staged end screen + capture feed line
 	smoke_test._join_test_host = "--join-test-host" in OS.get_cmdline_user_args()
 	smoke_test._join_test_client = "--join-test-client" in OS.get_cmdline_user_args() or "--join-test-client-quick" in OS.get_cmdline_user_args()
 	replsim_test._repl_sim_test = "--repl-sim-test" in OS.get_cmdline_user_args()
@@ -546,7 +570,7 @@ func _ready() -> void:
 	# --net-stats turns it on for a dev session, F3 toggles it live.
 	_net_stats_visible = "--net-stats" in OS.get_cmdline_user_args()
 	# Test-only map override: --map=N loads that map (the collision
-	# test uses it to run its pass-through checks on Jungle Ruins).
+	# test uses it to run its pass-through checks on Outpost).
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--map="):
 			map_id = clampi(int(a.trim_prefix("--map=")), 0, MAPS.size() - 1)
@@ -572,7 +596,7 @@ func _ready() -> void:
 	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
 	# scripted harness (they move/shoot from frame one) and in the
 	# features test, which drives the countdown itself in step 1.
-	var _is_test_mode := smoke_test._smoke_test or joystick_test._joystick_test or fire_test._fire_test or net_test._net_test or net_test._flow_test or scale_test._scale_test or scale_test._collision_test or physics_test._physics_test or net_test._perf_test or features_test._features_test or replsim_test._repl_sim_test or net_test._restart_test or smoke_test._v37_shots or smoke_test._v38_shots or smoke_test._glitch_shots or smoke_test._map_shots or smoke_test._land_shots or smoke_test._skyfall_shots
+	var _is_test_mode := smoke_test._smoke_test or joystick_test._joystick_test or fire_test._fire_test or net_test._net_test or net_test._flow_test or scale_test._scale_test or scale_test._collision_test or physics_test._physics_test or net_test._perf_test or features_test._features_test or replsim_test._repl_sim_test or net_test._restart_test or smoke_test._v37_shots or smoke_test._v38_shots or smoke_test._glitch_shots or smoke_test._map_shots or smoke_test._land_shots or smoke_test._skyfall_shots or smoke_test._qa145_shots or workerS_shots._workerS_shots or workerT_shots._workerT_shots or workerV_shots._workerV_shots
 	if not _is_test_mode:
 		_countdown_active = true
 		_countdown_t = 3.0
@@ -603,6 +627,7 @@ func _ready() -> void:
 	_build_ice_zone(map)
 	_build_bounce_pads(map)
 	_build_lava(map)
+	_build_fire_traps(map) # QA-145 (v4.1): Volcanic Cavern fire traps (no-op on other maps)
 	_build_ambient_fx(map)
 	# QA-112 (v3.9): Skyfall mechanics + CTF flags (no-op on other maps).
 	_build_skyfall(map)
@@ -678,6 +703,14 @@ func _build_lava(map: Dictionary) -> void:
 	arena_builder._build_lava(map)
 
 
+func _build_fire_traps(map: Dictionary) -> void:
+	arena_builder._build_fire_traps(map)
+
+
+func _update_fire_traps(delta: float) -> void:
+	arena_builder._update_fire_traps(delta)
+
+
 func _build_ambient_fx(map: Dictionary) -> void:
 	arena_builder._build_ambient_fx(map)
 
@@ -693,6 +726,16 @@ func _sf_trailing_team() -> int:
 @rpc("any_peer", "call_local")
 func sf_rock_remote(x: float) -> void:
 	skyfall_hazards.sf_rock_remote(x)
+
+
+@rpc("any_peer", "call_local")
+func sf_mine_trigger_remote(idx: int) -> void:
+	skyfall_hazards.sf_mine_trigger_remote(idx)
+
+
+@rpc("any_peer", "call_local")
+func sf_beacon_remote(pos: Vector2) -> void:
+	skyfall_dynamics._sf_build_beacon(pos)
 
 
 func _sf_clear_strike_marker() -> void:
@@ -786,6 +829,23 @@ func _update_invis_warning(lp) -> void:
 
 func _ctf_feed(text: String, color: Color) -> void:
 	skyfall_ctf._ctf_feed(text, color)
+	# QA-145 (v4.1, Worker V): a flag capture is the biggest
+	# moment in a CTF match, but it arrived as one small 18 px
+	# feed line that expired in 5 s like any kill — easy to miss
+	# in a fight, and a busy feed could push it out in seconds.
+	# Captures and relay banks now stay on screen longer and
+	# print bigger; a full capture also plays the win fanfare.
+	# (Feed-only: the flag, points and rules are untouched, and
+	# the call still funnels through skyfall_ctf._ctf_feed.)
+	if text.contains("captured the flag!") or text.contains("banked the flag"):
+		var big := text.contains("captured the flag!")
+		if not _kill_feed_entries.is_empty():
+			var e: Dictionary = _kill_feed_entries[_kill_feed_entries.size() - 1]
+			if e.has("label") and String((e["label"] as Label).text) == text:
+				e["expiry"] = 10.0 if big else 8.0
+				(e["label"] as Label).add_theme_font_size_override("font_size", 22 if big else 20)
+		if big and audio != null:
+			audio.play("win")
 
 
 func _update_ctf(delta: float) -> void:
@@ -967,6 +1027,59 @@ func _physics_process(_delta: float) -> void:
 			physics_test._phys_data["pad_min_vy"] = minf(float(physics_test._phys_data.get("pad_min_vy", 0.0)), lp4.velocity.y)
 
 
+# =====================================================================
+# QA-145 ITEM 2 — MMC smoothed camera view offset
+# (SoldierLocalController::getViewOffsetV4, 0x8ec59c).
+# MMC: if a primary weapon exists,
+#   t = int(214.3 * primary->getViewOffset() * (2.0 - [SLC, +0x2b4]))
+#   [SLC, +0x294] -= t, clamped to [-1.0, 1.0]
+#   return int([SLC, +0x294])
+# The returned int is the camera's view offset for the frame.
+#
+# ASSUMPTION (recorded, unproven — see BUGS.md QA-143 ITEM 2):
+# [SLC, +0x2b4] semantics were NOT proven in the extraction. This port
+# reads it as the WEAPON's +0x2b4 bullet-speed base from the per-class
+# table (QA143-workerB-notes.md §3): rifle 1300, smg 1400, shotgun
+# 1300, sniper 10000, rocket 1, pistol 1300. Consequence, computed
+# not assumed: (2.0 - speedBase) is hugely negative for five weapons
+# and exactly +1.0 for the rocket, so the smoothed value SATURATES
+# to +1 on the first frame for rifle/smg/shotgun/sniper/pistol and
+# to -1 for the rocket. The MMC "smoothing" is degenerate under this
+# reading — the ported value is effectively a per-weapon sign, and
+# the visible easing comes from MMC_VIEW_EASE_RATE below (so a
+# weapon switch never jumps the view in one frame).
+#
+# PIXEL SCALE (Frag Arena choice, not an MMC number): MMC returns a
+# unitless int in [-1, 1]; it is mapped to +/-MMC_VIEW_OFFSET_PX px
+# along the aim direction (while aiming) or the facing direction
+# (otherwise) — half the 80 px CAMERA_LOOKAHEAD, so it stays a
+# subtle lead, not a second look-ahead.
+#
+# WIRING NOTE: player_visuals._update_visuals ASSIGNS camera.offset
+# every frame (shake-or-zero) in the player's _process, which runs
+# AFTER game._process — a direct write here would be erased the same
+# frame. So game.gd queues a deferred apply (end of frame, after the
+# player's _process): it ADDS exactly the wanted offset on top of
+# whatever player_visuals wrote, so camera shake survives. Same
+# delta-add idea as addons/sprite_juice_lite/screen_shake.gd, except
+# no bookkeeping is needed here: player_visuals resets offset
+# absolutely every frame, so nothing of ours persists into the next
+# frame and a plain += want is exact. If player_visuals.gd ever wires
+# this natively (add the offset to _cam_look or to the shake
+# assignment), DELETE _apply_mmc_camera_offset below — otherwise the
+# offset would apply twice.
+# =====================================================================
+const MMC_VIEW_OFFSET := {0: 0.45, 1: 0.40, 2: 0.45, 3: 0.70, 4: 0.65, 5: 0.25} # Weapon::getViewOffset (+0x28c)
+const MMC_SPEED_BASE := {0: 1300, 1: 1400, 2: 1300, 3: 10000, 4: 1, 5: 1300} # Weapon +0x2b4 (see assumption above)
+const MMC_VIEW_OFFSET_PX := 40.0
+const MMC_VIEW_EASE_RATE := 240.0 # px/s, same rate as _cam_look
+
+var _mmc_view_s: float = 0.0 # smoothed MMC value ([SLC, +0x294] analogue), [-1, 1]
+var _mmc_view_px: float = 0.0 # eased pixel offset actually applied
+var _mmc_view_want: Vector2 = Vector2.ZERO # offset vector for this frame
+var _mmc_applied_frame: int = -1 # guard: apply at most once per frame
+
+
 func _process(delta: float) -> void:
 	if _leaving:
 		return
@@ -1044,6 +1157,18 @@ func _process(delta: float) -> void:
 	elif smoke_test._skyfall_shots:
 		game_touch._update_touch_state()
 		smoke_test._update_skyfallshots(delta)
+	elif smoke_test._qa145_shots:
+		game_touch._update_touch_state()
+		smoke_test._update_qa145shots(delta)
+	elif workerS_shots._workerS_shots:
+		game_touch._update_touch_state()
+		workerS_shots._update_workerSshots(delta)
+	elif workerT_shots._workerT_shots:
+		game_touch._update_touch_state()
+		workerT_shots._update_workerTshots(delta)
+	elif workerV_shots._workerV_shots:
+		game_touch._update_touch_state()
+		workerV_shots._update_workerVshots(delta)
 	else:
 		game_touch._update_touch_state()
 	# The flow test (or a button) may have started leaving mid-frame
@@ -1066,7 +1191,62 @@ func _process(delta: float) -> void:
 	game_spawn._retry_spawn_if_needed(delta)
 	game_match._update_match_timer(delta)
 	arena_builder._update_lava(delta)
+	_update_fire_traps(delta) # QA-145 (v4.1): Volcanic fire traps (no-op off Volcanic)
 	_update_skyfall(delta) # QA-112 (v3.9): CTF + mechanics, no-op off Skyfall
+	_update_mmc_camera_offset(delta) # QA-145 ITEM 2: MMC camera view offset, no-op in the menu / while dead
+
+
+# QA-145 ITEM 2: one MMC getViewOffsetV4 step for the equipped
+# weapon. Returns the smoothed value in [-1, 1]. Under the
+# speed-base reading this saturates to +1 (rifle/smg/shotgun/
+# sniper/pistol) or -1 (rocket) on the first call — see the block
+# above _process for the arithmetic.
+func _mmc_view_offset_step(weapon_id: int) -> float:
+	var vo: float = float(MMC_VIEW_OFFSET.get(weapon_id, 0.45))
+	var sb: float = float(MMC_SPEED_BASE.get(weapon_id, 1300))
+	var t: int = int(214.3 * vo * (2.0 - sb))
+	_mmc_view_s = clampf(_mmc_view_s - float(t), -1.0, 1.0)
+	return _mmc_view_s
+
+
+# QA-145 ITEM 2: compute this frame's camera view offset from the
+# local player's weapon and aim, and queue the deferred apply.
+# No-ops in the menu (no local player) and while dead (the spectator
+# camera is current then). Never touches _cam_look or the smoothing
+# speed, so the P19 camera test is unaffected.
+func _update_mmc_camera_offset(delta: float) -> void:
+	var lp = _get_local_player()
+	if lp == null or lp._camera == null or not lp.alive:
+		_mmc_view_want = Vector2.ZERO
+		_mmc_view_px = 0.0
+		return
+	var s: float = _mmc_view_offset_step(lp.weapon)
+	var dir: Vector2
+	if lp._aiming:
+		dir = Vector2(cos(lp.aim_angle), sin(lp.aim_angle))
+	else:
+		dir = Vector2(float(lp.facing), 0.0)
+	_mmc_view_px = move_toward(_mmc_view_px, s * MMC_VIEW_OFFSET_PX, delta * MMC_VIEW_EASE_RATE)
+	_mmc_view_want = dir * _mmc_view_px
+	call_deferred("_apply_mmc_camera_offset")
+
+
+# QA-145 ITEM 2: deferred half of the camera offset (see the block
+# above _process). Runs at end of frame, after
+# player_visuals._update_visuals has assigned camera.offset
+# (shake-or-zero): adds exactly the wanted offset on top, so shake
+# survives and the offset is exact.
+func _apply_mmc_camera_offset() -> void:
+	var frame: int = Engine.get_process_frames()
+	if frame == _mmc_applied_frame:
+		return # already applied this frame (double queue)
+	_mmc_applied_frame = frame
+	var lp = _get_local_player()
+	if lp == null or lp._camera == null or not is_instance_valid(lp._camera):
+		return
+	if not lp.alive:
+		return
+	lp._camera.offset += _mmc_view_want
 
 
 # ---------------------------------------------------------------------------

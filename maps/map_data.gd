@@ -10,7 +10,7 @@ extends RefCounted
 
 const MAPS := [
 # QA-095 (v3.7): 5 maps only, in this order — Ironfall,
-# Jungle Ruins, Neon City, Volcanic Cavern, Pirate Island.
+# Outpost, Neon City, Volcanic Cavern, Pirate Island.
 # The other 8 maps are deleted (map data, tiles, thumbs,
 # backgrounds, lobby entries — nothing references them).
 	{
@@ -100,45 +100,139 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1100, 1146), Vector2(600, 976), Vector2(700, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2550, 636)],
 		"pickups": [Vector2(750, 1150), Vector2(2700, 1150), Vector2(1500, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
-		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["if_sandbags", 650, 1180], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1180], ["crate", 1500, 1010], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1180], ["if_tower", 500, 670], ["if_gantry", 900, 1180], ["if_rockledge", 600, 1010], ["if_bridge", 2708, 840], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 1600, 1352], ["if_water", 1600, 1352], ["if_bunker", 1500, 330], ["if_comms", 1680, 330], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_palm", 2800, 1010], ["if_cave", 450, 1352]],
+		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["if_sandbags", 650, 1180], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1180], ["crate", 1500, 1010], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1180], ["if_tower", 500, 670], ["if_gantry", 900, 1180], ["if_rockledge", 600, 1010], 		# QA-145 (v4.1, Worker W): the 125 px if_bridge sprite
+		# (2646-2770) floated in the 246 px gap between the
+		# (2277,840) shelf and the (2831,840) perch — 61 px short
+		# of both ends, 0% supported (screenshot-verified). It
+		# cannot span that gap, so it now rests on the left
+		# 840 shelf (2368-2493, fully on 2277-2585), next to
+		# the gap it was meant to mark.
+		["if_bridge", 2430, 840], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 1600, 1352], ["if_water", 1600, 1352], ["if_bunker", 1500, 330], ["if_comms", 1680, 330], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_palm", 2800, 1010], ["if_cave", 450, 1352]],
 	},
 	{
-		"name": "Jungle Ruins", "size": Vector2(3200, 1400), "tile": 1,
-		"sky_top": Color(0.35, 0.65, 0.85), "sky_bottom": Color(0.80, 0.92, 0.75),
-		"hill": Color(0.20, 0.40, 0.20), "sun": Color(1.00, 0.95, 0.60), "fx": "leaves",
+		# QA-145 (v4.1) — OUTPOST, rebuilt from the real Mini
+		# Militia Outpost map (1outpost_new.tmx, unpacked from
+		# the classic APK: assets/hd/1outpost_new.tmx, 52x18
+		# tiles of 128 px = 6656x2304) — the SAME source QA-143
+		# used for Ironfall (map 0), so the game now has TWO
+		# Outpost-derived maps; Ironfall is NOT changed by this
+		# entry. Same scaling as Ironfall (x * 3200/6656, y
+		# mapped floor 1536 -> 1352 and top platform 256 ->
+		# 330, snapped to the same 170 px tiers), same size
+		# class (3200x1400), same tile (0, iron plate), same
+		# dusk sky + bg 0 + "dust" fx as Ironfall — the two
+		# maps share the source, so they share the look.
+		# Differences from Ironfall, all deliberate:
+		# (1) THE CENTRAL FLOOR CHASM IS CUT (QA-143 omitted
+		# it): the floor is two slabs (0-1538 / 1600-3200),
+		# chasm x1538-1600 (62 px = the TMX's 1-tile surface
+		# gap, x3200-3328, scaled) — falling in respawns the
+		# player (player_movement.gd: y > map_size.y + 200),
+		# the same rule as Neon City's central gap, so it is
+		# a hazard, not a death hole. The waterfall pool that
+		# sat at bottom centre x1600 on Ironfall is GONE (it
+		# would sit in the chasm).
+		# (2) NO central peak fortress: Outpost's highest
+		# platform is the upper-left perch (308-615 @ 330);
+		# the 1400-1800 @ 330 peak + bunker/comms/flag stay
+		# Ironfall-only. The perch instead carries a
+		# watchtower (Outpost Zone A, Northern Watchtower).
+		# (3) The 1180 tier's merged centre run stays WHOLE
+		# (1538-2400, 862 px — the literal TMX union of rows
+		# 10+11); Ironfall split it into 1538-1908 /
+		# 2092-2400 to keep a passage, so the mid climb
+		# routes differ between the two maps.
+		# Per tier (same row->tier mapping as QA-143: 330 =
+		# row 2; 500 = rows 3+4; 670 = rows 5+6; 840 = row 7;
+		# 1010 = rows 8+9; 1180 = rows 10+11; the 61 px nub
+		# is joined to the left shelf, 492-800, as in
+		# Ironfall): 330: 1 run; 500: 5; 670: 7 incl. long
+		# left shelf (185-677); 840: 4 incl. long left shelf
+		# (185-800); 1010: 6; 1180: 4. 29 platforms total.
+		# Spawns stay 6 left / 6 right, one per tier — the
+		# same 12 spots as Ironfall (every one re-checked
+		# against the new platform tops; all anchor). Pickups
+		# 6: #0 (750,1150) and #1 (2700,1150) on the y1180
+		# shelves as Ironfall; #2 moved off the chasm lip
+		# (1500,1320) -> (1200,1320) on the left floor;
+		# #3-#5 as Ironfall (1600,810 / 400,640 / 2250,470).
+		# Decor is Ironfall's if_* set re-anchored (the j*
+		# jungle decor is gone with Jungle Ruins); the 670
+		# metal bridge spans its 123 px gap (2770 @ 670).
+		# QA-145 (v4.1, Worker W): the 1180 metal bridge
+		# (1415) and the 840 wooden bridge (2708) did NOT
+		# span their 246 px gaps — both floated, 0%
+		# supported — so they now rest on platforms
+		# (1750 @ 1180 on the centre run, 2430 @ 840 on
+		# the left shelf), as on Ironfall. All 29
+		# platforms reachable from spawn#0 (validator:
+		# <=320 up, <=340 across, <=420 down); every tier
+		# step up has a zero-gap route.
+		"name": "Outpost", "size": Vector2(3200, 1400), "tile": 0,
+		"bg": 0,
+		"sky_top": Color(0.13, 0.16, 0.28), "sky_bottom": Color(0.45, 0.30, 0.22),
+		"hill": Color(0.10, 0.12, 0.20), "sun": Color(1.00, 0.95, 0.80), "fx": "dust",
 		"platforms": [
-			Rect2(0, 1352, 3200, 48),
-			Rect2(150, 1180, 300, 48),
-			Rect2(700, 1180, 400, 48),
-			Rect2(450, 1180, 250, 48),
-			Rect2(1100, 1180, 600, 48),
-			Rect2(1700, 1180, 300, 48),
-			Rect2(2000, 1180, 350, 48),
-			Rect2(2350, 1180, 250, 48),
-			Rect2(2600, 1180, 300, 48),
-			Rect2(450, 1010, 600, 48),
-			Rect2(800, 840, 280, 48),
-			Rect2(1050, 1010, 700, 48),
-			Rect2(1150, 840, 260, 48),
-			Rect2(1500, 840, 260, 48),
-			Rect2(1350, 670, 200, 48),
-			Rect2(1750, 1010, 250, 48),
-			Rect2(2000, 1010, 400, 48),
-			Rect2(2400, 1010, 350, 48),
-			Rect2(2150, 840, 300, 48),
-			Rect2(2750, 1010, 260, 48),
-			Rect2(2500, 670, 260, 48),
-			Rect2(2900, 840, 276, 48),
-			Rect2(300, 670, 260, 48),
-			Rect2(2100, 500, 300, 48),
+			# Floor, split by the central chasm (x1538-1600).
+			Rect2(0, 1352, 1538, 48),
+			Rect2(1600, 1352, 1600, 48),
+			# y330 — Outpost row 2 (upper-left high perch).
+			Rect2(308, 330, 307, 48),
+			# y500 — Outpost rows 3+4.
+			Rect2(308, 500, 307, 48),
+			Rect2(862, 500, 123, 48),
+			Rect2(1108, 500, 246, 48),
+			Rect2(2031, 500, 246, 48),
+			Rect2(2585, 500, 184, 48),
+			# y670 — Outpost rows 5+6 (long left shelf 185-677).
+			Rect2(185, 670, 492, 48),
+			Rect2(862, 670, 123, 48),
+			Rect2(1108, 670, 246, 48),
+			Rect2(1662, 670, 246, 48),
+			Rect2(2092, 670, 123, 48),
+			Rect2(2462, 670, 246, 48),
+			Rect2(2831, 670, 123, 48),
+			# y840 — Outpost row 7 (long left shelf 185-800).
+			Rect2(185, 840, 615, 48),
+			Rect2(1477, 840, 431, 48),
+			Rect2(2277, 840, 308, 48),
+			Rect2(2831, 840, 123, 48),
+			# y1010 — Outpost rows 8+9.
+			Rect2(246, 1010, 554, 48),
+			Rect2(985, 1010, 307, 48),
+			Rect2(1477, 1010, 369, 48),
+			Rect2(2154, 1010, 308, 48),
+			Rect2(2708, 1010, 123, 48),
+			Rect2(2892, 1010, 123, 48),
+			# y1180 — Outpost rows 10+11; the merged centre run
+			# stays whole (1538-2400) — see the header comment.
+			Rect2(492, 1180, 308, 48),
+			Rect2(862, 1180, 430, 48),
+			Rect2(1538, 1180, 862, 48),
+			Rect2(2585, 1180, 492, 48),
 		],
-		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1300, 1146), Vector2(1200, 976), Vector2(950, 806), Vector2(450, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2200, 976), Vector2(2300, 806), Vector2(2600, 636)],
-		"pickups": [Vector2(300, 1150), Vector2(2700, 1150), Vector2(1400, 1150), Vector2(1600, 810), Vector2(2300, 810), Vector2(2600, 640)],
-		"decor": [["jtree", 130, 1352], ["jpalm", 3000, 1352], ["jstatue", 1400, 1010], ["jpillar", 1100, 1010], ["jpillar", 1700, 1010], ["jtower", 2400, 840], ["jbridge", 1875, 1010], ["jarch", 2100, 1010], ["jtree", 2300, 840], ["jbush", 600, 1352], ["jcrate", 720, 1352], ["jpillar", 1320, 1352], ["jcrate", 1620, 1352], ["jcrate", 1860, 1352], ["jpillar", 2520, 1352], ["jcrate", 3040, 1352], ["jcrate", 210, 1352], ["jcrate", 1260, 1352], ["jpillar", 950, 1352], ["jcrate", 1500, 1180], ["jcrate", 1040, 840], ["jcrate", 360, 670], ["jcrate", 2030, 1352], ["jcrate", 2990, 1352], ["jcrate", 2290, 1180], ["jcrate", 2290, 1010], ["jcrate", 2690, 670], ["barrels", 1100, 1352]],
+		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1100, 1146), Vector2(600, 976), Vector2(700, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2550, 636)],
+		"pickups": [Vector2(750, 1150), Vector2(2700, 1150), Vector2(1200, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
+		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_cave", 3050, 1352], ["if_sandbags", 650, 1180], 		# QA-145 (v4.1, Worker W): the 179 px if_bridge_metal
+		# sprite (1326-1504) floated in the 246 px gap between
+		# the (862,1180) shelf and the (1538,1180) centre run —
+		# 34 px short of both ends, 0% supported
+		# (screenshot-verified). It cannot span that gap, so
+		# it now rests on the centre run (1661-1839, fully on
+		# 1538-2400), next to the gap. The (2708,840) wooden
+		# bridge had the same fault (61 px short both ends)
+		# and moves onto the left 840 shelf, as on Ironfall.
+		["if_bridge_metal", 1750, 1180], ["if_plank", 2150, 1180], ["if_gantry", 900, 1180], ["crate", 1500, 1010], ["barrels", 2400, 1010], ["if_rockledge", 600, 1010], ["if_palm", 2800, 1010], ["if_bridge", 2430, 840], ["if_tower", 500, 670], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_tower", 450, 330]],
 	},
 	{
 		"name": "Neon City", "size": Vector2(3400, 1800), "tile": 2,
-		"bg": 2,
+		# QA-145 (v4.1, Worker U): "bg" REMOVED — bg_neon.png has
+		# baked-in platform pills + a sign that read as REAL
+		# platforms in play (players try to land on them and fall
+		# through). The map now keeps the full procedural gradient
+		# (dark purple dusk) like Pirate Island — calm, no fake
+		# shapes. BG_TEX[2] stays preloaded (indices must not
+		# shift); the lobby map card still uses bg_neon.png.
 		"sky_top": Color(0.05, 0.04, 0.16), "sky_bottom": Color(0.16, 0.10, 0.32),
 		"hill": Color(0.08, 0.06, 0.20), "sun": Color(1.00, 0.45, 0.75), "fx": "rain",
 		"platforms": [
@@ -158,6 +252,15 @@ const MAPS := [
 			Rect2(2050, 950, 300, 48),
 			Rect2(400, 800, 380, 48),
 			Rect2(2620, 800, 380, 48),
+			# QA-145 (v4.1, Worker S): centre mid step — the centre
+			# bowl (pit bridge 1500-1900 @1580, 1300-2100 @1400) had
+			# no direct way up: 1400 -> 950 is 450 px, reachable only
+			# via a side tower or half a jetpack tank. This 600-wide
+			# step makes it a real third route: 1400 -> 1120 (280 up)
+			# -> 950 (170 up), and it links both side mids (850 @1280
+			# and 2180 @1250, 230/180 px across). No spawn or pickup
+			# sits on it.
+			Rect2(1400, 1120, 600, 48),
 		],
 		"spawns": [Vector2(300, 1718), Vector2(900, 1718), Vector2(350, 1546), Vector2(1000, 1246), Vector2(500, 1066), Vector2(580, 766), Vector2(2550, 1718), Vector2(3100, 1718), Vector2(3000, 1546), Vector2(2330, 1216), Vector2(2900, 1066), Vector2(2800, 766)],
 		"pickups": [Vector2(600, 1722), Vector2(2800, 1722), Vector2(500, 1550), Vector2(1700, 1370), Vector2(3000, 1550), Vector2(1700, 1550)],
@@ -165,10 +268,35 @@ const MAPS := [
 	},
 	{
 		"name": "Volcanic Cavern", "size": Vector2(3000, 1500), "tile": 3,
-		"bg": 1,
+		# QA-145 (v4.1, Worker U): "bg" REMOVED — same reason as
+		# Neon City: bg_volcanic.png's baked-in orange pills +
+		# orange mountains read as real platforms and made the
+		# backdrop busy on top of the lava, embers and fire traps.
+		# Full procedural gradient now (dark red dusk), like
+		# Pirate Island. BG_TEX[1] stays preloaded (indices must
+		# not shift); the lobby map card still uses bg_volcanic.png.
 		"sky_top": Color(0.12, 0.05, 0.05), "sky_bottom": Color(0.30, 0.10, 0.08),
 		"hill": Color(0.15, 0.06, 0.06), "sun": Color(1.00, 0.55, 0.20), "fx": "embers",
 		"lava": [Rect2(1000, 1400, 250, 100), Rect2(1750, 1400, 250, 100)],
+		# QA-145 (v4.1): fire traps — QA-126 numbers (10 HP / 1 s tick,
+		# ONLY while HOT, 2 s on / 2 s off per 4 s cycle, host-only,
+		# telegraphed, shield blocks). Every rect sits on a platform
+		# (bottom = platform top) with walk-around room; no spawn or
+		# pickup sits inside any rect. Kinds: fire_jet (ping-pong
+		# flame_jet frames), fire_ring (forward fire_ring loop),
+		# fire_tornado (forward fire_tornado loop, side platform —
+		# jetpack past it). Worker S: the tornado was 160 wide on the
+		# 240-wide (100,1110) ledge (50 px room left, 30 right) —
+		# narrowed to 120 (60 px each side, still > the 40 px player
+		# box). The summit jet taxes the (1200,600) summit: 240 px
+		# safe room on the right, pickup (1400,570) 80 px clear.
+		"fire_traps": [
+			{"rect": Rect2(900, 1196, 140, 84), "kind": "fire_jet"},
+			{"rect": Rect2(1950, 1196, 140, 84), "kind": "fire_jet"},
+			{"rect": Rect2(1290, 1026, 220, 84), "kind": "fire_ring"},
+			{"rect": Rect2(160, 1026, 120, 84), "kind": "fire_tornado"},
+			{"rect": Rect2(1200, 516, 120, 84), "kind": "fire_jet"},
+		],
 		"platforms": [
 			Rect2(0, 1452, 1000, 48),
 			Rect2(1250, 1452, 500, 48),
@@ -217,6 +345,13 @@ const MAPS := [
 			Rect2(2000, 1110, 650, 48),
 			Rect2(2400, 940, 300, 48),
 			Rect2(2550, 770, 240, 48),
+			# QA-145 (v4.1, Worker S): right summit — the left side
+			# had the map's only summit (1050-1310 @600, with the
+			# (1150,570) pickup) while the right topped out at 770,
+			# so the left spawn owned the high ground. This mirrors
+			# it (2400-2660 @600, 170 up from 2550 @770); no pickup
+			# added, the perch itself is the balance fix.
+			Rect2(2400, 600, 260, 48),
 		],
 		"spawns": [Vector2(300, 1418), Vector2(250, 1246), Vector2(500, 1076), Vector2(750, 906), Vector2(1150, 566), Vector2(1450, 1076), Vector2(2700, 1418), Vector2(2200, 1246), Vector2(2200, 1076), Vector2(2550, 906), Vector2(2650, 736), Vector2(1900, 1418)],
 		"pickups": [Vector2(600, 1422), Vector2(2910, 1422), Vector2(2420, 1250), Vector2(1500, 1080), Vector2(2550, 910), Vector2(1150, 570)],
@@ -365,7 +500,15 @@ const MAPS := [
 		# QA-135 (v3.13): a SECOND L3 wind zone (upper bridge,
 		# y 5400-6000, pushes left) so L3 is the wind-gust level —
 		# different trap mix per level (see BUGS.md).
-		"wind": [{"rect": Rect2(1400, 4000, 800, 1400), "dir": Vector2(-1, 0), "strength": 150.0}, {"rect": Rect2(600, 6000, 2400, 800), "dir": Vector2(1, 0), "strength": 120.0}, {"rect": Rect2(900, 9500, 1800, 400), "dir": Vector2(-1, 0), "strength": 100.0}, {"rect": Rect2(1400, 5400, 800, 600), "dir": Vector2(-1, 0), "strength": 150.0}],
+		# QA-145 (v4.1, Worker S): the L4 zone SHRUNK 4000-5400 ->
+		# 4400-5000 — it used to cover 5 of L4's 6 rows and stacked
+		# on every other L4 trap (pendulum row 4184, collapse rows
+		# 5304/3904): dodging the ball while pushed left at 150 with
+		# a weakened jetpack was unfair. Now a mid-L4 gust band over
+		# 4464 + 4744 only (the 4744 trapdoor stack stays: the wind
+		# pushes you across it faster, and crossing takes ~0.3 s
+		# against the 1.0 s open timer). Strength unchanged (150).
+		"wind": [{"rect": Rect2(1400, 4400, 800, 600), "dir": Vector2(-1, 0), "strength": 150.0}, {"rect": Rect2(600, 6000, 2400, 800), "dir": Vector2(1, 0), "strength": 120.0}, {"rect": Rect2(900, 9500, 1800, 400), "dir": Vector2(-1, 0), "strength": 100.0}, {"rect": Rect2(1400, 5400, 800, 600), "dir": Vector2(-1, 0), "strength": 150.0}],
 		# Falling rocks (L1 Broken Cliffs). QA-135 (v3.13): L1 is
 		# the falling-rocks level — heavier: interval 4 s -> 2.5 s,
 		# wider drop band (700-2900), up to 4 falling at once
@@ -395,6 +538,18 @@ const MAPS := [
 		# sweeps just above the platform below (25 HP on hit,
 		# QA-126 rules - dodgeable, telegraphed, no one-hit kill).
 		"pendulums": [{"pivot": Vector2(2400, 3930), "len": 220.0}, {"pivot": Vector2(1800, 7610), "len": 220.0}],
+		# QA-145 (v4.1, Worker T): proximity mines — the ambush trap.
+		# Mine 1 on the L3 side lane (900,5864 row, idx 34 — static,
+		# not collapsing, outside both L3 wind zones, 200 px from
+		# the Thunder power-up spot so grabbing it never trips the
+		# mine) and mine 2 on the big L2 tunnel row (400,8164, idx
+		# 25 — static, not a trapdoor). Trigger 70 px, 1.0 s
+		# blinking fuse, 25 HP in a 120 px blast (QA-126
+		# rock/pendulum numbers), 30 s re-arm (barricade standard).
+		# Both leave room to walk around them and the climb stays
+		# completable. Positions are the mine-disc centres, ~12 px
+		# above the platform top.
+		"mines": [{"pos": Vector2(1000, 5852)}, {"pos": Vector2(800, 8152)}],
 	},
 
 ]

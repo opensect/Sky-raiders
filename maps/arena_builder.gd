@@ -353,6 +353,140 @@ func _build_lava(map: Dictionary) -> void:
 		top.color = Color(1.0, 0.62, 0.12, 1.0)
 		top.z_index = -1
 		g.add_child(top)
+		# QA-145 (v4.1): ground_fire frames animated over the pool
+		# (cycled in _update_fire_traps). Visual only — damage stays
+		# the existing 20 HP/s lava rule in _update_lava, untouched.
+		var flame := Sprite2D.new()
+		flame.texture = GameAssets.FX_TEX_GROUND_FIRE[0]
+		var fscale := rect.size.x / 269.0
+		flame.scale = Vector2(fscale, fscale)
+		flame.position = Vector2(rect.get_center().x, 1452.0 - 134.0 * fscale * 0.5)
+		flame.modulate = Color(1, 1, 1, 0.95)
+		flame.z_index = 0
+		g.add_child(flame)
+		g._fire_trap_fx.append({"kind": "lava_pool", "rect": rect, "flame": flame, "base_scale": Vector2(fscale, fscale), "cycle": 0.0})
+
+
+func _build_fire_traps(map: Dictionary) -> void:
+	# QA-145 (v4.1): Volcanic Cavern fire traps (map_data
+	# "fire_traps"). QA-126 numbers — 10 HP per 1 s tick, ONLY
+	# while HOT (2 s on / 2 s off per 4 s cycle), host-only damage
+	# in _update_fire_traps. The flame IS the telegraph (visible =
+	# HOT, hidden = safe); a dark scorch mark stays on the platform
+	# so the trap spot still reads during the safe phase. Frames
+	# are bottom-aligned canvases, so the sprite is anchored by
+	# the rect bottom and never jumps as frames change.
+	var traps: Array = map.get("fire_traps", [])
+	for t in traps:
+		var rect: Rect2 = t["rect"]
+		var kind: String = str(t.get("kind", "fire_jet"))
+		var base := Polygon2D.new()
+		var bpts := PackedVector2Array()
+		for i in 16:
+			var a := TAU * float(i) / 16.0
+			bpts.append(Vector2(cos(a) * rect.size.x * 0.5, sin(a) * 10.0))
+		base.polygon = bpts
+		base.color = Color(0.08, 0.05, 0.04, 0.65)
+		base.position = Vector2(rect.get_center().x, rect.end.y - 4.0)
+		base.z_index = 0
+		g.add_child(base)
+		# Ember rim around the scorch so the trap spot still reads
+		# clearly during the safe phase (a flat dark ellipse alone
+		# vanishes against the dark volcanic tiles).
+		var rim := Line2D.new()
+		var rpts := PackedVector2Array()
+		for i in 17:
+			var a2 := TAU * float(i) / 16.0
+			rpts.append(Vector2(cos(a2) * rect.size.x * 0.5, sin(a2) * 10.0))
+		rim.points = rpts
+		rim.width = 3.0
+		rim.default_color = Color(1.0, 0.45, 0.1, 0.8)
+		rim.position = Vector2(rect.get_center().x, rect.end.y - 4.0)
+		rim.z_index = 0
+		g.add_child(rim)
+		var flame := Sprite2D.new()
+		var frames: Array[Texture2D] = GameAssets.FX_TEX_FLAME_JET
+		var fscale := Vector2(0.7, 0.7)
+		match kind:
+			"fire_ring":
+				frames = GameAssets.FX_TEX_FIRE_RING
+				var s := rect.size.x / 254.0
+				fscale = Vector2(s, s)
+			"fire_tornado":
+				frames = GameAssets.FX_TEX_FIRE_TORNADO
+				var s2 := rect.size.x / 231.0
+				fscale = Vector2(s2, s2)
+		flame.texture = frames[0]
+		flame.scale = fscale
+		flame.position = Vector2(rect.get_center().x, rect.end.y - float(flame.texture.get_height()) * fscale.y * 0.5)
+		flame.modulate = Color(1, 1, 1, 0.95)
+		flame.z_index = 1
+		g.add_child(flame)
+		g._fire_trap_fx.append({"kind": kind, "rect": rect, "flame": flame, "base_scale": fscale, "cycle": 4.0})
+
+
+func _update_fire_traps(delta: float) -> void:
+	# QA-145 (v4.1): animate the Volcanic fire-trap flames + lava
+	# pool flames (pure functions of _fire_trap_time, so every peer
+	# sees the same telegraph) and deal the host-only QA-126 damage
+	# (10 HP per 1 s tick, ONLY while HOT). Shield blocks it via
+	# take_damage; 10 HP/tick is never a one-hit kill.
+	if g._fire_trap_fx.is_empty():
+		return
+	if not g._countdown_active and not g.match_over:
+		g._fire_trap_time += delta
+	var t: float = g._fire_trap_time
+	for entry in g._fire_trap_fx:
+		var e: Dictionary = entry
+		var flame: Sprite2D = e["flame"]
+		if flame == null or not is_instance_valid(flame):
+			continue
+		var kind: String = str(e.get("kind", ""))
+		if kind == "lava_pool":
+			# Lava pools are always hot — the ground_fire frames
+			# loop continuously. No damage here (_update_lava
+			# owns the existing 20 HP/s lava rule).
+			var lfi := int(t * 8.0) % GameAssets.FX_TEX_GROUND_FIRE.size()
+			flame.texture = GameAssets.FX_TEX_GROUND_FIRE[lfi]
+			continue
+		var cycle := float(e.get("cycle", 4.0))
+		var hot = fmod(t, cycle) < cycle * 0.5
+		flame.visible = hot
+		if hot:
+			var fi := 0
+			match kind:
+				"fire_jet":
+					# Growth sequence — ping-pong so the snap
+					# back to the small frame never pops.
+					var step := int(t * 8.0) % 16
+					fi = step if step < 8 else 15 - step
+					flame.texture = GameAssets.FX_TEX_FLAME_JET[fi]
+				"fire_ring":
+					fi = int(t * 8.0) % GameAssets.FX_TEX_FIRE_RING.size()
+					flame.texture = GameAssets.FX_TEX_FIRE_RING[fi]
+				"fire_tornado":
+					fi = int(t * 8.0) % GameAssets.FX_TEX_FIRE_TORNADO.size()
+					flame.texture = GameAssets.FX_TEX_FIRE_TORNADO[fi]
+		if not hot:
+			continue
+		if not g.multiplayer.is_server() or g.match_over:
+			continue
+		var r: Rect2 = e["rect"]
+		for child in g.players_node.get_children():
+			if not child.alive:
+				continue
+			var box := Rect2(child.position - Vector2(20, 31), Vector2(40, 62))
+			if not box.intersects(r):
+				continue
+			var pid := int(child.get_multiplayer_authority())
+			var tick = float(g._fire_trap_tick.get(pid, 0.0)) - delta
+			g._fire_trap_tick[pid] = tick
+			if tick <= 0.0:
+				g._fire_trap_tick[pid] = 1.0
+				if child.get_multiplayer_authority() == g.multiplayer.get_unique_id():
+					child.take_damage(10, 0)
+				elif g.multiplayer.get_peers().has(child.get_multiplayer_authority()):
+					child.rpc_id(child.get_multiplayer_authority(), "take_damage", 10, 0)
 
 
 func _build_ambient_fx(map: Dictionary) -> void:

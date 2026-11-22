@@ -186,6 +186,7 @@ func _build_skyfall(map: Dictionary) -> void:
 	_build_skyfall_gate(map)
 	_build_skyfall_switch(map)
 	_build_skyfall_barricades(map)
+	_build_skyfall_mines(map)
 	_build_skyfall_platform_refs(map)
 	g._build_ctf_flags()
 
@@ -298,9 +299,17 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 func _build_skyfall_themes(map: Dictionary) -> void:
 	# [top image, bottom image, platform tint, light overlay, name]
 	var themes := [
-		[GameAssets.SF_TEX_LVL_2, GameAssets.SF_TEX_LVL_1, Color(0.95, 0.85, 0.70), Color(1.0, 0.90, 0.70, 0.06), "Twin Base Camp + Broken Cliffs"],
+		# QA-145 (v4.1, Worker U): L1 + L3 washes DEEPENED — the
+		# L1 level_1 sunset was a flat saturated orange field
+		# (red nameplates unreadable on it) and the L3 level_4
+		# sky was a washed-out pale blue (white HUD text unreadable,
+		# white cloud blobs glaring). Both washes are now dark and
+		# cool, so the images mute to a calm terracotta (L1) and a
+		# calm slate blue (L3); the themes stay distinct and the
+		# platform tints are untouched (drawn above the wash).
+		[GameAssets.SF_TEX_LVL_2, GameAssets.SF_TEX_LVL_1, Color(0.95, 0.85, 0.70), Color(0.12, 0.10, 0.18, 0.42), "Twin Base Camp + Broken Cliffs"],
 		[GameAssets.SF_TEX_LVL_3, GameAssets.SF_TEX_LVL_3, Color(0.55, 0.55, 0.65), Color(0.0, 0.0, 0.10, 0.30), "Underground Tunnels"],
-		[GameAssets.SF_TEX_LVL_4, GameAssets.SF_TEX_LVL_4, Color(1.0, 0.80, 0.55), Color(0.10, 0.10, 0.15, 0.08), "Hanging Bridge"],
+		[GameAssets.SF_TEX_LVL_4, GameAssets.SF_TEX_LVL_4, Color(1.0, 0.80, 0.55), Color(0.06, 0.09, 0.20, 0.38), "Hanging Bridge"],
 		[GameAssets.SF_TEX_LVL_5, GameAssets.SF_TEX_LVL_5, Color(0.70, 0.85, 0.70), Color(0.05, 0.10, 0.20, 0.10), "Sniper Territory"],
 		[GameAssets.SF_TEX_LVL_6, GameAssets.SF_TEX_LVL_6, Color(0.75, 0.80, 0.90), Color(1.0, 0.60, 0.30, 0.07), "Mechanical Ascent"],
 		[GameAssets.SF_TEX_LVL_8, GameAssets.SF_TEX_LVL_7, Color(0.90, 0.95, 1.0), Color(0.10, 0.15, 0.35, 0.16), "The Last Stand + Flag Summit"],
@@ -487,19 +496,22 @@ func _build_skyfall_hazards(map: Dictionary) -> void:
 		var kind: String = str(hz.get("kind", "lava"))
 		var flame := Sprite2D.new()
 		if kind == "fire":
-			# QA-137: the fire jet is the user's fire-vent art
-			# (trap sheet row 4) - the texture cycles through the
-			# 8 frames in _sf_update_hazards while HOT. The frame
-			# is anchored by its grate at the rect bottom (the
-			# flame rises from the vent), so the position is set
-			# from the frame height there, not here.
-			flame.texture = GameAssets.TRAP_TEX_FIRE_VENT[1]
-			flame.scale = Vector2(r.size.x / 220.0, 1.0)
-			flame.position = Vector2(r.get_center().x, r.end.y - 79.0)
+			# QA-145 (v4.1): the fire jet is now the user's flame_jet
+			# art (152x305 canvas, growth sequence — ping-ponged in
+			# _sf_update_hazards). At rect width 200 the raw scale
+			# would be 1.32 wide / ~400 tall, so it runs at 0.75
+			# (150 wide, ~229 tall). Anchored by the rect bottom.
+			flame.texture = GameAssets.FX_TEX_FLAME_JET[1]
+			flame.scale = Vector2(r.size.x / 152.0 * 0.75, 0.75)
+			flame.position = Vector2(r.get_center().x, r.end.y - 305.0 * 0.75 * 0.5)
 		else:
-			flame.texture = GameAssets.FX_TEX_LAVA
-			flame.position = r.get_center()
-			flame.scale = Vector2(r.size.x / 512.0, 0.6)
+			# QA-145 (v4.1): lava pools use the ground_fire frames
+			# (269x134 canvas, forward loop in _sf_update_hazards
+			# while HOT). Anchored by the rect bottom, not centred.
+			flame.texture = GameAssets.FX_TEX_GROUND_FIRE[0]
+			var ls := r.size.x / 269.0
+			flame.scale = Vector2(ls, ls)
+			flame.position = Vector2(r.get_center().x, r.end.y - 134.0 * ls * 0.5)
 		flame.modulate = Color(1, 1, 1, 0.85)
 		flame.z_index = 1
 		g.add_child(flame)
@@ -512,7 +524,7 @@ func _build_skyfall_hazards(map: Dictionary) -> void:
 			magma.modulate = Color(1, 1, 1, 0.0)
 			magma.z_index = 1
 			g.add_child(magma)
-		g._sf_hazard_fx.append({"kind": kind, "rect": r, "flame": flame, "magma": magma, "cycle": float(hz.get("cycle", 4.0))})
+		g._sf_hazard_fx.append({"kind": kind, "rect": r, "flame": flame, "magma": magma, "cycle": float(hz.get("cycle", 4.0)), "base_scale": flame.scale})
 
 
 func _build_skyfall_pendulums(map: Dictionary) -> void:
@@ -688,6 +700,39 @@ func _build_skyfall_barricades(map: Dictionary) -> void:
 			shape.position = pos + Vector2(0, -90)
 			arena.add_child(shape)
 		g._sf_barricades.append({"rect": Rect2(pos + Vector2(-74, -180), Vector2(148, 180)), "sprite": spr, "shape": shape, "hp": 100.0, "alive": true, "timer": 0.0})
+
+
+func _build_skyfall_mines(map: Dictionary) -> void:
+	# QA-145 (v4.1, Worker T): proximity mines (see map_data).
+	# Code-drawn, no new art: a dark disc (14 px) with a red dot
+	# (5 px) that blinks at 2 Hz while armed and 8 Hz during the
+	# fuse — the blink is a pure function of the match clock in
+	# _sf_update_mines, so every peer agrees. Mines are NOT solid
+	# (no Arena shape — players walk over them, which is the point).
+	for cfg in map.get("mines", []):
+		var pos: Vector2 = cfg.get("pos", Vector2.ZERO)
+		var node := Node2D.new()
+		node.name = "Mine_%d_%d" % [int(pos.x), int(pos.y)]
+		node.position = pos
+		node.z_index = 2
+		g.add_child(node)
+		var disc := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for i in 16:
+			var a := TAU * float(i) / 16.0
+			pts.append(Vector2(cos(a), sin(a)) * 14.0)
+		disc.polygon = pts
+		disc.color = Color(0.12, 0.12, 0.14)
+		node.add_child(disc)
+		var dot := Polygon2D.new()
+		var dpts := PackedVector2Array()
+		for i in 8:
+			var a := TAU * float(i) / 8.0
+			dpts.append(Vector2(cos(a), sin(a)) * 5.0)
+		dot.polygon = dpts
+		dot.color = Color(1.0, 0.15, 0.1)
+		node.add_child(dot)
+		g._sf_mines.append({"pos": pos, "node": node, "dot": dot, "state": "armed", "timer": 0.0})
 
 
 func _build_skyfall_platform_refs(map: Dictionary) -> void:

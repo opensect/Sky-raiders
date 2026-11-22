@@ -73,7 +73,7 @@ const PLAYER_COLORS: Array[Color] = [
 
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
 const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"] # QA-090 (v3.7): +3 headgear, indices 1-3 unchanged
-const MAP_NAMES: Array[String] = ["Ironfall", "Jungle Ruins", "Neon City", "Volcanic Cavern", "Pirate Island", "Skyfall"] # QA-095 (v3.7): 5 maps; QA-112 (v3.9): Skyfall added as a 6th map (vertical, 3600x10800)
+const MAP_NAMES: Array[String] = ["Ironfall", "Outpost", "Neon City", "Volcanic Cavern", "Pirate Island", "Skyfall"] # QA-095 (v3.7): 5 maps; QA-112 (v3.9): Skyfall added as a 6th map (vertical, 3600x10800); QA-145 (v4.1): map 1 Jungle Ruins replaced by Outpost (same Outpost TMX source as Ironfall)
 # v3.5 QA-059: one info line per map for the lobby map cards -
 # real size (from game.gd MAPS) + platform count. Kept here (not
 # in game.gd) because the menu scene builds the cards and game.gd

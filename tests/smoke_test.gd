@@ -37,6 +37,18 @@ var _glitch_steps: Array = []
 var _map_shots: bool = false # v3.8 QA-111: --map-shot captures the Ironfall map in 4 views (left, centre peak, centre floor/waterfall, right) to user://shot_map_*.png
 var _land_shots: bool = false # v3.8 QA-110: --land-shot drops the player from high and captures the landing frame + 0.15 s later to user://shot_land_*.png
 var _skyfall_shots: bool = false # QA-112 (v3.9): --skyfall-shots captures the 6 Skyfall levels to user://shot_sf_*.png
+var _qa145_shots: bool = false # QA-145: --qa145-shots captures the reload magazine drop (rifle + sniper) + the MMC camera offset while aiming to user://shot_qa145_*.png
+var _qa145_timer: float = 0.0
+var _qa145_rifle_done: bool = false
+var _qa145_reload_at: float = -1.0
+var _qa145_rifle_frozen: bool = false
+var _qa145_sniper_clear_done: bool = false
+var _qa145_sniper_done: bool = false
+var _qa145_sniper_at: float = -1.0
+var _qa145_sniper_frozen: bool = false
+var _qa145_cam_done: bool = false
+var _qa145_cam_at: float = -1.0
+var _qa145_cam_shot_done: bool = false
 
 
 func _init(owner) -> void:
@@ -358,6 +370,127 @@ func _update_v38shots(delta: float) -> void:
 		9:
 			print("V38SHOTS DONE")
 			g.get_tree().quit()
+
+
+# QA-145 SCREENSHOT MODE (--qa145-shots): staged captures of the
+# reload magazine drop (rifle, then sniper) and the MMC camera view
+# offset while aiming. Runs as auto-host; the countdown is skipped.
+# Threshold-gated (not exact stages) so a slow xvfb frame cannot
+# skip a step. Timeline: 1.0 rifle reload, aim held right by direct
+# aim_angle (no stick — the stick would fire); at mag age ~0.15 s the
+# tree is PAUSED, freezing the mag ~20 px below the gun, and the
+# capture is taken of the frozen frame (the capture awaits 2 frames,
+# and at 2400x1080 under llvmpipe that await alone is ~0.4 s — an
+# unpaused grab landed at mag age ~0.55 s, ~150 px down at the screen
+# edge). A 0.8 s timer (runs while paused) unpauses so the driver
+# continues. All stages stand on the y1010 tier at (1100, 976) — the
+# mag falls into open air, not onto the floor edge where it was
+# camouflaged. 3.0 clear the rifle reload, 3.3 sniper reload (the
+# clear and the restart MUST be separate frames — same-frame
+# clear+start masks the reloading transition the hook reads, and no
+# mag spawns), freeze + capture the same way; 5.0 rifle, aim stick
+# up-right (firing) so the camera offset eases in; ~5.6 capture;
+# 6.5 quit.
+func _update_qa145shots(delta: float) -> void:
+	_qa145_timer += delta
+	var lp = g._get_local_player()
+	if lp == null:
+		return
+	if _qa145_timer >= 1.0 and not _qa145_rifle_done:
+		_qa145_rifle_done = true
+		lp.weapon = 0
+		lp.mag_ammo = 5
+		lp._update_gun_texture()
+		lp.position = Vector2(1100, 976)
+		lp.sync_position = lp.position
+		lp.velocity = Vector2.ZERO
+		lp.aim_angle = 0.0
+		lp.facing = 1
+		lp.start_reload()
+		_qa145_reload_at = _qa145_timer
+		print("QA145SHOTS: rifle reload started reloading=", lp.reloading, " mags=", _qa145_count_mags())
+	if _qa145_reload_at > 0.0 and not _qa145_rifle_frozen and _qa145_timer - _qa145_reload_at >= 0.15:
+		_qa145_rifle_frozen = true
+		_qa145_freeze_and_capture("user://shot_qa145_mag_rifle.png")
+	if _qa145_timer >= 3.0 and not _qa145_sniper_clear_done:
+		_qa145_sniper_clear_done = true
+		lp.reloading = false
+		lp._reload_timer = 0.0
+		lp._reload_transfer = 0
+	if _qa145_timer >= 3.3 and not _qa145_sniper_done:
+		_qa145_sniper_done = true
+		lp.weapon = 3
+		lp.mag_ammo = 2
+		lp._update_gun_texture()
+		lp.position = Vector2(1100, 976)
+		lp.sync_position = lp.position
+		lp.velocity = Vector2.ZERO
+		lp.aim_angle = 0.0
+		lp.facing = 1
+		lp.start_reload()
+		_qa145_sniper_at = _qa145_timer
+		print("QA145SHOTS: sniper reload started reloading=", lp.reloading, " mags=", _qa145_count_mags())
+	if _qa145_sniper_at > 0.0 and not _qa145_sniper_frozen and _qa145_timer - _qa145_sniper_at >= 0.15:
+		_qa145_sniper_frozen = true
+		_qa145_freeze_and_capture("user://shot_qa145_mag_sniper.png")
+	if _qa145_timer >= 5.0 and not _qa145_cam_done:
+		_qa145_cam_done = true
+		lp.reloading = false
+		lp._reload_timer = 0.0
+		lp._reload_transfer = 0
+		lp.weapon = 0
+		lp.mag_ammo = int(lp.WEAPONS[0]["mag"])
+		lp._update_gun_texture()
+		lp.position = Vector2(1100, 976)
+		lp.sync_position = lp.position
+		lp.velocity = Vector2.ZERO
+		_smoke_set_aim(Vector2(42, -42))
+		_smoke_set_fire(true)
+		_qa145_cam_at = _qa145_timer
+	if _qa145_cam_at > 0.0 and not _qa145_cam_shot_done and _qa145_timer - _qa145_cam_at >= 0.6:
+		_qa145_cam_shot_done = true
+		print("QA145SHOTS: camera capture mmc_s=", g._mmc_view_s, " mmc_px=", g._mmc_view_px, " cam_offset=", lp._camera.offset if lp._camera != null else Vector2.ZERO, " aiming=", lp._aiming, " aim_angle=", lp.aim_angle)
+		_capture_shot("user://shot_qa145_camera_aim.png")
+	if _qa145_timer >= 6.5:
+		print("QA145SHOTS DONE")
+		g.get_tree().quit()
+
+
+func _qa145_count_mags() -> int:
+	var n := 0
+	for c in g.get_children():
+		if c is MagazineDrop:
+			n += 1
+	return n
+
+
+# QA-145: freeze the falling magazine for a screenshot — pause the
+# tree (the mag's _process stops, so it hangs mid-fall ~20 px below
+# the gun), capture the frozen frame, and unpause on a timer. The
+# timer runs while paused (process_always), so the driver resumes
+# even if the capture itself stalls. The capture's 2-frame await
+# still fires while paused (process_frame is emitted every
+# iteration); the viewport keeps rendering the frozen frame.
+func _qa145_freeze_and_capture(path: String) -> void:
+	print("QA145SHOTS: freeze mags=", _qa145_count_mags(), " -> ", path)
+	# Ground truth for the eye-check: the mag's exact screen pixel
+	# at freeze time (screen centre already includes the camera
+	# offset), so the bar in the screenshot can be matched by number.
+	var lp = g._get_local_player()
+	if lp != null and lp._camera != null:
+		var center: Vector2 = lp._camera.get_screen_center_position()
+		var vp: Vector2 = g.get_viewport().get_visible_rect().size
+		for c in g.get_children():
+			if c is MagazineDrop:
+				var sp: Vector2 = c.global_position - center + vp * 0.5
+				print("QA145SHOTS: mag screen pos=", sp, " world=", c.global_position, " age=", c._age)
+	g.get_tree().paused = true
+	_capture_shot(path)
+	g.get_tree().create_timer(0.8).timeout.connect(_qa145_unpause)
+
+
+func _qa145_unpause() -> void:
+	g.get_tree().paused = false
 
 
 # v3.8 QA-108 GLITCH-SCREENSHOT MODE (--glitch-shots): staged

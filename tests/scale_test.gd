@@ -73,7 +73,7 @@ func _ct_c_bullet_blocks_target() -> Array:
 func _ct_c_bullet_passes_bush() -> Array:
 	var bush := _ct_nonsolid_rect()
 	if bush == Rect2():
-		return [true, "no pass-through decor on this map — covered on Jungle Ruins"]
+		return [true, "no pass-through decor on this map — covered on Ironfall"]
 	var cy := bush.get_center().y
 	# Start the ray just left of the decor, but never off the map
 	# (the left wall would stop it first and the test would lie).
@@ -222,7 +222,7 @@ func _ct_c_walk_passes_bush() -> Array:
 	g._on_touch_release(930)
 	var bush := _ct_nonsolid_rect()
 	if bush == Rect2():
-		return [true, "no pass-through decor on this map — covered on Jungle Ruins"]
+		return [true, "no pass-through decor on this map — covered on Ironfall"]
 	var lp = g._get_local_player()
 	var ok: bool = lp.position.x > bush.end.x + 20.0
 	return [ok, "player x=%.0f (bush %s, must be past %.0f)" % [lp.position.x, bush, bush.end.x + 20.0]]

@@ -12,12 +12,15 @@ const TILE_TEX: Array[Texture2D] = [
 	# plate), 1 Jungle Ruins, 2 Neon City (Sky Brawl), 3 Volcanic
 	# Cavern, 4 Pirate Island. The 8 deleted maps' tiles are gone
 	# (their tile files are deleted — nothing references them).
+	# QA-145 (v4.1): map 1 is now Outpost (tile 0). Index 1 keeps its
+	# slot as an alias of tile 0 so no map's tile index shifts;
+	# tile_jungle.png is deleted and no map uses tile 1.
 	# QA-112 (v3.9): 5 Skyfall — the top 48 px of the pack's
 	# platform_solid.png (512 px wide = the seamless period, so
 	# _draw_tiles repeats it without a visible seam), sliced by
 	# hand into assets/tiles/tile_skyfall.png.
 	preload("res://assets/tiles/tile_ironfall.png"),
-	preload("res://assets/tiles/tile_jungle.png"),
+	preload("res://assets/tiles/tile_ironfall.png"),  # QA-145: was tile_jungle.png (Jungle Ruins removed); alias of index 0.
 	preload("res://assets/skybrawl/tiles/tile_neon.png"),
 	preload("res://assets/tiles/tile_volcanic.png"),
 	preload("res://assets/tiles/tile_pirate.png"),
@@ -82,6 +85,47 @@ const TRAP_TEX_FIRE_VENT: Array[Texture2D] = [
 	preload("res://assets/user_assets_v3/trap_new_r4_c8.png"),
 ]
 const FX_TEX_THUNDER: Texture2D = preload("res://assets/user_assets_v3/thunder_strike.png")
+# QA-145 (v4.1): fire-trap / blast frames cut from the user's fire
+# effects sheet (black -> transparent, bottom-aligned canvases).
+# flame_jet is a GROWTH sequence (f0 small -> f7 tallest) — cycle it
+# ping-pong or the snap back to f0 pops. flamethrower frames were
+# staged too but are NOT wired (no wall anchor) — held for later.
+const FX_TEX_FLAME_JET: Array[Texture2D] = [
+	preload("res://assets/fire_fx/flame_jet_0.png"),
+	preload("res://assets/fire_fx/flame_jet_1.png"),
+	preload("res://assets/fire_fx/flame_jet_2.png"),
+	preload("res://assets/fire_fx/flame_jet_3.png"),
+	preload("res://assets/fire_fx/flame_jet_4.png"),
+	preload("res://assets/fire_fx/flame_jet_5.png"),
+	preload("res://assets/fire_fx/flame_jet_6.png"),
+	preload("res://assets/fire_fx/flame_jet_7.png"),
+]
+const FX_TEX_GROUND_FIRE: Array[Texture2D] = [
+	preload("res://assets/fire_fx/ground_fire_0.png"),
+	preload("res://assets/fire_fx/ground_fire_1.png"),
+	preload("res://assets/fire_fx/ground_fire_2.png"),
+	preload("res://assets/fire_fx/ground_fire_3.png"),
+	preload("res://assets/fire_fx/ground_fire_4.png"),
+	preload("res://assets/fire_fx/ground_fire_5.png"),
+]
+const FX_TEX_FIRE_RING: Array[Texture2D] = [
+	preload("res://assets/fire_fx/fire_ring_0.png"),
+	preload("res://assets/fire_fx/fire_ring_1.png"),
+	preload("res://assets/fire_fx/fire_ring_2.png"),
+	preload("res://assets/fire_fx/fire_ring_3.png"),
+	preload("res://assets/fire_fx/fire_ring_4.png"),
+	preload("res://assets/fire_fx/fire_ring_5.png"),
+]
+const FX_TEX_FIRE_TORNADO: Array[Texture2D] = [
+	preload("res://assets/fire_fx/fire_tornado_0.png"),
+	preload("res://assets/fire_fx/fire_tornado_1.png"),
+	preload("res://assets/fire_fx/fire_tornado_2.png"),
+]
+const FX_TEX_EXPLOSION_FRAMES: Array[Texture2D] = [
+	preload("res://assets/fire_fx/explosion_0.png"),
+	preload("res://assets/fire_fx/explosion_1.png"),
+	preload("res://assets/fire_fx/explosion_2.png"),
+]
 const SF_TEX_SLOT: Array[Texture2D] = [
 	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_1.png"),
 	preload("res://assets/skyfall/SKYFALL_assets/ui/powerup_slot_2.png"),
@@ -102,17 +146,6 @@ const DECOR_PALMS: Texture2D = preload("res://assets/tiles/palms.png")
 const DECOR_ROCK: Texture2D = preload("res://assets/tiles/rock.png")
 const DECOR_BRIDGE: Texture2D = preload("res://assets/tiles/wood_bridge.png")
 const DECOR_COLUMN: Texture2D = preload("res://assets/tiles/stone_column.png")
-const DECOR_JTREE: Texture2D = preload("res://assets/jungle/jungle_tree.png")
-const DECOR_JPALM: Texture2D = preload("res://assets/jungle/jungle_palm.png")
-const DECOR_JTOWER: Texture2D = preload("res://assets/jungle/jungle_watchtower.png")
-const DECOR_JSTATUE: Texture2D = preload("res://assets/jungle/jungle_statue.png")
-const DECOR_JPILLAR: Texture2D = preload("res://assets/jungle/jungle_pillar.png")
-const DECOR_JCRATE: Texture2D = preload("res://assets/jungle/jungle_crate.png")
-const DECOR_JROCK: Texture2D = preload("res://assets/jungle/jungle_rock.png")
-const DECOR_JBUSH: Texture2D = preload("res://assets/jungle/jungle_bush.png")
-const DECOR_JBRIDGE: Texture2D = preload("res://assets/jungle/jungle_bridge.png")
-const DECOR_JARCH: Texture2D = preload("res://assets/jungle/jungle_arch.png")
-const DECOR_JPLATFORM: Texture2D = preload("res://assets/jungle/jungle_platform.png")
 const DECOR_IF_TOWER: Texture2D = preload("res://assets/ironfall_sliced/if_tower.png")
 const DECOR_IF_GANTRY: Texture2D = preload("res://assets/ironfall_sliced/if_gantry.png")
 const DECOR_IF_DERRICK: Texture2D = preload("res://assets/ironfall_sliced/if_derrick.png")
@@ -152,7 +185,7 @@ const DECOR_SB_HUT_GREEN: Texture2D = preload("res://assets/skybrawl/structures/
 const DECOR_SB_CRATE: Texture2D = preload("res://assets/skybrawl/structures/sb_crate.png")
 const DECOR_SB_VENT_ORANGE: Texture2D = preload("res://assets/skybrawl/structures/sb_vent_orange.png")
 const DECOR_INSETS := {"crate": 6, "barrels": 8, "sandbags": 6, "rock": 10,
-	"column": 10, "jpillar": 10, "jstatue": 8, "jtower": 10, "jcrate": 6, "jrock": 10,
+	"column": 10,
 	"sb_hut": 10, "sb_hut_pink": 10, "sb_hut_blue": 10, "sb_vent": 10,
 	"sb_vent_orange": 10, "sb_shrine": 10, "sb_block": 10, "sb_hut_green": 10,
 	"sb_crate": 10, "if_crate": 6, "if_barrel": 8, "if_sandbags": 6,
@@ -161,10 +194,6 @@ const DECOR_TEX := {
 	"crate": DECOR_CRATE, "barrels": DECOR_BARRELS, "sandbags": DECOR_SANDBAGS,
 	"palms": DECOR_PALMS, "rock": DECOR_ROCK, "bridge": DECOR_BRIDGE,
 	"column": DECOR_COLUMN,
-	"jtree": DECOR_JTREE, "jpalm": DECOR_JPALM, "jtower": DECOR_JTOWER,
-	"jstatue": DECOR_JSTATUE, "jpillar": DECOR_JPILLAR, "jcrate": DECOR_JCRATE,
-	"jrock": DECOR_JROCK, "jbush": DECOR_JBUSH, "jbridge": DECOR_JBRIDGE,
-	"jarch": DECOR_JARCH, "jplatform": DECOR_JPLATFORM,
 	"sb_hut": DECOR_SB_HUT, "sb_hut_pink": DECOR_SB_HUT_PINK,
 	"sb_hut_blue": DECOR_SB_HUT_BLUE, "sb_vent": DECOR_SB_VENT,
 	"sb_slab": DECOR_SB_SLAB, "sb_trap": DECOR_SB_TRAP,

@@ -108,6 +108,15 @@ func _build_multiplayer() -> void:
 	m._room_name_input = LineEdit.new()
 	m._room_name_input.placeholder_text = "Room name, e.g. Tharun's Room"
 	m._room_name_input.text = GameData.room_name
+	# QA-145 (v4.1, Worker V): the saved default is just "Room",
+	# so every room in the list looked identical until you read
+	# the host name. If the name was never changed from the
+	# default and the player has a real name, prefill "<name>'s
+	# Room" instead — zero extra taps, rooms tell apart at a
+	# glance. The saved value only changes when the room is
+	# created (the create handler reads this field).
+	if GameData.room_name == "Room" and GameData.player_name != "" and GameData.player_name != "Player":
+		m._room_name_input.text = GameData.player_name + "'s Room"
 	m._room_name_input.custom_minimum_size = Vector2(0, 56)
 	m._room_name_input.add_theme_font_size_override("font_size", 22)
 	var name_field = GoField.make("Room name", m._room_name_input, "Shown to friends on this Wi-Fi")

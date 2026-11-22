@@ -188,6 +188,9 @@ var _hitmark_lethal: bool = false
 var _hitmark_time: float = 0.0
 var _fire_cooldown: float = 0.0
 var _reload_timer: float = 0.0
+# QA-145: previous-frame reloading flag for the magazine-drop hook
+# (see _process): the hook fires on the false->true transition.
+var _was_reloading: bool = false
 var _respawn_timer: float = 0.0
 var _spawn_protect_timer: float = 0.0
 var _grenade_cooldown: float = 0.0
@@ -555,6 +558,20 @@ func _process(delta: float) -> void:
 	if is_local_player() and _camera != null:
 		_update_camera(delta)
 		_update_sight_line()
+	# QA-145 ITEM 3 — magazine-drop hook: fire on the reloading
+	# false->true transition. The _start_reload() wrapper below is
+	# DEAD CODE (no caller anywhere: every real reload runs through
+	# player_weapons._start_reload() internally — manual RELOAD via
+	# start_reload(), auto-reload on empty mag via _fire()), so a
+	# spawn call in that wrapper would never run. The transition
+	# catches every reload start through either path. Local player
+	# only: remote copies never set `reloading` (their reload state
+	# arrives as _remote_reloading), so their reloads show no mag
+	# drop — a sync hook in player_sync.gd could add that later.
+	if is_local_player():
+		if reloading and not _was_reloading:
+			_spawn_magazine_drop()
+		_was_reloading = reloading
 
 
 func _physics_process(delta: float) -> void:
@@ -686,6 +703,21 @@ func _show_muzzle() -> void:
 
 func _start_reload() -> void:
 	return player_weapons._start_reload()
+
+
+# QA-145 ITEM 3: drop the magazine at MMC's design reload point for
+# the current weapon (weapons/magazine_drop.gd). Visual only — the
+# shotgun and rocket have no stored reload point in MMC, so
+# MagazineDrop.spawn is a no-op for them and their reload is
+# untouched. Called from _process on the reloading transition (see
+# above), NOT from _start_reload: that wrapper is never called.
+func _spawn_magazine_drop() -> void:
+	if _gun == null:
+		return
+	var game = get_tree().get_first_node_in_group("game")
+	if game == null:
+		return
+	MagazineDrop.spawn(game, _gun, weapon)
 
 
 func ammo_reserve() -> int:

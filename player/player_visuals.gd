@@ -61,14 +61,21 @@ const FLAME_TEX_BOOST: Texture2D = preload("res://assets/user_assets_v3/jetpack_
 # QA-137: the soldier frames now come from the user's character
 # sheet (assets/user_assets_v3/soldier_new_r<R>_c<C>.png, 5 rows x
 # 6 cols, labels excluded at slice time). Each row holds one
-# animation group; the game needs 11 frames per animation (5 for
+# animation group; the game needs 11 frames per animation (7 for
 # die), so the source frames ping-pong: [0,1,2,3,4,5,4,3,2,1,0],
-# wrapped modulo the group's frame count. Row 5 col 1 is empty
-# (the label only), so die uses cols 4-6 (damage, fall, lying
-# down, held). The gun is NOT in the art (only the row-4 aim poses
-# hold a rifle), so the gun sprite still rides the hand anchor
-# (QA-127). The game has NO slide animation - the slide frames in
-# row 5 are unused (see BUGS.md QA-137).
+# wrapped modulo the group's frame count. The gun is NOT in the
+# art, so the gun sprite still rides the hand anchor (QA-127).
+# QA-145: the sheet is REPLACED with the user's new soldier sheet
+# (worker D staged 49 frames; see the QA-145 proof folder). Row
+# layout is UNCHANGED (idle r1c1-2, run r1c3-6, jump r2c1-3, fall
+# r2c4-6, jetpack r3, shoot r4, die r5) EXCEPT die now uses all 7
+# frames: death_0..5 sit in r5c1-6 and death_6 spills into r4c1
+# (row 4 only uses c3/c6 for shoot/aim, so c1 was free). Row 4
+# c2/c4/c5 hold shoot_1/3/4 as fillers (unreferenced). Reload and
+# hurt have no game anims and are NOT wired (reload dip is
+# gun-only, hurt is hit-flash only). The game has NO slide
+# animation - the slide frames in row 5 are unused (see BUGS.md
+# QA-137).
 const _QA137_PINGPONG := [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0]
 const _QA137_ANIM_CELLS := {
 	"idle": [Vector2i(1, 1), Vector2i(1, 2)],
@@ -78,7 +85,7 @@ const _QA137_ANIM_CELLS := {
 	"jetpack": [Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 4), Vector2i(3, 5), Vector2i(3, 6)],
 	"shoot": [Vector2i(4, 3), Vector2i(4, 6)],
 	"aim": [Vector2i(4, 3), Vector2i(4, 6)],
-	"die": [Vector2i(5, 4), Vector2i(5, 5), Vector2i(5, 6), Vector2i(5, 6), Vector2i(5, 6)],
+	"die": [Vector2i(5, 1), Vector2i(5, 2), Vector2i(5, 3), Vector2i(5, 4), Vector2i(5, 5), Vector2i(5, 6), Vector2i(4, 1)],
 }
 # QA-094: per-animation helmet height. The helmet rides the body
 # sprite at a fixed offset, but the art frames do not share one
@@ -90,7 +97,19 @@ const _QA137_ANIM_CELLS := {
 # frames now put the head near the top of the frame, so jetpack
 # is -27, not the old -8; the die frames are more upright, so die
 # is -18, not the old 3).
-const HELMET_Y_BY_ANIM := {"idle": -26.0, "run": -25.0, "jump": -28.0, "shoot": -27.0, "aim": -27.0, "fall": -25.0, "jetpack": -27.0, "die": -18.0}
+# QA-145: re-measured on the NEW sheet - the fit puts the hair top
+# at frame y=4 in EVERY frame, so every upright animation is -26
+# (die is N/A, the helmet is hidden when dead; -26 keeps the table
+# uniform).
+const HELMET_Y_BY_ANIM := {"idle": -26.0, "run": -26.0, "jump": -26.0, "shoot": -26.0, "aim": -26.0, "fall": -26.0, "jetpack": -26.0, "die": -26.0}
+# QA-145: per-animation helmet X (sprite-local). The body LEANS in
+# some anims, so the head centre moves right: idle/shoot +1 (the
+# old fixed x=1 was correct there), run +9, jump +6, jetpack +5,
+# fall +5 (jump_3..5 median 4.9), aim +1. At fixed x=1 the helmet
+# sat ~8 px behind the head while running. _play_anim and
+# _update_helmet read this; the jetpack frames use the per-frame
+# table below instead.
+const HELMET_X_BY_ANIM := {"idle": 1.0, "run": 9.0, "jump": 6.0, "shoot": 1.0, "aim": 1.0, "fall": 5.0, "jetpack": 5.0, "die": 1.0}
 # QA-094: per-frame helmet centre (sprite-local) for the jetpack
 # animation - the flying pose sways the head side-to-side, so a
 # fixed offset floats off the head at the extremes. Measured from
@@ -99,7 +118,10 @@ const HELMET_Y_BY_ANIM := {"idle": -26.0, "run": -25.0, "jump": -28.0, "shoot": 
 # parent scale mirrors these automatically when the player faces
 # left. QA-137: re-measured on the user's sheet - the new flying
 # pose is nearly upright, so the sway is only -2..+1 px.
-const HELMET_JETPACK_FRAMES := [Vector2(1, -28), Vector2(-1, -27), Vector2(1, -27), Vector2(1, -26), Vector2(1, -26), Vector2(-2, -29), Vector2(1, -26), Vector2(1, -26), Vector2(1, -27), Vector2(-1, -27), Vector2(1, -28)]
+# QA-145: re-measured on the NEW sheet - head centre x per frame
+# (ping-pong of the 6 jetpack frames): 7.0, 5.7, 4.9, 3.8, 8.3,
+# 4.1, rounded; y is -26 for every frame.
+const HELMET_JETPACK_FRAMES := [Vector2(7, -26), Vector2(6, -26), Vector2(5, -26), Vector2(4, -26), Vector2(8, -26), Vector2(4, -26), Vector2(8, -26), Vector2(4, -26), Vector2(5, -26), Vector2(6, -26), Vector2(7, -26)]
 # QA-127 (v3.11): hand anchors - where the TRIGGER hand grips the
 # rifle, measured from the art (64px frames, frame coords - (32, 32);
 # facing right). Values are in FRAME units; _hand_anchor() scales
@@ -113,9 +135,17 @@ const HELMET_JETPACK_FRAMES := [Vector2(1, -28), Vector2(-1, -27), Vector2(1, -2
 # (y 7) for idle/run/jump/fall/jetpack/die, and the chest-height
 # rifle grip (5, -6) for shoot/aim. Verified by overlaying the gun
 # on the frames - see BUGS.md QA-137.
-const HAND_ANCHOR_BY_ANIM := {"idle": Vector2(0, 7), "run": Vector2(0, 7), "jump": Vector2(0, 7), "shoot": Vector2(5, -6), "aim": Vector2(5, -6), "fall": Vector2(0, 7), "die": Vector2(0, 6)}
-const HAND_IDLE_FRAMES := [Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7)]
-const HAND_JETPACK_FRAMES := [Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 6), Vector2(-1, 7), Vector2(0, 6), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7), Vector2(0, 7)]
+# QA-145: re-measured on the NEW sheet (rear-fist medians). KEY
+# CHANGE: this sheet's hands are at CHEST height in EVERY pose, so
+# idle/run/jump/fall move UP from (0, 7) to (11, -5) / (16, -5) /
+# (11, -4) / (11, -8). Jetpack frames 2 and 4 use front-derived
+# rear anchors (rear = front - 7, front_y + 3.5) - the measured
+# rear there was an outlier. Reload uses the shoot anchor (11, -6);
+# the reload dip is gun-only anyway. Die is N/A (gun hidden when
+# dead); (0, 6) is kept only as a harmless fallback.
+const HAND_ANCHOR_BY_ANIM := {"idle": Vector2(11, -5), "run": Vector2(16, -5), "jump": Vector2(11, -4), "shoot": Vector2(11, -6), "aim": Vector2(11, -6), "fall": Vector2(11, -8), "die": Vector2(0, 6)}
+const HAND_IDLE_FRAMES := [Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5), Vector2(11, -5)]
+const HAND_JETPACK_FRAMES := [Vector2(12.6, -7.7), Vector2(11.3, -6.2), Vector2(4.1, -6.7), Vector2(4.7, -2.9), Vector2(9.1, -4.7), Vector2(11.5, -6.6), Vector2(9.1, -4.7), Vector2(4.7, -2.9), Vector2(4.1, -6.7), Vector2(11.3, -6.2), Vector2(12.6, -7.7)]
 # QA-127: per-weapon grip - (x fraction along the weapon texture
 # where the trigger hand sits, y px below the barrel line in game
 # units). Measured from assets/weapons/*.png (trigger grip, not the
@@ -323,9 +353,9 @@ func _make_sprite_frames() -> SpriteFrames:
 		sf.set_animation_speed(key, fps)
 		sf.set_animation_loop(key, loop)
 		var cells: Array = _QA137_ANIM_CELLS[key]
-		var count: int = 5 if key == "die" else 11
+		var count: int = 7 if key == "die" else 11
 		for i in count:
-			# die plays its 5 cells straight through; every other
+			# die plays its 7 cells straight through; every other
 			# animation ping-pongs the source frames to 11 game
 			# frames, wrapping the index for groups with fewer
 			# than 6 source frames (idle/shoot/aim have 2).
@@ -382,7 +412,11 @@ func _update_helmet() -> void:
 	# Head is ~20px wide in the 64px frame; scale helmet to fit.
 	var target_w := 26.0
 	p._helmet_sprite.scale = Vector2(target_w / tex.get_width(), target_w / tex.get_width())
-	p._helmet_sprite.position = Vector2(1, p._helmet_y) # QA-094: was a fixed -25
+	# QA-145: x is per-animation now (HELMET_X_BY_ANIM) - the head
+	# leans right while running/jumping, so a fixed x=1 sat ~8 px
+	# behind the head. _current_anim is "" at build time, so the
+	# lookup falls back to 1 until _play_anim("idle") runs.
+	p._helmet_sprite.position = Vector2(float(HELMET_X_BY_ANIM.get(p._current_anim, 1.0)), p._helmet_y) # QA-094: was a fixed -25
 
 
 func _update_gun_texture() -> void:
@@ -522,7 +556,10 @@ func _play_anim(anim_name: String) -> void:
 			# only setting .y here left the last jetpack X stuck, so the
 			# cap/helmet floated 11-15 px sideways off the head after
 			# every landing until the next jetpack.
-			p._helmet_sprite.position = Vector2(1, p._helmet_y)
+			# QA-145: X is per-animation (HELMET_X_BY_ANIM) - run
+			# leans the head +9 right, so a fixed x=1 left the
+			# helmet ~8 px behind the head while running.
+			p._helmet_sprite.position = Vector2(float(HELMET_X_BY_ANIM.get(anim_name, 1.0)), p._helmet_y)
 
 
 func _update_visuals(delta: float) -> void:
@@ -615,6 +652,10 @@ func _update_visuals(delta: float) -> void:
 			# nozzle (top edge) sits at y -10, at the pack exhaust.
 			# z_index -1 keeps it BEHIND the body, so it reads as
 			# mounted on the back instead of floating under the feet.
+			# QA-145: the NEW sheet's pack exhaust is at frame y -8,
+			# i.e. -8 x 1.20 = -9.6 player units, so the y -10
+			# nozzle still lines up - no offset change. Verified
+			# in the jetpack screenshots (see BUGS.md QA-145).
 			var back_centre = -10.0 * float(p.facing)
 			p._flame.position = Vector2(back_centre - 0.5 * fw * p._flame.scale.x, -10.0)
 			if p.fuel < PhysicsConfig.FUEL_LOW_WARN:

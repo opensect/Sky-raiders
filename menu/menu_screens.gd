@@ -20,7 +20,7 @@ const HELMET_ICONS := {
 	5: preload("res://assets/headgear/nvg.png"),
 	6: preload("res://assets/headgear/helmet_camo.png"),
 }
-const FRAG_LOGO: Texture2D = preload("res://assets/logo/frag_arena_logo.png") # v3.5: Frag Arena logo (crosshair + Orbitron wordmark, drawn in code/PIL)
+const FRAG_LOGO: Texture2D = preload("res://assets/logo/sky_raiders_logo.png") # QA-145: Sky Raiders logo (crosshair + Orbitron wordmark, drawn in code/PIL) — same style as the v3.5 Frag Arena logo it replaces; const name kept so no other reference changes
 
 
 
@@ -36,7 +36,7 @@ func _build_menu() -> void:
 	m._menu_panel = m.menu_ui._panel(Color(0.07, 0.11, 0.18, 0.96), true)
 	var box = m.menu_ui._vbox(m._menu_panel, 20)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	# v3.5 Frag Arena: the logo (crosshair emblem + Orbitron
+	# QA-145 Sky Raiders: the logo (crosshair emblem + Orbitron
 	# wordmark) is the menu heading now — the old "LAN ARENA
 	# SHOOTER" text title is gone. 1239x320 art, shown ~460 px
 	# wide (same width as the menu buttons), aspect kept.
@@ -371,14 +371,14 @@ func _build_settings() -> void:
 	# policy is also in PRIVACY_POLICY.md in the project.
 	box.add_child(m.menu_ui._section_label("Privacy"))
 	var privacy_lbl := Label.new()
-	privacy_lbl.text = "Frag Arena collects no personal data. No accounts, no sign-in, no ads, no analytics, no tracking. Phones talk directly to each other over your Wi-Fi (LAN) only — nothing is sent to the internet or any server. Settings (name, controls, volume) stay on your phone."
+	privacy_lbl.text = "Sky Raiders collects no personal data. No accounts, no sign-in, no ads, no analytics, no tracking. Phones talk directly to each other over your Wi-Fi (LAN) only — nothing is sent to the internet or any server. Settings (name, controls, volume) stay on your phone."
 	privacy_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	privacy_lbl.add_theme_font_override("font", m.FONT_BODY)
 	privacy_lbl.add_theme_font_size_override("font_size", 18)
 	privacy_lbl.add_theme_color_override("font_color", m.UI_FONT_MUTED)
 	box.add_child(privacy_lbl)
 	var version_lbl := Label.new()
-	version_lbl.text = "Frag Arena v" + GameData.BUILD_VERSION + "  •  LAN only — no accounts, no servers" # v3.11: was hardcoded "v3.6" — now follows BUILD_VERSION so it can never go stale again
+	version_lbl.text = "Sky Raiders v" + GameData.BUILD_VERSION + "  •  LAN only — no accounts, no servers" # v3.11: was hardcoded "v3.6" — now follows BUILD_VERSION so it can never go stale again
 	version_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	version_lbl.add_theme_font_size_override("font_size", 18)

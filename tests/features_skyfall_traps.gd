@@ -347,3 +347,49 @@ func _ft_sf_c_trap_pendulum() -> Array:
 	var ok = n == 2 and hp <= 75.0
 	return [ok, "pendulums=%d (want 2) player health=%.0f (want <=75 after a 25 HP ball hit)" % [n, hp]]
 
+
+
+# QA-145 (v4.1, Worker T): proximity mine — stand on mine 1 and it
+# must trigger, fuse 1.0 s, then detonate for 25 HP (QA-126) and go
+# dark for its 30 s re-arm. Full health + no shield first so the
+# -25 is measurable; the 1.5 s wait covers trigger + fuse. Mine 1
+# sits at (1000,5852) on the L3 side lane (row top 5864), outside
+# both L3 wind zones, so the player stands still on it.
+func _ft_sf_s_trap_mine() -> void:
+	var lp = g.fire_test._ft_lp()
+	lp.get("stored_boosts").clear()
+	lp.set("active_boost_kind", 0)
+	lp.set("shield_timer", 0.0)
+	lp.set("health", 100.0)
+	g.features_skyfall_test._ft_sf_hp0 = float(lp.health)
+	# Make sure mine 1 is armed (no earlier step touches it, but a
+	# stray trigger would leave it in its 30 s re-arm).
+	var m: Dictionary = g._sf_mines[0]
+	m["state"] = "armed"
+	m["timer"] = 0.0
+	(m["node"] as Node2D).visible = true
+	g.fire_test._ft_teleport(Vector2(1000.0, 5833.0))
+
+
+func _ft_sf_c_trap_mine() -> Array:
+	var lp = g.fire_test._ft_lp()
+	var m: Dictionary = g._sf_mines[0]
+	var hp := float(lp.get("health"))
+	var ok = hp <= 75.0 and str(m.get("state", "")) == "gone"
+	return [ok, "health=%.0f (want <=75 after a 25 HP mine blast) mine=%s" % [hp, str(m.get("state", ""))]]
+
+
+# QA-145 (v4.1, Worker T): supply-drop beacon — the event drop gets
+# a visible green pillar + pulsing ring for 10 s. Call the event
+# drop directly (the random event picks a type at random, so the
+# test does not wait on a dice roll) and check the beacon exists
+# with time left on it.
+func _ft_sf_s_event_beacon() -> void:
+	g.skyfall_dynamics._sf_event_supply_drop()
+
+
+func _ft_sf_c_event_beacon() -> Array:
+	var b: Dictionary = g._sf_beacon
+	var node: Node = b.get("beam")
+	var ok = not b.is_empty() and node != null and is_instance_valid(node) and float(b.get("timer", 0.0)) > 0.0
+	return [ok, "beacon=%s timer=%.1fs" % [str(not b.is_empty()), float(b.get("timer", 0.0))]]

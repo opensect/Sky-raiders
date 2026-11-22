@@ -135,6 +135,23 @@ func _spawn_explosion_fx(pos: Vector2, radius: float) -> void:
 	# replaces the old Line2D ring, so the ring is not drawn twice.
 	var boom = ReebooFx2D.spawn(GameAssets.EXPLOSION_SMALL_SCENE, g.fx_node, pos)
 	boom.scale = Vector2(radius / 62.5, radius / 62.5)
+	# QA-145 (v4.1): the user's explosion frames as a quick one-shot
+	# sprite animation (3 frames over ~0.3 s) alongside the library
+	# blast. Visual only; no damage code anywhere in this FX.
+	var blast := Sprite2D.new()
+	blast.texture = GameAssets.FX_TEX_EXPLOSION_FRAMES[0]
+	var bscale := radius / 130.0
+	blast.scale = Vector2(bscale, bscale)
+	blast.position = pos
+	blast.z_index = 5
+	g.fx_node.add_child(blast)
+	var twb = g.create_tween()
+	twb.tween_interval(0.1)
+	twb.tween_callback(func() -> void: blast.texture = GameAssets.FX_TEX_EXPLOSION_FRAMES[1])
+	twb.tween_interval(0.1)
+	twb.tween_callback(func() -> void: blast.texture = GameAssets.FX_TEX_EXPLOSION_FRAMES[2])
+	twb.tween_interval(0.1)
+	twb.tween_callback(blast.queue_free)
 	# GAP-24: white flash + debris. Visual-only; no damage code
 	# anywhere in this FX.
 	var flash := Polygon2D.new()

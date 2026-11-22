@@ -16,6 +16,45 @@ func _init(game) -> void:
 	g = game
 
 
+# QA-145 (Worker F): UI-frames art cut from the user's UI frames
+# sheet (assets/user_assets_v3/ui_frames/). Preloaded here, NOT in
+# game.gd (do-not-touch for this worker). hud_screens.gd and the
+# feed / power-up chips reach them via g.hud_builder.
+const TEX_UI_BAR_HEALTH_FRAME: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_health_frame.png")
+const TEX_UI_BAR_HEALTH_FILL: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_health_fill.png")
+const TEX_UI_BAR_ENERGY_FRAME: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_energy_frame.png")
+const TEX_UI_BAR_ENERGY_FILL: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_energy_fill.png")
+const TEX_UI_PANEL_MESSAGE_MED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/panel_message_med.png")
+const TEX_UI_BUTTON_PILL_BLUE: Texture2D = preload("res://assets/user_assets_v3/ui_frames/button_pill_blue.png")
+const TEX_UI_DIVIDER_THIN: Texture2D = preload("res://assets/user_assets_v3/ui_frames/divider_thin.png")
+const TEX_UI_PANEL_LARGE_BLUE: Texture2D = preload("res://assets/user_assets_v3/ui_frames/panel_large_blue.png")
+const TEX_UI_PANEL_BIG_RED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/panel_big_red.png")
+const TEX_UI_EMBLEM: Texture2D = preload("res://assets/user_assets_v3/ui_frames/emblem_winged_shield.png")
+const TEX_UI_BAR_BLUE_MED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_blue_med.png")
+# QA-145: strip_red.png turned out to be the BLUE strip (phase 1
+# misread the sheet — the first left strip is blue, the red ones
+# are the 2nd/3rd), so the warning chip uses bar_red_med instead
+# (the PLAN's own fallback for this chip).
+const TEX_UI_BAR_RED_MED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_red_med.png")
+
+
+# QA-145: one 9-slice StyleBoxTexture from a UI-frames PNG, with
+# the given content margins. The texture margins keep the frame's
+# corners/borders intact while the box stretches to its rect.
+func _ui_frame_stylebox(tex: Texture2D, tex_margin: int, cm_left: int, cm_right: int, cm_top: int, cm_bottom: int) -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = tex
+	sb.texture_margin_left = tex_margin
+	sb.texture_margin_right = tex_margin
+	sb.texture_margin_top = tex_margin
+	sb.texture_margin_bottom = tex_margin
+	sb.content_margin_left = cm_left
+	sb.content_margin_right = cm_right
+	sb.content_margin_top = cm_top
+	sb.content_margin_bottom = cm_bottom
+	return sb
+
+
 # v2.5: dark outline for HUD text so it stays readable over bright
 # map skies (bright day ones as well as dark ones).
 func _outline_label(l: Label) -> void:
@@ -49,16 +88,9 @@ func _build_hud() -> void:
 	bars_panel.offset_top = 8
 	bars_panel.offset_bottom = 94 # QA-137: kit bars are 34 px tall (was 80 for the 26/18 px gohud bars)
 	bars_panel.theme = GoUi.theme()
-	var bars_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
-	if bars_sb != null:
-		var bars_dup := bars_sb.duplicate()
-		if bars_dup is GoStyleBoxCut:
-			(bars_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.88)
-			(bars_dup as GoStyleBoxCut).content_margin_left = 8
-			(bars_dup as GoStyleBoxCut).content_margin_right = 8
-			(bars_dup as GoStyleBoxCut).content_margin_top = 6
-			(bars_dup as GoStyleBoxCut).content_margin_bottom = 6
-		bars_panel.add_theme_stylebox_override("panel", bars_dup)
+	# QA-145 (Worker F): the bars backing panel wears the UI-frames
+	# message panel now (same rect, same content margins as before).
+	bars_panel.add_theme_stylebox_override("panel", _ui_frame_stylebox(TEX_UI_PANEL_MESSAGE_MED, 24, 8, 8, 6, 6))
 	g.hud.add_child(bars_panel)
 
 	var left := VBoxContainer.new()
@@ -83,8 +115,13 @@ func _build_hud() -> void:
 	# The kit bar is 628x97 (aspect 6.5), so at 220 px wide it is
 	# 34 px tall; the panel grows to fit (was 72 px for the 26/18
 	# px gohud bars). Label + number ride centred on the bar.
+	# QA-145 (Worker F): the bars wear the UI-frames art now
+	# (health frame + red fill, energy frame + yellow fill), same
+	# 220x34 size and positions. Fill tracks measured from the new
+	# art: health x 19.9%..89.9%, y 29.1%..78.2%; energy
+	# x 18.9%..90.1%, y 25.0%..75.0%.
 	g.hp_bar = HudBar.new()
-	g.hp_bar.setup(g.HUD_TEX_BAR_HEALTH_FRAME, g.HUD_TEX_BAR_HEALTH_FILL)
+	g.hp_bar.setup(TEX_UI_BAR_HEALTH_FRAME, TEX_UI_BAR_HEALTH_FILL, Vector4(0.199, 0.291, 0.899, 0.782))
 	g.hp_bar.label_text = "HP"
 	g.hp_bar.custom_minimum_size = Vector2(220, 34)
 	g.hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -96,7 +133,7 @@ func _build_hud() -> void:
 	left.add_child(fuel_row)
 
 	g.fuel_bar = HudBar.new()
-	g.fuel_bar.setup(g.HUD_TEX_BAR_JETPACK_FRAME, g.HUD_TEX_BAR_JETPACK_FILL)
+	g.fuel_bar.setup(TEX_UI_BAR_ENERGY_FRAME, TEX_UI_BAR_ENERGY_FILL, Vector4(0.189, 0.25, 0.901, 0.75))
 	g.fuel_bar.label_text = "JETPACK"
 	g.fuel_bar.custom_minimum_size = Vector2(220, 34)
 	g.fuel_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -200,16 +237,10 @@ func _build_hud() -> void:
 	topright_pill.offset_top = 12
 	topright_pill.offset_bottom = 68
 	topright_pill.theme = GoUi.theme()
-	var pill_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
-	if pill_sb != null:
-		var pill_dup := pill_sb.duplicate()
-		if pill_dup is GoStyleBoxCut:
-			(pill_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.88)
-			(pill_dup as GoStyleBoxCut).content_margin_left = 8
-			(pill_dup as GoStyleBoxCut).content_margin_right = 8
-			(pill_dup as GoStyleBoxCut).content_margin_top = 0
-			(pill_dup as GoStyleBoxCut).content_margin_bottom = 0
-		topright_pill.add_theme_stylebox_override("panel", pill_dup)
+	# QA-145 (Worker F): the pill backing wears the UI-frames blue
+	# pill now (same rect; the SCORE/pause GoIconButtons inside
+	# are unchanged).
+	topright_pill.add_theme_stylebox_override("panel", _ui_frame_stylebox(TEX_UI_BUTTON_PILL_BLUE, 20, 8, 8, 0, 0))
 	g.hud.add_child(topright_pill)
 
 	# Button row: SCORE + pause land here from _build_touch_controls.
@@ -227,14 +258,9 @@ func _build_hud() -> void:
 	ammo_chip.offset_right = -12
 	ammo_chip.offset_top = 76
 	ammo_chip.offset_bottom = 106
-	var ammo_sb := StyleBoxFlat.new()
-	ammo_sb.bg_color = Color(0.03, 0.07, 0.13, 0.75)
-	ammo_sb.set_corner_radius_all(8)
-	ammo_sb.content_margin_left = 10
-	ammo_sb.content_margin_right = 10
-	ammo_sb.content_margin_top = 2
-	ammo_sb.content_margin_bottom = 2
-	ammo_chip.add_theme_stylebox_override("panel", ammo_sb)
+	# QA-145 (Worker F): the ammo chip wears the UI-frames thin
+	# divider now (same rect, same content margins as the flat chip).
+	ammo_chip.add_theme_stylebox_override("panel", _ui_frame_stylebox(TEX_UI_DIVIDER_THIN, 8, 10, 10, 2, 2))
 	g.hud.add_child(ammo_chip)
 	var ammo_row := HBoxContainer.new()
 	ammo_row.alignment = BoxContainer.ALIGNMENT_END
@@ -257,16 +283,10 @@ func _build_hud() -> void:
 	g._sf_slot_panel.offset_top = 114
 	g._sf_slot_panel.offset_bottom = 206
 	g._sf_slot_panel.theme = GoUi.theme()
-	var slot_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
-	if slot_sb != null:
-		var slot_dup := slot_sb.duplicate()
-		if slot_dup is GoStyleBoxCut:
-			(slot_dup as GoStyleBoxCut).bg_color = Color(0.03, 0.07, 0.13, 0.88)
-			(slot_dup as GoStyleBoxCut).content_margin_left = 8
-			(slot_dup as GoStyleBoxCut).content_margin_right = 8
-			(slot_dup as GoStyleBoxCut).content_margin_top = 6
-			(slot_dup as GoStyleBoxCut).content_margin_bottom = 6
-		g._sf_slot_panel.add_theme_stylebox_override("panel", slot_dup)
+	# QA-145 (Worker F): the slot panel wears the UI-frames message
+	# panel now (same rect, same content margins; the 56 px slot
+	# buttons inside are unchanged).
+	g._sf_slot_panel.add_theme_stylebox_override("panel", _ui_frame_stylebox(TEX_UI_PANEL_MESSAGE_MED, 24, 8, 8, 6, 6))
 	g._sf_slot_panel.visible = false
 	g.hud.add_child(g._sf_slot_panel)
 	var slot_box := VBoxContainer.new()
@@ -553,21 +573,19 @@ func _cut_accent_stylebox() -> GoStyleBoxCut:
 
 
 func _panel_style() -> StyleBox:
-	# v3.2 NEON ARENA: the dialog panel comes from the gohud theme
-	# (cut corners, navy fill, steel border), duplicated so the
-	# 0.92 alpha + content margins don't mutate the shared theme.
-	var base := GoUi.theme().get_stylebox("panel", "PanelContainer")
-	var s := base.duplicate() as StyleBox
-	if s is StyleBoxFlat:
-		var f := s as StyleBoxFlat
-		var c := f.bg_color
-		c.a = 0.92
-		f.bg_color = c
-		f.content_margin_left = 18
-		f.content_margin_right = 18
-		f.content_margin_top = 14
-		f.content_margin_bottom = 14
-	return s
+	# QA-145 (Worker F): dialog panels wear the UI-frames large
+	# blue panel now (9-slice, so the frame stays intact while the
+	# panel stretches). One change here swaps all five dialogs
+	# (pause / end / scoreboard / error / weapon); sizes, positions
+	# and content margins are unchanged. Replaces the v3.2 gohud
+	# theme panel.
+	return _ui_frame_stylebox(TEX_UI_PANEL_LARGE_BLUE, 40, 18, 18, 14, 14)
+
+
+func _panel_style_red() -> StyleBox:
+	# QA-145 (Worker F): red variant of _panel_style(), for the
+	# error panel only — red = error, semantically right.
+	return _ui_frame_stylebox(TEX_UI_PANEL_BIG_RED, 40, 18, 18, 14, 14)
 
 
 # v3.2 NEON ARENA HUD/dialog button: the gohud theme drives the look
@@ -590,6 +608,20 @@ func _style_hud_button(b: Button, accent: bool = false) -> void:
 		b.add_theme_color_override("font_color", g.UI_ACCENT_DARK)
 		b.add_theme_color_override("font_hover_color", g.UI_ACCENT_DARK)
 		b.add_theme_color_override("font_pressed_color", g.UI_ACCENT_DARK)
+
+
+# QA-145 (Worker F): bounded try — the pause menu's Resume button
+# wears the UI-frames blue pill (same texture for all four states;
+# the pressed state still reads via the font-colour change). Light
+# text on the dark blue pill, so it stays readable. Revert if the
+# 520 px stretch looks wrong; the other dialog buttons stay gohud.
+func _style_pill_button(b: Button) -> void:
+	var sb := _ui_frame_stylebox(TEX_UI_BUTTON_PILL_BLUE, 20, 8, 8, 0, 0)
+	for kind in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(kind, sb)
+	b.add_theme_color_override("font_color", g.UI_FONT)
+	b.add_theme_color_override("font_hover_color", g.UI_FONT)
+	b.add_theme_color_override("font_pressed_color", g.UI_ACCENT)
 
 
 func _build_height_bar() -> void:

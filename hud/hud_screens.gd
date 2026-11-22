@@ -46,6 +46,7 @@ func _build_pause_menu() -> void:
 	var resume_btn := Button.new()
 	resume_btn.text = "Resume"
 	g.hud_builder._style_hud_button(resume_btn, true)
+	g.hud_builder._style_pill_button(resume_btn) # QA-145: bounded pill-button try (screenshot-verified)
 	resume_btn.custom_minimum_size = Vector2(0, 56)
 	resume_btn.pressed.connect(g._toggle_pause)
 	box.add_child(resume_btn)
@@ -114,7 +115,12 @@ func _build_end_screen() -> void:
 	# QA-113 (v3.9): wider panel, bigger title, more breathing room.
 	g.end_panel = PanelContainer.new()
 	g.end_panel.theme = GoUi.theme()
-	g.end_panel.custom_minimum_size = Vector2(560, 0)
+	# QA-145 (v4.1, Worker V): 620 px, not 560 — the end screen
+	# now marks your own row ("►" + white name + "(YOU)", like
+	# the scoreboard), and "Player [RED] (YOU)" clipped to "(Y"
+	# in the 560 px panel at both resolutions. The extra 60 px
+	# gives the name column room; nothing else moves.
+	g.end_panel.custom_minimum_size = Vector2(620, 0)
 	g.end_panel.add_theme_stylebox_override("panel", g.hud_builder._panel_style())
 	g.end_panel.visible = false
 	g.hud_builder._dialog_wrap().add_child(g.end_panel)
@@ -122,6 +128,15 @@ func _build_end_screen() -> void:
 	box.add_theme_constant_override("separation", 10)
 	g.end_panel.add_child(box)
 	g._end_box = box
+	# QA-145 (Worker F): the winged-shield emblem tops the end
+	# screen (win/lose-independent — a win-only emblem would need
+	# game_match.gd, which this worker cannot touch).
+	var emblem := TextureRect.new()
+	emblem.texture = g.hud_builder.TEX_UI_EMBLEM
+	emblem.custom_minimum_size = Vector2(180, 95)
+	emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	box.add_child(emblem)
 	g.end_title = Label.new()
 	g.end_title.text = ""
 	g.end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -138,6 +153,18 @@ func _build_end_screen() -> void:
 	g.end_rematch_btn.custom_minimum_size = Vector2(0, 56)
 	g.end_rematch_btn.pressed.connect(g._on_rematch_pressed)
 	box.add_child(g.end_rematch_btn)
+	# QA-145 (v4.1, Worker V): the Rematch button is host-only,
+	# so a non-host player saw no way back into a game and no
+	# warning that the host's Rematch would pull everyone into a
+	# new match. This line tells each side what happens next;
+	# game_match.gd sets its text when the end screen shows.
+	g.end_hint = Label.new()
+	g.end_hint.text = ""
+	g.end_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	g.end_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	g.end_hint.add_theme_font_size_override("font_size", 18)
+	g.end_hint.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	box.add_child(g.end_hint)
 	var back_btn := Button.new()
 	# QA-060: this used to say "Back to Lobby" but it goes to the
 	# main menu (_on_leave_pressed changes scene to main.tscn).
@@ -189,7 +216,7 @@ func _build_error_panel() -> void:
 	g.error_panel = PanelContainer.new()
 	g.error_panel.theme = GoUi.theme()
 	g.error_panel.custom_minimum_size = Vector2(520, 0)
-	g.error_panel.add_theme_stylebox_override("panel", g.hud_builder._panel_style())
+	g.error_panel.add_theme_stylebox_override("panel", g.hud_builder._panel_style_red()) # QA-145: red panel for errors
 	g.error_panel.visible = false
 	g.hud_builder._dialog_wrap().add_child(g.error_panel)
 	var box := VBoxContainer.new()

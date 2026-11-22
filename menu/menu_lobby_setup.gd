@@ -236,7 +236,22 @@ func _refresh_lobby_buttons() -> void:
 		m._ff_check.button_pressed = GameData.friendly_fire
 		m._ff_check.disabled = not m._is_host
 	if m._lobby_status != null:
-		m._lobby_status.text = "You are the host - pick a map and mode, then start!" if m._is_host else "Waiting for the host to start the match..."
+		# QA-145 (v4.1, Worker V): the host used to read "pick a
+		# map and mode, then start!" even while START sat disabled
+		# saying NEED 2 PLAYERS — the status contradicted the
+		# button. When the minimum is not met, the status now says
+		# what is missing, so a host alone in the room knows they
+		# need another phone, not a different button.
+		if m._is_host:
+			var why := _start_minimum_reason()
+			if why == "NEED 2 PLAYERS":
+				m._lobby_status.text = "Waiting for another player to join — a match needs at least 2 players."
+			elif why == "NEED RED + BLUE":
+				m._lobby_status.text = "Team mode needs a player on RED and a player on BLUE — pick a team below."
+			else:
+				m._lobby_status.text = "You are the host - pick a map and mode, then start!"
+		else:
+			m._lobby_status.text = "Waiting for the host to start the match..."
 	if m._host_ip_label != null:
 		# The joiner's lifeline: the host IP is always visible here,
 		# in its chip (v3.5 QA-059). Keep the label's own visibility

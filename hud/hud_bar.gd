@@ -29,11 +29,17 @@ var _fill_tex: Texture2D = null
 var _value: float = 0.0
 var _max_value: float = 1.0
 var _label: Label = null
+# QA-145 (Worker F): the fill track inside the frame art, as
+# fractions of the frame (x0, y0, x1, y1). Defaults are the QA-137
+# kit-art fractions, so existing call sites stay safe; the new UI
+# frames art passes its own measured fractions via setup().
+var _track := Vector4(0.0414, 0.144, 0.9586, 0.8555)
 
 
-func setup(frame_tex: Texture2D, fill_tex: Texture2D) -> void:
+func setup(frame_tex: Texture2D, fill_tex: Texture2D, track := Vector4(0.0414, 0.144, 0.9586, 0.8555)) -> void:
 	_frame_tex = frame_tex
 	_fill_tex = fill_tex
+	_track = track
 	queue_redraw()
 
 
@@ -71,14 +77,15 @@ func _draw() -> void:
 	if _frame_tex != null:
 		draw_texture_rect(_frame_tex, Rect2(Vector2.ZERO, size), false)
 	if _fill_tex != null and _max_value > 0.0:
-		# The fill sits in the frame's track: x 4.1%..95.8%,
-		# y 14.4%..85.5% of the frame (measured from the kit art).
+		# The fill sits in the frame's track (see _track, set by
+		# setup(); QA-137 kit art defaults, QA-145 UI frames art
+		# passes its own measured fractions).
 		var frac := clampf(_value / _max_value, 0.0, 1.0)
 		if frac > 0.001:
-			var fx := size.x * 0.0414
-			var fy := size.y * 0.144
-			var fw := size.x * 0.917 * frac
-			var fh := size.y * 0.711
+			var fx := size.x * _track.x
+			var fy := size.y * _track.y
+			var fw := size.x * (_track.z - _track.x) * frac
+			var fh := size.y * (_track.w - _track.y)
 			var src_w := float(_fill_tex.get_width()) * frac
 			# Green/cyan ink is the fill's own colour (no tint);
 			# a yellow/red ink (low health/fuel) tints it.

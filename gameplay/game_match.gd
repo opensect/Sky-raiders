@@ -275,7 +275,21 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 		g.audio.play_menu_music()
 	# "You win!" not "You wins!" — winner is "You" for the local
 	# player, a name for anyone else.
-	var win_word := "You win!" if winner == "You" else "%s wins!" % winner
+	# QA-145 (v4.1, Worker V): team wins said "RED TEAM wins!"
+	# even to a player ON the red team, and an FFA win said
+	# "<my own name> wins!" — the player never read that *they*
+	# won. If the winner is my team, or my own name, say so.
+	var win_word := "%s wins!" % winner
+	if winner != "DRAW":
+		if winner == "You":
+			win_word = "You win!"
+		else:
+			var me = g.players_node.get_node_or_null(str(g.multiplayer.get_unique_id()))
+			if me != null:
+				if (winner == "RED TEAM" and int(me.team) == 0) or (winner == "BLUE TEAM" and int(me.team) == 1):
+					win_word = "You win!"
+				elif winner == String(me.player_name):
+					win_word = "You win!"
 	g.end_title.text = "%s\n%s" % [win_word, reason] if winner != "DRAW" else "Draw!\n%s" % reason
 	# Phase 4: MVP / match summary banner (most kills, best accuracy).
 	# Rows arrive sorted by kills, so rows[0] is the MVP.
@@ -341,7 +355,13 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 			team_txt = " [BLUE]"
 		var st2: Dictionary = GameData.compute_stats(int(r["kills"]), int(r["deaths"]), int(r.get("shots", 0)), int(r.get("hits", 0)))
 		var extra = str(int(r.get("rounds", 0))) if g.game_mode == 2 else str(int(r.get("streak", 0)))
-		g.end_list.add_child(g._stats_row(rank, String(r["name"]), team_txt, int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"]), false, r["color"], extra))
+		# QA-145 (v4.1, Worker V): the end screen passed is_self
+		# = false for every row, so (unlike the scoreboard) the
+		# player could not spot their own row — "►" + "(YOU)" was
+		# built into _stats_row but never used here. Fake rows
+		# (features test) carry no id and still show unmarked.
+		var is_self: bool = int(r.get("id", -1)) == g.multiplayer.get_unique_id()
+		g.end_list.add_child(g._stats_row(rank, String(r["name"]), team_txt, int(r["kills"]), int(r["deaths"]), float(st2["kd"]), int(st2["accuracy"]), is_self, r["color"], extra))
 		rank += 1
 	# QA-078: record this match in the local lifetime stats, once
 	# per match. The rows carry the peer id now, so each phone
@@ -363,6 +383,15 @@ func show_end_screen(winner: String, reason: String, rows: Array) -> void:
 				g._stats_recorded = true
 				break
 	g.end_rematch_btn.visible = g.multiplayer.is_server()
+	# QA-145 (v4.1, Worker V): Rematch is host-only, so a
+	# non-host player used to see no way back into a game and no
+	# warning that the host's Rematch would pull everyone into a
+	# new match. Each side now reads what happens next.
+	if g.end_hint != null:
+		if g.multiplayer.is_server():
+			g.end_hint.text = "Tap Rematch to play again with the same players."
+		else:
+			g.end_hint.text = "Waiting for the host — a rematch starts a new game with everyone here."
 	g.end_panel.visible = true
 	# QA-035: hide the touch controls under the end panel — the
 	# RELOAD/GRENADE/WEAPON column sat on top of the stats rows and

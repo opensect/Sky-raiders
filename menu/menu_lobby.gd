@@ -11,15 +11,16 @@ extends RefCounted
 var m # the owner (main.gd)
 
 # QA-095 (v3.7): the lobby map cards show the map's REAL art —
-# the in-game far-parallax background for the 3 maps that have
-# one (Ironfall, Neon City, Volcanic Cavern — same files game.gd
-# uses as the far parallax layer), the existing thumb for the 2
-# maps that keep the procedural gradient (Jungle Ruins, Pirate
-# Island). The 960×540 backgrounds are cropped to the card
-# thumbnail (COVERED), never stretched.
+# the in-game far-parallax background for the 4 maps that have
+# one (Ironfall, Outpost, Neon City, Volcanic Cavern — same files
+# game.gd uses as the far parallax layer; Outpost shares
+# Ironfall's bg, both built from the same Outpost TMX), the
+# existing thumb for the 1 map that keeps the procedural
+# gradient (Pirate Island). The 960×540 backgrounds are cropped
+# to the card thumbnail (COVERED), never stretched.
 const MAP_CARD_ART := {
 	0: preload("res://assets/skybrawl/maps/bg_ironfall.png"),
-	1: preload("res://assets/thumbs/thumb_jungle.png"),
+	1: preload("res://assets/skybrawl/maps/bg_ironfall.png"),
 	2: preload("res://assets/skybrawl/maps/bg_neon.png"),
 	3: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
 	4: preload("res://assets/thumbs/thumb_pirate.png"),

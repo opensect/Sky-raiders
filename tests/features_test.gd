@@ -71,6 +71,7 @@ func _featurestest_build_steps() -> void:
 		{"name": "COUNTDOWN-FREEZE", "wait": 0.6, "setup": _ft_s_countdown, "check": _ft_c_countdown},
 		{"name": "COUNTDOWN-END", "wait": 3.0, "setup": _ft_s_release_all, "check": _ft_c_countdown_end},
 		{"name": "KILLFEED-HITMARKER", "wait": 0.9, "setup": _ft_s_killfeed, "check": _ft_c_killfeed},
+		{"name": "STREAK-CALLOUTS", "wait": 0.3, "setup": _ft_s_streaks, "check": _ft_c_streaks},
 		{"name": "END-STATS-MVP", "wait": 0.3, "setup": _ft_s_endstats, "check": _ft_c_endstats},
 		{"name": "SETTINGS-PERSIST", "wait": 0.3, "setup": _ft_s_settings, "check": _ft_c_settings},
 		{"name": "MAP-VOTE", "wait": 0.2, "setup": g.fire_test._ft_s_noop, "check": _ft_c_mapvote},
@@ -116,6 +117,7 @@ func _featurestest_build_steps() -> void:
 			{"name": "FT-SF-OPP-SHIELD-STORM", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_shield_storm, "check": g.features_skyfall_traps._ft_sf_c_shield_storm},
 			{"name": "FT-SF-COMEBACK", "wait": 6.0, "setup": g.features_skyfall_traps._ft_sf_s_comeback, "check": g.features_skyfall_traps._ft_sf_c_comeback},
 			{"name": "FT-SF-EVENT", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_event, "check": g.features_skyfall_traps._ft_sf_c_event},
+		{"name": "FT-SF-EVENT-BEACON", "wait": 0.5, "setup": g.features_skyfall_traps._ft_sf_s_event_beacon, "check": g.features_skyfall_traps._ft_sf_c_event_beacon},
 			{"name": "FT-SF-STORM", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_storm, "check": g.features_skyfall_traps._ft_sf_c_storm},
 			{"name": "FT-SF-COMBO-EVENT-STORM", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_combo_event_storm, "check": g.features_skyfall_traps._ft_sf_c_combo_event_storm},
 			{"name": "FT-SF-COMBO-TRAP", "wait": 2.0, "setup": g.features_skyfall_traps._ft_sf_s_combo_trap, "check": g.features_skyfall_traps._ft_sf_c_combo_trap},
@@ -150,6 +152,8 @@ func _featurestest_build_steps() -> void:
 			{"name": "FT-SF-TRAP-COLLAPSE-L6", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_trap_collapse_l6, "check": g.features_skyfall_traps._ft_sf_c_trap_collapse_l6},
 			{"name": "FT-SF-TRAP-WIND-L3", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_trap_wind_l3, "check": g.features_skyfall_traps._ft_sf_c_trap_wind_l3},
 			{"name": "FT-SF-TRAP-PENDULUM", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_trap_pendulum, "check": g.features_skyfall_traps._ft_sf_c_trap_pendulum},
+		{"name": "FT-SF-TRAP-MINE", "wait": 1.5, "setup": g.features_skyfall_traps._ft_sf_s_trap_mine, "check": g.features_skyfall_traps._ft_sf_c_trap_mine},
+			{"name": "FT-SF-WIND-SHOT", "wait": 0.5, "setup": g.features_skyfall_test._ft_sf_s_wind_shot, "check": g.features_skyfall_test._ft_sf_c_wind_shot},
 		]
 
 
@@ -219,6 +223,30 @@ func _ft_c_killfeed() -> Array:
 	var streak_ok: bool = int(g._best_streaks.get(1, 0)) >= 1
 	var ok: bool = feed_ok and hit_ok and kill_ok and streak_ok
 	return [ok, "feed='%s' hitmark_seq=%d shots_hit=%d kills=%d best_streak=%d" % [feed_text, lp._hitmark_seq, lp._shots_hit, lp.kills, int(g._best_streaks.get(1, 0))]]
+
+
+func _ft_s_streaks() -> void:
+	# QA-145 (v4.1, Worker T): First Blood + multi-kill callouts.
+	# Reset the streak state (the KILLFEED step just left the local
+	# player on a 1-kill streak), then announce two kills by the
+	# local player on the TestBot through announce_kill — the real
+	# feed path (a direct call has sender 0, so it passes the
+	# host-only guard, exactly as the real RPC does on the host).
+	var lp = g._get_local_player()
+	g._kill_streaks.clear()
+	g._best_streaks.clear()
+	g._first_blood_done = false
+	var kid := int(lp.peer_id)
+	g.game_feed.announce_kill(kid, 99, 5)
+	g.game_feed.announce_kill(kid, 99, 5)
+
+
+func _ft_c_streaks() -> Array:
+	var feed_text := ""
+	for e in g._kill_feed_entries:
+		feed_text += String((e["label"] as Label).text) + "|"
+	var ok: bool = feed_text.contains("FIRST BLOOD") and feed_text.contains("DOUBLE KILL") and bool(g._first_blood_done) and int(g._kill_streaks.get(1, 0)) == 2
+	return [ok, "feed='%s' first_blood=%s streak=%d" % [feed_text, str(bool(g._first_blood_done)), int(g._kill_streaks.get(1, 0))]]
 
 
 func _ft_s_endstats() -> void:

@@ -133,6 +133,19 @@ func _physicstest_build_steps() -> void:
 		{"name": "P24b-wedge-recovery", "wait": 3.5, "setup": _phys_s_wedge, "check": _phys_c_wedge},
 		{"name": "P25a-jetpack-cap", "wait": 1.0, "setup": _phys_s_jetpack_cap, "check": _phys_c_jetpack_cap},
 		{"name": "P25b-jetpack-release", "wait": 0.5, "setup": _phys_s_jetpack_release, "check": _phys_c_jetpack_release},
+		{"name": "P26-fire-trap-hot", "wait": 1.2, "setup": _phys_s_fire_trap_hot, "check": _phys_c_fire_trap_hot, "only_map": 3, "skip_reason": "Volcanic Cavern fire traps only"},
+		{"name": "P27-fire-trap-safe", "wait": 1.2, "setup": _phys_s_fire_trap_safe, "check": _phys_c_fire_trap_safe, "only_map": 3, "skip_reason": "Volcanic Cavern fire traps only"},
+		# QA-145 (v4.1) screenshot steps — capture the new fire visuals
+		# (synchronous get_texture capture in the check: the scene has
+		# been stable for the whole wait, so the last rendered frame
+		# already shows it). --shot-2400 resizes the window for the
+		# tall-phone pass (needs the dedicated Xvfb:99 2400x1080
+		# screen; the default xvfb-run caps the window at 1600x720).
+		{"name": "SHOT-VC-HOT", "wait": 2.0, "setup": _phys_s_shot_vc_hot, "check": _phys_c_shot_vc_hot, "only_map": 3, "skip_reason": "Volcanic Cavern shots only"},
+		{"name": "SHOT-VC-SAFE", "wait": 2.0, "setup": _phys_s_shot_vc_safe, "check": _phys_c_shot_vc_safe, "only_map": 3, "skip_reason": "Volcanic Cavern shots only"},
+		{"name": "SHOT-VC-TORNADO", "wait": 2.0, "setup": _phys_s_shot_vc_tornado, "check": _phys_c_shot_vc_tornado, "only_map": 3, "skip_reason": "Volcanic Cavern shots only"},
+		{"name": "SHOT-SF-L5-UPPER", "wait": 2.0, "setup": _phys_s_shot_sf_l5_upper, "check": _phys_c_shot_sf_l5_upper, "only_map": 5, "skip_reason": "Skyfall L5 shots only"},
+		{"name": "SHOT-SF-L5-LOWER", "wait": 2.0, "setup": _phys_s_shot_sf_l5_lower, "check": _phys_c_shot_sf_l5_lower, "only_map": 5, "skip_reason": "Skyfall L5 shots only"},
 	]
 
 
@@ -375,7 +388,7 @@ func _phys_c_terminal() -> Array:
 
 
 # QA-099 (v3.7): the fixed x=800 jump/jetpack column sits under a
-# y1180/y1280 platform on Ironfall, Jungle and Volcanic (only 124 px
+# y1180/y1280 platform on Ironfall, Outpost and Volcanic (only 124 px
 # of sky) — the jump bonked at ~65 px instead of ~155 and the jetpack
 # never reached its cap there, on three different maps with the same
 # numbers. The old "x=800 has >=294 px of sky on all five maps"
@@ -460,7 +473,7 @@ func _phys_ground_at(x: float) -> Vector2:
 func _phys_s_jump_hold() -> void:
 	# QA-099 (v3.7): stand on the ground at the clearest-sky column
 	# (see _phys_clear_sky_x) — the old x=800 sits under a y1180
-	# platform on Ironfall/Jungle and a y1280 platform on Volcanic,
+	# platform on Ironfall/Outpost and a y1280 platform on Volcanic,
 	# so the jump bonked at ~65 px instead of ~155. (The even older
 	# x=2100 spot sat exactly on a bounce pad at 0.7 * W and x=300 has a
 	# platform at y=1180 directly overhead — same bonk.) Physics
@@ -922,7 +935,7 @@ func _phys_c_wedge() -> Array:
 func _phys_s_jetpack_cap() -> void:
 	# QA-099 (v3.7): the clearest-sky column (see
 	# _phys_clear_sky_x) — the old x=800 sits under a y1180/y1280
-	# platform on Ironfall/Jungle/Volcanic, so the climb bonked
+	# platform on Ironfall/Outpost/Volcanic, so the climb bonked
 	# after ~53 px and never reached the 320 cap (fastest vy -23).
 	var x := _phys_clear_sky_x(300.0)
 	var gp := _phys_ground_at(x)
@@ -967,3 +980,210 @@ func _phys_c_jetpack_release() -> Array:
 	var ok: bool = not lp._jetpacking and lp.velocity.y > -150.0
 	return [ok, "0.5 s after release: jetpacking=%s vel.y=%d (want false, >-150 — falling again, not hanging)" % [lp._jetpacking, round(lp.velocity.y)]]
 
+
+
+# QA-145 (v4.1): Volcanic Cavern fire traps (map 3 only). Trap A
+# Rect2(900,1196,140,84) sits on platform (670,1280,630,48); the
+# player stands at its centre (feet on the platform top, y=1280).
+# The trap clock is forced so the phase is deterministic: 0.5 s =
+# HOT, 2.5 s = safe. HOT must hurt 10 HP per 1 s tick with the
+# flame visible; SAFE must hurt nothing with the flame hidden.
+func _phys_s_fire_trap_hot() -> void:
+	var lp = _phys_lp()
+	_phys_teleport(Vector2(970, 1249))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	g._fire_trap_time = 0.5
+	g._fire_trap_tick.clear()
+
+
+func _phys_c_fire_trap_hot() -> Array:
+	var lp = _phys_lp()
+	var hp := float(lp.health)
+	var flame_vis := false
+	var flame_tex := ""
+	for e in g._fire_trap_fx:
+		var ed: Dictionary = e
+		if str(ed.get("kind", "")) == "fire_jet" and (ed["rect"] as Rect2).position.x == 900.0:
+			var f: Sprite2D = ed["flame"]
+			flame_vis = bool(f.visible)
+			var ft = f.texture
+			flame_tex = ft.resource_path if ft != null else ""
+	var lost := 100.0 - hp
+	var ok := lost >= 10.0 and lost <= 20.0 and flame_vis and flame_tex.contains("flame_jet")
+	return [ok, "HOT trap: hp=%.0f lost=%.0f (want 10-20, one 10 HP tick + maybe a second) flame visible=%s tex=%s (want flame_jet)" % [hp, lost, str(flame_vis), flame_tex]]
+
+
+func _phys_s_fire_trap_safe() -> void:
+	var lp = _phys_lp()
+	_phys_teleport(Vector2(970, 1249))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	g._fire_trap_time = 2.5
+	g._fire_trap_tick.clear()
+
+
+func _phys_c_fire_trap_safe() -> Array:
+	var lp = _phys_lp()
+	var hp := float(lp.health)
+	var flame_vis := true
+	for e in g._fire_trap_fx:
+		var ed: Dictionary = e
+		if str(ed.get("kind", "")) == "fire_jet" and (ed["rect"] as Rect2).position.x == 900.0:
+			var f: Sprite2D = ed["flame"]
+			flame_vis = bool(f.visible)
+	var ok := hp >= 100.0 and not flame_vis
+	return [ok, "SAFE trap: hp=%.0f (want 100, no damage) flame visible=%s (want false)" % [hp, str(flame_vis)]]
+
+
+# QA-145 (v4.1) screenshot helpers + steps. The camera follows the
+# local player, so each setup teleports the player to a spot whose
+# view covers the traps, forces the trap clock into the wanted phase,
+# and waits 0.8 s for the camera to settle; the check captures the
+# last rendered frame synchronously and verifies the flames read.
+func _phys_shot_resize() -> void:
+	if "--shot-2400" in OS.get_cmdline_user_args():
+		g.get_window().size = Vector2(2400, 1080)
+
+
+func _phys_capture(stem: String) -> String:
+	var img = g.get_viewport().get_texture().get_image()
+	var sz: Vector2i = img.get_size()
+	var path := "/home/hatch/workspace/mini-militia-lan-qa145-proof/workerE/shots/%s_%dx%d.png" % [stem, int(sz.x), int(sz.y)]
+	var err = img.save_png(path)
+	print("PHYS-SHOT %s err=%s size=%s" % [path, str(err), str(sz)])
+	return path
+
+
+func _phys_s_shot_vc_hot() -> void:
+	_phys_shot_resize()
+	var lp = _phys_lp()
+	# (1500,1249) stands on platform (1300,1280,460,48); the view
+	# covers trap A (900), the fire ring (1290), trap B (1950) and
+	# both lava pools (1000, 1750). The player is outside every
+	# trap rect, so the shot stays clean (no hit flash). (The
+	# camera sits ~100 px left of the player after a teleport, so
+	# 1500 frames trap B fully; 1450 left it half-cut.)
+	_phys_teleport(Vector2(1500, 1249))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	# 3.5 + ~2 s wait lands at fmod 1.0-1.5 (HOT, mid-phase).
+	g._fire_trap_time = 3.5
+	g._fire_trap_tick.clear()
+
+
+func _phys_c_shot_vc_hot() -> Array:
+	# QA-145 (v4.1, Worker S): 5 flames, not 4 — the summit
+	# fire_jet (1200,516) was added after Worker E's 4-trap set.
+	# The count is over the flame-visible flags, not the pixels
+	# on screen (the summit jet is off-frame above this shot's
+	# view from (1500,1249)); the SAFE test below proves all 5
+	# hide together.
+	var vis := 0
+	for e in g._fire_trap_fx:
+		var ed: Dictionary = e
+		if str(ed.get("kind", "")) in ["fire_jet", "fire_ring", "fire_tornado"]:
+			var f: Sprite2D = ed["flame"]
+			if bool(f.visible):
+				vis += 1
+	var path := _phys_capture("vc_traps_hot")
+	return [vis == 5, "VC HOT shot %s flames visible=%d/5 (want 5)" % [path, vis]]
+
+
+func _phys_s_shot_vc_safe() -> void:
+	_phys_shot_resize()
+	var lp = _phys_lp()
+	_phys_teleport(Vector2(1500, 1249))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	# 1.0 + ~2 s wait lands at fmod 2.5-3.0 (SAFE, mid-phase).
+	g._fire_trap_time = 1.0
+	g._fire_trap_tick.clear()
+
+
+func _phys_c_shot_vc_safe() -> Array:
+	var vis := 0
+	for e in g._fire_trap_fx:
+		var ed: Dictionary = e
+		if str(ed.get("kind", "")) in ["fire_jet", "fire_ring", "fire_tornado"]:
+			var f: Sprite2D = ed["flame"]
+			if bool(f.visible):
+				vis += 1
+	var path := _phys_capture("vc_traps_safe")
+	return [vis == 0, "VC SAFE shot %s flames visible=%d/5 (want 0, scorch marks only)" % [path, vis]]
+
+
+func _phys_s_shot_vc_tornado() -> void:
+	_phys_shot_resize()
+	var lp = _phys_lp()
+	# (125,1079) stands on the tornado platform (100,1110,240,48)
+	# in the 60 px strip left of the trap rect (160,1026,120,84)
+	# (Worker S narrowed it from 160 wide), so the player takes
+	# no damage; the camera clamps to the map edge and the trap
+	# sits at screen x 160-280. (750 put the camera 240 px right
+	# of the player and the trap off-screen.)
+	_phys_teleport(Vector2(125, 1079))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	# 3.5 + ~2 s wait lands at fmod 1.0-1.5 (HOT, mid-phase).
+	g._fire_trap_time = 3.5
+	g._fire_trap_tick.clear()
+
+
+func _phys_c_shot_vc_tornado() -> Array:
+	var vis := false
+	for e in g._fire_trap_fx:
+		var ed: Dictionary = e
+		if str(ed.get("kind", "")) == "fire_tornado":
+			var f: Sprite2D = ed["flame"]
+			vis = bool(f.visible)
+	var path := _phys_capture("vc_tornado_hot")
+	return [vis, "VC TORNADO shot %s flame visible=%s (want true)" % [path, str(vis)]]
+
+
+func _phys_s_shot_sf_l5_upper() -> void:
+	_phys_shot_resize()
+	# (1550,2193) stands on platform (1500,2224,600,48); the view
+	# covers the L5 fire jet (1750,2140) and lava pool (950,2420).
+	var lp = _phys_lp()
+	_phys_teleport(Vector2(1550, 2193))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	# 3.5 + ~2 s wait lands at fmod 1.0-1.5 (HOT, mid-phase).
+	g._sf_match_time = 3.5
+
+
+func _phys_c_shot_sf_l5_upper() -> Array:
+	var vis := false
+	for h in g._sf_hazard_fx:
+		var hd: Dictionary = h
+		if str(hd.get("kind", "")) == "fire" and (hd["rect"] as Rect2).position.y == 2140.0:
+			var f: Sprite2D = hd["flame"]
+			vis = bool(f.visible)
+	var path := _phys_capture("sf_l5_upper")
+	return [vis, "SF L5 UPPER shot %s fire-jet flame visible=%s (want true)" % [path, str(vis)]]
+
+
+func _phys_s_shot_sf_l5_lower() -> void:
+	_phys_shot_resize()
+	# (2050,3313) stands on platform (1500,3344,600,48) OUTSIDE
+	# the fire-jet rect (1750,3260,200,84) — 1900 stood inside it
+	# and burned (HP 80 in the first shot). The view covers the
+	# jet (1750,3260) and the lava pool (2150,2980).
+	var lp = _phys_lp()
+	_phys_teleport(Vector2(2050, 3313))
+	lp.health = 100.0
+	lp.set("_spawn_protect_timer", 0.0)
+	# 3.5 + ~2 s wait lands at fmod 1.0-1.5 (HOT, mid-phase).
+	g._sf_match_time = 3.5
+
+
+func _phys_c_shot_sf_l5_lower() -> Array:
+	var vis := false
+	for h in g._sf_hazard_fx:
+		var hd: Dictionary = h
+		if str(hd.get("kind", "")) == "fire" and (hd["rect"] as Rect2).position.y == 3260.0:
+			var f: Sprite2D = hd["flame"]
+			vis = bool(f.visible)
+	var path := _phys_capture("sf_l5_lower")
+	return [vis, "SF L5 LOWER shot %s fire-jet flame visible=%s (want true)" % [path, str(vis)]]

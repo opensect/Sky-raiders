@@ -1218,3 +1218,29 @@ func _ft_sf_c_5v5() -> Array:
 	var ok = g.players_node.get_child_count() == 10 and red == 5 and blue == 5
 	return [ok, "players=%d RED=%d BLUE=%d (want 10 / 5 / 5)" % [g.players_node.get_child_count(), red, blue]]
 
+
+
+# QA-145 (v4.1) Wind Blast screenshot step — same setup as
+# FT-SF-WIND-THROW (bot on the same platform, tap slot 11 in
+# setup), then capture 0.5 s later while the ~1.2 s tornado is
+# still spinning. Synchronous capture: the scene has been stable
+# for the whole wait, so the last rendered frame already shows it.
+func _ft_sf_s_wind_shot() -> void:
+	if "--shot-2400" in OS.get_cmdline_user_args():
+		g.get_window().size = Vector2(2400, 1080)
+	_ft_sf_s_pu_target(11, 0.0)
+	var lp = g.fire_test._ft_lp()
+	var idx := int(lp.get("stored_boosts").find(11))
+	if idx >= 0:
+		lp.call("activate_slot", idx)
+
+
+func _ft_sf_c_wind_shot() -> Array:
+	var torn_raw = g.get("_wind_tornado_node")
+	var torn_ok := torn_raw != null and is_instance_valid(torn_raw)
+	var img = g.get_viewport().get_texture().get_image()
+	var sz: Vector2i = img.get_size()
+	var path := "/home/hatch/workspace/mini-militia-lan-qa145-proof/workerE/shots/wind_tornado_%dx%d.png" % [int(sz.x), int(sz.y)]
+	var err = img.save_png(path)
+	print("SF-SHOT %s err=%s size=%s" % [path, str(err), str(sz)])
+	return [torn_ok, "WIND shot %s tornado node valid=%s (want true)" % [path, str(torn_ok)]]
