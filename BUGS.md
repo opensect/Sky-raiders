@@ -8387,3 +8387,24 @@ No paid library or asset was used.
 - Worker P: rename to "Sky Raiders" (`project.godot`, `export_presets.cfg`, `menu/menu_screens.gd`, README/PRIVACY_POLICY/checklist/THEME_SPEC/ASSET_AUDIT), `assets/logo/sky_raiders_logo.png` + `sky_raiders_icon*.png` NEW (+ webp source + `.json` sidecar + `make_sky_raiders_assets.py`).
 - Coordinator: `tests/fire_test.gd` (teleport 56→63, BULLET-INSIDE-GEOMETRY fix), `utils/game_assets.gd` (jungle preloads out, TILE_TEX[1] → ironfall alias), `project.godot` (config/name reverted to "Frag Arena"), `BUGS.md` (this entry), 13 jungle files DELETED (`assets/jungle/*.png` ×12 + `assets/tiles/tile_jungle.png`).
 - Proof (NOT committed — outside the repo): `~/workspace/mini-militia-lan-qa145-proof/` (worker subfolders, staged frames, screenshots at both resolutions, `qa145_full_suite.log`, rerun logs).
+
+## v4.1 delivery record (2026-11-22, BUILD_VERSION 4.1, versionCode 23)
+
+### APK
+- `mini-militia-lan.apk` — 49,368,648 bytes, md5 `63eb304e36806b327643d46c4523fb57` (unsigned export 49,114,211 bytes). Godot 4.7.2 (`--export-release Android` under xvfb; export log clean — only adb-daemon environmental noise).
+- `apksigner verify` passes (v2 + v3 schemes); signer cert SHA-256 `f65f2fa3d8041b5e8920e627355a0dd68d9b50414d6b40702fea6b4da6e02d11` — matches v3.11/v3.13/v3.14/v4.0 (same debug keystore `~/.local/share/godot/keystores/debug.keystore`, alias `androiddebugkey`), installs over v4.0. `zipalign -c` passes.
+- aapt2: package `com.lanarena.shooter`, versionCode 23, versionName 4.1, minSdk 24, targetSdk 36, application-label "Sky Raiders", exactly the 3 permissions (INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE). No `android:debuggable`.
+- Bloat check (QA-138 lesson): zip listing shows 0 entries from `assets/user_assets_v3/originals/` — the `.gdignore` holds; no original JPEG sheets ship. 2,308 files in the APK. Sky Raiders icon PNGs (512/192/432fg/432bg) present as launcher icons.
+- Download link: https://muse.ai/files/1393810153814235/1583939093537096/pqysvqtzglbo9l9wgvavndd0/mini-militia-lan.apk — expires Tue Nov 24, 2026, 2:38 PM IST.
+
+### Tests (full suite once, every test exactly once; parent verification log `~/workspace/mini-militia-lan-qa145-proof/my_verification_suite.log`)
+- collision 8/8 × 6 maps; joystick 30/30; fire 35/35; scale 70/70; physics 34/34 maps 0/1/3/4/5, 33/34 map 2 first pass; features 13/13; features-skyfall 77/77; multiplayer 15/15; menu-net 8/8; flow OK; smoke ×6 OK; 0 script errors.
+- First-pass failure (1, known timing flake — no code change, re-ran ONLY that file): physics-map2 33/34 (P07b tap apex, same known flake as v3.11/v4.0). Re-run: physics-map2 34/34, 0 errors.
+- Coordinator's final suite (log `qa145_full_suite.log`): same except physics-map4 32/34 first pass (re-ran 34/34) and features-skyfall 76/77 with a varying single failure across runs (intermittent headless timing flakes, not a regression — parent's run had 77/77).
+- Screenshots: coordinator-checked by eye at both resolutions (home "SKY RAIDERS", Outpost, HUD, end screen "You win!" + (YOU) row, fire traps, tornado, mines, beacon); parent eye-checked home + Outpost shots. Known accepted visual flaws: SF L5 upper jet partly behind PING button at 2400×1080; height-bar L1–L6 labels washed out at 2400×1080.
+- Honest limits (unchanged): real two-phone LAN sync only provable by the user's phones; 5v5 untested live; hazard sounds never heard on a real device. Pickup burst-spawn bug STILL PRESENT (`_update_pickup_spawn` never re-counts `weapon_active` — several weapons can spawn in one frame; addition 15 was stopped).
+
+### Version + GitHub
+- Local commits: `e923f57` QA-145 (158 files, +2,293/−243) → `91b1f70` v4.1 version bump (BUILD_VERSION 4.1, versionCode 23, versionName 4.1).
+- Pushed to GitHub dandydos/frag-arena as a clean linear commit on top of `14f38b9` (v4.0): `f1ee0e50064ae84d108c93284f5527f61efd5674` ("Sky Raiders v4.1 - QA-145"), verified from the server (HEAD + 1,513 files).
+- Backup of the last shipped version: `~/workspace/mini-militia-lan-backup-v4.0/` (v4.0 APK inside verified md5 `ad2449cf77fe7c274ee26c2aeae127eb`; project folder copy 713 MB, 6,717 files, diff-clean vs the pre-build tree — ownership warnings on copy were cosmetic).
