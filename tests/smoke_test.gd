@@ -707,7 +707,7 @@ func _update_mapshots(delta: float) -> void:
 # QA-112 (v3.9) SKYFALL-SCREENSHOT MODE (--skyfall-shots): one
 # capture per level (6 levels, centre x1800), to
 # user://shot_sf_L1.png ... shot_sf_L6.png. Runs as auto-host
-# on map 5; the countdown is skipped. Odd stages move the player
+# on map 4; the countdown is skipped. Odd stages move the player
 # to the level, even stages capture (1 s apart, so the camera
 # smoothing settles).
 func _update_skyfallshots(delta: float) -> void:

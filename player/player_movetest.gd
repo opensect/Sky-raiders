@@ -164,7 +164,7 @@ func _mt_s_grapple_setup() -> void:
 	# actually pull the player up.
 	# QA-141: the old spot (850,4650) under (900,4400) is STALE —
 	# the QA-132 rebuild moved the grapple points and there is no
-	# (900,4400) point in MAPS[5] anymore (nearest above the old
+	# (900,4400) point in MAPS[4] anymore (nearest above the old
 	# spot is 1687 px away), so the rope could never attach. This
 	# is a test-geometry fix, not a physics change: the attach
 	# code and GRAPPLE_RANGE are untouched.

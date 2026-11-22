@@ -82,7 +82,7 @@ func _featurestest_build_steps() -> void:
 		{"name": "FIRE-LAYOUT", "wait": 0.2, "setup": _ft_s_firelayout, "check": _ft_c_firelayout},
 		{"name": "HUD-READOUTS", "wait": 0.3, "setup": g.fire_test._ft_s_noop, "check": _ft_c_hud},
 	]
-	# QA-112/114/115 (v3.9): Skyfall steps — only on map 5. The
+	# QA-112/114/115 (v3.9): Skyfall steps — only on map 4. The
 	# base steps above run first (countdown done, match running).
 	# Order matters: grab -> capture -> relay -> checkpoints ->
 	# death/respawn -> power-ups -> comeback -> events -> storm ->

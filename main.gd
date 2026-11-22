@@ -518,7 +518,7 @@ func _build_multiplayer() -> void:
 
 # QA-112 (v3.9): Capture the Flag (mode 4) is only on Skyfall.
 # Every mode refresh and mode press goes through this check, so
-# CTF can never be picked — or stay picked — on the other 5 maps.
+# CTF can never be picked — or stay picked — on the other 4 maps.
 func _ctf_available() -> bool:
 	return menu_lobby._ctf_available()
 

@@ -173,6 +173,24 @@ const VELOCITY_INHERITANCE := 0.15
 # --- Multiplayer sync (spec §21.F) ---
 const SNAPSHOT_INTERVAL := 0.033 # 30 snapshots/s (was 0.05 = 20/s)
 const INTERP_BUFFER := 0.1 # 100 ms interpolation buffer
+# QA-146: MMC remote-player render (SoldierRemoteController::updateStep
+# 0x8f3bf8, libcocos2dcpp.so). MMC has NO interpolation buffer: every
+# frame the remote copy chases the NEWEST received position with
+# factor = max(0.05, 0.3745 - 15.0 * dt) (.rodata doubles 0.05
+# @0x1085010, 0.3745 @0x1086220; fmov 15.0) — ~0.125/frame at 60 fps,
+# floor 0.05. The alt tween (TWEEN_METHOD != 0) lerps with
+# t = min(1, extrapolationMultiplier * timer), extrapolationMultiplier
+# = 4.0 (.data init), but TWEEN_METHOD defaults to 0 (.bss), so the
+# max() formula is the live one. Dead reckoning is MMC's gap-filler
+# (setRemotePositionWithDeadReckoning 0x8f5308 advances the copy on
+# its velocity; setRemotePositionInterp 0x8f6340 is a no-op stub in
+# this build). MMC's send rate could NOT be extracted
+# (sendPositionData 0x71a16c has no internal throttle; the rate lives
+# in a per-message timer table, ClientEntry::GetMessageTimer 0x82ef9c)
+# — 30/s stays, per spec §21.F (20-30/s).
+const REMOTE_SMOOTH_BASE := 0.3745 # MMC smoothing base (0x1086220)
+const REMOTE_SMOOTH_RATE := 15.0 # MMC smoothing rate (fmov 15.0)
+const REMOTE_SMOOTH_MIN := 0.05 # MMC smoothing floor (0x1085010)
 
 # --- Player collision mode (spec §14, recommended default) ---
 const PLAYER_COLLISION_ENABLED := false

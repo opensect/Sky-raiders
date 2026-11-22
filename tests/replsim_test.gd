@@ -70,8 +70,8 @@ func _update_replsimtest(delta: float) -> void:
 			var shadow = load("res://game.tscn").instantiate()
 			_repl_sim_shadow = shadow
 			g.get_tree().root.add_child(shadow)
-			shadow._repl_sim_test = false # this instance owns the sim
-			shadow._repl_sim_done = true
+			shadow.replsim_test._repl_sim_test = false # this instance owns the sim (QA-146: the flags live on the ReplsimTest object, not the Game instance — the old lines assigned undeclared Game vars, so the shadow ran its own sim too and --repl-sim-test looped forever at step 0)
+			shadow.replsim_test._repl_sim_done = true
 			_repl_sim_step = 1
 			_repl_sim_timer = 0.0
 		1:
@@ -736,7 +736,7 @@ func _update_replsimtest_b(delta: float) -> void:
 			g.net_test._repl_sim_check("BURST-SMOOTH", _repl_sim_track_max_step < 900.0 and _repl_sim_track_max_back < 5.0,
 				"max step rate=%.0f px/s, max snap-back=%.1f px over 2 s of burst delivery (want <900 px/s / <5 px — steady glide, no jumps; 900 not 600 because one ~10 fps sample can hold a whole burst's catch-up, see the step comment)" % [_repl_sim_track_max_step, _repl_sim_track_max_back])
 			g.net_test._repl_sim_check("BURST-MOVE", moved17 > 300.0,
-				"server pid-2 copy moved %.0f px in 2 s of burst delivery (want >300 — 1 s at 300 px/s + 1 s at 150 px/s, minus the 100 ms buffer lag)" % moved17)
+				"server pid-2 copy moved %.0f px in 2 s of burst delivery (want >300 — 1 s at 300 px/s + 1 s at 150 px/s, minus the MMC smoothing trail, ~35 px at 300 px/s; QA-146 removed the 100 ms buffer lag)" % moved17)
 			# Step 18 (QA-073): chaos delivery — loss + delay +
 			# duplicate + out-of-order, the Wi-Fi shapes steps 9/10/17
 			# never produced. _repl_sim_kill_snaps_done is reused as
@@ -755,16 +755,16 @@ func _update_replsimtest_b(delta: float) -> void:
 			# 9. The copy must still glide (no teleport, no snap-back)
 			# and the receiver must COUNT each fault (lost / dup /
 			# ooo) instead of silently swallowing it. The step bar
-			# here is 2000 px/s, derived from the step clamp, not
-			# fitted to a run: after a loss gap the copy legitimately
-			# chases at the designed clamp (700 px/s + 20 px slack
-			# = 31.7 px per physics frame), and one ~10 fps sample
-			# can hold 6 physics frames of that chase (6 x 31.7 =
-			# 190 px in 0.1 s = 1900 px/s — runs read 780, 922,
-			# 1879, 930). A genuine teleport — a 600 px snap in one
-			# sample — reads 6000 px/s and still fails the bar.
-			# Snap-back stays <5 px — that is the real jump
-			# detector, and it reads 0.0 in every run.
+			# here is 2000 px/s, kept as the teleport detector, not
+			# fitted to a run: after a loss gap the copy closes
+			# ~12.5% of the gap per physics frame (QA-146 MMC
+			# smoothing, no step clamp any more), and one ~10 fps
+			# sample can hold 6 physics frames of that chase
+			# (~55% of a ~150 px gap + 30 px of motion = ~110 px
+			# in 0.1 s = ~1100 px/s). A genuine teleport — a 600 px
+			# snap in one sample — reads 6000 px/s and still fails
+			# the bar. Snap-back stays <5 px — that is the real
+			# jump detector, and it reads 0.0 in every run.
 			var s18 = g.players_node.get_node_or_null("2")
 			if s18 == null:
 				g.net_test._repl_sim_check("CHAOS-SMOOTH", false, "server pid-2 missing")
@@ -848,7 +848,7 @@ func _update_replsimtest_b(delta: float) -> void:
 				return
 			var moved18: float = s18.position.distance_to(Vector2(500, 455))
 			g.net_test._repl_sim_check("CHAOS-SMOOTH", _repl_sim_track_max_step < 2000.0 and _repl_sim_track_max_back < 5.0,
-				"max step rate=%.0f px/s, max snap-back=%.1f px over 2 s of chaos delivery (want <2000 px/s / <5 px — loss + delay + duplicates must not teleport the copy; 2000 is the clamp-derived bound, see the step comment)" % [_repl_sim_track_max_step, _repl_sim_track_max_back])
+				"max step rate=%.0f px/s, max snap-back=%.1f px over 2 s of chaos delivery (want <2000 px/s / <5 px — loss + delay + duplicates must not teleport the copy; 2000 is the teleport-detector bar, see the step comment)" % [_repl_sim_track_max_step, _repl_sim_track_max_back])
 			g.net_test._repl_sim_check("CHAOS-MOVE", moved18 > 200.0,
 				"server pid-2 copy moved %.0f px in 2 s of chaos delivery (want >200 — the stream still gets through)" % moved18)
 			g.net_test._repl_sim_check("CHAOS-LOSS-DUP-OOO", s18._net_lost_count > 0 and s18._net_dup_count > 0 and s18._net_ooo_count > 0,

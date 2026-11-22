@@ -12,9 +12,10 @@ const TILE_TEX: Array[Texture2D] = [
 	# plate), 1 Jungle Ruins, 2 Neon City (Sky Brawl), 3 Volcanic
 	# Cavern, 4 Pirate Island. The 8 deleted maps' tiles are gone
 	# (their tile files are deleted — nothing references them).
-	# QA-145 (v4.1): map 1 is now Outpost (tile 0). Index 1 keeps its
-	# slot as an alias of tile 0 so no map's tile index shifts;
-	# tile_jungle.png is deleted and no map uses tile 1.
+	# QA-146 (v4.2): Outpost (map 1) DELETED — maps are now Ironfall,
+	# Neon City, Volcanic Cavern, Pirate Island, Skyfall. Tile indices
+	# are UNCHANGED (tile 1 stays an unused alias of tile 0,
+	# pre-existing since Jungle Ruins; no map uses tile 1).
 	# QA-112 (v3.9): 5 Skyfall — the top 48 px of the pack's
 	# platform_solid.png (512 px wide = the seamless period, so
 	# _draw_tiles repeats it without a visible seam), sliced by

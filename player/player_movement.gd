@@ -123,20 +123,14 @@ func _physics_process(delta: float) -> void:
 			p._move_snap_timer -= PhysicsConfig.SNAPSHOT_INTERVAL
 			p.player_sync._send_move_snapshot()
 	else:
-		# Remote players: 100 ms interpolation buffer (GAP-16, spec
-		# §21.D/F), rendered on the SENDER's timeline (QA-068).
-		# Position is owned ONLY by this buffer - no second channel
-		# writes it. QA-068: the per-frame step clamp means one
-		# physics frame can never move the copy further than the
-		# fastest legit motion (700 px/s + 20 px slack) - a delayed
-		# packet's catch-up glides over a few frames instead of
-		# teleporting the copy. A genuine teleport (respawn /
-		# stuck-recovery, >600 px away) or a re-placement after a
-		# join / long gap (>100 px away, QA-073) still snaps at
-		# once, or the copy would swim across the map. Velocity is
-		# smoothed toward the latest snapshot (was: snapped
-		# instantly) so the remote run/jetpack animation stops
-		# flickering on jitter.
+		# Remote players: MMC-style render (QA-146, spec §21.D) —
+		# chase the NEWEST snapshot every frame with MMC's
+		# exponential smoothing (see below), on the SENDER's
+		# timeline (QA-068). Position is owned ONLY by this buffer
+		# - no second channel writes it. Velocity is smoothed
+		# toward the latest snapshot (was: snapped instantly) so
+		# the remote run/jetpack animation stops flickering on
+		# jitter.
 		var now := Time.get_ticks_msec() / 1000.0
 		var target = p.player_sync._interp_position(now)
 		var dist = p.position.distance_to(target)
@@ -153,7 +147,20 @@ func _physics_process(delta: float) -> void:
 		if dist > 600.0 or (p._snap_resync and dist > 100.0):
 			p.position = target
 		else:
-			p.position = p.position.move_toward(target, 700.0 * delta + 20.0)
+			# QA-146 (MMC port): exponential smoothing toward the
+			# newest target — factor = max(0.05, 0.3745 - 15.0*dt)
+			# (SoldierRemoteController::updateStep 0x8f3bf8; consts
+			# in PhysicsConfig) — ~0.125 per physics frame at
+			# 60 fps, floor 0.05. This REPLACES the old per-frame
+			# step clamp (700 px/s + 20 px slack): MMC has no such
+			# clamp, and the clamp let the copy chase a stale
+			# delayed target at full speed instead of easing onto
+			# the newest one. A genuine teleport (respawn /
+			# stuck-recovery, >600 px) or a re-placement after a
+			# join / long gap (>100 px, QA-073) still snaps at
+			# once, or the copy would swim across the map.
+			var smooth_f := clampf(maxf(PhysicsConfig.REMOTE_SMOOTH_MIN, PhysicsConfig.REMOTE_SMOOTH_BASE - PhysicsConfig.REMOTE_SMOOTH_RATE * delta), 0.0, 1.0)
+			p.position += (target - p.position) * smooth_f
 		p._snap_resync = false
 		p.velocity = p.velocity.lerp(p.sync_velocity, clampf(delta * 10.0, 0.0, 1.0))
 		p._update_remote_anim()
@@ -674,7 +681,7 @@ func _update_grapple(delta: float) -> void:
 func _skyfall_grapple_points() -> Array:
 	# Fixed grapple points for this map ([] off Skyfall, or when the
 	# "grapple" key is missing). A skyfall_grapple_points() helper
-	# on the game scene wins when it exists; otherwise MAPS[5]
+	# on the game scene wins when it exists; otherwise MAPS[4]
 	# is read directly (const access through the instance).
 	if not _is_skyfall():
 		return []
@@ -705,7 +712,7 @@ func _skyfall_jetpack_lines() -> Array:
 	# Marked jetpack routes ([{"from": Vector2, "to": Vector2}])
 	# for this map ([] off Skyfall, or when "jetpack_lines" is
 	# missing). A skyfall_jetpack_lines() helper on the game scene
-	# wins when it exists; otherwise MAPS[5] is read directly.
+	# wins when it exists; otherwise MAPS[4] is read directly.
 	if not _is_skyfall():
 		return []
 	var game = p.get_tree().get_first_node_in_group("game")

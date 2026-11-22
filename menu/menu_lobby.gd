@@ -11,10 +11,9 @@ extends RefCounted
 var m # the owner (main.gd)
 
 # QA-095 (v3.7): the lobby map cards show the map's REAL art —
-# the in-game far-parallax background for the 4 maps that have
-# one (Ironfall, Outpost, Neon City, Volcanic Cavern — same files
-# game.gd uses as the far parallax layer; Outpost shares
-# Ironfall's bg, both built from the same Outpost TMX), the
+# the in-game far-parallax background for the 3 maps that have
+# one (Ironfall, Neon City, Volcanic Cavern — same files
+# game.gd uses as the far parallax layer), the
 # existing thumb for the 1 map that keeps the procedural
 # gradient (Pirate Island). The 960×540 backgrounds are cropped
 # to the card thumbnail (COVERED), never stretched.
@@ -680,7 +679,7 @@ func _on_time_pressed(mins: int) -> void:
 
 # QA-112 (v3.9): Capture the Flag (mode 4) is only on Skyfall.
 # Every mode refresh and mode press goes through this check, so
-# CTF can never be picked — or stay picked — on the other 5 maps.
+# CTF can never be picked — or stay picked — on the other 4 maps.
 func _ctf_available() -> bool:
 	return GameData.map_id == GameData.SKYFALL_MAP_ID
 

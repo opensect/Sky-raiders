@@ -117,14 +117,19 @@ var _move_snap_seq: int = 0 # per-snapshot sequence (out-of-order guard)
 var _last_snap_seq: int = -1 # newest snapshot sequence applied
 var _last_snap_receipt: float = 0.0 # QA-068: receipt time of the newest snapshot (gap detection)
 var _snap_resync: bool = false # QA-068: next render snaps (join / rejoin / long gap), set in receive_move_snapshot
-# QA-073: adaptive interpolation delay. Fixed 100 ms (INTERP_BUFFER)
-# is the STARTING delay; the receiver measures Wi-Fi delivery jitter
-# (arrival spacing vs sender spacing) and moves the delay slowly
-# toward a jitter-derived target, 80-250 ms, at most 10 ms per 0.5 s
-# - clean Wi-Fi settles near 80 ms, bursty Wi-Fi grows the buffer
-# instead of letting the copy freeze and jump. The slow slew is
-# deliberate: a fast-moving delay would itself wobble the render
-# timeline. _interp_position reads _interp_delay, never the const.
+# QA-073: adaptive interpolation delay (measured, diagnostic).
+# Fixed 100 ms (INTERP_BUFFER) is the STARTING delay; the receiver
+# measures Wi-Fi delivery jitter (arrival spacing vs sender
+# spacing) and moves the delay slowly toward a jitter-derived
+# target, 80-250 ms, at most 10 ms per 0.5 s - clean Wi-Fi settles
+# near 80 ms, bursty Wi-Fi grows the buffer instead of letting the
+# copy freeze and jump. The slow slew is deliberate: a fast-moving
+# delay would itself wobble the render timeline. QA-146 (MMC port):
+# the delay is now DIAGNOSTIC ONLY — MMC's SoldierRemoteController
+# has no interpolation buffer, so _interp_position no longer reads
+# _interp_delay for rendering (it chases the newest snapshot; the
+# smoothing lives in player_movement.gd). The value is still
+# measured and shown in the net-stats panel as the jitter signal.
 var _interp_delay: float = PhysicsConfig.INTERP_BUFFER
 var _jitter_ewma: float = 0.0 # QA-073: EWMA of |arrival gap - sender gap| (seconds)
 var _prev_snap_sender_t: float = -1.0
@@ -336,7 +341,7 @@ var _move_stick_y: float = 0.0 # move stick vertical, kept from _read_input for 
 # QA-112 (v3.9 Skyfall movement): grapple points, wall-jumps and
 # jetpack lines - climbing is a SKILL, not just a route. All three
 # are Skyfall-only and read their data from the game scene's
-# MAPS[5] (see _skyfall_grapple_points / _skyfall_jetpack_lines);
+# MAPS[4] (see _skyfall_grapple_points / _skyfall_jetpack_lines);
 # on any other map, or if the keys are missing, every helper
 # returns empty / false and this is a complete no-op. Grapple and
 # wall-jump use no fuel; the jetpack line halves fuel drain and
@@ -611,7 +616,7 @@ func _update_ladder() -> void:
 
 
 # QA-112 (v3.9 Skyfall movement): grapple / wall-jump / jetpack-line
-# data + logic. The game scene owns the data (MAPS[5]); this file
+# data + logic. The game scene owns the data (MAPS[4]); this file
 # only reads it, the same way _update_ladder reads skyfall_ladder_at
 # - current scene first, then the "game" group node, and a missing
 # key or a missing helper is a no-op, never a crash. The point/line
@@ -962,7 +967,7 @@ func _stop_jetpack_sound() -> void:
 # work above, in the same step style as game.gd's --joystick-test
 # (setup runs once, then after `wait` seconds the check runs and the
 # result prints as "MOVETEST <name>: PASS/FAIL - <detail>").
-# Run: xvfb-run -a godot --path . -- --auto-host --map=5 --movement-test
+# Run: xvfb-run -a godot --path . -- --auto-host --map=4 --movement-test
 # (and --map=0 for the non-Skyfall no-op run). Flag-gated and local
 # player only - nothing here runs in a real match. The test drives
 # the REAL _update_grapple / _apply_movement / _apply_aim_and_fire

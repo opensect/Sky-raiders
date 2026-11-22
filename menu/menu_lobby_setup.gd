@@ -12,7 +12,7 @@ var m # the owner (main.gd)
 
 # QA-112 (v3.9 Skyfall lobby: CTF gating + roles + team banners).
 # Capture the Flag (mode 4) is back, but ONLY on the Skyfall map
-# (map 5) — see _ctf_available() below. The role picker shows only
+# (map 4) — see _ctf_available() below. The role picker shows only
 # on Skyfall, and the team banners show only for Skyfall CTF.
 # Roles are LABELS ONLY — no gameplay effect, just an icon in the
 # lobby player list. Role icons come from the Skyfall asset pack,

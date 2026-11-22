@@ -10,7 +10,9 @@ extends RefCounted
 
 const MAPS := [
 # QA-095 (v3.7): 5 maps only, in this order — Ironfall,
-# Outpost, Neon City, Volcanic Cavern, Pirate Island.
+# Neon City, Volcanic Cavern, Pirate Island, Skyfall.
+# QA-146 (v4.2): Outpost (map 1, added QA-145) DELETED entirely;
+# Skyfall is now map index 4.
 # The other 8 maps are deleted (map data, tiles, thumbs,
 # backgrounds, lobby entries — nothing references them).
 	{
@@ -108,121 +110,6 @@ const MAPS := [
 		# 840 shelf (2368-2493, fully on 2277-2585), next to
 		# the gap it was meant to mark.
 		["if_bridge", 2430, 840], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 1600, 1352], ["if_water", 1600, 1352], ["if_bunker", 1500, 330], ["if_comms", 1680, 330], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_palm", 2800, 1010], ["if_cave", 450, 1352]],
-	},
-	{
-		# QA-145 (v4.1) — OUTPOST, rebuilt from the real Mini
-		# Militia Outpost map (1outpost_new.tmx, unpacked from
-		# the classic APK: assets/hd/1outpost_new.tmx, 52x18
-		# tiles of 128 px = 6656x2304) — the SAME source QA-143
-		# used for Ironfall (map 0), so the game now has TWO
-		# Outpost-derived maps; Ironfall is NOT changed by this
-		# entry. Same scaling as Ironfall (x * 3200/6656, y
-		# mapped floor 1536 -> 1352 and top platform 256 ->
-		# 330, snapped to the same 170 px tiers), same size
-		# class (3200x1400), same tile (0, iron plate), same
-		# dusk sky + bg 0 + "dust" fx as Ironfall — the two
-		# maps share the source, so they share the look.
-		# Differences from Ironfall, all deliberate:
-		# (1) THE CENTRAL FLOOR CHASM IS CUT (QA-143 omitted
-		# it): the floor is two slabs (0-1538 / 1600-3200),
-		# chasm x1538-1600 (62 px = the TMX's 1-tile surface
-		# gap, x3200-3328, scaled) — falling in respawns the
-		# player (player_movement.gd: y > map_size.y + 200),
-		# the same rule as Neon City's central gap, so it is
-		# a hazard, not a death hole. The waterfall pool that
-		# sat at bottom centre x1600 on Ironfall is GONE (it
-		# would sit in the chasm).
-		# (2) NO central peak fortress: Outpost's highest
-		# platform is the upper-left perch (308-615 @ 330);
-		# the 1400-1800 @ 330 peak + bunker/comms/flag stay
-		# Ironfall-only. The perch instead carries a
-		# watchtower (Outpost Zone A, Northern Watchtower).
-		# (3) The 1180 tier's merged centre run stays WHOLE
-		# (1538-2400, 862 px — the literal TMX union of rows
-		# 10+11); Ironfall split it into 1538-1908 /
-		# 2092-2400 to keep a passage, so the mid climb
-		# routes differ between the two maps.
-		# Per tier (same row->tier mapping as QA-143: 330 =
-		# row 2; 500 = rows 3+4; 670 = rows 5+6; 840 = row 7;
-		# 1010 = rows 8+9; 1180 = rows 10+11; the 61 px nub
-		# is joined to the left shelf, 492-800, as in
-		# Ironfall): 330: 1 run; 500: 5; 670: 7 incl. long
-		# left shelf (185-677); 840: 4 incl. long left shelf
-		# (185-800); 1010: 6; 1180: 4. 29 platforms total.
-		# Spawns stay 6 left / 6 right, one per tier — the
-		# same 12 spots as Ironfall (every one re-checked
-		# against the new platform tops; all anchor). Pickups
-		# 6: #0 (750,1150) and #1 (2700,1150) on the y1180
-		# shelves as Ironfall; #2 moved off the chasm lip
-		# (1500,1320) -> (1200,1320) on the left floor;
-		# #3-#5 as Ironfall (1600,810 / 400,640 / 2250,470).
-		# Decor is Ironfall's if_* set re-anchored (the j*
-		# jungle decor is gone with Jungle Ruins); the 670
-		# metal bridge spans its 123 px gap (2770 @ 670).
-		# QA-145 (v4.1, Worker W): the 1180 metal bridge
-		# (1415) and the 840 wooden bridge (2708) did NOT
-		# span their 246 px gaps — both floated, 0%
-		# supported — so they now rest on platforms
-		# (1750 @ 1180 on the centre run, 2430 @ 840 on
-		# the left shelf), as on Ironfall. All 29
-		# platforms reachable from spawn#0 (validator:
-		# <=320 up, <=340 across, <=420 down); every tier
-		# step up has a zero-gap route.
-		"name": "Outpost", "size": Vector2(3200, 1400), "tile": 0,
-		"bg": 0,
-		"sky_top": Color(0.13, 0.16, 0.28), "sky_bottom": Color(0.45, 0.30, 0.22),
-		"hill": Color(0.10, 0.12, 0.20), "sun": Color(1.00, 0.95, 0.80), "fx": "dust",
-		"platforms": [
-			# Floor, split by the central chasm (x1538-1600).
-			Rect2(0, 1352, 1538, 48),
-			Rect2(1600, 1352, 1600, 48),
-			# y330 — Outpost row 2 (upper-left high perch).
-			Rect2(308, 330, 307, 48),
-			# y500 — Outpost rows 3+4.
-			Rect2(308, 500, 307, 48),
-			Rect2(862, 500, 123, 48),
-			Rect2(1108, 500, 246, 48),
-			Rect2(2031, 500, 246, 48),
-			Rect2(2585, 500, 184, 48),
-			# y670 — Outpost rows 5+6 (long left shelf 185-677).
-			Rect2(185, 670, 492, 48),
-			Rect2(862, 670, 123, 48),
-			Rect2(1108, 670, 246, 48),
-			Rect2(1662, 670, 246, 48),
-			Rect2(2092, 670, 123, 48),
-			Rect2(2462, 670, 246, 48),
-			Rect2(2831, 670, 123, 48),
-			# y840 — Outpost row 7 (long left shelf 185-800).
-			Rect2(185, 840, 615, 48),
-			Rect2(1477, 840, 431, 48),
-			Rect2(2277, 840, 308, 48),
-			Rect2(2831, 840, 123, 48),
-			# y1010 — Outpost rows 8+9.
-			Rect2(246, 1010, 554, 48),
-			Rect2(985, 1010, 307, 48),
-			Rect2(1477, 1010, 369, 48),
-			Rect2(2154, 1010, 308, 48),
-			Rect2(2708, 1010, 123, 48),
-			Rect2(2892, 1010, 123, 48),
-			# y1180 — Outpost rows 10+11; the merged centre run
-			# stays whole (1538-2400) — see the header comment.
-			Rect2(492, 1180, 308, 48),
-			Rect2(862, 1180, 430, 48),
-			Rect2(1538, 1180, 862, 48),
-			Rect2(2585, 1180, 492, 48),
-		],
-		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1100, 1146), Vector2(600, 976), Vector2(700, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2550, 636)],
-		"pickups": [Vector2(750, 1150), Vector2(2700, 1150), Vector2(1200, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
-		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_cave", 3050, 1352], ["if_sandbags", 650, 1180], 		# QA-145 (v4.1, Worker W): the 179 px if_bridge_metal
-		# sprite (1326-1504) floated in the 246 px gap between
-		# the (862,1180) shelf and the (1538,1180) centre run —
-		# 34 px short of both ends, 0% supported
-		# (screenshot-verified). It cannot span that gap, so
-		# it now rests on the centre run (1661-1839, fully on
-		# 1538-2400), next to the gap. The (2708,840) wooden
-		# bridge had the same fault (61 px short both ends)
-		# and moves onto the left 840 shelf, as on Ironfall.
-		["if_bridge_metal", 1750, 1180], ["if_plank", 2150, 1180], ["if_gantry", 900, 1180], ["crate", 1500, 1010], ["barrels", 2400, 1010], ["if_rockledge", 600, 1010], ["if_palm", 2800, 1010], ["if_bridge", 2430, 840], ["if_tower", 500, 670], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_tower", 450, 330]],
 	},
 	{
 		"name": "Neon City", "size": Vector2(3400, 1800), "tile": 2,
@@ -374,7 +261,7 @@ const MAPS := [
 		# every rise is <= 300 px (validator limit 320), so the
 		# climb needs no patches. Right edge pulled in 3600 -> 3400
 		# (QA-132 task 3). CTF lives ONLY here (mode 4); the other
-		# 5 maps keep FFA/TDM/Survival/LMS. Level strips in the pack
+		# 4 maps keep FFA/TDM/Survival/LMS. Level strips in the pack
 		# are WIRED IN as per-level backdrops (see _build_skyfall,
 		# QA-124).
 		"name": "Skyfall", "size": Vector2(3400, 10800), "tile": 5,

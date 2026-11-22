@@ -133,19 +133,19 @@ func _physicstest_build_steps() -> void:
 		{"name": "P24b-wedge-recovery", "wait": 3.5, "setup": _phys_s_wedge, "check": _phys_c_wedge},
 		{"name": "P25a-jetpack-cap", "wait": 1.0, "setup": _phys_s_jetpack_cap, "check": _phys_c_jetpack_cap},
 		{"name": "P25b-jetpack-release", "wait": 0.5, "setup": _phys_s_jetpack_release, "check": _phys_c_jetpack_release},
-		{"name": "P26-fire-trap-hot", "wait": 1.2, "setup": _phys_s_fire_trap_hot, "check": _phys_c_fire_trap_hot, "only_map": 3, "skip_reason": "Volcanic Cavern fire traps only"},
-		{"name": "P27-fire-trap-safe", "wait": 1.2, "setup": _phys_s_fire_trap_safe, "check": _phys_c_fire_trap_safe, "only_map": 3, "skip_reason": "Volcanic Cavern fire traps only"},
+		{"name": "P26-fire-trap-hot", "wait": 1.2, "setup": _phys_s_fire_trap_hot, "check": _phys_c_fire_trap_hot, "only_map": 2, "skip_reason": "Volcanic Cavern fire traps only"},
+		{"name": "P27-fire-trap-safe", "wait": 1.2, "setup": _phys_s_fire_trap_safe, "check": _phys_c_fire_trap_safe, "only_map": 2, "skip_reason": "Volcanic Cavern fire traps only"},
 		# QA-145 (v4.1) screenshot steps — capture the new fire visuals
 		# (synchronous get_texture capture in the check: the scene has
 		# been stable for the whole wait, so the last rendered frame
 		# already shows it). --shot-2400 resizes the window for the
 		# tall-phone pass (needs the dedicated Xvfb:99 2400x1080
 		# screen; the default xvfb-run caps the window at 1600x720).
-		{"name": "SHOT-VC-HOT", "wait": 2.0, "setup": _phys_s_shot_vc_hot, "check": _phys_c_shot_vc_hot, "only_map": 3, "skip_reason": "Volcanic Cavern shots only"},
-		{"name": "SHOT-VC-SAFE", "wait": 2.0, "setup": _phys_s_shot_vc_safe, "check": _phys_c_shot_vc_safe, "only_map": 3, "skip_reason": "Volcanic Cavern shots only"},
-		{"name": "SHOT-VC-TORNADO", "wait": 2.0, "setup": _phys_s_shot_vc_tornado, "check": _phys_c_shot_vc_tornado, "only_map": 3, "skip_reason": "Volcanic Cavern shots only"},
-		{"name": "SHOT-SF-L5-UPPER", "wait": 2.0, "setup": _phys_s_shot_sf_l5_upper, "check": _phys_c_shot_sf_l5_upper, "only_map": 5, "skip_reason": "Skyfall L5 shots only"},
-		{"name": "SHOT-SF-L5-LOWER", "wait": 2.0, "setup": _phys_s_shot_sf_l5_lower, "check": _phys_c_shot_sf_l5_lower, "only_map": 5, "skip_reason": "Skyfall L5 shots only"},
+		{"name": "SHOT-VC-HOT", "wait": 2.0, "setup": _phys_s_shot_vc_hot, "check": _phys_c_shot_vc_hot, "only_map": 2, "skip_reason": "Volcanic Cavern shots only"},
+		{"name": "SHOT-VC-SAFE", "wait": 2.0, "setup": _phys_s_shot_vc_safe, "check": _phys_c_shot_vc_safe, "only_map": 2, "skip_reason": "Volcanic Cavern shots only"},
+		{"name": "SHOT-VC-TORNADO", "wait": 2.0, "setup": _phys_s_shot_vc_tornado, "check": _phys_c_shot_vc_tornado, "only_map": 2, "skip_reason": "Volcanic Cavern shots only"},
+		{"name": "SHOT-SF-L5-UPPER", "wait": 2.0, "setup": _phys_s_shot_sf_l5_upper, "check": _phys_c_shot_sf_l5_upper, "only_map": GameData.SKYFALL_MAP_ID, "skip_reason": "Skyfall L5 shots only"},
+		{"name": "SHOT-SF-L5-LOWER", "wait": 2.0, "setup": _phys_s_shot_sf_l5_lower, "check": _phys_c_shot_sf_l5_lower, "only_map": GameData.SKYFALL_MAP_ID, "skip_reason": "Skyfall L5 shots only"},
 	]
 
 
@@ -334,7 +334,7 @@ func _phys_s_fall() -> void:
 	# clear drop from y=300 instead (platforms + solid decor +
 	# gate box); the other five maps keep x=1000.
 	var fall_x := 1000.0
-	if g.map_id == 5:
+	if g.map_id == GameData.SKYFALL_MAP_ID:
 		fall_x = _phys_longest_drop_x(300.0)
 	_phys_teleport(Vector2(fall_x, 300))
 	_phys_data["max_vy"] = 0.0
@@ -350,7 +350,7 @@ func _phys_longest_drop_x(from_y: float) -> float:
 	for p in (g.MAPS[g.map_id]["platforms"] as Array):
 		solids.append(p as Rect2)
 	solids.append_array(g.scale_test._ct_solid_rects(g.MAPS[g.map_id]))
-	if g.map_id == 5:
+	if g.map_id == GameData.SKYFALL_MAP_ID:
 		solids.append(Rect2(1742, 484, 116, 378)) # summit gate box (see _build_skyfall_gate)
 	var best_x := 1000.0
 	var best_drop := -1.0
@@ -388,7 +388,7 @@ func _phys_c_terminal() -> Array:
 
 
 # QA-099 (v3.7): the fixed x=800 jump/jetpack column sits under a
-# y1180/y1280 platform on Ironfall, Outpost and Volcanic (only 124 px
+# y1180/y1280 platform on Ironfall and Volcanic (only 124 px
 # of sky) — the jump bonked at ~65 px instead of ~155 and the jetpack
 # never reached its cap there, on three different maps with the same
 # numbers. The old "x=800 has >=294 px of sky on all five maps"
@@ -473,7 +473,7 @@ func _phys_ground_at(x: float) -> Vector2:
 func _phys_s_jump_hold() -> void:
 	# QA-099 (v3.7): stand on the ground at the clearest-sky column
 	# (see _phys_clear_sky_x) — the old x=800 sits under a y1180
-	# platform on Ironfall/Outpost and a y1280 platform on Volcanic,
+	# platform on Ironfall and a y1280 platform on Volcanic,
 	# so the jump bonked at ~65 px instead of ~155. (The even older
 	# x=2100 spot sat exactly on a bounce pad at 0.7 * W and x=300 has a
 	# platform at y=1180 directly overhead — same bonk.) Physics
@@ -935,7 +935,7 @@ func _phys_c_wedge() -> Array:
 func _phys_s_jetpack_cap() -> void:
 	# QA-099 (v3.7): the clearest-sky column (see
 	# _phys_clear_sky_x) — the old x=800 sits under a y1180/y1280
-	# platform on Ironfall/Outpost/Volcanic, so the climb bonked
+	# platform on Ironfall/Volcanic, so the climb bonked
 	# after ~53 px and never reached the 320 cap (fastest vy -23).
 	var x := _phys_clear_sky_x(300.0)
 	var gp := _phys_ground_at(x)

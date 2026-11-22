@@ -60,9 +60,9 @@ func _update_workerSshots(delta: float) -> void:
 			g.smoke_test._smoke_set_move(null)
 			g.smoke_test._smoke_set_aim(null)
 			g.smoke_test._smoke_set_fire(false)
-			# Map 3 (Volcanic): reset the fire-trap clock so the
+			# Map 2 (Volcanic): reset the fire-trap clock so the
 			# flames are HOT (visible) through the capture 1 s later.
-			if g.map_id == 3:
+			if g.map_id == 2:
 				g._fire_trap_time = 0.5
 		else:
 			g.smoke_test._capture_shot("user://shot_workerS_%d.png" % (idx + 1))

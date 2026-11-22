@@ -50,7 +50,7 @@ const JOIN_TIMEOUT := 8.0
 # Phase 5 — Sky Brawl arena backgrounds as a FAR parallax layer
 # (viewport scale ~1.3x, parallax 0.25, never stretched over a map).
 # QA-095 (v3.7): 3 left — Index matches the map's "bg" key:
-# 0 Ironfall + Outpost (new, code-drawn dusk factory skyline),
+# 0 Ironfall (new, code-drawn dusk factory skyline),
 # 1 Volcanic Cavern, 2 Neon City. Pirate Island keeps the
 # procedural gradient (no "bg" key), as before.
 # QA-112 (v3.9): 3 Skyfall dusk sky (pack's bg_sky_dusk.png,
@@ -570,7 +570,7 @@ func _ready() -> void:
 	# --net-stats turns it on for a dev session, F3 toggles it live.
 	_net_stats_visible = "--net-stats" in OS.get_cmdline_user_args()
 	# Test-only map override: --map=N loads that map (the collision
-	# test uses it to run its pass-through checks on Outpost).
+	# test uses it to run its pass-through checks on a chosen map).
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--map="):
 			map_id = clampi(int(a.trim_prefix("--map=")), 0, MAPS.size() - 1)
@@ -1075,7 +1075,7 @@ const MMC_VIEW_OFFSET_PX := 40.0
 const MMC_VIEW_EASE_RATE := 240.0 # px/s, same rate as _cam_look
 
 var _mmc_view_s: float = 0.0 # smoothed MMC value ([SLC, +0x294] analogue), [-1, 1]
-var _mmc_view_px: float = 0.0 # eased pixel offset actually applied
+var _mmc_view_px: float = 0.0 # magnitude of _mmc_view_want (QA-146: the eased vector itself is the offset)
 var _mmc_view_want: Vector2 = Vector2.ZERO # offset vector for this frame
 var _mmc_applied_frame: int = -1 # guard: apply at most once per frame
 
@@ -1214,6 +1214,16 @@ func _mmc_view_offset_step(weapon_id: int) -> float:
 # No-ops in the menu (no local player) and while dead (the spectator
 # camera is current then). Never touches _cam_look or the smoothing
 # speed, so the P19 camera test is unaffected.
+# QA-146 Worker A: the offset is eased as a SIGNED vector. The old
+# code eased only the unsigned magnitude (_mmc_view_px -> +/-40 px)
+# and multiplied by the instantly-flipping aim/facing direction, so
+# every left-right reversal snapped the rendered camera offset
+# +40 -> -40 px in ONE frame (an 80 px map jump) while the player
+# had barely moved — the v4.1 "map shakes when moving left to
+# right". Easing the vector itself caps the swing at
+# MMC_VIEW_EASE_RATE (240 px/s, same as _cam_look): a reversal now
+# takes 80/240 = 0.33 s to cross, no snap. _mmc_view_px is kept as
+# the magnitude of the eased vector (qa145 debug print reads it).
 func _update_mmc_camera_offset(delta: float) -> void:
 	var lp = _get_local_player()
 	if lp == null or lp._camera == null or not lp.alive:
@@ -1226,8 +1236,9 @@ func _update_mmc_camera_offset(delta: float) -> void:
 		dir = Vector2(cos(lp.aim_angle), sin(lp.aim_angle))
 	else:
 		dir = Vector2(float(lp.facing), 0.0)
-	_mmc_view_px = move_toward(_mmc_view_px, s * MMC_VIEW_OFFSET_PX, delta * MMC_VIEW_EASE_RATE)
-	_mmc_view_want = dir * _mmc_view_px
+	var target: Vector2 = dir * (s * MMC_VIEW_OFFSET_PX)
+	_mmc_view_want = _mmc_view_want.move_toward(target, delta * MMC_VIEW_EASE_RATE)
+	_mmc_view_px = _mmc_view_want.length()
 	call_deferred("_apply_mmc_camera_offset")
 
 

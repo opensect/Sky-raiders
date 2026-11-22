@@ -200,6 +200,11 @@ func receive_move_snapshot(snap: Dictionary) -> void:
 	# 10 ms per 0.5 s - slow enough that the delay never wobbles the
 	# render timeline itself. A resync (long silence) resets the
 	# jitter history: the gap is not Wi-Fi jitter, it is a rejoin.
+	# QA-146: this delay is now a DIAGNOSTIC only (reported in
+	# get_net_stats / the net-stats panel) — MMC has no buffer
+	# delay, so _interp_position no longer subtracts it from the
+	# render time. The measurement stays because jitter_ms is
+	# still the honest Wi-Fi health signal.
 	if p._prev_snap_sender_t >= 0.0 and now - p._last_snap_receipt <= 0.5:
 		var arrival_gap = now - p._prev_snap_receipt_t
 		var sender_gap = sender_t - p._prev_snap_sender_t
@@ -290,17 +295,21 @@ func get_net_stats() -> Dictionary:
 
 func _interp_position(now: float) -> Vector2:
 	# QA-068: the render timeline is anchored to the SENDER's
-	# clock - render at (newest sender stamp - 100 ms), NOT at
-	# (receipt time - 100 ms). The sender emits every 33 ms on its
-	# own clock, so the spacing between bracketing snapshots is a
-	# steady 33 ms whatever the Wi-Fi arrival jitter was; a burst
-	# of late arrivals no longer compresses the lerp, and a delayed
-	# packet no longer renders as if it were on time. The two
-	# clocks are never compared: only the sender's stamps order and
-	# space the buffer, and "rt" (receipt time) is used only to
-	# measure how long packets have been missing. If packets have
-	# stopped arriving, the timeline advances with the wall clock
-	# (minus one snapshot interval of grace) so the copy
+	# clock - render at the newest sender stamp, NOT at receipt
+	# time. The sender emits every 33 ms on its own clock, so the
+	# spacing between bracketing snapshots is a steady 33 ms
+	# whatever the Wi-Fi arrival jitter was; a burst of late
+	# arrivals no longer compresses the lerp, and a delayed packet
+	# no longer renders as if it were on time. The two clocks are
+	# never compared: only the sender's stamps order and space the
+	# buffer, and "rt" (receipt time) is used only to measure how
+	# long packets have been missing. QA-146 (MMC port): the old
+	# "- 100 ms" buffer delay is GONE — MMC's remote controller
+	# chases the newest received position every frame, and the
+	# 80-250 ms adaptive delay was the lag the user saw on the
+	# other phone (see the render-time comment below). If packets
+	# have stopped arriving, the timeline advances with the wall
+	# clock (minus one snapshot interval of grace) so the copy
 	# dead-reckons forward on its last velocity instead of freezing
 	# at the last bracket - the freeze-then-catch-up jump the user
 	# reported. Extrapolation past the newest snapshot is capped
@@ -328,21 +337,20 @@ func _interp_position(now: float) -> Vector2:
 	# 100 ms INTERP_BUFFER): render at (newest sender stamp -
 	# _interp_delay). Clean Wi-Fi settles near 80 ms, bursty Wi-Fi
 	# grows the buffer. INTERP_BUFFER is still the starting value.
-	# QA-073 (render clock): the target render time is then made
-	# MONOTONIC - it may never move backwards. When the adaptive
-	# delay grows, newest - delay would retreat, and the copy would
-	# step back and then surge forward (the first chaos run: 52 px
-	# snap-back, 1352 px/s). Holding the clock instead only defers
-	# the delay growth itself (tens of ms of sender time, ~10 px),
-	# so the copy pauses briefly instead of retreating. There is
-	# deliberately NO upper slew: capping the advance by wall time
-	# starved the clock whenever physics ticks batched (burst
-	# smoothness 937 px/s, burst move 421 -> 332 px) - the render
-	# clock must be free to follow the sender's clock, and the
-	# per-frame step clamp is what bounds the copy's speed. Only a
-	# resync jumps the clock, and the remote branch snaps the copy
-	# on a resync anyway.
-	var target_render_t = newest_t - p._interp_delay
+	# QA-146 (MMC port): rendering NO LONGER subtracts the delay —
+	# MMC's SoldierRemoteController has no interpolation buffer at
+	# all (updateStep 0x8f3bf8 chases the newest received position
+	# every frame; smoothing lives in player_movement.gd). The
+	# 80-250 ms delay was pure added lag on top of transit +
+	# snapshot spacing, and it slewed back down slowly (10 ms per
+	# 0.5 s), so bursty Wi-Fi left the copy ~250 ms behind for
+	# seconds — the lag the user saw on the other phone. The buffer
+	# itself stays: it orders snapshots and feeds dead-reckoning
+	# through gaps (below), and the monotonic render clock still
+	# applies. _interp_delay is still measured in
+	# receive_move_snapshot and reported in get_net_stats as a
+	# jitter diagnostic, but it no longer delays rendering.
+	var target_render_t = newest_t
 	var render_t = target_render_t
 	if p._snap_resync:
 		p._render_t_last = target_render_t

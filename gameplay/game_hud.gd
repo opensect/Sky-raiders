@@ -442,15 +442,15 @@ func _update_net_stats(delta: float) -> void:
 
 # QA-073: host-side divergence guard (spec §4, last resort). The
 # host compares its rendered copy of each remote player against
-# that player's newest snapshot: normal interpolation lag stays
-# under ~60 px (100 ms delay x 350 px/s + clamp glide), so a gap
-# over 300 px means the copy genuinely lost the client (e.g. a
-# missed teleport snapshot). Only when the gap holds for 1 s AND
-# the snapshot stream is still fresh (<0.2 s since the last one —
-# a stale stream means the copy is dead-reckoning by design and a
-# correction to an old snapshot would drag the client backwards)
-# does the host RPC a correction to the client's own newest
-# snapshot position. The client reconciles it (small = blend,
+# that player's newest snapshot: normal lag stays small (QA-146
+# MMC smoothing trail, ~35 px at 300 px/s, plus dead-reckoning
+# through gaps), so a gap over 300 px means the copy genuinely lost
+# the client (e.g. a missed teleport snapshot). Only when the gap
+# holds for 1 s AND the snapshot stream is still fresh (<0.2 s since
+# the last one — a stale stream means the copy is dead-reckoning by
+# design and a correction to an old snapshot would drag the client
+# backwards) does the host RPC a correction to the client's own
+# newest snapshot position. The client reconciles it (small = blend,
 # large = snap) and ignores stale corrections by sequence.
 func _update_divergence_check(delta: float) -> void:
 	if not g.multiplayer.is_server():
