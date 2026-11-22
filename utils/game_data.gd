@@ -5,7 +5,7 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "4.0" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "4.1" # GAP-61: join handshake rejects mismatched builds
 
 static var player_name: String = "Player"
 static var color_index: int = 0
