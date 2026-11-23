@@ -449,7 +449,7 @@ func _update_qa145shots(delta: float) -> void:
 		_qa145_cam_at = _qa145_timer
 	if _qa145_cam_at > 0.0 and not _qa145_cam_shot_done and _qa145_timer - _qa145_cam_at >= 0.6:
 		_qa145_cam_shot_done = true
-		print("QA145SHOTS: camera capture mmc_s=", g._ref_view_s, " mmc_px=", g._ref_view_px, " cam_offset=", lp._camera.offset if lp._camera != null else Vector2.ZERO, " aiming=", lp._aiming, " aim_angle=", lp.aim_angle)
+		print("QA145SHOTS: camera capture ref_s=", g._ref_view_s, " ref_px=", g._ref_view_px, " cam_offset=", lp._camera.offset if lp._camera != null else Vector2.ZERO, " aiming=", lp._aiming, " aim_angle=", lp.aim_angle)
 		_capture_shot("user://shot_qa145_camera_aim.png")
 	if _qa145_timer >= 6.5:
 		print("QA145SHOTS DONE")
