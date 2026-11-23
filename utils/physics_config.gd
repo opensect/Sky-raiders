@@ -51,63 +51,63 @@ extends RefCounted
 # Player-to-player (§14): the spec's recommended default — bodies pass
 # through each other, bullets/explosions still hit.
 
-# QA-141 (v3.15): Mini Militia Classic physics port. Every number
-# below that carries an MMC source was read from
+# QA-141 (v3.15): reference physics port. Every number
+# below that carries a reference source was read from
 # libcocos2dcpp.so (see BUGS.md QA-141 for the full table with
-# function addresses). MMC is impulse-based (Chipmunk) while Frag
+# function addresses). the reference is impulse-based (Chipmunk) while Frag
 # Arena is velocity-based (CharacterBody2D) — the EFFECTIVE
-# behaviour is ported, not the solver. Where MMC could not be
+# behaviour is ported, not the solver. Where the reference could not be
 # extracted the old Frag Arena value is KEPT and listed in BUGS.md.
-# Conflicts with earlier user requests: the jetpack tank is MMC's
+# Conflicts with earlier user requests: the jetpack tank is the reference's
 # 4.76 s (FUEL_MAX 100, drain 21/s), superseding the v3.12 9 s tank
-# (QA-132) — the user has now asked for MMC physics, so MMC wins.
+# (QA-132) — the user has now asked for reference physics, so the reference wins.
 # MAX_JET_RISE 320 -> 190 supersedes QA-074's cap the same way.
-# Player movement (§24.A): MMC move target (320-20)xwwf = 300,
+# Player movement (§24.A): reference move target (320-20)xwwf = 300,
 # sustained ~250 after the 0.598/s damping; wwf ~1.0 for all FA
 # weapons. Gravity 300 (Cocos2d-x Y-up (0,-300) = 300 down here).
 # Jump -220 (impulse 22.0 / mass 0.1). Max fall 600 (body clamp).
 # Drag 0.6 = ln(1/0.55) applied to the FULL velocity vector, once
-# per physics frame (MMC velocity function). Accel is MMC's
+# per physics frame (reference velocity function). Accel is the reference's
 # headroom rate: 3.0x(300-v) normal, 1.5x(300-v) while thrusting
-# (ACCEL consts 900 = 3.0x300 initial). No reversal bonus in MMC.
+# (ACCEL consts 900 = 3.0x300 initial). No reversal bonus in the reference.
 # Jetpack (§24.B): thrust 450, rise cap 190, gravity 50 while
 # thrusting, drain 21/s x thrustFactor (0.5+0.5xup), no ramp.
-# Fuel regen was NOT found in MMC — KEPT at 50/25, delay 0.5.
-# Explosions (§10): MMC Explosion class — damage max(10, 100-0.8d)
+# Fuel regen was NOT found in the reference — KEPT at 50/25, delay 0.5.
+# Explosions (§10): reference Explosion class — damage max(10, 100-0.8d)
 # inside radius 125, knockback min(600, (100-0.8d)x10). Vertical
 # multiplier 0.4 KEPT (not extracted). Barrels use the same class:
 # radius 125, damage via the same formula.
 
 # --- Movement (spec §2, §24.A) ---
-# QA-141: MMC values (SLC::updateStep 0x8e4d5c; local 0x8e4604).
+# QA-141: reference values (SLC::updateStep 0x8e4d5c; local 0x8e4604).
 const SPEED_GROUND := 250.0
 const SPEED_AIR := 250.0
-const ACCEL_GROUND := 900.0 # MMC headroom initial: 3.0 x 300 (see player_movement.gd)
+const ACCEL_GROUND := 900.0 # reference headroom initial: 3.0 x 300 (see player_movement.gd)
 const ACCEL_AIR := 900.0 # same headroom model in the air (rate, not accel, differs)
 const DECEL_GROUND := 3400.0 # retained as tuning reference only; drag is the real stopper
 const DECEL_AIR := 900.0 # retained as tuning reference only
-const REVERSAL_GROUND := 1.0 # QA-141: MMC has no reversal bonus (was 1.6)
-const REVERSAL_AIR := 1.0 # QA-141: MMC has no reversal bonus (was 1.2)
-const DRAG_GROUND := 0.6 # QA-141: MMC damping ln(1/0.55) = 0.598/s (was 8.0)
-const DRAG_AIR := 0.6 # QA-141: same MMC damping in the air (was 1.2)
+const REVERSAL_GROUND := 1.0 # QA-141: reference has no reversal bonus (was 1.6)
+const REVERSAL_AIR := 1.0 # QA-141: reference has no reversal bonus (was 1.2)
+const DRAG_GROUND := 0.6 # QA-141: reference damping ln(1/0.55) = 0.598/s (was 8.0)
+const DRAG_AIR := 0.6 # QA-141: same reference damping in the air (was 1.2)
 const GRAVITY := 300.0
-const GRAVITY_THRUSTING := 50.0 # QA-141: MMC owner gravity while thrusting (0,-50)
+const GRAVITY_THRUSTING := 50.0 # QA-141: reference owner gravity while thrusting (0,-50)
 const MAX_FALL := 600.0
-const MMC_MOVE_BASE := 300.0 # QA-141: MMC move-speed base (320-20) x wwf; headroom = base - v_along
+const REF_MOVE_BASE := 300.0 # QA-141: reference move-speed base (320-20) x wwf; headroom = base - v_along
 const JUMP_VELOCITY := -220.0
-const JUMP_CUT := 0.45 # variable jump height: release while rising cuts vy (KEPT — MMC variable-jump not extracted)
+const JUMP_CUT := 0.45 # variable jump height: release while rising cuts vy (KEPT — reference variable-jump not extracted)
 const AIR_CONTROL := 0.65
 
 # --- Jetpack (spec §5, §24.B) ---
-# QA-141: MMC values (SLC::updateStep 0x8e4d5c). player.gd mirrors
+# QA-141: reference values (SLC::updateStep 0x8e4d5c). player.gd mirrors
 # these consts for the hot path — change both files together.
 const JET_ACCEL := 450.0
 const MAX_JET_RISE := 190.0
-const JET_AIR_ACCEL := 450.0 # MMC thrusting initial accel 1.5 x 300 (was 1900)
-const FUEL_MAX := 100.0 # QA-141: MMC 100 fuel, ~4.76 s full thrust (was 405 / 9.0 s, QA-132)
-const FUEL_DRAIN := 21.0 # QA-141: MMC 0.35 x thrustFactor x 60 = max 21/s (was 45)
-const FUEL_REFILL_GROUND := 50.0 # KEPT — MMC fuel regen not found (could-not-extract #3)
-const FUEL_REFILL_AIR := 25.0 # KEPT — MMC fuel regen not found
+const JET_AIR_ACCEL := 450.0 # reference thrusting initial accel 1.5 x 300 (was 1900)
+const FUEL_MAX := 100.0 # QA-141: reference 100 fuel, ~4.76 s full thrust (was 405 / 9.0 s, QA-132)
+const FUEL_DRAIN := 21.0 # QA-141: reference 0.35 x thrustFactor x 60 = max 21/s (was 45)
+const FUEL_REFILL_GROUND := 50.0 # KEPT — reference fuel regen not found (could-not-extract #3)
+const FUEL_REFILL_AIR := 25.0 # KEPT — reference fuel regen not found
 const FUEL_REGEN_DELAY := 0.5 # KEPT
 const FUEL_LOW_WARN := 25.0
 
@@ -130,15 +130,15 @@ const DAMAGE_FALLOFF_START := 400.0 # full damage inside this range
 const DAMAGE_FALLOFF_MIN := 0.7 # at max weapon range
 
 # --- Explosions (spec §10) ---
-# QA-141: MMC Explosion::applyDamage 0x620168 — damage
+# QA-141: reference Explosion::applyDamage 0x620168 — damage
 # max(10, 100 - 0.8 x dist) inside radius 125; knockback
 # min(600, (100 - 0.8 x dist) x 10) along the away-direction
 # (impulse x m_inv 10, capped by the 600 max-speed clamp).
-const EXPLOSION_RADIUS := 125.0 # MMC damage radius (Explosion::applyDamage 0x620168)
-const EXPLOSION_DAMAGE_MAX := 100.0 # MMC centre damage
-const EXPLOSION_DAMAGE_FALLOFF := 0.8 # MMC damage lost per px of distance
-const EXPLOSION_DAMAGE_MIN := 10.0 # MMC damage floor
-const EXPLOSION_KNOCKBACK_CAP := 600.0 # MMC knockback cap (600 max-speed clamp)
+const EXPLOSION_RADIUS := 125.0 # reference damage radius (Explosion::applyDamage 0x620168)
+const EXPLOSION_DAMAGE_MAX := 100.0 # reference centre damage
+const EXPLOSION_DAMAGE_FALLOFF := 0.8 # reference damage lost per px of distance
+const EXPLOSION_DAMAGE_MIN := 10.0 # reference damage floor
+const EXPLOSION_KNOCKBACK_CAP := 600.0 # reference knockback cap (600 max-speed clamp)
 const EXPLOSION_VERTICAL_MULT := 0.4 # Ky: upward blast multiplier (KEPT — not extracted)
 const MASS := 1.0 # player mass for dV = J/m
 
@@ -154,7 +154,7 @@ const BOUNCE_VELOCITY := -750.0
 const BOUNCE_COOLDOWN := 0.3
 
 # --- Explosive barrels (spec §22.C) ---
-# QA-141: MMC uses the same Explosion class for barrels — radius
+# QA-141: reference uses the same Explosion class for barrels — radius
 # 125, damage via the Explosion formula above (centre 100, floor
 # 10). BARREL_BLAST_DAMAGE is gone: the damage is computed from
 # the distance, not passed in.
@@ -162,7 +162,7 @@ const BARREL_HEALTH := 100.0
 const BARREL_BLAST_RADIUS := 125.0
 
 # --- Grenades (spec §13) ---
-# QA-141: MMC FRAGNADE::initBody 0x62f1b4 / local 0x62f330.
+# QA-141: reference FRAGNADE::initBody 0x62f1b4 / local 0x62f330.
 const GRENADE_DRAG := 0.01
 const GRENADE_RESTITUTION := 0.1
 const GRENADE_REST_SPEED := 40.0
@@ -173,24 +173,24 @@ const VELOCITY_INHERITANCE := 0.15
 # --- Multiplayer sync (spec §21.F) ---
 const SNAPSHOT_INTERVAL := 0.033 # 30 snapshots/s (was 0.05 = 20/s)
 const INTERP_BUFFER := 0.1 # 100 ms interpolation buffer
-# QA-146: MMC remote-player render (SoldierRemoteController::updateStep
-# 0x8f3bf8, libcocos2dcpp.so). MMC has NO interpolation buffer: every
+# QA-146: reference remote-player render (SoldierRemoteController::updateStep
+# 0x8f3bf8, libcocos2dcpp.so). reference has NO interpolation buffer: every
 # frame the remote copy chases the NEWEST received position with
 # factor = max(0.05, 0.3745 - 15.0 * dt) (.rodata doubles 0.05
 # @0x1085010, 0.3745 @0x1086220; fmov 15.0) — ~0.125/frame at 60 fps,
 # floor 0.05. The alt tween (TWEEN_METHOD != 0) lerps with
 # t = min(1, extrapolationMultiplier * timer), extrapolationMultiplier
 # = 4.0 (.data init), but TWEEN_METHOD defaults to 0 (.bss), so the
-# max() formula is the live one. Dead reckoning is MMC's gap-filler
+# max() formula is the live one. Dead reckoning is the reference's gap-filler
 # (setRemotePositionWithDeadReckoning 0x8f5308 advances the copy on
 # its velocity; setRemotePositionInterp 0x8f6340 is a no-op stub in
-# this build). MMC's send rate could NOT be extracted
+# this build). the reference's send rate could NOT be extracted
 # (sendPositionData 0x71a16c has no internal throttle; the rate lives
 # in a per-message timer table, ClientEntry::GetMessageTimer 0x82ef9c)
 # — 30/s stays, per spec §21.F (20-30/s).
-const REMOTE_SMOOTH_BASE := 0.3745 # MMC smoothing base (0x1086220)
-const REMOTE_SMOOTH_RATE := 15.0 # MMC smoothing rate (fmov 15.0)
-const REMOTE_SMOOTH_MIN := 0.05 # MMC smoothing floor (0x1085010)
+const REMOTE_SMOOTH_BASE := 0.3745 # reference smoothing base (0x1086220)
+const REMOTE_SMOOTH_RATE := 15.0 # reference smoothing rate (fmov 15.0)
+const REMOTE_SMOOTH_MIN := 0.05 # reference smoothing floor (0x1085010)
 
 # --- Player collision mode (spec §14, recommended default) ---
 const PLAYER_COLLISION_ENABLED := false

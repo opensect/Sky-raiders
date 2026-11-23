@@ -736,7 +736,7 @@ func _update_replsimtest_b(delta: float) -> void:
 			g.net_test._repl_sim_check("BURST-SMOOTH", _repl_sim_track_max_step < 900.0 and _repl_sim_track_max_back < 5.0,
 				"max step rate=%.0f px/s, max snap-back=%.1f px over 2 s of burst delivery (want <900 px/s / <5 px — steady glide, no jumps; 900 not 600 because one ~10 fps sample can hold a whole burst's catch-up, see the step comment)" % [_repl_sim_track_max_step, _repl_sim_track_max_back])
 			g.net_test._repl_sim_check("BURST-MOVE", moved17 > 300.0,
-				"server pid-2 copy moved %.0f px in 2 s of burst delivery (want >300 — 1 s at 300 px/s + 1 s at 150 px/s, minus the MMC smoothing trail, ~35 px at 300 px/s; QA-146 removed the 100 ms buffer lag)" % moved17)
+				"server pid-2 copy moved %.0f px in 2 s of burst delivery (want >300 — 1 s at 300 px/s + 1 s at 150 px/s, minus the reference smoothing trail, ~35 px at 300 px/s; QA-146 removed the 100 ms buffer lag)" % moved17)
 			# Step 18 (QA-073): chaos delivery — loss + delay +
 			# duplicate + out-of-order, the Wi-Fi shapes steps 9/10/17
 			# never produced. _repl_sim_kill_snaps_done is reused as
@@ -757,7 +757,7 @@ func _update_replsimtest_b(delta: float) -> void:
 			# ooo) instead of silently swallowing it. The step bar
 			# here is 2000 px/s, kept as the teleport detector, not
 			# fitted to a run: after a loss gap the copy closes
-			# ~12.5% of the gap per physics frame (QA-146 MMC
+			# ~12.5% of the gap per physics frame (QA-146 reference
 			# smoothing, no step clamp any more), and one ~10 fps
 			# sample can hold 6 physics frames of that chase
 			# (~55% of a ~150 px gap + 30 px of motion = ~110 px

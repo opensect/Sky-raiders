@@ -334,7 +334,7 @@ func _ft_s_fire_hold() -> void:
 func _ft_c_fire_hold() -> Array:
 	var lp = _ft_lp()
 	var n: int = lp._shots_fired - _fire_shots_before
-	# QA-141: rifle rate 0.10 s (MMC AK47, was 0.125): 2.5 s of
+	# QA-141: rifle rate 0.10 s (reference AK47, was 0.125): 2.5 s of
 	# holding should fire ~25 shots (mag is 35 now, so no reload
 	# interrupts the hold).
 	var ok: bool = n >= 18 and n <= 28
@@ -561,7 +561,7 @@ func _ft_c_slide_off_a() -> Array:
 func _ft_s_slide_off_b() -> void:
 	# v3.2: unlike the old FIRE button, sliding the aim finger off
 	# the stick base does NOT stop firing — the knob clamps at the
-	# radius and the deflection persists (Mini Militia behaviour).
+	# radius and the deflection persists (reference behaviour).
 	# Only releasing the stick stops the shooting.
 	g._on_touch_drag(911, _ft_aim_center() + Vector2(300, 0))
 	# QA-029: refresh the touch state NOW, then capture the baseline,
@@ -683,21 +683,21 @@ func _ft_s_pellets() -> void:
 func _ft_c_pellets() -> Array:
 	var lp = _ft_lp()
 	var n := _ft_count_bullets(lp.peer_id, 2)
-	# QA-141: MMC SPAS-12 fires 6 pellets (builder idx 9, rounds 6),
-	# not 7 — the old "want 7, GAP-20 spec §9" encoded the pre-MMC
+	# QA-141: reference SPAS-12 fires 6 pellets (builder idx 9, rounds 6),
+	# not 7 — the old "want 7, GAP-20 spec §9" encoded the pre-reference
 	# table. The setup comment already said six; the check now
-	# agrees with it and with MMC.
+	# agrees with it and with the reference.
 	var ok: bool = n == 6
 	_ft_release_aim()
 	_ft_release_fire()
-	return [ok, "active shotgun pellets from one shot: %d (want 6, MMC SPAS-12)" % n]
+	return [ok, "active shotgun pellets from one shot: %d (want 6, reference SPAS-12)" % n]
 
 
 # QA-061: the Assault Rifle must fire STRAIGHT — hold the trigger
 # for a full 2.5 s (25 shots at the 0.10 s rate) and every bullet's
 # recorded direction deviation from the aim must stay inside the
-# MMC spread. QA-141: MMC AK47 has ±4° LCG spread (was 0° — the
-# old <0.5° bound encoded the pre-MMC straight rifle), so the bound
+# reference spread. QA-141: reference AK47 has ±4° LCG spread (was 0° — the
+# old <0.5° bound encoded the pre-reference straight rifle), so the bound
 # is 4.5°, not 0.5°. Recoil growth is still excluded for the rifle
 # (QA-061 guard), so the spread is the table value only. The step
 # runs last so _recoil_accum is already high from the earlier
@@ -722,12 +722,12 @@ func _ft_c_rifle_straight() -> Array:
 		max_dev = maxf(max_dev, absf(float(lp.shot_devs[i])))
 	var max_deg := rad_to_deg(max_dev)
 	var ok: bool = n >= 10 and max_deg < 4.5
-	return [ok, "rifle shots in hold=%d max deviation=%.2f° (want >=10 shots, <4.5° — MMC AK47 ±4° LCG)" % [n, max_deg]]
+	return [ok, "rifle shots in hold=%d max deviation=%.2f° (want >=10 shots, <4.5° — reference AK47 ±4° LCG)" % [n, max_deg]]
 
 
 # QA-104 (v3.8): the SMG must group tightly — base spread 0.035
 # rad + recoil_k 0.015 (was 0.09 + 0.04, "bullets spray
-# everywhere"). QA-141: MMC MP5 base spread is 0.087 rad (±5°),
+# everywhere"). QA-141: reference MP5 base spread is 0.087 rad (±5°),
 # and the recoil growth (recoil_k 0.015, kept) adds up to ~0.08
 # rad over a 0.7 s burst, so the bound is 0.20 rad (was 0.15).
 # Fire a ~0.7 s burst from a reset recoil state and every bullet's
@@ -755,7 +755,7 @@ func _ft_c_smg_spread() -> Array:
 	for i in range(start, total):
 		max_dev = maxf(max_dev, absf(float(lp.shot_devs[i])))
 	var ok: bool = n >= 5 and max_dev < 0.20
-	return [ok, "smg burst shots=%d max deviation=%.3f rad (want >=5 shots, <0.20 rad — MMC MP5 ±5° + recoil)" % [n, max_dev]]
+	return [ok, "smg burst shots=%d max deviation=%.3f rad (want >=5 shots, <0.20 rad — reference MP5 ±5° + recoil)" % [n, max_dev]]
 
 
 # QA-106 (v3.8): the rocket must fly straight along the aim
@@ -822,7 +822,7 @@ func _ft_s_bullet_inside() -> void:
 	# once, not fly through the wall. Muzzle = player pos +
 	# hand-anchor offset + dir * muzzle_distance: the shoot anchor
 	# is x=11 (QA-145 new sheet, x1.20 scale = 13.2) and the pistol
-	# muzzle_distance is 43.7 (QA-143 MMC firing point), so
+	# muzzle_distance is 43.7 (QA-143 reference firing point), so
 	# standing at x=63 aiming left puts the muzzle at
 	# 63 - 13.2 - 43.7 = 6.1, ~6 px inside the 24 px left boundary
 	# wall — the same margin the old x=56 setup had with the old

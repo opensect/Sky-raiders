@@ -80,7 +80,7 @@ falls must be able to recover through a tunnel, elevator or alternate route.
 
 ## Asset pack (user-uploaded 2026-11-20 ~17:46)
 `~/workspace/user/files/SKYFALL_assets.zip` (1.8 MB, 77 files, 2.0 MB extracted
-to `~/workspace/mini-militia-lan/assets/skyfall/SKYFALL_assets/`). Organized:
+to `~/workspace/sky-raiders/assets/skyfall/SKYFALL_assets/`). Organized:
 levels/ (8 level images 1800x450, one per level), powerups/ (7 power-ups, full
 + 64px icons + spritesheet), characters/ (8 Red/Blue × Attacker/Defender/
 Sniper/Support sprites 128x192 RGBA transparent), flags/ (red/blue flags +

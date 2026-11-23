@@ -4,7 +4,7 @@ Status: Phase 1 — design + implementation notes only. NO game code changed
 yet. The implementation worker applies this in Phase 2.
 
 User instruction (2026-11-19): remove the dedicated FIRE button entirely
-and move firing to the right joystick, exactly like Mini Militia. This
+and move firing to the right joystick, exactly like the reference game. This
 SUPERSEDES the v2.4 dedicated-FIRE-button design.
 
 ## 1. The new scheme

@@ -40,7 +40,7 @@ func _spawn_pickup_at(spot_idx: int, kind: int) -> void:
 
 
 # QA-143: spawn a weapon pickup a player dropped when picking up
-# a new gun with full slots (MMC removePrimaryWeapon 0x8eade4).
+# a new gun with full slots (reference removePrimaryWeapon 0x8eade4).
 # Host-only (the caller checks). spot_idx -1: no spot owns it, so
 # no per-spot timer restarts when it is taken or expires.
 func spawn_dropped_pickup(pos: Vector2, kind: int) -> void:

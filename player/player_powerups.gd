@@ -40,7 +40,7 @@ const SPEED_DURATION := 8.0 # QA-132: was 7.0 (speed is now x1.5, see below)
 const JETPACK_BOOST_DURATION := 15.0 # QA-119: was 7.0 (user 2026-11-20 ~20:48)
 const INVISIBILITY_DURATION := 10.0 # QA-119: user corrected 4 -> 10 s (2026-11-20 ~20:49)
 const MAX_STORED_BOOSTS := 3
-# QA-143: MMC gun slots - the rifle plus at most ONE extra gun
+# QA-143: reference gun slots - the rifle plus at most ONE extra gun
 # (SLC::addWeapon 0x8e6934: primary + secondary, then the pistol
 # sidearm). A second extra drops the first one as a world pickup.
 const MAX_SLOT_EXTRAS := 1
@@ -64,24 +64,24 @@ func give_pickup(kind: int) -> void:
 		return
 	# 1 SMG, 2 Shotgun, 3 Sniper, 4 Rocket, 5 Health, 6 Grenades
 	if kind >= 1 and kind <= 4:
-		# QA-143: MMC weapon slots (SLC::addWeapon 0x8e6934). Two
+		# QA-143: reference weapon slots (SLC::addWeapon 0x8e6934). Two
 		# gun slots - the rifle (0, the spawn gun) plus ONE extra -
 		# and the pistol (5) as the permanent sidearm outside the
 		# slots. _owned_extra holds the extra (at most one). The
 		# rifle is never dropped: it is Frag Arena's respawn
 		# fallback and the fire test assumes it is always owned
-		# (MMC has no permanent weapon - recorded difference, see
-		# the QA-143 notes). Pickup routing, MMC order:
+		# (the reference has no permanent weapon - recorded difference, see
+		# the QA-143 notes). Pickup routing, reference order:
 		# - already owned: refill + equip, no slot change (Frag
-		#   Arena keeps one instance per kind; MMC would hold a
+		#   Arena keeps one instance per kind; reference would hold a
 		#   second copy, which our id-based mag memory cannot).
-		# - secondary slot free: add + auto-equip (MMC adds as
+		# - secondary slot free: add + auto-equip (reference adds as
 		#   secondary, then switchWeapons, so the new gun is in
 		#   hand at once - the old code already auto-equipped).
 		# - both slots full: drop the old extra as a world pickup
-		#   (MMC removePrimaryWeapon 0x8eade4) and the new gun
+		#   (reference removePrimaryWeapon 0x8eade4) and the new gun
 		#   takes its place. The dropped gun is the extra, never
-		#   the rifle: when the rifle is in hand MMC would drop
+		#   the rifle: when the rifle is in hand reference would drop
 		#   the primary (the rifle), but the rifle is protected
 		#   here, so the secondary goes instead.
 		if not p._owned_extra.has(kind) and p._owned_extra.size() >= MAX_SLOT_EXTRAS:
@@ -100,7 +100,7 @@ func give_pickup(kind: int) -> void:
 		p._reserve[kind] = int(p.RESERVE_DEFAULT.get(kind, 0))
 		p.reloading = false
 		p.weapon_state = WeaponState.READY
-		# QA-143: MMC sets the view's weapon-angle offset when a
+		# QA-143: reference sets the view's weapon-angle offset when a
 		# primary is equipped (SLC::addPrimaryWeapon 0x8e6ebc).
 		p._weapon_angle_offset = float(p.player_visuals.WEAPON_ARM_ANGLE.get(kind, 0.0))
 		p._update_gun_texture()
@@ -232,7 +232,7 @@ func _apply_instant(kind: int, target: Node2D = null) -> bool:
 
 
 # QA-143: spawn the world pickup for a gun dropped when its slot
-# was taken by a new pickup (MMC removePrimaryWeapon 0x8eade4 -
+# was taken by a new pickup (reference removePrimaryWeapon 0x8eade4 -
 # the dropped weapon becomes a world pickup, thrown forward along
 # the fire angle). Host-only: only the server spawns pickups.
 # The pickup lands 70 px ahead of the player so it is not

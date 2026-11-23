@@ -3,16 +3,16 @@ extends CharacterBody2D
 # Throwable grenade: arcs with gravity, bounces off platforms, explodes
 # after a 2-second fuse. Area damage + knockback, handled by the game.
 
-const GRAVITY := 250.0 # QA-141: MMC grenade gravity (0,-250) (FRAGNADE::initBody 0x62f1b4, was 1400)
-const FUSE := 1.75 # QA-141: MMC fuse 1.75 s (FRAGNADE::updateItemStep 0x62f5b8, was 2.0)
-const BLAST_RADIUS := 125.0 # QA-141: MMC Explosion radius 125 (Explosion::applyDamage 0x620168, was 120)
+const GRAVITY := 250.0 # QA-141: reference grenade gravity (0,-250) (FRAGNADE::initBody 0x62f1b4, was 1400)
+const FUSE := 1.75 # QA-141: reference fuse 1.75 s (FRAGNADE::updateItemStep 0x62f5b8, was 2.0)
+const BLAST_RADIUS := 125.0 # QA-141: reference Explosion radius 125 (Explosion::applyDamage 0x620168, was 120)
 # QA-141: no flat BLAST_DAMAGE any more — every explosion uses the
-# MMC formula max(10, 100 - 0.8 x dist) (see player_health.gd).
+# reference formula max(10, 100 - 0.8 x dist) (see player_health.gd).
 # The damage argument of request_explosion is legacy and ignored.
-const DRAG := 0.01 # QA-141: MMC grenade damping pow(1/0.99,-dt) ~= 0.01/s (local 0x62f330, was 0.15)
-const RESTITUTION := 0.1 # QA-141: MMC grenade shape e=0.1 (FRAGNADE::initBody 0x62f1b4, was 0.45)
+const DRAG := 0.01 # QA-141: reference grenade damping pow(1/0.99,-dt) ~= 0.01/s (local 0x62f330, was 0.15)
+const RESTITUTION := 0.1 # QA-141: reference grenade shape e=0.1 (FRAGNADE::initBody 0x62f1b4, was 0.45)
 const REST_SPEED := 40.0 # below this, the grenade rests (GAP-33)
-# QA-141: NO terminal-velocity clamp for the grenade — MMC has
+# QA-141: NO terminal-velocity clamp for the grenade — reference has
 # none (cpBodyNew defaults +inf, never overridden in initBody).
 # The old MAX_FALL 950 const is deleted.
 
@@ -30,9 +30,9 @@ var bounced: bool = false # set on the first real bounce (physics-test reads thi
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 1
-	# QA-141: MMC passes the thrower's FULL body velocity
+	# QA-141: reference passes the thrower's FULL body velocity
 	# (SLC::throwDual 0x8edf34 puts it in the "GrenadeLaunched"
-	# array). The base throw (620 px/s + -260 up) is KEPT — MMC's
+	# array). The base throw (620 px/s + -260 up) is KEPT — the reference's
 	# throw speed was NOT found (could-not-extract #1); the 40 in
 	# throwDual is unidentified and is NOT a throw speed.
 	velocity = throw_dir * 620.0 + Vector2(0, -260.0) + thrower_vel * 1.0
@@ -64,7 +64,7 @@ func _physics_process(delta: float) -> void:
 	var vx_before := velocity.x
 	velocity.y += GRAVITY * delta
 	velocity *= exp(-DRAG * delta) # air drag (GAP-32)
-	# QA-141: no terminal-velocity clamp (MMC grenade has none).
+	# QA-141: no terminal-velocity clamp (reference grenade has none).
 	move_and_slide()
 	if _resting:
 		velocity = Vector2.ZERO
@@ -85,7 +85,7 @@ func _physics_process(delta: float) -> void:
 				velocity = Vector2.ZERO
 	elif is_on_wall():
 		# Wall bounce only when the pre-slide vx was toward the wall.
-		# QA-141: bounce factor 0.1 = MMC restitution (was 0.5).
+		# QA-141: bounce factor 0.1 = reference restitution (was 0.5).
 		if signf(vx_before) != signf(velocity.x) or absf(velocity.x) < absf(vx_before) * 0.5:
 			velocity.x = -vx_before * 0.1
 	_fuse -= delta
@@ -98,7 +98,7 @@ func _physics_process(delta: float) -> void:
 func _explode() -> void:
 	var game = get_tree().get_first_node_in_group("game")
 	if game != null:
-		# QA-141: damage is the MMC formula now — the damage
-		# argument is legacy; pass the MMC centre damage (100).
+		# QA-141: damage is the reference formula now — the damage
+		# argument is legacy; pass the reference centre damage (100).
 		game.request_explosion(global_position, BLAST_RADIUS, int(PhysicsConfig.EXPLOSION_DAMAGE_MAX), owner_id, -2)
 	queue_free()

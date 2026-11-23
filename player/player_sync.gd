@@ -201,7 +201,7 @@ func receive_move_snapshot(snap: Dictionary) -> void:
 	# render timeline itself. A resync (long silence) resets the
 	# jitter history: the gap is not Wi-Fi jitter, it is a rejoin.
 	# QA-146: this delay is now a DIAGNOSTIC only (reported in
-	# get_net_stats / the net-stats panel) — MMC has no buffer
+	# get_net_stats / the net-stats panel) — reference has no buffer
 	# delay, so _interp_position no longer subtracts it from the
 	# render time. The measurement stays because jitter_ms is
 	# still the honest Wi-Fi health signal.
@@ -303,8 +303,8 @@ func _interp_position(now: float) -> Vector2:
 	# no longer renders as if it were on time. The two clocks are
 	# never compared: only the sender's stamps order and space the
 	# buffer, and "rt" (receipt time) is used only to measure how
-	# long packets have been missing. QA-146 (MMC port): the old
-	# "- 100 ms" buffer delay is GONE — MMC's remote controller
+	# long packets have been missing. QA-146 (reference port): the old
+	# "- 100 ms" buffer delay is GONE — the reference's remote controller
 	# chases the newest received position every frame, and the
 	# 80-250 ms adaptive delay was the lag the user saw on the
 	# other phone (see the render-time comment below). If packets
@@ -337,8 +337,8 @@ func _interp_position(now: float) -> Vector2:
 	# 100 ms INTERP_BUFFER): render at (newest sender stamp -
 	# _interp_delay). Clean Wi-Fi settles near 80 ms, bursty Wi-Fi
 	# grows the buffer. INTERP_BUFFER is still the starting value.
-	# QA-146 (MMC port): rendering NO LONGER subtracts the delay —
-	# MMC's SoldierRemoteController has no interpolation buffer at
+	# QA-146 (reference port): rendering NO LONGER subtracts the delay —
+	# the reference's SoldierRemoteController has no interpolation buffer at
 	# all (updateStep 0x8f3bf8 chases the newest received position
 	# every frame; smoothing lives in player_movement.gd). The
 	# 80-250 ms delay was pure added lag on top of transit +

@@ -1,7 +1,7 @@
 # Operation Ironfall — map design (user-shared, 2026-11-20)
 
-Original 2D shooter map, Mini Militia-inspired side-scrolling battlefield.
-Assets: `~/workspace/mini-militia-lan/assets/ironfall/` (10 PNG sheets from
+Original 2D shooter map, reference-inspired side-scrolling battlefield.
+Assets: `~/workspace/sky-raiders/assets/ironfall/` (10 PNG sheets from
 `~/workspace/user/files/Operation_Ironfall_Map_Assets.zip`, 2.1 MB) + `concept.jpg`
 (the full design sheet the user shared). All sheets are RGB with solid dark
 backgrounds — NOT transparent production sprites. They must be sliced into

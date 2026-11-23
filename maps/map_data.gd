@@ -16,7 +16,7 @@ const MAPS := [
 # The other 8 maps are deleted (map data, tiles, thumbs,
 # backgrounds, lobby entries — nothing references them).
 	{
-		# QA-143 (v4.0) — REBUILT from the real Mini Militia
+		# QA-143 (v4.0) — REBUILT from the real the reference game
 		# Outpost map (1outpost_new.tmx, unpacked from the classic
 		# APK: assets/hd/1outpost_new.tmx, 52x18 tiles of 128 px =
 		# 6656x2304). The TMX "tile" layer is the solid terrain;

@@ -349,7 +349,7 @@ func _jt_c_aim_release_no_left() -> Array:
 	# QA-141: the vel.x bound is -120, not -5. The aim hold fires
 	# the rifle right, and each shot kicks the player left 30 px/s
 	# (recoil) — the old drag 8.0 erased that kick inside the
-	# window, but MMC damping is 0.6/s, so ~-40..-70 px/s of recoil
+	# window, but reference damping is 0.6/s, so ~-40..-70 px/s of recoil
 	# is still visible at the check. That is legitimate recoil, not
 	# the QA-054 turn-left bug: facing == 1, aim ~= 0 (right) and
 	# not firing still prove the released touch never aimed left.
@@ -419,7 +419,7 @@ func _jt_s_aim_right_mouse_2400() -> void:
 func _jt_c_aim_release_no_left_2400() -> Array:
 	var lp = _jt_lp()
 	var centre_x = g.get_viewport().get_visible_rect().size.x * 0.5
-	# QA-141: vel.x bound -120, not -5 — rifle recoil under MMC
+	# QA-141: vel.x bound -120, not -5 — rifle recoil under reference
 	# damping 0.6/s (see _jt_c_aim_release_no_left).
 	var ok: bool = _joy_mouse_seen and _joy_mouse_pos_seen.x > centre_x \
 		and lp.facing == 1 and lp.velocity.x >= -120.0 \
@@ -541,7 +541,7 @@ func _jt_c_press_down() -> Array:
 	var lp = _jt_lp()
 	var v = g.touch_move_vec
 	# Down past the threshold while airborne: fast fall (vy well above
-	# the normal-fall value of ~107 after 0.4 s at MMC gravity 300).
+	# the normal-fall value of ~107 after 0.4 s at reference gravity 300).
 	# QA-141: the bar is 500, not 700 — fast fall is gravity 300 +
 	# 1600 extra under 0.6/s drag, so vy(0.4 s) ~= 675 (was ~1400
 	# under the old gravity 1400, where 700 had margin).
@@ -566,7 +566,7 @@ func _jt_s_diag_up_right() -> void:
 		lp.sync_position = lp.position
 		lp.velocity = Vector2.ZERO
 		# QA-141: (42,-55), not (42,-42) — the diagonal's up
-		# component must clear the MMC 0.75 jump gate (42,-42
+		# component must clear the reference 0.75 jump gate (42,-42
 		# gives -0.70, which no longer jumps). (42,-55) clamps to
 		# a (0.61,-0.80) vector: inside the check's x/y bands.
 		_jt_press_move(Vector2(42, -55))
@@ -585,13 +585,13 @@ func _jt_s_diag_up_right() -> void:
 	# gap (1292..1538): open sky up to the 1010 row (1477..1846,
 	# bottom 1058, 148 px above the head at full rise), and the
 	# rightward drift (~75 px in 0.5 s) stays inside the gap,
-	# clear of the 1538 run. The physics is correct — MMC would
+	# clear of the 1538 run. The physics is correct — reference would
 	# bonk the same ceiling — the old spot was simply the wrong
 	# place to prove a diagonal jump.
 	# QA-141: (42,-55), not (42,-42) — see the Skyfall branch above.
 	# QA-141: teleport to (1415,1321), not (1415,1318) — the standing
 	# centre on the 1352 floor is 1352-31 = 1321, and 1318 leaves
-	# the player 3 px in the air. At MMC gravity 300 that 3 px
+	# the player 3 px in the air. At reference gravity 300 that 3 px
 	# fall takes ~0.14 s, longer than the 0.12 s jump buffer, so
 	# the stick-up edge was lost and the player never jumped
 	# (vel.y read 0). At the old gravity 1400 the same fall took
@@ -791,7 +791,7 @@ func _jt_s_hold_up_long() -> void:
 		lp.position = Vector2(300, 1350)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
-	# QA-141: seed 30 fuel (~1.5 s of thrust at MMC drain 21/s) — the
+	# QA-141: seed 30 fuel (~1.5 s of thrust at reference drain 21/s) — the
 	# tank is 100 now (4.76 s), so a full tank would still be
 	# thrusting at the end of the 4 s window and the player would
 	# not have landed yet. ~1.5 s of thrust (~350 px of climb) +

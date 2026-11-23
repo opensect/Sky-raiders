@@ -6,7 +6,7 @@ rounded 10–18 px panels, default Godot font, procedural gradient sky).
 The new look must be unmistakably different at a glance — and it is:
 **cyan-on-navy sci-fi, chamfered (cut) corners, Orbitron/Rajdhani type,
 real arena artwork background.** Proof screenshot (demo menu built with
-this exact stack): `~/workspace/mini-militia-lan-v32-proof/gohud_demo_scifi_menu.png`
+this exact stack): `~/workspace/sky-raiders-v32-proof/gohud_demo_scifi_menu.png`
 — compare with the v3.1 baseline in the same folder (`v31_menu_baseline.png`).
 
 ## 1. External libraries used (user requirement: USE external libraries)
@@ -359,5 +359,5 @@ width before shipping.
   no autoload, no plugin enabled. `.godot/` import state + generated
   `.import` files for the new assets only.)
 - Backup of the untouched v3.1 project:
-  `~/workspace/mini-militia-lan-backup-v3.1/` (APK md5 verified
+  `~/workspace/sky-raiders-backup-v3.1/` (APK md5 verified
   `01eefb9c15061b1c51f9bb9b67e22dee`, git `296fa73`).

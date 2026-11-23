@@ -18,8 +18,8 @@ enum WeaponState { READY, FIRING, RELOADING }
 
 var p # the owner (player/player.gd)
 
-const HEALTH_REGEN_DELAY := 1.0 # QA-141: MMC 1 HP per 1.0 s tick (SLC::updateStep 0x8e4d5c, was 3.0)
-const HEALTH_REGEN_RATE := 1.0 # HP per second (QA-141: MMC 1 HP/s, was 4.0)
+const HEALTH_REGEN_DELAY := 1.0 # QA-141: reference 1 HP per 1.0 s tick (SLC::updateStep 0x8e4d5c, was 3.0)
+const HEALTH_REGEN_RATE := 1.0 # HP per second (QA-141: reference 1 HP/s, was 4.0)
 
 
 
@@ -123,13 +123,13 @@ func take_explosion_damage(pos: Vector2, radius: float, damage: int, from_id: in
 	var dist = p.global_position.distance_to(pos)
 	if dist > radius:
 		return
-	# QA-141: MMC explosion damage (Explosion::applyDamage 0x620168,
+	# QA-141: reference explosion damage (Explosion::applyDamage 0x620168,
 	# confirmed in ClientRoom::processDefaultExplosion 0x86ee54):
 	# D = max(10, 100 - 0.8 x dist) inside radius 125. The `damage`
 	# argument is legacy (flat per-source damage) and is ignored —
-	# every explosion (grenade, rocket, barrel) uses this one MMC
+	# every explosion (grenade, rocket, barrel) uses this one reference
 	# formula. Knockback: dV = min(600, (100 - 0.8 x dist) x 10)
-	# along the away-direction (MMC impulse x m_inv 10, capped by
+	# along the away-direction (reference impulse x m_inv 10, capped by
 	# the 600 max-speed clamp), plus the extra upward blast (Ky 0.4,
 	# kept — not extracted).
 	var amount := int(round(maxf(PhysicsConfig.EXPLOSION_DAMAGE_MIN, PhysicsConfig.EXPLOSION_DAMAGE_MAX - PhysicsConfig.EXPLOSION_DAMAGE_FALLOFF * dist)))

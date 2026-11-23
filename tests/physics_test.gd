@@ -173,7 +173,7 @@ func _phys_c_pickups_start() -> Array:
 func _phys_s_ground_run() -> void:
 	# Time-to-200 tracking: physics ticks lag real time in xvfb, so a
 	# fixed 0.15 s window under-measures. QA-141: the crossing is 200
-	# px/s, not 300 — MMC's sustained top speed is ~250, so 300 is
+	# px/s, not 300 — the reference's sustained top speed is ~250, so 300 is
 	# unreachable. Ground (3.0x headroom) must reach 200 px/s clearly
 	# faster than air (1.5x headroom); lag scales both.
 	# Phase 5: start on the map's own spawn#0 (on the floor on every
@@ -193,7 +193,7 @@ func _phys_c_ground_accel() -> Array:
 	var t: float = float(_phys_data.get("t200", -1.0))
 	_phys_data["t200_ground"] = t
 	var ok: bool = t > 0.0 and t < 0.8
-	return [ok, "ground time to 200 px/s: %.2f s (want <0.8, MMC headroom 3.0x)" % t]
+	return [ok, "ground time to 200 px/s: %.2f s (want <0.8, reference headroom 3.0x)" % t]
 
 
 func _phys_s_air_run() -> void:
@@ -203,7 +203,7 @@ func _phys_s_air_run() -> void:
 	# platform below, so the player pinned after ~5 px and never
 	# reached 200 px/s in the air. Air accel itself is unchanged.
 	# QA-141: the air crossing takes ~0.5 s of physics time (same
-	# 3.0x headroom as the ground — MMC has no air penalty), so the
+	# 3.0x headroom as the ground — reference has no air penalty), so the
 	# 2.0 s wait has ample margin even under xvfb load.
 	_phys_teleport(Vector2(_phys_clear_fall_x(), 200))
 	_phys_data["t0"] = Time.get_ticks_msec() / 1000.0
@@ -218,15 +218,15 @@ func _phys_c_air_accel() -> Array:
 	g.joystick_test._jt_release_move()
 	var t: float = float(_phys_data.get("t200", -1.0))
 	var tg: float = float(_phys_data.get("t200_ground", 0.2))
-	# QA-141: MMC has NO air/ground accel split — the headroom
+	# QA-141: reference has NO air/ground accel split — the headroom
 	# impulse is 3.0x whenever not thrusting (SLC::updateStep
 	# 0x8e4d5c), in the air or on the ground; only jetpacking
 	# drops it to 1.5x. The old check (air >1.3x ground, accel
-	# 1500 < 2600) encoded the pre-MMC split and is superseded:
+	# 1500 < 2600) encoded the pre-reference split and is superseded:
 	# P02 now proves air accel EQUALS ground accel (ratio ~1.0).
 	# Measured 0.50 s vs 0.50 s on map 0.
 	var ok: bool = t > 0.0 and t > tg * 0.7 and t < tg * 1.3
-	return [ok, "air time to 200 px/s: %.2f s vs ground %.2f s (want air ~= ground, MMC headroom 3.0x both)" % [t, tg]]
+	return [ok, "air time to 200 px/s: %.2f s vs ground %.2f s (want air ~= ground, reference headroom 3.0x both)" % [t, tg]]
 
 
 func _phys_s_analog() -> void:
@@ -256,7 +256,7 @@ func _phys_c_ground_run() -> Array:
 	var lp = _phys_lp()
 	_phys_data["stop_x0"] = lp.position.x
 	g.joystick_test._jt_release_move()
-	# QA-141: MMC top speed ~250 (was 350), reached in ~0.45 s of
+	# QA-141: reference top speed ~250 (was 350), reached in ~0.45 s of
 	# physics time — the 1.0 s wait covers physics at half rate.
 	return [lp.velocity.x > 200.0, "ground run vel.x=%d (want >200, near the 250 top speed)" % round(lp.velocity.x)]
 
@@ -268,14 +268,14 @@ func _phys_s_ground_stop_release() -> void:
 func _phys_c_ground_stop() -> Array:
 	var lp = _phys_lp()
 	var dist: float = lp.position.x - float(_phys_data.get("stop_x0", 0.0))
-	# QA-141: MMC damping is only 0.598/s (was drag 8.0), so the
+	# QA-141: reference damping is only 0.598/s (was drag 8.0), so the
 	# stop is slow: after 1.0 s vel.x ~= 250 x e^-0.6 = 137 and the
 	# slide is ~188 px. The 1.0 s wait + wide bands cover physics
 	# at half rate (vel.x ~185, dist ~108 then). The distance is
 	# stored for the air-slide ratio check (P05b).
 	_phys_data["ground_stop_dist"] = dist
 	return [absf(lp.velocity.x) < 200.0 and dist < 220.0,
-		"ground stop: vel.x=%d dist=%.0f px after 1.0 s (want <200 and <220 px, MMC damping 0.6/s)" % [round(lp.velocity.x), dist]]
+		"ground stop: vel.x=%d dist=%.0f px after 1.0 s (want <200 and <220 px, reference damping 0.6/s)" % [round(lp.velocity.x), dist]]
 
 
 func _phys_s_air_slide() -> void:
@@ -307,16 +307,16 @@ func _phys_c_air_slide() -> Array:
 	# QA-141: drag 0.6 (was 1.2): vx(1 s) ~= 192, dist ~= 263 px.
 	# The ground-stop distance is the one P04b measured in this
 	# same run (same load), not a hardcoded 36 px. The old 2x
-	# ratio is DEAD: MMC damps ground and air at the SAME 0.598/s
+	# ratio is DEAD: reference damps ground and air at the SAME 0.598/s
 	# (local 0x8e4604) — the old split (drag 8.0 ground vs 1.2
 	# air) is gone, so the air slide can only beat the ground
 	# stop by the starting-speed ratio (350/243 ~= 1.44x, measured
-	# 252/193 = 1.31x). P05b now proves the MMC slide itself
+	# 252/193 = 1.31x). P05b now proves the reference slide itself
 	# (dist/vel match the 0.6/s damping from 350 px/s) and that it
 	# still out-slides the ground stop.
 	var ground_stop: float = float(_phys_data.get("ground_stop_dist", 108.0))
 	return [dist > 200.0 and dist < 320.0 and absf(lp.velocity.x) > 150.0 and absf(lp.velocity.x) < 230.0 and dist > ground_stop,
-		"air slide: dist=%.0f px in 1 s, vel.x=%d (want 200-320 px, vel 150-230, > ground stop %.0f — MMC damping 0.6/s)" % [dist, round(lp.velocity.x), ground_stop]]
+		"air slide: dist=%.0f px in 1 s, vel.x=%d (want 200-320 px, vel 150-230, > ground stop %.0f — reference damping 0.6/s)" % [dist, round(lp.velocity.x), ground_stop]]
 
 
 func _phys_s_fall() -> void:
@@ -376,15 +376,15 @@ func _phys_longest_drop_x(from_y: float) -> float:
 func _phys_c_terminal() -> Array:
 	_phys_data["track_max_vy"] = false
 	var m: float = float(_phys_data.get("max_vy", 0.0))
-	# QA-141: MMC gravity 300 + damping 0.598/s equilibrates at
+	# QA-141: reference gravity 300 + damping 0.598/s equilibrates at
 	# ~500 px/s (300/0.6), hard-capped at 600 (was 1000). The fall
 	# height varies by map (shortest ~710 px), so the sampled max
 	# reads ~390-500 depending on the drop; the band proves the
-	# fall is MMC-like (far below the old 950-1050) and capped.
+	# fall is reference-like (far below the old 950-1050) and capped.
 	# Wait is 4.0 s: gravity 300 needs ~3.3 s of physics to fall
 	# the 1050 px drop (was 1.2 s at gravity 1400).
 	var ok: bool = m >= 350.0 and m <= 600.0
-	return [ok, "max fall vel.y=%.0f (want 350-600, MMC equilibrium ~500, cap 600)" % m]
+	return [ok, "max fall vel.y=%.0f (want 350-600, reference equilibrium ~500, cap 600)" % m]
 
 
 # QA-099 (v3.7): the fixed x=800 jump/jetpack column sits under a
@@ -500,10 +500,10 @@ func _phys_c_jump_hold() -> Array:
 	_phys_lp()._fuel_delay_timer = 0.0
 	var apex = float(_phys_data.get("jump_y0", 1326.0)) - float(_phys_data.get("min_y", 1326.0))
 	_phys_data["hold_apex"] = apex
-	# QA-141: MMC jump -220 with gravity 300: apex = 220^2/(2x300)
+	# QA-141: reference jump -220 with gravity 300: apex = 220^2/(2x300)
 	# ~= 81 px, minus a little damping (was ~155 with -660/1400).
 	# Wait is 1.2 s: the rise alone takes ~0.73 s of physics time.
-	return [apex > 60.0 and apex < 100.0, "hold jump apex: %d px (want ~81, MMC -220/300)" % round(apex)]
+	return [apex > 60.0 and apex < 100.0, "hold jump apex: %d px (want ~81, reference -220/300)" % round(apex)]
 
 
 # QA-099 (v3.7): fire-and-forget release after N physics frames
@@ -546,7 +546,7 @@ func _phys_c_jump_tap() -> Array:
 	var hold_apex: float = float(_phys_data.get("hold_apex", 81.0))
 	# QA-141: tap apex measured 17 px on map 0 (hold 65 px) — the
 	# cut happens earlier in physics time than the rough estimate
-	# (~33 px). JUMP_CUT 0.45 is KEPT (MMC variable-jump not
+	# (~33 px). JUMP_CUT 0.45 is KEPT (reference variable-jump not
 	# extracted), so the tap/hold gap is smaller than before: the
 	# bound is hold-25, not hold-40, and the tap band is 10-60.
 	return [apex > 10.0 and apex < 60.0 and apex < hold_apex - 25.0,
@@ -596,27 +596,27 @@ func _phys_c_aim_hold() -> Array:
 func _phys_s_aim_deadzone() -> void:
 	var lp = _phys_lp()
 	_phys_data["aim_before"] = lp.aim_angle
-	g.joystick_test._jt_press_aim(Vector2(8, 0)) # 13% deflection — QA-141: MMC has NO dead zone, so this must now register as aiming
+	g.joystick_test._jt_press_aim(Vector2(8, 0)) # 13% deflection — QA-141: reference has NO dead zone, so this must now register as aiming
 
 
 func _phys_c_aim_deadzone() -> Array:
 	var lp = _phys_lp()
-	# QA-141: MMC Joypad has NO dead zone (B §9) — a 13% deflection
+	# QA-141: reference Joypad has NO dead zone (B §9) — a 13% deflection
 	# is a real aim input now (touch_aim != ZERO, aim follows it).
 	# The old check (zero vector, aim unchanged) encoded the 0.20
-	# dead zone and is superseded by the MMC port.
+	# dead zone and is superseded by the reference port.
 	var ok: bool = g.touch_aim != Vector2.ZERO and absf(lp.aim_angle - float(_phys_data.get("aim_before", 0.0))) > 0.05
 	g.joystick_test._jt_release_aim()
-	return [ok, "small aim deflection: touch_aim=%s aim moved (want non-zero vector — MMC has no dead zone)" % str(g.touch_aim)]
+	return [ok, "small aim deflection: touch_aim=%s aim moved (want non-zero vector — reference has no dead zone)" % str(g.touch_aim)]
 
 
 func _phys_c_shotgun_table() -> Array:
 	var w: Dictionary = WeaponData.TABLE[2]
-	# QA-141: MMC SPAS-12 — 6 pellets (was 7), AK47 rate 0.10
+	# QA-141: reference SPAS-12 — 6 pellets (was 7), AK47 rate 0.10
 	# (was 0.125), SMAW speed 1800 (was 450, inferred from
 	# 30.0/step), gravity 0 (rocket flies straight, QA-106).
 	var ok: bool = int(w["pellets"]) == 6 and absf(float(WeaponData.TABLE[0]["rate"]) - 0.10) < 0.001 and absf(float(WeaponData.TABLE[4]["speed"]) - 1800.0) < 0.01 and absf(float(WeaponData.TABLE[4]["gravity"]) - 0.0) < 0.01
-	return [ok, "shotgun pellets=%d rifle rate=%.3f rocket speed=%d gravity=%d (want 6 / 0.10 / 1800 / 0 — MMC SPAS-12/AK47/SMAW)" % [int(w["pellets"]), float(WeaponData.TABLE[0]["rate"]), int(WeaponData.TABLE[4]["speed"]), int(WeaponData.TABLE[4]["gravity"])]]
+	return [ok, "shotgun pellets=%d rifle rate=%.3f rocket speed=%d gravity=%d (want 6 / 0.10 / 1800 / 0 — reference SPAS-12/AK47/SMAW)" % [int(w["pellets"]), float(WeaponData.TABLE[0]["rate"]), int(WeaponData.TABLE[4]["speed"]), int(WeaponData.TABLE[4]["gravity"])]]
 
 
 func _phys_c_damage_calc() -> Array:
@@ -638,14 +638,14 @@ func _phys_c_damage_calc() -> Array:
 
 
 func _phys_c_explosion_falloff() -> Array:
-	# QA-141: MMC formula D = max(10, 100 - 0.8 x dist), radius
+	# QA-141: reference formula D = max(10, 100 - 0.8 x dist), radius
 	# 125 — centre 100, mid (62.5 px) 50, edge (115 px) 10 (floor,
 	# was 0-5 on the old smooth curve with 55/120).
 	var c := int(round(maxf(10.0, 100.0 - 0.8 * 0.0)))
 	var m := int(round(maxf(10.0, 100.0 - 0.8 * 62.5)))
 	var e := int(round(maxf(10.0, 100.0 - 0.8 * 115.0)))
 	var ok: bool = c == 100 and m == 50 and e == 10
-	return [ok, "grenade MMC 100 dmg radius 125: centre=%d mid=%d edge=%d (want 100/50/10)" % [c, m, e]]
+	return [ok, "grenade reference 100 dmg radius 125: centre=%d mid=%d edge=%d (want 100/50/10)" % [c, m, e]]
 
 
 func _phys_c_respawn_valid() -> Array:
@@ -665,7 +665,7 @@ func _phys_s_grenade() -> void:
 	# Open sky: the old (1600,1000) spot is INSIDE the solid crate
 	# at (1600,1010) — the grenade wedged there and never fell.
 	# QA-141: dropped from only 100 px above the floor, not 250 —
-	# MMC gravity is 250 (was 1400), so a 250 px fall takes 1.41 s
+	# reference gravity is 250 (was 1400), so a 250 px fall takes 1.41 s
 	# of physics and the 1.75 s fuse leaves no margin for the
 	# bounce+rest check under xvfb load. From 100 px the fall is
 	# ~0.25 s (thrown down at 360 px/s) and the bounce is still
@@ -690,12 +690,12 @@ func _phys_c_grenade() -> Array:
 	var bounced = bool(_phys_data.get("g_bounced", false))
 	var resting = bool(_phys_data.get("g_resting", false))
 	# QA-141: the check reads the TRACKED flags (bounced/resting
-	# were ever observed), not the live grenade — MMC's 1.75 s fuse
+	# were ever observed), not the live grenade — the reference's 1.75 s fuse
 	# legitimately detonates the grenade before a 2.0 s wall-clock
 	# check at full physics rate, so "still present" can no longer
 	# be required. The tracked flags prove the bounce + rest
 	# happened; the fuse itself is covered by the 1.75 s const.
-	return [bounced and resting, "grenade bounced=%s resting=%s (want true/true — tracked flags; MMC fuse 1.75 s may already have detonated it)" % [str(bounced), str(resting)]]
+	return [bounced and resting, "grenade bounced=%s resting=%s (want true/true — tracked flags; reference fuse 1.75 s may already have detonated it)" % [str(bounced), str(resting)]]
 
 
 func _phys_c_inheritance() -> Array:
@@ -922,7 +922,7 @@ func _phys_c_wedge() -> Array:
 	return [moved and near_spawn and free, "wedge player at %s (spot was %s, moved=%s, nearest spawn %.0f px, wedged=%s)" % [str(lp.position), str(spot), str(moved), nearest, str(not free)]]
 
 
-# QA-074: jetpack balance. QA-141: MMC numbers now — P25a measures
+# QA-074: jetpack balance. QA-141: reference numbers now — P25a measures
 # the climb itself (fastest vy while thrusting must be the 190 cap,
 # not the old 320/450, and the fuel must actually drain at 21/s);
 # P25b measures the release (half a second after letting go the
@@ -952,7 +952,7 @@ func _phys_c_jetpack_cap() -> Array:
 	_phys_data["track_min_vy_jet"] = false
 	var lp = _phys_lp()
 	var min_vy: float = float(_phys_data.get("min_vy_jet", 0.0))
-	# QA-141: MMC climb — the jump's own -220 is gated out of the
+	# QA-141: reference climb — the jump's own -220 is gated out of the
 	# tracker (it only samples while _jetpacking), so this is the
 	# thrust climb: it must reach a real climb (faster than -150)
 	# but never past the 190 cap (allow 25 px/s of physics slack).
@@ -961,7 +961,7 @@ func _phys_c_jetpack_cap() -> Array:
 	# the 70..95 band only fails if thrust never started (fuel
 	# ~100) or ran dry (~0).
 	var ok: bool = min_vy < -150.0 and min_vy >= -215.0 and lp.fuel < 95.0 and lp.fuel > 70.0
-	return [ok, "jetpack climb: fastest thrust vy=%d px/s (want -215..-150, MMC cap 190), fuel=%d (want 70-95, draining from 100)" % [round(min_vy), round(lp.fuel)]]
+	return [ok, "jetpack climb: fastest thrust vy=%d px/s (want -215..-150, reference cap 190), fuel=%d (want 70-95, draining from 100)" % [round(min_vy), round(lp.fuel)]]
 
 
 func _phys_s_jetpack_release() -> void:
@@ -972,7 +972,7 @@ func _phys_c_jetpack_release() -> Array:
 	var lp = _phys_lp()
 	lp.fuel = PhysicsConfig.FUEL_MAX
 	lp._fuel_delay_timer = 0.0
-	# QA-141: 0.5 s after release, MMC gravity (300 px/s^2) has
+	# QA-141: 0.5 s after release, reference gravity (300 px/s^2) has
 	# taken vy from the -190 cap to about -11 (nearly level). The
 	# bar is -150, not -100: at half physics rate vy is ~-94, and
 	# a still-thrusting player sits at the -190 cap, so -150 still
@@ -1049,7 +1049,7 @@ func _phys_shot_resize() -> void:
 func _phys_capture(stem: String) -> String:
 	var img = g.get_viewport().get_texture().get_image()
 	var sz: Vector2i = img.get_size()
-	var path := "/home/hatch/workspace/mini-militia-lan-qa145-proof/workerE/shots/%s_%dx%d.png" % [stem, int(sz.x), int(sz.y)]
+	var path := "/home/hatch/workspace/sky-raiders-qa145-proof/workerE/shots/%s_%dx%d.png" % [stem, int(sz.x), int(sz.y)]
 	var err = img.save_png(path)
 	print("PHYS-SHOT %s err=%s size=%s" % [path, str(err), str(sz)])
 	return path

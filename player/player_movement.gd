@@ -123,8 +123,8 @@ func _physics_process(delta: float) -> void:
 			p._move_snap_timer -= PhysicsConfig.SNAPSHOT_INTERVAL
 			p.player_sync._send_move_snapshot()
 	else:
-		# Remote players: MMC-style render (QA-146, spec §21.D) —
-		# chase the NEWEST snapshot every frame with MMC's
+		# Remote players: reference-style render (QA-146, spec §21.D) —
+		# chase the NEWEST snapshot every frame with the reference's
 		# exponential smoothing (see below), on the SENDER's
 		# timeline (QA-068). Position is owned ONLY by this buffer
 		# - no second channel writes it. Velocity is smoothed
@@ -147,12 +147,12 @@ func _physics_process(delta: float) -> void:
 		if dist > 600.0 or (p._snap_resync and dist > 100.0):
 			p.position = target
 		else:
-			# QA-146 (MMC port): exponential smoothing toward the
+			# QA-146 (reference port): exponential smoothing toward the
 			# newest target — factor = max(0.05, 0.3745 - 15.0*dt)
 			# (SoldierRemoteController::updateStep 0x8f3bf8; consts
 			# in PhysicsConfig) — ~0.125 per physics frame at
 			# 60 fps, floor 0.05. This REPLACES the old per-frame
-			# step clamp (700 px/s + 20 px slack): MMC has no such
+			# step clamp (700 px/s + 20 px slack): reference has no such
 			# clamp, and the clamp let the copy chase a stale
 			# delayed target at full speed instead of easing onto
 			# the newest one. A genuine teleport (respawn /
@@ -204,12 +204,12 @@ func _physics_process(delta: float) -> void:
 
 
 func _apply_movement(delta: float) -> void:
-	# QA-141: MMC movement model (SLC::updateStep 0x8e4d5c, velocity
-	# function local 0x8e4604). MMC is impulse-based (Chipmunk); Frag
+	# QA-141: reference movement model (SLC::updateStep 0x8e4d5c, velocity
+	# function local 0x8e4604). the reference is impulse-based (Chipmunk); Frag
 	# Arena is velocity-based (CharacterBody2D) — the EFFECTIVE
 	# behaviour is ported: headroom accel (3.0x normal, 1.5x while
 	# thrusting), full-vector damping at 0.598/s applied once per
-	# physics frame BEFORE forces (MMC damp-then-add order), gravity
+	# physics frame BEFORE forces (reference damp-then-add order), gravity
 	# 300 (50 while thrusting), no reversal bonus. Ground/air split
 	# + ice zone (GAP-02/51) stay; only the numbers/model changed.
 	var on_floor = p.is_on_floor()
@@ -219,7 +219,7 @@ func _apply_movement(delta: float) -> void:
 		on_ice = game.is_on_ice(p.global_position)
 	var max_speed = p.SPEED_GROUND
 	var accel = p.ACCEL_GROUND
-	# QA-141: MMC damping (0.598/s) is the ONLY no-input stopper now
+	# QA-141: reference damping (0.598/s) is the ONLY no-input stopper now
 	# (DECEL_GROUND/AIR stay defined as tuning reference only).
 	# It is applied to the FULL velocity vector once per frame,
 	# below, before any force — not per-axis, not twice.
@@ -283,19 +283,19 @@ func _apply_movement(delta: float) -> void:
 			p.move_and_slide()
 			return
 		# Released this frame: fall through to normal movement below.
-	# QA-141: MMC damping — the velocity function damps the FULL
+	# QA-141: reference damping — the velocity function damps the FULL
 	# vector at ln(1/0.55) = 0.598/s (local 0x8e4604), once per
-	# physics frame, BEFORE the forces below (MMC damp-then-add
+	# physics frame, BEFORE the forces below (reference damp-then-add
 	# order). This is the only drag: the old per-axis / input-only
 	# drag lines are gone, so stopping, falling and sliding all
-	# share the one MMC rate.
+	# share the one reference rate.
 	p.velocity *= exp(-drag * delta)
 	if p._move_axis != 0.0:
-		# QA-141: MMC headroom accel (SLC::updateStep 0x8e4d5c):
+		# QA-141: reference headroom accel (SLC::updateStep 0x8e4d5c):
 		# rate = fmov x max(0.0001, 300 - v_along), fmov 3.0
 		# normal, 1.5 while thrusting. Fast when far from the
 		# target, gentle near it — reversal is naturally faster
-		# (big headroom) with NO reversal multiplier (MMC has
+		# (big headroom) with NO reversal multiplier (reference has
 		# none; REVERSAL_* are 1.0 now). _jetpacking here is last
 		# frame's value: one frame of lag on the first thrust
 		# frame only. Ice keeps its linear 500 accel (FA-only).
@@ -303,7 +303,7 @@ func _apply_movement(delta: float) -> void:
 		var rate: float = accel
 		if not on_ice:
 			var fmov := 1.5 if p._jetpacking else 3.0
-			rate = fmov * maxf(0.0001, PhysicsConfig.MMC_MOVE_BASE - p.velocity.x * signf(target_vx))
+			rate = fmov * maxf(0.0001, PhysicsConfig.REF_MOVE_BASE - p.velocity.x * signf(target_vx))
 		p.velocity.x = move_toward(p.velocity.x, target_vx, rate * delta)
 	# QA-112: jetpack-line check for this frame (Skyfall only;
 	# false elsewhere). Used by the jetpack fuel drain below and
@@ -338,7 +338,7 @@ func _apply_movement(delta: float) -> void:
 		# thrust applies only while rising SLOWER than the cap, so
 		# a -220 jump is not clamped down to -190 when fuel regens
 		# mid-rise (air regen, GAP-05, used to do exactly that).
-		# QA-141: MMC jetpack (SLC::updateStep 0x8e4d5c). NO time
+		# QA-141: reference jetpack (SLC::updateStep 0x8e4d5c). NO time
 		# ramp — thrust scales with the stick instead:
 		# thrustFactor = 0.5 + 0.5 x upInput, upInput =
 		# -move_stick_y clamped 0..1. Thrust JET_ACCEL (450) x
@@ -389,7 +389,7 @@ func _apply_movement(delta: float) -> void:
 		else:
 			var rate = p.FUEL_REFILL if on_floor else p.FUEL_REFILL_AIR
 			p.fuel = minf(p.FUEL_MAX, p.fuel + rate * delta)
-	# QA-141: MMC owner gravity — 50 px/s^2 while thrusting, 300
+	# QA-141: reference owner gravity — 50 px/s^2 while thrusting, 300
 	# otherwise (SLC::updateStep writes +0x198; local 0x8e4604
 	# adds it after the damping, same order as here).
 	p.velocity.y += (p.GRAVITY_THRUSTING if p._jetpacking else p.GRAVITY) * delta
@@ -471,7 +471,7 @@ func _read_input() -> void:
 	if game == null:
 		return
 	# Touch input from the game (joysticks). The left stick is a full 2D
-	# vector (normalized by the joystick itself; QA-141: MMC has NO
+	# vector (normalized by the joystick itself; QA-141: reference has NO
 	# dead zone, joystick.gd dead_zone is 0.0): x moves, y up jumps /
 	# flies the jetpack, y down fast-falls.
 	var move_vec: Vector2 = game.touch_move_vec
@@ -491,7 +491,7 @@ func _read_input() -> void:
 	p._jump_held = up_held
 	p._fast_fall = move_vec.y > p.STICK_DOWN_THRESHOLD
 	if game.touch_aim_active:
-		# QA-141: MMC has NO dead zone (Joypad::beginTouch, B §9) —
+		# QA-141: reference has NO dead zone (Joypad::beginTouch, B §9) —
 		# touch_aim is raw, so aiming is true for ANY non-zero aim
 		# vector; sensitivity is applied after, so it cannot
 		# shrink the (nonexistent) dead zone.

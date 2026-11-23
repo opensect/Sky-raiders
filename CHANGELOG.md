@@ -1,6 +1,6 @@
 # Frag Arena — v3.8
 
-A Mini Militia-like 2D multiplayer shooting game for Android, played over
+A reference-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi. (Renamed from "LAN Arena Shooter" in v3.5 —
 see QA-065 in BUGS.md; the package name `com.lanarena.shooter` is unchanged,
@@ -258,7 +258,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   both passed 26/26 and 34/34 on two re-runs each, both are the
   known load-marginal wall-clock family, no threshold was loosened.
   Screenshots re-captured from the shipped code (26 files,
-  `~/workspace/mini-militia-lan-v36-proof/`). Two-phone LAN play
+  `~/workspace/sky-raiders-v36-proof/`). Two-phone LAN play
   still needs your two real phones to prove — see BUGS.md.
 
 ## What's new in v3.6 — Lobby, HUD and Capture the Flag (phase 4)
@@ -397,7 +397,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
 
 ### v3.5 build (delivered 2026-11-19, independently verified + exported)
 
-- **APK:** `mini-militia-lan.apk` — 35,880,779 bytes (~34 MB), md5
+- **APK:** `sky-raiders.apk` — 35,880,779 bytes (~34 MB), md5
   `3a1ab1ea6bf71fcc485ec94cd2153ad3`, versionCode **13**,
   versionName **3.5**, targetSdk 36, minSdk 24, package
   `com.lanarena.shooter`, arm64-v8a only, app label **Frag Arena**.
@@ -413,7 +413,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   fonts, gohud theme, arena backgrounds (`arena_blue.png`,
   `arena_clean.png`), Frag Arena logo + icon, Sky Brawl textures; no
   `.md`/`.txt`, no `fire_button` leftovers. v3.4 APK backed up at
-  `~/workspace/mini-militia-lan-backup-v3.4/` (md5 verified
+  `~/workspace/sky-raiders-backup-v3.4/` (md5 verified
   `39e11621341a78a04b8f4b7ce7108453`).
 - **Independent verification (fresh re-run on the shipped code by the
   test/export worker, not the fix worker's logs):** repl-sim 26/26,
@@ -429,7 +429,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   BUGS.md). Screenshots re-captured from the shipped code at both
   resolutions (menu, lobby, HUD, pause, scoreboard, end, settings,
   customization, multiplayer, countdown) in
-  `~/workspace/mini-militia-lan-v35-proof/` — all 20 files verified
+  `~/workspace/sky-raiders-v35-proof/` — all 20 files verified
   1280x720 / 2400x1080 px; the 10 menu-side shots are byte-identical
   to the fix worker's, the 10 game shots differ only by capture
   timing. Lobby confirmed visually as the new two-column layout with
@@ -520,7 +520,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
 
 ### v3.4 build (delivered 2026-11-19, independently verified + exported)
 
-- **APK:** `mini-militia-lan.apk` — 35,576,986 bytes (~34 MB), md5
+- **APK:** `sky-raiders.apk` — 35,576,986 bytes (~34 MB), md5
   `39e11621341a78a04b8f4b7ce7108453`, versionCode **12**,
   versionName **3.4**, targetSdk 36, minSdk 24, package
   `com.lanarena.shooter`, arm64-v8a only. Built with Godot 4.7.2
@@ -535,7 +535,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
   fonts, gohud theme, arena background, Sky Brawl textures; no
   `.md`/`.txt`, no `fire_button` leftovers. v3.3 APK backed up at
-  `~/workspace/mini-militia-lan-backup-v3.3/` (md5
+  `~/workspace/sky-raiders-backup-v3.3/` (md5
   `296d69ea8c2959073709e27d784a5c09`).
 - **Independent verification (fresh re-run on the shipped code, not
   the builder's logs):** repl-sim 24/24 (both directions smooth,
@@ -588,7 +588,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
 
 ### v3.3 build (delivered 2026-11-19, independently verified + exported)
 
-- **APK:** `mini-militia-lan.apk` — 35,732,833 bytes (~34 MB), md5
+- **APK:** `sky-raiders.apk` — 35,732,833 bytes (~34 MB), md5
   `296d69ea8c2959073709e27d784a5c09`, versionCode **11**,
   versionName **3.3**, targetSdk 36, minSdk 24, package
   `com.lanarena.shooter`, arm64-v8a only. Built with Godot 4.7.2
@@ -600,7 +600,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
   fonts, gohud theme, arena background, Sky Brawl textures; no
   `.md`/`.txt`, no `fire_button` leftovers. v3.2 APK backed up at
-  `~/workspace/mini-militia-lan-backup-v3.2/` (md5
+  `~/workspace/sky-raiders-backup-v3.2/` (md5
   `cf1d7392f79bd1ba1f1104e26f18cf26`).
 - **Independent verification (fresh re-run on the shipped code, not
   the builder's logs):** joystick 21/21, fire (right-stick) 26/26,
@@ -639,7 +639,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   1280x720 and 2400x1080. Drag-release over another button does not
   select it.
 - **No more FIRE button — fire with the right stick (QA-049).**
-  Mini Militia style: push the right stick to aim and shoot, release
+  reference style: push the right stick to aim and shoot, release
   to stop. The aim stick has a cyan ring + crosshair. Semi-auto
   weapons fire once per flick. RELOAD, GRENADE and WEAPON buttons
   stay. See "Controls" below.
@@ -663,7 +663,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
 
 ### v3.2 build (delivered 2026-11-19, independently verified + exported)
 
-- **APK:** `mini-militia-lan.apk` — 35,728,737 bytes (~34 MB), md5
+- **APK:** `sky-raiders.apk` — 35,728,737 bytes (~34 MB), md5
   `cf1d7392f79bd1ba1f1104e26f18cf26`, versionCode **10**,
   versionName **3.2**, targetSdk 36, minSdk 24, package
   `com.lanarena.shooter`, arm64-v8a only. Built with Godot 4.7.2
@@ -675,7 +675,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   ACCESS_WIFI_STATE). Contents: both music OGGs, Orbitron + Rajdhani
   fonts, gohud theme, arena background, Sky Brawl textures; no
   `.md`/`.txt`, no `fire_button` leftovers. v3.1 APK backed up at
-  `~/workspace/mini-militia-lan-backup-v3.1/` (md5
+  `~/workspace/sky-raiders-backup-v3.1/` (md5
   `01eefb9c15061b1c51f9bb9b67e22dee`).
 - **Independent verification (fresh re-run on the shipped code, not
   the builder's logs):** joystick 21/21, fire (right-stick) 26/26,
@@ -714,7 +714,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
   validated: no spawn/pickup inside a solid, no route sealed off, every
   area reachable, cover within 150 px of every spawn, at least one
   explosive barrel per map.
-- **Physics rebuilt to the full Mini Militia spec (points 1–28).**
+- **Physics rebuilt to the full reference spec (points 1–28).**
   Fixed-timestep movement, gravity/jetpack/air control, swept bullets,
   explosion falloff + knockback, solid collision, host-authoritative
   sync (60 ticks/sec, 100 ms buffer), hit regions head 1.5× / torso
@@ -782,7 +782,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
 
 ## What's new in v2.4 (FIRE button + multiplayer overhaul)
 
-- **New: a Mini Militia-style FIRE button (QA-024).** A big red circular
+- **New: a reference-style FIRE button (QA-024).** A big red circular
   button sits at the far bottom-right corner of the screen. Hold it to
   fire continuously at the weapon's fire rate; tap it once for a single
   shot with semi-auto weapons (pistol, shotgun, sniper). The right stick
@@ -900,7 +900,7 @@ Full detail in BUGS.md (QA-082…QA-092); art generator
 
 ## What's new in v2.2 (joystick rework + fire fix)
 
-- **Left virtual joystick rebuilt to the Mini Militia spec.** Circular
+- **Left virtual joystick rebuilt to the reference spec.** Circular
   base with a visible border and a knob that follows your finger, stays
   inside the base, and springs back to the centre on release. Full
   360-degree control with normalized diagonals (moving diagonally is no
@@ -999,7 +999,7 @@ A full QA pass over the v2.0 build found and fixed these issues (details in
 
 ## How to install
 
-1. Copy `mini-militia-lan.apk` to your phone.
+1. Copy `sky-raiders.apk` to your phone.
 2. On the phone, allow installing apps from unknown sources when asked
    (Settings → Apps → Special access → Install unknown apps, then allow it
    for your file manager or browser).
@@ -1187,7 +1187,7 @@ Jungle Ruins and Pirate Island keep the procedural gradient.
   and the gun fires while the stick is held. Release the stick and
   the gun stops at once. Tap it once for one shot with semi-auto
   weapons (pistol, shotgun, sniper). There is no FIRE button any
-  more: the right stick is the fire control, Mini Militia style.
+  more: the right stick is the fire control, reference style.
   It works at the same time as the move stick — one finger per
   stick.
 - **RELOAD button** — reload the current weapon. You also reload
@@ -1263,7 +1263,7 @@ policy (no data collected, no accounts, no ads, no analytics) and
 
 - This is a debug build, signed with a debug key.
 - Version 3.0 (version code 8), package `com.lanarena.shooter`. APK
-  `mini-militia-lan.apk`: 32,518,408 bytes, md5
+  `sky-raiders.apk`: 32,518,408 bytes, md5
   `cf6495ff319d5d0704b597491644e48d`, signed with the same debug key as
   v2.4/v2.5 (certificate SHA-256 matches, so it installs over v2.5).
   Target SDK 36 (Godot 4.7.2 template).

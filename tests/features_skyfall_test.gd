@@ -1240,7 +1240,7 @@ func _ft_sf_c_wind_shot() -> Array:
 	var torn_ok := torn_raw != null and is_instance_valid(torn_raw)
 	var img = g.get_viewport().get_texture().get_image()
 	var sz: Vector2i = img.get_size()
-	var path := "/home/hatch/workspace/mini-militia-lan-qa145-proof/workerE/shots/wind_tornado_%dx%d.png" % [int(sz.x), int(sz.y)]
+	var path := "/home/hatch/workspace/sky-raiders-qa145-proof/workerE/shots/wind_tornado_%dx%d.png" % [int(sz.x), int(sz.y)]
 	var err = img.save_png(path)
 	print("SF-SHOT %s err=%s size=%s" % [path, str(err), str(sz)])
 	return [torn_ok, "WIND shot %s tornado node valid=%s (want true)" % [path, str(torn_ok)]]

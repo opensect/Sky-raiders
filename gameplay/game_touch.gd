@@ -262,7 +262,7 @@ func _on_touch_press(index: int, pos: Vector2) -> void:
 	else:
 		if g.aim_stick.press_touch(index, pos):
 			g._aim_touch_id = index
-			# QA-141: MMC fires only past the stick edge (Joypad::
+			# QA-141: reference fires only past the stick edge (Joypad::
 			# beginTouch 0x688188 — isFiring=1 when deflection >
 			# radius). A press that lands already deflected to
 			# >= 0.98 arms the semi-auto shot NOW (synchronously)
@@ -303,7 +303,7 @@ func _update_touch_state() -> void:
 		return
 	# v3.2 (CONTROLS_CHANGE.md §2): get_vector() is zero unless the
 	# stick has an actively held touch. QA-141: firing is true ONLY
-	# while the AIM stick is deflected to >= 0.98 (MMC: push past
+	# while the AIM stick is deflected to >= 0.98 (reference: push past
 	# the stick edge to fire, Joypad::beginTouch 0x688188) — never
 	# from a partial deflection, a stale knob position or any other
 	# control. Aiming itself is still any non-zero vector.
@@ -313,7 +313,7 @@ func _update_touch_state() -> void:
 	if GameData.invert_aim:
 		aim_vec.y = -aim_vec.y
 	g.touch_aim = aim_vec
-	# QA-141: MMC has NO dead zone (Joypad, B §9). Any non-zero aim
+	# QA-141: reference has NO dead zone (Joypad, B §9). Any non-zero aim
 	# vector counts as aiming here.
 	g.touch_aim_active = aim_vec.length() > 0.0
 	# Semi-auto edge (QA-027 carry-over): a fresh crossing to

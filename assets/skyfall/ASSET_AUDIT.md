@@ -6,7 +6,7 @@
   inspection of every file on magenta AND dark-green backgrounds (the established
   method from `assets/ASSET_MANIFEST.md` — a dark box or halo shows on one of them).
 - **Scope:** read-only audit. No game code touched, no art files modified.
-- **Design doc:** `~/workspace/mini-militia-lan/SKYFALL.md` (world 3600×7200 px,
+- **Design doc:** `~/workspace/sky-raiders/SKYFALL.md` (world 3600×7200 px,
   8 levels × 900 px tall, Vertical CTF, 5v5, 7 power-ups).
 
 ## Verdict summary (76 PNGs + 1 README.txt = 77 files)

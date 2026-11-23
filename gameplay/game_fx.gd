@@ -79,7 +79,7 @@ func request_explosion(pos: Vector2, radius: float, damage: int, from_id: int, w
 				# blast and the player blocks damage AND knockback.
 				if not g.has_line_of_sight(pos, child.global_position):
 					continue
-				# Lethal check (QA-141: MMC formula, same as
+				# Lethal check (QA-141: reference formula, same as
 				# take_explosion_damage — the `damage` argument is
 				# legacy and ignored there too): the host credits
 				# the kill when its explosion kills. QA-069: same

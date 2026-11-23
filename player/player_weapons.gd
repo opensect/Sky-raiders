@@ -100,7 +100,7 @@ func _fire() -> void:
 	p.mag_ammo -= 1
 	p.weapon_state = WeaponState.FIRING
 	var dir := Vector2(cos(p.aim_angle), sin(p.aim_angle))
-	# QA-143: bullets leave from the MMC design firing point
+	# QA-143: bullets leave from the reference design firing point
 	# (muzzle_distance: grip-forward + frac * half gun length),
 	# not the old flat GUN_LENGTH + 6.0 (61 px past the hands).
 	var muzzle = p.global_position + p._muzzle_origin() + dir * p.player_visuals.muzzle_distance(p.weapon)
@@ -111,7 +111,7 @@ func _fire() -> void:
 	for i in pellets:
 		var d := dir
 		if p.weapon == 2:
-			# QA-141: MMC SPAS-12 — each of the 6 pellets gets an
+			# QA-141: reference SPAS-12 — each of the 6 pellets gets an
 			# INDEPENDENT angle from the LCG (Weapon::
 			# getRandomFiringAngle 0x948878) in ±10° (the table
 			# spread, 0.175 rad). The fixed [-15..15]° offset list
@@ -127,7 +127,7 @@ func _fire() -> void:
 			var sp := float(w["spread"])
 			if p.weapon != 0:
 				sp += p._recoil_accum * 0.5
-			# QA-141: MMC deterministic LCG spread (B §6) replaces
+			# QA-141: reference deterministic LCG spread (B §6) replaces
 			# randf_range — same sequence on every peer, no RNG.
 			d = d.rotated(_lcg_spread_angle(sp))
 		# QA-061: record this pellet's direction deviation from the
@@ -164,7 +164,7 @@ func _fire() -> void:
 		_start_reload()
 
 
-# QA-141: MMC deterministic spread (Weapon::getRandomFiringAngle
+# QA-141: reference deterministic spread (Weapon::getRandomFiringAngle
 # 0x948878, B §6). Per-weapon counter on the player, init 0:
 # counter = (41 x counter + 37) % 100; uniform = (counter/100 -
 # 0.5) x 2 (in [-1, +1)); angle = uniform x accuracy, where
@@ -260,10 +260,10 @@ func switch_weapon() -> void:
 	p.mag_ammo = int(p._mag_memory.get(next_w, int(p.WEAPONS[next_w]["mag"])))
 	p.reloading = false
 	p.weapon_state = WeaponState.READY
-	# QA-143: MMC refreshes the view's weapon-angle offset on every
+	# QA-143: reference refreshes the view's weapon-angle offset on every
 	# switch (SLC::switchWeapons 0x8ebea0 -> Weapon::getArmAngle
 	# 0x9487d8 -> SoldierView::setWeaponAngleOffset 0x8fafec). The
-	# switch itself is INSTANT in MMC - no delay literal exists in
+	# switch itself is INSTANT in the reference - no delay literal exists in
 	# switchWeapons, so the 0.15 s dip below stays visual only.
 	p._weapon_angle_offset = float(p.player_visuals.WEAPON_ARM_ANGLE.get(next_w, 0.0))
 	# QA-075: the gun dips briefly on switch (visual only - firing
@@ -319,7 +319,7 @@ func throw_grenade() -> void:
 	var dir := Vector2(cos(p.aim_angle), sin(p.aim_angle))
 	if not p._aiming:
 		dir = Vector2(p.facing, -0.4).normalized()
-	# QA-141: MMC passes the thrower's FULL velocity
+	# QA-141: reference passes the thrower's FULL velocity
 	# (SLC::throwDual 0x8edf34). The 40% rule (QA-091) is gone.
 	p.rpc("spawn_grenade", p.global_position + Vector2(0, -7), dir, p.peer_id, p.velocity)
 	p._play_sound("click")
@@ -347,13 +347,13 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 		bool(p.WEAPONS[kind]["explosive"]),
 		# QA-109 (v3.8): rocket blast 170 -> 120, same ~29% cut as the
 		# grenade (QA-101) - the user said the missile blast is huge
-		# too. QA-141: blast radius STAYS 120 — MMC's rocket blast
+		# too. QA-141: blast radius STAYS 120 — the reference's rocket blast
 		# radius could NOT be extracted (B could-not-extract #3);
-		# the explosion DAMAGE now uses the MMC formula
+		# the explosion DAMAGE now uses the reference formula
 		# (player_health.gd). The explosion FX scale with the
 		# radius, so the fireball, flash, debris, particles and
 		# shake all shrink to match. Barrels use their own 125
-		# (PhysicsConfig.BARREL_BLAST_RADIUS, MMC Explosion class).
+		# (PhysicsConfig.BARREL_BLAST_RADIUS, reference Explosion class).
 		120.0 if bool(p.WEAPONS[kind]["explosive"]) else 0.0,
 		float(p.WEAPONS[kind].get("life", 1.4)),
 		shot_no, vel, float(p.WEAPONS[kind].get("gravity", 0.0)))

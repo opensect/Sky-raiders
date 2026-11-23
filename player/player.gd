@@ -9,8 +9,8 @@ extends CharacterBody2D
 # at the hands and rotated to the exact aim angle so the weapon always
 # points where the right stick points.
 
-# QA-071b (v3.6 phase 2, §3): the player is 1.20x bigger - Mini
-# Militia proportions, more visible in play. Old capsule radius 17 /
+# QA-071b (v3.6 phase 2, §3): the player is 1.20x bigger - reference
+# proportions, more visible in play. Old capsule radius 17 /
 # height 52 (34x52, sprite 64 px); new radius 22 / height 68
 # (40x62, sprite 77 px). PLAYER_SCALE is the single multiplier: the
 # sprite, gun, jetpack flame, ring, name label and HP bar all scale
@@ -23,50 +23,50 @@ extends CharacterBody2D
 const PLAYER_SCALE := 1.20 # QA-071b: user correction 2026-11-19 ~19:13 - 'bigger' means MODESTLY bigger, not 1.30x
 const CAPSULE_RADIUS := 20.0
 const CAPSULE_HEIGHT := 62.0
-const SPEED := 250.0 # QA-141: MMC sustained move speed (was 350)
-const ACCEL := 900.0 # QA-141: MMC headroom initial 3.0 x 300 (was 2600)
-const DECEL := 3400.0 # retained as tuning reference only; MMC drag is the real stopper
+const SPEED := 250.0 # QA-141: reference sustained move speed (was 350)
+const ACCEL := 900.0 # QA-141: reference headroom initial 3.0 x 300 (was 2600)
+const DECEL := 3400.0 # retained as tuning reference only; reference drag is the real stopper
 const SPEED_GROUND := 250.0
 const SPEED_AIR := 250.0
 const ACCEL_GROUND := 900.0
 const ACCEL_AIR := 900.0
 const DECEL_GROUND := 3400.0
 const DECEL_AIR := 900.0
-const REVERSAL_GROUND := 1.0 # QA-141: MMC has no reversal bonus (was 1.6)
-const REVERSAL_AIR := 1.0 # QA-141: MMC has no reversal bonus (was 1.2)
-const DRAG_GROUND := 0.6 # QA-141: MMC damping ln(1/0.55) (was 8.0)
-const DRAG_AIR := 0.6 # QA-141: MMC damping (was 1.2)
-const JUMP_VELOCITY := -220.0 # QA-141: MMC jump impulse 22.0 / mass 0.1 (was -660)
-# QA-141 (Mini Militia port): mirrors PhysicsConfig — change both
-# files together. MMC values: JET_ACCEL 450, MAX_JET_RISE 190,
+const REVERSAL_GROUND := 1.0 # QA-141: reference has no reversal bonus (was 1.6)
+const REVERSAL_AIR := 1.0 # QA-141: reference has no reversal bonus (was 1.2)
+const DRAG_GROUND := 0.6 # QA-141: reference damping ln(1/0.55) (was 8.0)
+const DRAG_AIR := 0.6 # QA-141: reference damping (was 1.2)
+const JUMP_VELOCITY := -220.0 # QA-141: reference jump impulse 22.0 / mass 0.1 (was -660)
+# QA-141 (reference port): mirrors PhysicsConfig — change both
+# files together. reference values: JET_ACCEL 450, MAX_JET_RISE 190,
 # FUEL_MAX 100 (4.76 s tank — supersedes QA-132's 9 s tank),
-# FUEL_DRAIN 21/s x thrustFactor. NO jet ramp in MMC (JET_RAMP_MIN /
+# FUEL_DRAIN 21/s x thrustFactor. NO jet ramp in the reference (JET_RAMP_MIN /
 # JET_RAMP_TIME deleted); thrust scales with input instead
-# (0.5 + 0.5 x up). Fuel regen 50/25 + delay 0.5 KEPT — MMC fuel
+# (0.5 + 0.5 x up). Fuel regen 50/25 + delay 0.5 KEPT — reference fuel
 # regen was not found. Old values: JET_ACCEL 1650, MAX_JET_RISE
 # 320, FUEL_REFILL 50, FUEL_REFILL_AIR 25, FUEL_REGEN_DELAY 0.5
 # (QA-074 ramp 0.75 -> 1.0 over 0.35 s; QA-132 FUEL_MAX 405).
 const JET_ACCEL := 450.0
 const MAX_JET_RISE := 190.0
-const JET_AIR_ACCEL := 450.0 # MMC thrusting initial accel 1.5 x 300 (was 1900)
+const JET_AIR_ACCEL := 450.0 # reference thrusting initial accel 1.5 x 300 (was 1900)
 const GRAVITY := 300.0
-const GRAVITY_THRUSTING := 50.0 # QA-141: MMC owner gravity while thrusting
+const GRAVITY_THRUSTING := 50.0 # QA-141: reference owner gravity while thrusting
 const MAX_FALL := 600.0
-const FUEL_MAX := 100.0 # QA-141: MMC 100 fuel (was 405)
-const FUEL_DRAIN := 21.0 # QA-141: MMC max 21/s x thrustFactor (was 45)
+const FUEL_MAX := 100.0 # QA-141: reference 100 fuel (was 405)
+const FUEL_DRAIN := 21.0 # QA-141: reference max 21/s x thrustFactor (was 45)
 const FUEL_REFILL := 50.0
 const FUEL_REFILL_AIR := 25.0
 const FUEL_REGEN_DELAY := 0.5
 const MASS := 1.0
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER := 0.12
-# AIM_DEAD_ZONE is kept only as documentation: MMC has NO dead zone
+# AIM_DEAD_ZONE is kept only as documentation: reference has NO dead zone
 # (QA-141: joystick.gd dead_zone 0.0) — the stick reports raw, and
 # player/game must not re-apply their own thresholds (GAP-09).
 const AIM_DEAD_ZONE := 0.0
 # v2.2: the JUMP button is gone - the left stick does jumping and the
 # jetpack. Push the stick up past this to jump (grounded) / thrust (air).
-# QA-141: MMC jump gate up-input > 0.75 (SLC::updateStep 0x8e4d5c).
+# QA-141: reference jump gate up-input > 0.75 (SLC::updateStep 0x8e4d5c).
 const STICK_UP_THRESHOLD := 0.75
 const STICK_DOWN_THRESHOLD := 0.5
 const FAST_FALL_EXTRA := 1600.0
@@ -99,7 +99,7 @@ var health: int = 100
 var kills: int = 0
 var deaths: int = 0
 var weapon: int = 0
-var mag_ammo: int = int(WEAPONS[0]["mag"]) # QA-141: spawn clip = the rifle's TABLE mag (35, MMC AK47) — was a hardcoded 30, which matched the old TABLE mag 30 but went stale when the TABLE moved to 35; _respawn already sets the full TABLE mag, so the first life must too, or the HUD reads 30/90 on spawn and 35/90 after the first death.
+var mag_ammo: int = int(WEAPONS[0]["mag"]) # QA-141: spawn clip = the rifle's TABLE mag (35, reference AK47) — was a hardcoded 30, which matched the old TABLE mag 30 but went stale when the TABLE moved to 35; _respawn already sets the full TABLE mag, so the first life must too, or the HUD reads 30/90 on spawn and 35/90 after the first death.
 var grenades: int = 2
 var alive: bool = true
 var fuel: float = FUEL_MAX
@@ -124,8 +124,8 @@ var _snap_resync: bool = false # QA-068: next render snaps (join / rejoin / long
 # target, 80-250 ms, at most 10 ms per 0.5 s - clean Wi-Fi settles
 # near 80 ms, bursty Wi-Fi grows the buffer instead of letting the
 # copy freeze and jump. The slow slew is deliberate: a fast-moving
-# delay would itself wobble the render timeline. QA-146 (MMC port):
-# the delay is now DIAGNOSTIC ONLY — MMC's SoldierRemoteController
+# delay would itself wobble the render timeline. QA-146 (reference port):
+# the delay is now DIAGNOSTIC ONLY — the reference's SoldierRemoteController
 # has no interpolation buffer, so _interp_position no longer reads
 # _interp_delay for rendering (it chases the newest snapshot; the
 # smoothing lives in player_movement.gd). The value is still
@@ -206,8 +206,8 @@ var _jump_buffer_timer: float = 0.0
 var _was_on_floor: bool = false
 var _fall_speed: float = 0.0
 var _jetpacking: bool = false
-# QA-141: MMC thrust factor (0.5 + 0.5 x up-input), not a time ramp
-# — MMC has no JET_RAMP. 0 while not thrusting; the jetpack flame
+# QA-141: reference thrust factor (0.5 + 0.5 x up-input), not a time ramp
+# — reference has no JET_RAMP. 0 while not thrusting; the jetpack flame
 # (player_visuals.gd) scales with it. Reset the moment thrust stops.
 var _jet_thrust_factor: float = 0.0
 # QA-075: muzzle-flash timer (replaces one scene-tree timer per shot
@@ -217,11 +217,11 @@ var _jet_thrust_factor: float = 0.0
 var _muzzle_timer: float = 0.0
 var _muzzle_flashes: int = 0
 var _switch_dip_timer: float = 0.0
-# QA-143: the MMC weapon-angle offset (degrees) for the equipped
-# gun (WEAPON_ARM_ANGLE in player_visuals.gd). MMC stores it on
+# QA-143: the reference weapon-angle offset (degrees) for the equipped
+# gun (WEAPON_ARM_ANGLE in player_visuals.gd). reference stores it on
 # the view when a primary is equipped or switched; it feeds the
 # arm sprite, which Frag Arena does not have, so nothing reads it
-# yet - the gun keeps following the aim angle exactly (MMC's
+# yet - the gun keeps following the aim angle exactly (the reference's
 # getFiringAngle proves the firing direction ignores it).
 var _weapon_angle_offset: float = 0.0
 var _mag_memory: Dictionary = {}
@@ -261,7 +261,7 @@ var _reload_transfer: int = 0
 var _reserve: Dictionary = {0: 90, 1: 96, 2: 18, 3: 10, 4: 8, 5: -1}
 const RESERVE_DEFAULT := {0: 90, 1: 96, 2: 18, 3: 10, 4: 8, 5: -1}
 var _recoil_accum: float = 0.0 # R_n = R_0 + n*K, decays when not firing
-# QA-141: MMC deterministic spread — one LCG counter per weapon id
+# QA-141: reference deterministic spread — one LCG counter per weapon id
 # (Weapon::getRandomFiringAngle 0x948878: counter = (41 x counter
 # + 37) % 100, init 0). player_weapons.gd advances it per pellet.
 var _spread_counters: Dictionary = {}
@@ -710,9 +710,9 @@ func _start_reload() -> void:
 	return player_weapons._start_reload()
 
 
-# QA-145 ITEM 3: drop the magazine at MMC's design reload point for
+# QA-145 ITEM 3: drop the magazine at the reference's design reload point for
 # the current weapon (weapons/magazine_drop.gd). Visual only — the
-# shotgun and rocket have no stored reload point in MMC, so
+# shotgun and rocket have no stored reload point in the reference, so
 # MagazineDrop.spawn is a no-op for them and their reload is
 # untouched. Called from _process on the reloading transition (see
 # above), NOT from _start_reload: that wrapper is never called.
@@ -875,7 +875,7 @@ func request_thunder_strike(target_peer: int) -> void:
 
 
 # QA-143: a client asks the host to spawn the gun it dropped when
-# picking up a weapon with full slots (MMC removePrimaryWeapon
+# picking up a weapon with full slots (reference removePrimaryWeapon
 # 0x8eade4 drops the old primary as a world pickup). Host-only
 # spawn - a client must never spawn pickups itself.
 @rpc("any_peer", "call_local")

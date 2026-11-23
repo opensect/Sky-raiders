@@ -752,7 +752,7 @@ func _build_touch_controls() -> void:
 
 	# v3.2: the aim stick is back at the bottom-right (it moved left in
 	# v2.4 to make room for the FIRE button) — and it is also the fire
-	# control now: pushing it aims and shoots (Mini Militia style).
+	# control now: pushing it aims and shoots (reference style).
 	# is_aim draws the cyan ring + crosshair cue (joystick.gd).
 	g.aim_stick = g.JOYSTICK_SCRIPT.new()
 	g.aim_stick.name = "AimStick"

@@ -11,12 +11,14 @@ platform above) but cannot jump out of (headroom-capped max rise
 < wall height). Platform-level gaps are open underneath, not
 traps, but still counted as TIGHT.
 """
+import os
 import re
 import sys
 from PIL import Image
 
-GD = "/home/hatch/workspace/mini-militia-lan/game.gd"
-ASSETS = "/home/hatch/workspace/mini-militia-lan/assets"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+GD = os.path.join(_HERE, "game.gd")
+ASSETS = os.path.join(_HERE, "assets")
 src = open(GD).read()
 
 # --- texture sizes for decor kinds (from DECOR_TEX preloads)

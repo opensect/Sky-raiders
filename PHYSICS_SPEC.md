@@ -1,14 +1,14 @@
-# Complete Physics System of Mini Militia — Detailed Game Development Breakdown
+# Complete Physics System of the reference game — Detailed Game Development Breakdown
 
 User-provided spec, 2026-11-19. Target: our LAN Arena Shooter should be
 production-grade in ALL aspects, with this physics system.
 
-Important: The exact source code and internal physics constants of Mini
-Militia are not publicly available. The following is a technical
+Important: The exact source code and internal physics constants of the
+reference game are not publicly available. The following is a technical
 reconstruction of the mechanics needed to reproduce its characteristic
 gameplay, not a claim that these are its original internal algorithms.
 
-Mini Militia is not simply a character moving left and right while
+the reference game is not simply a character moving left and right while
 shooting. Its gameplay depends on several interacting physics systems:
 
 - Player movement and acceleration
@@ -612,7 +612,7 @@ code. This reduces jitter and makes the simulation easier to test.
 
 ### 24. Physics Configuration and Starting Values
 
-Prototype defaults (not Mini Militia's internal values) — tune to feel.
+Prototype defaults (not the reference game's internal values) — tune to feel.
 A. Player movement: max horizontal speed 350 px/s, ground acceleration
 1800 px/s², air acceleration 900 px/s², ground friction 1200 px/s²,
 gravity 1400 px/s², jump velocity -550 px/s, max fall speed 1000 px/s,
@@ -673,11 +673,11 @@ optimization, crash prevention and release testing.
 ---
 SPEC COMPLETE: points 1–28 all received (2026-11-19 ~01:35 IST).
 
-## QA-141 note (2026-11-21) — Mini Militia Classic constants, extracted from the real binary
+## QA-141 note (2026-11-21) — reference constants, extracted from the real binary
 
 The reconstruction above is superseded for the values actually ported: the real
-constants were extracted by disassembly from Mini Militia Classic v0.14.4
-(`libcocos2dcpp.so`) — see `~/workspace/mini-militia-classic/QA141_EXTRACTION_A.md`
+constants were extracted by disassembly from reference v0.14.4
+(`libcocos2dcpp.so`) — see `~/workspace/reference-analysis/QA141_EXTRACTION_A.md`
 and `QA141_EXTRACTION_B.md` — and ported into the game in QA-141 (commit to be
 added). Full table, per-file changes, could-not-extract list and known conflicts:
 BUGS.md, QA-141 entry. Headline values now live in the game: move base 300,
@@ -688,5 +688,5 @@ cap 600, weapon stats = AK47/MP5/SPAS-12/M93BA/SMAW/D.EAGLE builder rows, LCG
 spread counter=(41c+37)%100, joystick dead zone 0.0, fire at aim deflection ≥0.98,
 stick opacity 0.5. NOT ported (could not extract): grenade throw speed, jetpack
 fuel regen, rocket blast radius, bullet gravity, per-weapon arm angle / firing
-point / weight (gun hold stays QA-127). Known conflict: MMC fuel ≈ 4.76 s full
+point / weight (gun hold stays QA-127). Known conflict: reference fuel ≈ 4.76 s full
 thrust supersedes the user's v3.12 request for a 9 s tank.

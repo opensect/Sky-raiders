@@ -219,7 +219,7 @@ var max_players: int = 8 # room setting (GameData); MAX_PLAYERS is the cap
 # v2.2: the left stick is a full 2D vector now (x = move, y = jump/fly).
 # There is no JUMP button any more — pushing the left stick up jumps,
 # holding it up while airborne is the jetpack.
-# v3.2: firing comes from the AIM stick (Mini Militia style) — the
+# v3.2: firing comes from the AIM stick (reference style) — the
 # right stick aims AND fires while held (see _update_touch_state).
 # There is no FIRE button any more (CONTROLS_CHANGE.md).
 var touch_move_vec: Vector2 = Vector2.ZERO
@@ -558,7 +558,7 @@ func _ready() -> void:
 	smoke_test._map_shots = "--map-shot" in OS.get_cmdline_user_args()
 	smoke_test._land_shots = "--land-shot" in OS.get_cmdline_user_args()
 	smoke_test._skyfall_shots = "--skyfall-shots" in OS.get_cmdline_user_args() # QA-112 (v3.9): --skyfall-shots captures the 6 Skyfall levels
-	smoke_test._qa145_shots = "--qa145-shots" in OS.get_cmdline_user_args() # QA-145: --qa145-shots captures the reload magazine drop (rifle + sniper) + the MMC camera offset while aiming
+	smoke_test._qa145_shots = "--qa145-shots" in OS.get_cmdline_user_args() # QA-145: --qa145-shots captures the reload magazine drop (rifle + sniper) + the reference camera offset while aiming
 	workerS_shots._workerS_shots = "--workerS-shots" in OS.get_cmdline_user_args() # QA-145 (v4.1, Worker S): --workerS-shots + --shot-pos=x,y captures staged trap/route views
 	workerT_shots._workerT_shots = "--workerT-shots" in OS.get_cmdline_user_args() # QA-145 (v4.1, Worker T): --workerT-shots + --shot-pos=x,y [--shot-beacon=x,y] [--shot-streak] captures staged mine/beacon/streak views
 	workerV_shots._workerV_shots = "--workerV-shots" in OS.get_cmdline_user_args() # QA-145 (v4.1, Worker V): --workerV-shots captures the staged end screen + capture feed line
@@ -997,7 +997,7 @@ func _physics_process(_delta: float) -> void:
 	# resolves the crossing to one physics step. Test-only: it
 	# only reads velocity while tracking is enabled, and changes
 	# no gameplay. QA-141: the crossing is 200 px/s, not 300 —
-	# MMC's sustained top speed is ~250, so 300 is unreachable.
+	# the reference's sustained top speed is ~250, so 300 is unreachable.
 	if bool(physics_test._phys_data.get("track_t200", false)) and not physics_test._phys_data.has("t200"):
 		var lp = _get_local_player()
 		if lp != null and lp.velocity.x >= 200.0:
@@ -1028,9 +1028,9 @@ func _physics_process(_delta: float) -> void:
 
 
 # =====================================================================
-# QA-145 ITEM 2 — MMC smoothed camera view offset
+# QA-145 ITEM 2 — reference smoothed camera view offset
 # (SoldierLocalController::getViewOffsetV4, 0x8ec59c).
-# MMC: if a primary weapon exists,
+# reference: if a primary weapon exists,
 #   t = int(214.3 * primary->getViewOffset() * (2.0 - [SLC, +0x2b4]))
 #   [SLC, +0x294] -= t, clamped to [-1.0, 1.0]
 #   return int([SLC, +0x294])
@@ -1044,13 +1044,13 @@ func _physics_process(_delta: float) -> void:
 # not assumed: (2.0 - speedBase) is hugely negative for five weapons
 # and exactly +1.0 for the rocket, so the smoothed value SATURATES
 # to +1 on the first frame for rifle/smg/shotgun/sniper/pistol and
-# to -1 for the rocket. The MMC "smoothing" is degenerate under this
+# to -1 for the rocket. The reference "smoothing" is degenerate under this
 # reading — the ported value is effectively a per-weapon sign, and
-# the visible easing comes from MMC_VIEW_EASE_RATE below (so a
+# the visible easing comes from REF_VIEW_EASE_RATE below (so a
 # weapon switch never jumps the view in one frame).
 #
-# PIXEL SCALE (Frag Arena choice, not an MMC number): MMC returns a
-# unitless int in [-1, 1]; it is mapped to +/-MMC_VIEW_OFFSET_PX px
+# PIXEL SCALE (Frag Arena choice, not a reference number): reference returns a
+# unitless int in [-1, 1]; it is mapped to +/-REF_VIEW_OFFSET_PX px
 # along the aim direction (while aiming) or the facing direction
 # (otherwise) — half the 80 px CAMERA_LOOKAHEAD, so it stays a
 # subtle lead, not a second look-ahead.
@@ -1066,18 +1066,18 @@ func _physics_process(_delta: float) -> void:
 # absolutely every frame, so nothing of ours persists into the next
 # frame and a plain += want is exact. If player_visuals.gd ever wires
 # this natively (add the offset to _cam_look or to the shake
-# assignment), DELETE _apply_mmc_camera_offset below — otherwise the
+# assignment), DELETE _apply_ref_camera_offset below — otherwise the
 # offset would apply twice.
 # =====================================================================
-const MMC_VIEW_OFFSET := {0: 0.45, 1: 0.40, 2: 0.45, 3: 0.70, 4: 0.65, 5: 0.25} # Weapon::getViewOffset (+0x28c)
-const MMC_SPEED_BASE := {0: 1300, 1: 1400, 2: 1300, 3: 10000, 4: 1, 5: 1300} # Weapon +0x2b4 (see assumption above)
-const MMC_VIEW_OFFSET_PX := 40.0
-const MMC_VIEW_EASE_RATE := 240.0 # px/s, same rate as _cam_look
+const REF_VIEW_OFFSET := {0: 0.45, 1: 0.40, 2: 0.45, 3: 0.70, 4: 0.65, 5: 0.25} # Weapon::getViewOffset (+0x28c)
+const REF_SPEED_BASE := {0: 1300, 1: 1400, 2: 1300, 3: 10000, 4: 1, 5: 1300} # Weapon +0x2b4 (see assumption above)
+const REF_VIEW_OFFSET_PX := 40.0
+const REF_VIEW_EASE_RATE := 240.0 # px/s, same rate as _cam_look
 
-var _mmc_view_s: float = 0.0 # smoothed MMC value ([SLC, +0x294] analogue), [-1, 1]
-var _mmc_view_px: float = 0.0 # magnitude of _mmc_view_want (QA-146: the eased vector itself is the offset)
-var _mmc_view_want: Vector2 = Vector2.ZERO # offset vector for this frame
-var _mmc_applied_frame: int = -1 # guard: apply at most once per frame
+var _ref_view_s: float = 0.0 # smoothed reference value ([SLC, +0x294] analogue), [-1, 1]
+var _ref_view_px: float = 0.0 # magnitude of _ref_view_want (QA-146: the eased vector itself is the offset)
+var _ref_view_want: Vector2 = Vector2.ZERO # offset vector for this frame
+var _ref_applied_frame: int = -1 # guard: apply at most once per frame
 
 
 func _process(delta: float) -> void:
@@ -1193,20 +1193,20 @@ func _process(delta: float) -> void:
 	arena_builder._update_lava(delta)
 	_update_fire_traps(delta) # QA-145 (v4.1): Volcanic fire traps (no-op off Volcanic)
 	_update_skyfall(delta) # QA-112 (v3.9): CTF + mechanics, no-op off Skyfall
-	_update_mmc_camera_offset(delta) # QA-145 ITEM 2: MMC camera view offset, no-op in the menu / while dead
+	_update_ref_camera_offset(delta) # QA-145 ITEM 2: reference camera view offset, no-op in the menu / while dead
 
 
-# QA-145 ITEM 2: one MMC getViewOffsetV4 step for the equipped
+# QA-145 ITEM 2: one reference getViewOffsetV4 step for the equipped
 # weapon. Returns the smoothed value in [-1, 1]. Under the
 # speed-base reading this saturates to +1 (rifle/smg/shotgun/
 # sniper/pistol) or -1 (rocket) on the first call — see the block
 # above _process for the arithmetic.
-func _mmc_view_offset_step(weapon_id: int) -> float:
-	var vo: float = float(MMC_VIEW_OFFSET.get(weapon_id, 0.45))
-	var sb: float = float(MMC_SPEED_BASE.get(weapon_id, 1300))
+func _ref_view_offset_step(weapon_id: int) -> float:
+	var vo: float = float(REF_VIEW_OFFSET.get(weapon_id, 0.45))
+	var sb: float = float(REF_SPEED_BASE.get(weapon_id, 1300))
 	var t: int = int(214.3 * vo * (2.0 - sb))
-	_mmc_view_s = clampf(_mmc_view_s - float(t), -1.0, 1.0)
-	return _mmc_view_s
+	_ref_view_s = clampf(_ref_view_s - float(t), -1.0, 1.0)
+	return _ref_view_s
 
 
 # QA-145 ITEM 2: compute this frame's camera view offset from the
@@ -1215,31 +1215,31 @@ func _mmc_view_offset_step(weapon_id: int) -> float:
 # camera is current then). Never touches _cam_look or the smoothing
 # speed, so the P19 camera test is unaffected.
 # QA-146 Worker A: the offset is eased as a SIGNED vector. The old
-# code eased only the unsigned magnitude (_mmc_view_px -> +/-40 px)
+# code eased only the unsigned magnitude (_ref_view_px -> +/-40 px)
 # and multiplied by the instantly-flipping aim/facing direction, so
 # every left-right reversal snapped the rendered camera offset
 # +40 -> -40 px in ONE frame (an 80 px map jump) while the player
 # had barely moved — the v4.1 "map shakes when moving left to
 # right". Easing the vector itself caps the swing at
-# MMC_VIEW_EASE_RATE (240 px/s, same as _cam_look): a reversal now
-# takes 80/240 = 0.33 s to cross, no snap. _mmc_view_px is kept as
+# REF_VIEW_EASE_RATE (240 px/s, same as _cam_look): a reversal now
+# takes 80/240 = 0.33 s to cross, no snap. _ref_view_px is kept as
 # the magnitude of the eased vector (qa145 debug print reads it).
-func _update_mmc_camera_offset(delta: float) -> void:
+func _update_ref_camera_offset(delta: float) -> void:
 	var lp = _get_local_player()
 	if lp == null or lp._camera == null or not lp.alive:
-		_mmc_view_want = Vector2.ZERO
-		_mmc_view_px = 0.0
+		_ref_view_want = Vector2.ZERO
+		_ref_view_px = 0.0
 		return
-	var s: float = _mmc_view_offset_step(lp.weapon)
+	var s: float = _ref_view_offset_step(lp.weapon)
 	var dir: Vector2
 	if lp._aiming:
 		dir = Vector2(cos(lp.aim_angle), sin(lp.aim_angle))
 	else:
 		dir = Vector2(float(lp.facing), 0.0)
-	var target: Vector2 = dir * (s * MMC_VIEW_OFFSET_PX)
-	_mmc_view_want = _mmc_view_want.move_toward(target, delta * MMC_VIEW_EASE_RATE)
-	_mmc_view_px = _mmc_view_want.length()
-	call_deferred("_apply_mmc_camera_offset")
+	var target: Vector2 = dir * (s * REF_VIEW_OFFSET_PX)
+	_ref_view_want = _ref_view_want.move_toward(target, delta * REF_VIEW_EASE_RATE)
+	_ref_view_px = _ref_view_want.length()
+	call_deferred("_apply_ref_camera_offset")
 
 
 # QA-145 ITEM 2: deferred half of the camera offset (see the block
@@ -1247,17 +1247,17 @@ func _update_mmc_camera_offset(delta: float) -> void:
 # player_visuals._update_visuals has assigned camera.offset
 # (shake-or-zero): adds exactly the wanted offset on top, so shake
 # survives and the offset is exact.
-func _apply_mmc_camera_offset() -> void:
+func _apply_ref_camera_offset() -> void:
 	var frame: int = Engine.get_process_frames()
-	if frame == _mmc_applied_frame:
+	if frame == _ref_applied_frame:
 		return # already applied this frame (double queue)
-	_mmc_applied_frame = frame
+	_ref_applied_frame = frame
 	var lp = _get_local_player()
 	if lp == null or lp._camera == null or not is_instance_valid(lp._camera):
 		return
 	if not lp.alive:
 		return
-	lp._camera.offset += _mmc_view_want
+	lp._camera.offset += _ref_view_want
 
 
 # ---------------------------------------------------------------------------

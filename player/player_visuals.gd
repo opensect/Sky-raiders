@@ -151,16 +151,16 @@ const HAND_JETPACK_FRAMES := [Vector2(12.6, -7.7), Vector2(11.3, -6.2), Vector2(
 # units). Measured from assets/weapons/*.png (trigger grip, not the
 # magazine - the magazine hangs lower but the hand holds the grip).
 const WEAPON_GRIP := {0: Vector2(0.34, 1.5), 1: Vector2(0.37, 2.0), 2: Vector2(0.23, 2.0), 3: Vector2(0.43, 3.0), 4: Vector2(0.47, 3.5), 5: Vector2(0.47, 5.0)}
-# QA-143 (v4.0): Mini Militia gun-hold data, extracted from
-# libcocos2dcpp.so (MMC Classic v0.14.4 build 88). Weapon object
+# QA-143 (v4.0): reference gun-hold data, extracted from
+# libcocos2dcpp.so (reference v0.14.4 build 88). Weapon object
 # field +0x2d0 is the design firing point (two doubles), read by
 # Weapon::getDesignFiringPoint 0x948eb8 and used by
 # SoldierController::getFiringPoint 0x8e2018 for the bullet spawn.
 # The firing X, as a fraction of the weapon sprite's HALF width
-# (MMC sprite sizes from menuTexture.plist): AK47 102/102 = 1.00,
+# (reference sprite sizes from menuTexture.plist): AK47 102/102 = 1.00,
 # MP5 98/87 = 1.13, SPAS-12 105/109 = 0.96, M93BA 125/130 = 0.96,
 # SMAW 40/164 = 0.24, D.EAGLE 85/55.5 = 1.53. Five of six sit at
-# the barrel tip (about 1.0); the SMAW value is the literal MMC
+# the barrel tip (about 1.0); the SMAW value is the literal reference
 # number even though it lands mid-tube - see the notes file,
 # QA143-workerB-notes.md, before "fixing" it. The firing Y could
 # NOT be mapped to our centred sprite (no single frame fits all
@@ -168,10 +168,10 @@ const WEAPON_GRIP := {0: Vector2(0.34, 1.5), 1: Vector2(0.37, 2.0), 2: Vector2(0
 # is recorded in the notes and the muzzle stays on the barrel line
 # through the hands (QA-127), as before.
 const WEAPON_MUZZLE_FRAC := {0: 1.00, 1: 1.13, 2: 0.96, 3: 0.96, 4: 0.24, 5: 1.53}
-# QA-143: per-weapon arm angle in DEGREES, MMC Weapon field +0x2b0
-# (Weapon::getArmAngle 0x9487d8). Only five of 22 MMC classes
+# QA-143: per-weapon arm angle in DEGREES, reference Weapon field +0x2b0
+# (Weapon::getArmAngle 0x9487d8). Only five of 22 reference classes
 # override the 0.0 default: FLAMETHROWER -25, MINIGUN -40, RG6 -25,
-# SHOTGUN -25, SMAW -40. MMC reads it when a primary is equipped
+# SHOTGUN -25, SMAW -40. reference reads it when a primary is equipped
 # or switched (SLC::addPrimaryWeapon 0x8e6ebc, switchWeapons
 # 0x8ebea0) and stores it as the view's weapon-angle offset
 # (SoldierView::setWeaponAngleOffset 0x8fafec -> view +0x2a8). It
@@ -387,13 +387,13 @@ func _muzzle_origin() -> Vector2:
 
 
 # QA-143: how far ahead of the hands the bullet spawns, along the
-# aim direction (MMC design firing point, WEAPON_MUZZLE_FRAC
+# aim direction (reference design firing point, WEAPON_MUZZLE_FRAC
 # above). The gun's centre sits (0.5 - grip.x) * GUN_LENGTH ahead
 # of the hands, and the muzzle sits frac * GUN_LENGTH/2 ahead of
 # the centre: rifle 36.3, SMG 38.2, shotgun 41.3, sniper 30.3,
 # rocket 8.3, pistol 43.7 px. This replaces the old flat
 # GUN_LENGTH + 6.0 (61 px) - bullets used to spawn ~25 px past
-# the visible barrel tip; MMC spawns them at the muzzle (or just
+# the visible barrel tip; reference spawns them at the muzzle (or just
 # past it for the pistol/SMG).
 func muzzle_distance(weapon_id: int) -> float:
 	var grip: Vector2 = WEAPON_GRIP.get(weapon_id, Vector2(0.34, 1.5))
@@ -432,7 +432,7 @@ func _update_gun_texture() -> void:
 	# tip is at half the texture width (27.5 px ahead after scaling),
 	# not the far edge (55 px). The flash used to float 27.5 px past
 	# the barrel in mid-air.
-	# QA-143: the flash sits at the MMC design firing point, not
+	# QA-143: the flash sits at the reference design firing point, not
 	# the tip: frac * half the texture width (WEAPON_MUZZLE_FRAC).
 	if p._muzzle != null:
 		var mfrac: float = float(WEAPON_MUZZLE_FRAC.get(p.weapon, 1.0))
@@ -621,7 +621,7 @@ func _update_visuals(delta: float) -> void:
 	# Jetpack flame (GAP-06, spec §5): tied to the REAL thrust state,
 	# never to the animation name. Off = hidden, thrusting = visible
 	# with length by thrust, low fuel = blink, empty/descending = gone.
-	# QA-141: the length also follows the MMC thrust factor
+	# QA-141: the length also follows the reference thrust factor
 	# (_jet_thrust_factor = 0.5 + 0.5 x up-input), so the flame
 	# grows with how hard the stick is pushed up.
 	if p._flame != null:
@@ -814,7 +814,7 @@ func _update_sight_line() -> void:
 		p._sight_line.visible = false
 		return
 	var dir = Vector2(cos(p.aim_angle), sin(p.aim_angle))
-	# QA-143: the sight line starts at the true muzzle (MMC firing
+	# QA-143: the sight line starts at the true muzzle (reference firing
 	# point), like the bullets - not the old flat 61 px.
 	var muzzle = p.global_position + _muzzle_origin() + dir * muzzle_distance(p.weapon)
 	var end = muzzle + dir * p.SIGHT_LINE_RANGE

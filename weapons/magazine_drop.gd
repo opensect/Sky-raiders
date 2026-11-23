@@ -1,8 +1,8 @@
 class_name MagazineDrop
 extends Node2D
 
-# QA-145 ITEM 3 — dropping magazine on reload (Mini Militia Classic).
-# MMC drops the magazine at the weapon's design reload point
+# QA-145 ITEM 3 — dropping magazine on reload (reference).
+# reference drops the magazine at the weapon's design reload point
 # (Weapon::getDesignReloadPoint, +0x2e0) when a reload starts
 # (every subclass dropMag(float)). Visual only: no gameplay effect,
 # no collision, no sound — it falls and fades out, then frees itself.
@@ -13,7 +13,7 @@ extends Node2D
 #   rifle AK47 (50, 0), smg MP5 (60, 0), sniper M93BA (70, 0),
 #   pistol DEAGLE (30, 0).
 # Shotgun (SPAS-12) and rocket (SMAW) have NO +0x2e0 store in their
-# MMC init() — no design reload point exists for them, so they get
+# reference init() — no design reload point exists for them, so they get
 # NO magazine visual and their reload stays exactly as-is.
 # (Sources: QA143-workerB-notes.md §3; BUGS.md QA-143 ITEM 2.)
 #
@@ -25,7 +25,7 @@ extends Node2D
 # the fallback, so the drop always renders. The lookup is runtime
 # (ResourceLoader.exists + load), never preload — a missing file can
 # never break the reload. The rocket PNG is listed but unused by
-# design: SMAW has no MMC reload point, so no mag ever spawns for it.
+# design: SMAW has no reference reload point, so no mag ever spawns for it.
 # (The shotgun image was never uploaded, so no mag_shotgun.png exists
 # either — and SPAS-12 has no reload point anyway.)
 const MAG_TEX_PATHS := {
@@ -35,7 +35,7 @@ const MAG_TEX_PATHS := {
 	5: "res://assets/weapons_new/mag_pistol.png",
 }
 # The spawn position is computed from the gun node's live transform
-# (gun.to_global(point)), so the MMC texture-px point lands at the
+# (gun.to_global(point)), so the reference texture-px point lands at the
 # right spot on Frag Arena's scaled gun (full width = GUN_LENGTH),
 # at the gun's current aim angle, including the reload dip.
 
@@ -56,10 +56,10 @@ var _spin: float = 0.0
 var _tex: Texture2D = null # real magazine art when its PNG exists (see MAG_TEX_PATHS); null = code-drawn fallback
 
 
-# Spawn a dropping magazine at the weapon's MMC design reload point.
+# Spawn a dropping magazine at the weapon's reference design reload point.
 # parent is the game scene (world space — the mag must NOT follow the
 # player as it falls); gun is the player's gun sprite. Weapons with
-# no stored reload point in MMC (shotgun/rocket) spawn nothing.
+# no stored reload point in the reference (shotgun/rocket) spawn nothing.
 static func spawn(parent: Node, gun: Sprite2D, weapon_id: int) -> void:
 	if parent == null or gun == null or not RELOAD_POINTS.has(weapon_id):
 		return

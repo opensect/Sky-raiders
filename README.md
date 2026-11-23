@@ -1,6 +1,6 @@
 # Sky Raiders
 
-A Mini Militia-style 2D multiplayer shooter for Android, played over local
+A 2D multiplayer shooter for Android, played over local
 Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi.
 
@@ -46,7 +46,6 @@ No other setup is needed to run it. No accounts, no keys, no servers.
 
 - **Left stick** — move. Push up to jump / fly with the jetpack.
 - **Right stick** — aim and fire while held, release to stop firing.
-  (No fire button — Mini Militia style.)
 - **RELOAD / GRENADE / WEAPON** — plain buttons on the right side.
 - **SCOPE** — sniper 2.0x / rifle 1.5x zoom.
 

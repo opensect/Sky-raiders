@@ -242,7 +242,7 @@ func _mt_s_wall_pin() -> void:
 	# Airborne beside the RIGHT boundary wall (face x=3376, full
 	# map height): hold right into it for the step's wait. The
 	# player starts 4 px off the face (capsule edge 3372) and pins
-	# in ~0.1 s; it falls ~13 px in 0.3 s at MMC gravity 300 and
+	# in ~0.1 s; it falls ~13 px in 0.3 s at reference gravity 300 and
 	# no platform is near (3352,5000), so it stays pinned, airborne.
 	# The grapple from the reattach step MUST be released first -
 	# otherwise the rope keeps pulling the player up toward
@@ -283,7 +283,7 @@ func _mt_s_wall_reset() -> void:
 	# QA-141: (1800,3300), not (1800,3200) — the fall to the 3344
 	# top is 13 px (standing centre 3313), landing in ~0.3 s inside
 	# the 0.6 s wait. From 3200 the fall is 144 px, which takes
-	# ~0.98 s at MMC gravity 300 (it took 0.45 s at the old gravity
+	# ~0.98 s at reference gravity 300 (it took 0.45 s at the old gravity
 	# 1400) — the player would still be airborne at the check.
 	_mt_teleport(Vector2(1800, 3300))
 	p._movetest_hold = {}

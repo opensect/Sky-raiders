@@ -37,7 +37,7 @@ var _glitch_steps: Array = []
 var _map_shots: bool = false # v3.8 QA-111: --map-shot captures the Ironfall map in 4 views (left, centre peak, centre floor/waterfall, right) to user://shot_map_*.png
 var _land_shots: bool = false # v3.8 QA-110: --land-shot drops the player from high and captures the landing frame + 0.15 s later to user://shot_land_*.png
 var _skyfall_shots: bool = false # QA-112 (v3.9): --skyfall-shots captures the 6 Skyfall levels to user://shot_sf_*.png
-var _qa145_shots: bool = false # QA-145: --qa145-shots captures the reload magazine drop (rifle + sniper) + the MMC camera offset while aiming to user://shot_qa145_*.png
+var _qa145_shots: bool = false # QA-145: --qa145-shots captures the reload magazine drop (rifle + sniper) + the reference camera offset while aiming to user://shot_qa145_*.png
 var _qa145_timer: float = 0.0
 var _qa145_rifle_done: bool = false
 var _qa145_reload_at: float = -1.0
@@ -373,7 +373,7 @@ func _update_v38shots(delta: float) -> void:
 
 
 # QA-145 SCREENSHOT MODE (--qa145-shots): staged captures of the
-# reload magazine drop (rifle, then sniper) and the MMC camera view
+# reload magazine drop (rifle, then sniper) and the reference camera view
 # offset while aiming. Runs as auto-host; the countdown is skipped.
 # Threshold-gated (not exact stages) so a slow xvfb frame cannot
 # skip a step. Timeline: 1.0 rifle reload, aim held right by direct
@@ -449,7 +449,7 @@ func _update_qa145shots(delta: float) -> void:
 		_qa145_cam_at = _qa145_timer
 	if _qa145_cam_at > 0.0 and not _qa145_cam_shot_done and _qa145_timer - _qa145_cam_at >= 0.6:
 		_qa145_cam_shot_done = true
-		print("QA145SHOTS: camera capture mmc_s=", g._mmc_view_s, " mmc_px=", g._mmc_view_px, " cam_offset=", lp._camera.offset if lp._camera != null else Vector2.ZERO, " aiming=", lp._aiming, " aim_angle=", lp.aim_angle)
+		print("QA145SHOTS: camera capture mmc_s=", g._ref_view_s, " mmc_px=", g._ref_view_px, " cam_offset=", lp._camera.offset if lp._camera != null else Vector2.ZERO, " aiming=", lp._aiming, " aim_angle=", lp.aim_angle)
 		_capture_shot("user://shot_qa145_camera_aim.png")
 	if _qa145_timer >= 6.5:
 		print("QA145SHOTS DONE")

@@ -1,7 +1,7 @@
 # Physics Audit — LAN Arena Shooter vs PHYSICS_SPEC.md
 
 **Audited:** 2026-11-19 ~01:25 IST. Read-only audit; no game file was edited.
-**Spec:** `PHYSICS_SPEC.md` (user's Mini Militia physics breakdown, 2026-11-19).
+**Spec:** `PHYSICS_SPEC.md` (user's reference physics breakdown, 2026-11-19).
 **Code audited:** `player.gd`, `bullet.gd`, `grenade.gd`, `game.gd`, `joystick.gd`,
 `fire_button.gd`, `weapons.gd`, `shooting_sync.gd`, `bullet_pool.gd`,
 `game_data.gd`, `project.godot`, plus `player.tscn` / `bullet.tscn` /
@@ -73,7 +73,7 @@ else:
   `ACCEL_GROUND := 2600.0`, `ACCEL_AIR := 1500.0`,
   `DECEL_GROUND := 3400.0`, `DECEL_AIR := 900.0`,
   `SPEED_GROUND := 330.0`, `SPEED_AIR := 360.0` (air slightly faster,
-  Mini Militia feel), and branch on `is_on_floor()` in `_apply_movement`.
+  reference feel), and branch on `is_on_floor()` in `_apply_movement`.
 - **GAP-03 — no exponential damping / air drag (spec §2C, §6).**
   Deceleration is linear `move_toward` only. There is no
   `velocity *= exp(-k*delta)` anywhere, and no drag constant exists.
@@ -317,7 +317,7 @@ const FUEL_REFILL := 70.0  # ~1.4 s to refill
   jcrate, jrock` get a collision rect on layer 1; players cannot walk
   through them and bullets stop at them. ✅
 - Players do **not** collide with each other: `player.tscn` sets
-  `collision_layer = 2, collision_mask = 1` — correct for Mini Militia
+  `collision_layer = 2, collision_mask = 1` — correct for the reference game
   (players pass through each other). ✅
 - **GAP-13 — visible bridges/arches have no collision.** `game.gd:655-661`
   draws every decor sprite, but only `SOLID_DECOR_KINDS` get shapes.
@@ -1325,7 +1325,7 @@ barrel-behaviour finds only the "barrels" decor *texture*,
   no max length, no tension, no detachment, no rope collision, no
   sync. **Feasibility: OUT OF SCOPE.** A rope is a constraint
   solver (Verlet or distance-joint chain) plus a new movement mode
-  plus sync — the largest item in §22 and the least Mini-Militia.
+  plus sync — the largest item in §22 and the least like the reference game.
   Do not attempt in v3.0.
 - **GAP-66 — no bounce pads / springs (§22.E) — ⭐ CHEAP WIN,
   recommend for v3.0.** Nothing applies upward velocity on touch.
@@ -1466,7 +1466,7 @@ row below gives current code value → spec value → adopt-or-not.
 | Upward force | `JET_ACCEL 1900` | 1800 | **Keep 1900** (net −500 vs gravity; spec net is −400 — current is already the livelier one; audit #1 suggested 2200 if floaty). |
 | Max up speed | `MAX_JET_RISE 430` | 450 | **Adopt** (430 → 450, trivial). |
 | Fuel capacity | `FUEL_MAX 100` | 100 | ✅ **Identical.** |
-| Fuel consumption | `FUEL_DRAIN 45/s` | 25/s | **Decide.** 45/s = 2.2 s of thrust; 25/s = 4 s. Current is the Mini-Militia-like short burst; spec is a longer hover. Recommend keeping 45/s — doubling flight time changes every map's vertical balance. |
+| Fuel consumption | `FUEL_DRAIN 45/s` | 25/s | **Decide.** 45/s = 2.2 s of thrust; 25/s = 4 s. Current is the reference-like short burst; spec is a longer hover. Recommend keeping 45/s — doubling flight time changes every map's vertical balance. |
 | Fuel recovery | `FUEL_REFILL 70/s` | 15/s | **Do NOT adopt as-is.** 15/s = 6.7 s to refill; current 70/s = 1.4 s. But GAP-05 (regen delay + air regen) must be fixed first; after that, retune recovery to ~35–70/s, not 15/s. |
 | Activation delay | (none — instant) | 0.1 s | **Adopt if jetpack feels twitchy** (GAP-05 fix is the place: start the 0.6 s regen delay timer and a 0.1 s thrust delay together). Low priority. |
 
@@ -1580,7 +1580,7 @@ Spec §26 coverage vs reality:
 | ENet / Godot Multiplayer API | ✅ ENet via `SceneMultiplayer`; `MultiplayerSynchronizer` for state, RPCs for events. |
 | TileMapLayer | ❌ **Not used — GAP-74 (Low, deliberate deviation).** Maps are built in code: `Rect2` platform lists in `MAPS` (`game.gd:71-334`) + `_draw_tiles` (`game.gd:831+`). **Verdict: does not matter for v3.0.** TileMapLayer helps when maps are tile-authored in the editor; these maps are data-driven rects with hand-placed decor, and the `--collision-test` validates them statically. Do not convert 10 maps to TileMapLayer for the sake of the checklist — record the deviation. |
 | AnimatedSprite2D | ✅ Player sprite (`player.gd:179-243`, `_make_sprite_frames`). |
-| Git | ❌ **Not in use — GAP-75 (Medium).** No `.git` folder exists in `~/workspace/mini-militia-lan/` (checked 2026-11-19 ~01:37 IST). The project has no version history, no rollback, and the v2.5 builder is editing live files alongside this audit with only file mtimes as protection. **Fix (do first, before any v3.0 edit):** `git init`, add a `.gitignore` (`.godot/`, `*.apk`, `*.import` churn as decided), commit the v2.4-delivered tree as the baseline, then commit per feature. This is the cheapest risk reduction in the whole audit. |
+| Git | ❌ **Not in use — GAP-75 (Medium).** No `.git` folder exists in `~/workspace/sky-raiders/` (checked 2026-11-19 ~01:37 IST). The project has no version history, no rollback, and the v2.5 builder is editing live files alongside this audit with only file mtimes as protection. **Fix (do first, before any v3.0 edit):** `git init`, add a `.gitignore` (`.godot/`, `*.apk`, `*.import` churn as decided), commit the v2.4-delivered tree as the baseline, then commit per feature. This is the cheapest risk reduction in the whole audit. |
 | Automated tests | ✅ Six headless harnesses (§33). |
 | Separate systems (player / physics / weapon / networking / environment / camera / audio / UI) | ⚠️ **Partial — GAP-68.** Data is separated (`weapons.gd`, `shooting_sync.gd`, `bullet_pool.gd`, `audio.gd`) but the core is not: `game.gd` (~4,400 lines) + `player.gd` (902 lines) hold most systems. Environment and Camera have no files at all. Realistic v3.0 step: `physics_config.gd` + `tests/` + new systems in `scripts/` (GAP-68). |
 | CharacterBody2D players | ✅ (`player.tscn`, `grenade.gd` also CharacterBody2D). |

@@ -321,7 +321,7 @@ func _sf_update_mines(delta: float) -> void:
 	# the 1.0 s fuse, no one-hit kill, shield blocks it via
 	# take_damage). The mine re-arms 30 s later (barricade
 	# standard), on every peer's own clock. NOT routed through
-	# request_explosion on purpose: that uses the MMC blast formula
+	# request_explosion on purpose: that uses the reference blast formula
 	# (100 HP at the centre — a one-hit kill), which breaks the
 	# QA-126 trap rule.
 	if g.map_id != GameData.SKYFALL_MAP_ID:

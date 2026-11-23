@@ -5,7 +5,7 @@
   `~/workspace/custom-connectors/custom.gemini/bin/generate_image.py`
   (POST gemini-2.5-flash-image:generateContent, text prompt -> base64 PNG,
   key via the registered custom.gemini surrogate, never printed or stored.)
-- Created this folder: `~/workspace/mini-militia-lan/gen_assets_v3/`
+- Created this folder: `~/workspace/sky-raiders/gen_assets_v3/`
 - No existing game file was touched.
 
 ## Result: BLOCKED by API rate limit — 0 images generated

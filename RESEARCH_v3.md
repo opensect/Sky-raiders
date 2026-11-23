@@ -1,12 +1,12 @@
 # RESEARCH v3 — LAN Arena Shooter (Godot 4.3 → v3.0 planning)
 
-Sources: gamedesign.gg (PvP map design), Soldat2 mapping wiki, Mini Militia map guides,
+Sources: gamedesign.gg (PvP map design), Soldat2 mapping wiki, reference map guides,
 godotengine.org 4.7 release notes, https://thruthesky.github.io/gohud/ (+ install page).
 Current game state checked against README.md + BUGS.md (v2.4).
 
 ## (a) How to design a good 2D side-view multiplayer shooter map
 
-References: Mini Militia (Outpost, Catacombs, Hightower), Soldat/Soldat2, Stickman-style arena shooters.
+References: the reference game (Outpost, Catacombs, Hightower), Soldat/Soldat2, Stickman-style arena shooters.
 
 **Flow — the map is the rules, expressed as geometry**
 - Build a loop, not a line: a figure-eight / 3-lane layout (centre lane = fast, risky;
@@ -16,7 +16,7 @@ References: Mini Militia (Outpost, Catacombs, Hightower), Soldat/Soldat2, Stickm
 - **Rule: no dead ends.** Every corridor/tunnel has 2 exits, or is short enough to see
   the whole thing from the entrance. (Jungle Ruins caves already do this.)
 - One contested centre (the "hot zone") where the best pickup sits; the rest of the map
-  feeds into it. Mini Militia's Outpost works because mid is open but flankable.
+  feeds into it. the reference game's Outpost works because mid is open but flankable.
 
 **Cover & sightlines — tune sightline length against time-to-kill**
 - Long lanes are sniper lanes: keep them **few (1–2 per map), avoidable, and never the
