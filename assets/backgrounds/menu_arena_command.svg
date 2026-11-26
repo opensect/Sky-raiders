@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#070e20"/><stop offset=".52" stop-color="#182f4b"/><stop offset=".82" stop-color="#bd6544"/><stop offset="1" stop-color="#f0a45d"/></linearGradient>
+    <linearGradient id="haze" x2="0" y2="1"><stop stop-color="#ffcc82" stop-opacity="0"/><stop offset="1" stop-color="#ffb46a" stop-opacity=".28"/></linearGradient>
+    <linearGradient id="wall" x2="0" y2="1"><stop stop-color="#263b51"/><stop offset="1" stop-color="#111d2c"/></linearGradient>
+    <linearGradient id="ground" x2="0" y2="1"><stop stop-color="#172333"/><stop offset="1" stop-color="#090f19"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#ffd28b" stop-opacity=".8"/><stop offset="1" stop-color="#ff9a56" stop-opacity="0"/></radialGradient>
+    <linearGradient id="beam"><stop stop-color="#d8efff" stop-opacity=".14"/><stop offset="1" stop-color="#d8efff" stop-opacity="0"/></linearGradient>
+    <pattern id="grid" width="96" height="96" patternUnits="userSpaceOnUse"><path d="M0 95.5H96" stroke="#77a1ba" stroke-opacity=".07"/><path d="M95.5 0V96" stroke="#77a1ba" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <ellipse cx="960" cy="720" rx="660" ry="260" fill="url(#sun)"/>
+  <rect y="610" width="1920" height="260" fill="url(#haze)"/>
+  <!-- distant broken ridgeline and industrial skyline -->
+  <path d="M0 706 92 655 171 674 282 601 368 659 470 622 566 684 676 608 761 649 865 584 946 663 1062 617 1153 679 1262 594 1361 646 1465 604 1540 668 1643 619 1733 669 1817 610 1920 648V870H0Z" fill="#121b30" opacity=".92"/>
+  <g fill="#172335" opacity=".82">
+    <path d="M358 666V580h30v-43h42v129zm84 0V565h68v101zm82 0V608h66v58zm606 0V575h38v-70h61v70h30v91zm134 0V606h78v60zm94 0V560h42v-39h40v145zm133 0V598h90v68z"/>
+    <path d="M471 541h5v-32h3v32m641 2h4v-53h3v53m336 17h4v-48h3v48" stroke="#24364a" stroke-width="5"/>
+  </g>
+  <!-- arena perimeter -->
+  <path d="M0 748H1920V1080H0Z" fill="url(#wall)"/>
+  <path d="M0 748H1920" stroke="#6b91a5" stroke-opacity=".45" stroke-width="5"/>
+  <rect y="748" width="1920" height="332" fill="url(#grid)"/>
+  <g fill="#1b2a39" stroke="#34485b" stroke-width="4">
+    <path d="M72 654h98v426H72zM1750 654h98v426h-98z"/>
+    <path d="M54 646h134l-18-42H72zM1732 646h134l-18-42h-98z"/>
+    <path d="M0 824h1920v16H0z" opacity=".75"/>
+    <path d="M0 946h1920v10H0z" opacity=".42"/>
+  </g>
+  <!-- floodlights -->
+  <g>
+    <path d="M116 643 330 748H-34z" fill="url(#beam)"/><path d="M1804 643 1954 748h-364z" fill="url(#beam)"/>
+    <rect x="96" y="616" width="48" height="24" rx="5" fill="#dcecff"/><rect x="1776" y="616" width="48" height="24" rx="5" fill="#dcecff"/>
+    <rect x="108" y="620" width="24" height="9" rx="4" fill="#fff1c4"/><rect x="1788" y="620" width="24" height="9" rx="4" fill="#fff1c4"/>
+  </g>
+  <!-- foreground catwalk, deliberately kept low to preserve calm menu space -->
+  <path d="M0 1008H1920V1080H0Z" fill="url(#ground)"/>
+  <path d="M0 1008H1920" stroke="#39536a" stroke-width="5"/>
+  <path d="M70 1040h320m70 0h320m70 0h320m70 0h320m70 0h320" stroke="#d9a14f" stroke-opacity=".34" stroke-width="8" stroke-dasharray="64 34"/>
+  <g fill="#4c6577" opacity=".7"><circle cx="280" cy="784" r="5"/><circle cx="1640" cy="784" r="5"/><circle cx="960" cy="784" r="5"/><circle cx="510" cy="920" r="4"/><circle cx="1410" cy="920" r="4"/></g>
+  <!-- subtle edge vignette; central sky remains quiet for the menu and logo -->
+  <rect width="1920" height="1080" fill="#050b16" opacity=".19"/>
+</svg>

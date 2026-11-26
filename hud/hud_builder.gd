@@ -27,7 +27,7 @@ const TEX_UI_BAR_ENERGY_FILL: Texture2D = preload("res://assets/user_assets_v3/u
 const TEX_UI_PANEL_MESSAGE_MED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/panel_message_med.png")
 const TEX_UI_BUTTON_PILL_BLUE: Texture2D = preload("res://assets/user_assets_v3/ui_frames/button_pill_blue.png")
 const TEX_UI_DIVIDER_THIN: Texture2D = preload("res://assets/user_assets_v3/ui_frames/divider_thin.png")
-const TEX_UI_PANEL_LARGE_BLUE: Texture2D = preload("res://assets/user_assets_v3/ui_frames/panel_large_blue.png")
+const TEX_UI_PANEL_LARGE_BLUE: Texture2D = preload("res://assets/ui_polish/panel_large_blue.svg")
 const TEX_UI_PANEL_BIG_RED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/panel_big_red.png")
 const TEX_UI_EMBLEM: Texture2D = preload("res://assets/user_assets_v3/ui_frames/emblem_winged_shield.png")
 const TEX_UI_BAR_BLUE_MED: Texture2D = preload("res://assets/user_assets_v3/ui_frames/bar_blue_med.png")
@@ -278,7 +278,7 @@ func _build_hud() -> void:
 	# shows under the row.
 	g._sf_slot_panel = PanelContainer.new()
 	g._sf_slot_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	g._sf_slot_panel.offset_left = -360
+	g._sf_slot_panel.offset_left = -224
 	g._sf_slot_panel.offset_right = -12
 	g._sf_slot_panel.offset_top = 114
 	g._sf_slot_panel.offset_bottom = 206
@@ -374,12 +374,12 @@ func _build_hud() -> void:
 	# _update_hud still turns it on/off from GameData.show_fps.
 	g.fps_label = Label.new()
 	g.fps_label.text = "FPS: --"
-	g.fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	g.fps_label.offset_left = -212
-	g.fps_label.offset_right = -12
-	g.fps_label.offset_top = 112
-	g.fps_label.offset_bottom = 136
-	g.fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	g.fps_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	g.fps_label.offset_left = 16
+	g.fps_label.offset_right = 296
+	g.fps_label.offset_top = 98
+	g.fps_label.offset_bottom = 122
+	g.fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	g.fps_label.add_theme_font_size_override("font_size", 16)
 	_outline_label(g.fps_label)
 	g.fps_label.visible = GameData.show_fps
@@ -816,8 +816,9 @@ func _build_touch_controls() -> void:
 	g.reload_button.pressed.connect(g._on_reload_pressed)
 	g.hud.add_child(g.reload_button)
 
-	# QA-114 (v3.9): PING button — plain and simple like the other
-	# four, same column, directly above RELOAD. Pings the local
+	# QA-114 (v3.9): PING is a Skyfall team callout in TDM and CTF.
+	# It sits beside RELOAD so it stays within reach on shorter screens.
+	# It marks the local
 	# player's position for their TEAM (a gold diamond marker in
 	# the world + a dot on the height bar + a feed line), 3 s
 	# cooldown so it cannot be spammed. Skyfall only — hidden on
@@ -827,7 +828,7 @@ func _build_touch_controls() -> void:
 	_style_simple_button(g.ping_button)
 	g.ping_button.custom_minimum_size = Vector2(72, 72)
 	g.ping_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	g.ping_button.position = Vector2(-451, -500)
+	g.ping_button.position = Vector2(-535, -340)
 	g.ping_button.pressed.connect(g._on_ping_pressed)
 	g.hud.add_child(g.ping_button)
 

@@ -288,11 +288,10 @@ func _build_skyfall_scenery(map: Dictionary) -> void:
 	g._sf_scenery = {"clouds": clouds, "streaks": streaks, "heli": heli, "flash": flash, "flash_timer": 3.0, "flash_alpha": 0.0}
 
 
-# QA-124 (v3.11) — PER-LEVEL THEMES: each of the 6 levels gets its
-# OWN different visual theme — the ENTIRE background AND platforms
-# change per level, not just a tint. Three depth layers per level:
-# FAR = the pack's level image (z -6), MID = a level-specific
-# silhouette (z -4), NEAR = decor + tinted platform tiles (z -1/0).
+# PER-LEVEL THEMES: preserve mood and material tint while using the
+# clean gradient backdrop. The pack's level strips contain baked labels,
+# sight lines, and platform art that does not match live collision.
+# MID = a restrained silhouette, NEAR = decor + tinted platform tiles.
 # Merged levels use BOTH their images (top half / bottom half).
 # Level bands (y grows downward): L1 9000-10800, L2 7200-9000,
 # L3 5400-7200, L4 3600-5400, L5 1800-3600, L6 0-1800.
@@ -318,15 +317,6 @@ func _build_skyfall_themes(map: Dictionary) -> void:
 		var lvl := li + 1
 		var y_top := 10800.0 - float(lvl) * 1800.0
 		var th: Array = themes[li]
-		# FAR: one image per 900 px half-band (2x scale, uniform —
-		# the 1800x450 image covers 3600x900 with no distortion).
-		for half in 2:
-			var spr := Sprite2D.new()
-			spr.texture = th[half]
-			spr.position = Vector2(1800, y_top + 450.0 + float(half) * 900.0)
-			spr.scale = Vector2(2.0, 2.0)
-			spr.z_index = -6
-			g.add_child(spr)
 		# LIGHTING: a translucent mood wash over the whole level —
 		# tunnels darkest, summit storm-blue, base warm. Day-to-dusk
 		# as you climb: the wash darkens and cools with height.

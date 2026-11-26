@@ -10,16 +10,6 @@ extends RefCounted
 
 var m # the owner (main.gd)
 
-const HELMET_ICONS := {
-	1: preload("res://assets/headgear/helmet_green.png"),
-	2: preload("res://assets/headgear/cap_tan.png"),
-	3: preload("res://assets/headgear/helmet_black.png"),
-	# QA-090 (v3.7): 4 red bandana, 5 night-vision goggles, 6 camo
-	# helmet. Indices 1-3 unchanged, so saved choices do not shift.
-	4: preload("res://assets/headgear/bandana_red.png"),
-	5: preload("res://assets/headgear/nvg.png"),
-	6: preload("res://assets/headgear/helmet_camo.png"),
-}
 const FRAG_LOGO: Texture2D = preload("res://assets/logo/sky_raiders_logo.png") # QA-145: Sky Raiders logo (crosshair + Orbitron wordmark, drawn in code/PIL) — same style as the v3.5 Frag Arena logo it replaces; const name kept so no other reference changes
 
 
@@ -29,13 +19,38 @@ func _init(owner) -> void:
 
 
 func _build_menu() -> void:
-	# QA-097 (v3.7): home redesign — same controls, more air.
-	# The menu was a tight stack (14 px gaps, 64 px buttons);
-	# it now breathes at 20 px gaps with 68 px buttons and a
-	# roomier profile card, matching the lobby/create spacing.
+	# Home layout: identity and player progress on the left, clear
+	# play actions on the right. The two-column layout keeps the
+	# main choices visible together without a tall scrolling stack.
 	m._menu_panel = m.menu_ui._panel(Color(0.07, 0.11, 0.18, 0.96), true)
-	var box = m.menu_ui._vbox(m._menu_panel, 20)
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	var inset := MarginContainer.new()
+	inset.add_theme_constant_override("margin_left", 28)
+	inset.add_theme_constant_override("margin_right", 28)
+	inset.add_theme_constant_override("margin_top", 18)
+	inset.add_theme_constant_override("margin_bottom", 18)
+	inset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inset.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	m._menu_panel.add_child(inset)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 32)
+	columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inset.add_child(columns)
+	var identity := VBoxContainer.new()
+	identity.add_theme_constant_override("separation", 18)
+	identity.alignment = BoxContainer.ALIGNMENT_CENTER
+	identity.custom_minimum_size = Vector2(460, 0)
+	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	identity.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_child(identity)
+	var actions := VBoxContainer.new()
+	actions.add_theme_constant_override("separation", 14)
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.custom_minimum_size = Vector2(420, 0)
+	actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	actions.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_child(actions)
+	var box: VBoxContainer = identity
 	# QA-145 Sky Raiders: the logo (crosshair emblem + Orbitron
 	# wordmark) is the menu heading now — the old "LAN ARENA
 	# SHOOTER" text title is gone. 1239x320 art, shown ~460 px
@@ -47,7 +62,7 @@ func _build_menu() -> void:
 	logo.custom_minimum_size = Vector2(460, 119)
 	logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(logo)
-	var sub = m.menu_ui._body_label("2D shooter - local Wi-Fi only, no accounts", 20)
+	var sub = m.menu_ui._body_label("Offline practice or local Wi-Fi matches - no accounts", 20)
 	sub.add_theme_color_override("font_color", m.UI_FONT_MUTED)
 	box.add_child(sub)
 	var title_sep := HSeparator.new()
@@ -105,20 +120,40 @@ func _build_menu() -> void:
 	m._profile_stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	pc_vb.add_child(m._profile_stats_lbl)
 	_refresh_profile_card()
+	# Primary choices are grouped together in the action column.
+	box = actions
+	box.add_child(m.menu_ui._section_label("CHOOSE YOUR MODE"))
+	var play_row := HBoxContainer.new()
+	play_row.add_theme_constant_override("separation", 12)
+	play_row.custom_minimum_size = Vector2(420, 68)
+	play_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(play_row)
+	var solo_btn := Button.new()
+	solo_btn.text = "PRACTICE"
+	solo_btn.icon = m.menu_ui._gohud_icon("play")
+	solo_btn.expand_icon = true
+	solo_btn.custom_minimum_size = Vector2(0, 68)
+	solo_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	m.menu_ui._style_button(solo_btn, 23, 64, true)
+	solo_btn.pressed.connect(_start_solo_practice)
+	play_row.add_child(solo_btn)
 	var mp_btn := Button.new()
-	mp_btn.text = "LOCAL MULTIPLAYER"
-	mp_btn.icon = m.menu_ui._gohud_icon("play")
+	mp_btn.text = "LAN PLAY"
 	mp_btn.expand_icon = true
-	mp_btn.custom_minimum_size = Vector2(460, 68)
-	mp_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	m.menu_ui._style_button(mp_btn, 26, 64, true)
-	mp_btn.pressed.connect(func() -> void: m.menu_ui._click(); m.menu_ui._show_only(m._mp_panel))
-	box.add_child(mp_btn)
+	mp_btn.custom_minimum_size = Vector2(0, 68)
+	mp_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	m.menu_ui._style_button(mp_btn, 23, 64)
+	mp_btn.pressed.connect(func() -> void:
+		m.menu_ui._click()
+		GameData.solo_practice = false
+		m.menu_ui._show_only(m._mp_panel)
+	)
+	play_row.add_child(mp_btn)
 	var cust_btn := Button.new()
 	cust_btn.text = "CUSTOMIZATION"
 	cust_btn.icon = m.menu_ui._gohud_icon("user")
 	cust_btn.expand_icon = true
-	cust_btn.custom_minimum_size = Vector2(460, 68)
+	cust_btn.custom_minimum_size = Vector2(420, 64)
 	cust_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	m.menu_ui._style_button(cust_btn, 26, 64)
 	cust_btn.pressed.connect(func() -> void: m.menu_ui._click(); m.menu_ui._show_only(m._custom_panel))
@@ -127,18 +162,25 @@ func _build_menu() -> void:
 	set_btn.text = "SETTINGS"
 	set_btn.icon = m.menu_ui._gohud_icon("settings")
 	set_btn.expand_icon = true
-	set_btn.custom_minimum_size = Vector2(460, 68)
+	set_btn.custom_minimum_size = Vector2(420, 64)
 	set_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	m.menu_ui._style_button(set_btn, 26, 64)
 	set_btn.pressed.connect(func() -> void: m.menu_ui._click(); m.menu_ui._show_only(m._settings_panel))
 	box.add_child(set_btn)
-	var hint = m.menu_ui._body_label("All phones must be on the same Wi-Fi network.", 18)
+	var hint = m.menu_ui._body_label("Practice offline, or play together on the same Wi-Fi.", 18)
 	hint.add_theme_color_override("font_color", m.UI_FONT_MUTED)
 	box.add_child(hint)
 	# Phase 6: short music credit on the menu (full text is in Settings).
 	var credit = m.menu_ui._body_label(GameData.MUSIC_CREDITS_SHORT, 16)
 	credit.add_theme_color_override("font_color", m.UI_FONT_MUTED)
 	box.add_child(credit)
+
+
+func _start_solo_practice() -> void:
+	m.menu_ui._click()
+	GameData.solo_practice = true
+	GameData.game_mode = 0
+	m.get_tree().change_scene_to_file(m.GAME_SCENE)
 
 
 # QA-078: fill the main-menu profile card from the saved lifetime
@@ -210,22 +252,6 @@ func _build_customize() -> void:
 		b.pressed.connect(_on_color_pressed.bind(i))
 		color_row.add_child(b)
 		m._color_buttons.append(b)
-	# Helmet choice.
-	box.add_child(m.menu_ui._section_label("Helmet"))
-	var helmet_row := HBoxContainer.new()
-	helmet_row.add_theme_constant_override("separation", 8)
-	box.add_child(helmet_row)
-	for i in m.HELMET_NAMES.size():
-		var b := Button.new()
-		b.text = m.HELMET_NAMES[i]
-		if HELMET_ICONS.has(i):
-			b.icon = HELMET_ICONS[i]
-		b.custom_minimum_size = Vector2(0, 56)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		m.menu_ui._style_button(b, 20, 56)
-		b.pressed.connect(_on_helmet_pressed.bind(i))
-		helmet_row.add_child(b)
-		m._helmet_buttons.append(b)
 	_refresh_customize_buttons()
 	var back_btn := Button.new()
 	back_btn.text = "Back"
@@ -247,22 +273,11 @@ func _on_color_pressed(i: int) -> void:
 	_refresh_customize_buttons()
 
 
-func _on_helmet_pressed(i: int) -> void:
-	m.menu_ui._click()
-	GameData.helmet = i
-	GameData.save_settings()
-	_refresh_customize_buttons()
-
-
 func _refresh_customize_buttons() -> void:
 	for i in m._color_buttons.size():
 		var b: Button = m._color_buttons[i]
 		b.text = ("✓ " if i == GameData.color_index else "") + GameData.COLOR_NAMES[i]
 		m.menu_ui._style_selected(b, i == GameData.color_index, 20)
-	for i in m._helmet_buttons.size():
-		var b2: Button = m._helmet_buttons[i]
-		b2.text = ("✓ " if i == GameData.helmet else "") + m.HELMET_NAMES[i]
-		m.menu_ui._style_selected(b2, i == GameData.helmet, 20)
 
 
 func _on_portrait_prev() -> void:

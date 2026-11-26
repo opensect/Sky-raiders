@@ -12,7 +12,6 @@ const AUDIO_SCRIPT: Script = preload("res://audio/audio.gd")
 const FONT_TITLE: Font = preload("res://assets/fonts/orbitron/Orbitron-Variable.ttf")
 const FONT_BODY: Font = preload("res://assets/fonts/rajdhani/Rajdhani-Regular.ttf")
 const FONT_BODY_SEMIBOLD: Font = preload("res://assets/fonts/rajdhani/Rajdhani-SemiBold.ttf")
-const HELMET_NAMES := ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"]
 
 
 var _audio
@@ -65,6 +64,7 @@ var _lobby_left_scroll: ScrollContainer # v3.5 QA-059: left column (room + playe
 var _map_cards: Array = [] # v3.5 QA-059: map card panels (visuals), parallel to _map_buttons (input)
 var _map_card_badges: Array = [] # v3.5 QA-059: "✓ SELECTED" badge per card, parallel to _map_buttons
 var _lobby_start_btn: Button
+var _lobby_practice_btn: Button
 var _lobby_players_badge: GoBadge # v3.6 QA-069: header players pill ("1/4 PLAYERS"), updated in _refresh_lobby_buttons
 var _profile_portrait: TextureRect # QA-078: main-menu profile card
 var _profile_name_lbl: Label
@@ -77,7 +77,6 @@ var _role_section_label: Label # QA-112: hidden with the role row when the map i
 var _role_row: HBoxContainer # QA-112: the role button row (Skyfall only)
 var _skyfall_banner_row: HBoxContainer # QA-112: red + blue team banners (Skyfall CTF only)
 var _lobby_color_buttons: Array = [] # QA-078: in-lobby appearance
-var _lobby_helmet_buttons: Array = []
 var _limit_label: Label # "Kill limit:" label in the lobby room strip
 var _strip_limit_cap: Label # QA-080: stat-strip caption, same switch
 var _room_code_input: LineEdit # QA-078: join by room code
@@ -91,7 +90,6 @@ var _time_buttons: Array = []
 var _max_buttons: Array = []
 var _create_mode_buttons: Array = [] # QA-098: mode pick on the create page
 var _color_buttons: Array = []
-var _helmet_buttons: Array = []
 var _portrait_tex: TextureRect
 var _name_input: LineEdit
 # Phase 4 — settings screen controls.
@@ -365,7 +363,7 @@ func _style_button(b: Button, font_size: int = 22, min_h: int = 56, accent: bool
 	return menu_ui._style_button(b, font_size, min_h, accent)
 
 
-# Selected toggle state (map / mode / limit / time / colour / helmet).
+# Selected toggle state (map / mode / limit / time / colour).
 func _style_selected(b: Button, selected: bool, font_size: int = 22) -> void:
 	return menu_ui._style_selected(b, selected, font_size)
 
@@ -447,10 +445,6 @@ func _on_name_changed(text: String) -> void:
 
 func _on_color_pressed(i: int) -> void:
 	return menu_screens._on_color_pressed(i)
-
-
-func _on_helmet_pressed(i: int) -> void:
-	return menu_screens._on_helmet_pressed(i)
 
 
 func _refresh_customize_buttons() -> void:
@@ -629,17 +623,13 @@ func _on_lobby_color_pressed(i: int) -> void:
 	return menu_lobby_setup._on_lobby_color_pressed(i)
 
 
-func _on_lobby_helmet_pressed(i: int) -> void:
-	return menu_lobby_setup._on_lobby_helmet_pressed(i)
-
-
 func _sync_my_appearance() -> void:
 	return menu_lobby_setup._sync_my_appearance()
 
 
 @rpc("any_peer")
-func update_appearance(color_idx: int, helmet_style: int) -> void:
-	return menu_lobby_setup.update_appearance(color_idx, helmet_style)
+func update_appearance(color_idx: int) -> void:
+	return menu_lobby_setup.update_appearance(color_idx)
 
 
 # QA-112 (v3.9): minimum to start a match — a match starts with
@@ -791,6 +781,10 @@ func _on_peer_disconnected(id: int) -> void:
 
 func _on_start_pressed() -> void:
 	return menu_net._on_start_pressed()
+
+
+func _on_lobby_practice_pressed() -> void:
+	return menu_net._on_lobby_practice_pressed()
 
 
 @rpc("any_peer", "call_local")

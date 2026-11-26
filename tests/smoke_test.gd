@@ -499,8 +499,8 @@ func _qa145_unpause() -> void:
 # jetpack / run / fall) to user://shot_glitch_*.png. Runs as
 # auto-host; the countdown is skipped (this flag is in
 # _is_test_mode). Each step is two 1 s stages: setup, then capture.
-# The capture stage also prints the helmet sprite position and the
-# gun's barrel-tip vs muzzle-flash positions, so a misalignment is
+# The capture stage prints the gun's barrel-tip vs muzzle-flash
+# positions, so a misalignment is
 # visible in the log as well as in the picture.
 func _update_glitchshots(delta: float) -> void:
 	_glitch_timer += delta
@@ -530,9 +530,6 @@ func _update_glitchshots(delta: float) -> void:
 		if lp != null and bool(step.get("fire_flash", false)):
 			lp._muzzle_timer = 1.0
 		if lp != null:
-			var hp := Vector2.ZERO
-			if lp._helmet_sprite != null:
-				hp = lp._helmet_sprite.position
 			var gp := Vector2.ZERO
 			var grot := 0.0
 			if lp._gun != null:
@@ -545,7 +542,7 @@ func _update_glitchshots(delta: float) -> void:
 			var flash: Vector2 = gp + dir * 55.0
 			if lp._muzzle != null:
 				flash = lp.to_local(lp._muzzle.global_position)
-			print("GLITCH %s helmet_pos=%s gun_pos=%s rot=%.2f tip=%s flash=%s anim=%s" % [String(step["name"]), str(hp), str(gp), grot, str(tip), str(flash), String(lp._current_anim)])
+			print("GLITCH %s gun_pos=%s rot=%.2f tip=%s flash=%s anim=%s" % [String(step["name"]), str(gp), grot, str(tip), str(flash), String(lp._current_anim)])
 		_capture_shot("user://" + String(step["file"]))
 
 
@@ -581,13 +578,6 @@ func _glitch_setup(step: Dictionary) -> void:
 		lp.weapon = int(step["w"])
 		lp.mag_ammo = int(lp.WEAPONS[int(step["w"])]["mag"])
 		lp._update_gun_texture()
-	# NOTE: the LAND steps pass h = -1 on purpose — _update_helmet
-	# resets the helmet position to (1, _helmet_y), which would
-	# hide the stuck-after-jetpack X offset this probe is looking
-	# for. The helmet is set in the JET step and left alone here.
-	if int(step.get("h", -1)) >= 0:
-		lp.helmet = int(step["h"])
-		lp._update_helmet()
 	var floor_top = float((g.MAPS[g.map_id]["platforms"] as Array)[0].position.y)
 	# QA-127 (v3.11): default x1400, NOT 1500 — Ironfall has a live
 	# weapon pickup spawn at (1500, 1320) and the player teleports

@@ -158,13 +158,12 @@ func _spawn_player_node(data) -> Node:
 	p.player_name = str(data["name"])
 	p.color_index = int(data["color"])
 	p.player_color = GameAssets.PLAYER_COLORS[int(data["color"]) % GameAssets.PLAYER_COLORS.size()]
-	p.helmet = int(data["helmet"])
 	p.team = int(data["team"])
 	return p
 
 
 func _spawn_self() -> void:
-	_do_spawn(g.multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.helmet, GameData.team_pref)
+	_do_spawn(g.multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.team_pref)
 
 
 func _announce_ready() -> void:
@@ -176,7 +175,7 @@ func _announce_ready() -> void:
 		# itself over RPC is not allowed (it only logs an error),
 		# and request_spawn is idempotent anyway.
 		return
-	g.rpc_id(1, "request_spawn", g.multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.helmet, GameData.BUILD_VERSION, GameData.team_pref)
+	g.rpc_id(1, "request_spawn", g.multiplayer.get_unique_id(), GameData.player_name, GameData.color_index, GameData.BUILD_VERSION, GameData.team_pref)
 	# v3.2 QA-047: also ask for the full player list — if our spawn
 	# RPC was the one that got lost, the list heals us (it includes
 	# our own player and the host's player). The 2 s retry in
@@ -199,7 +198,7 @@ func _retry_spawn_if_needed(delta: float) -> void:
 		_announce_ready()
 
 
-func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, team_pref: int = -1) -> void:
+func _do_spawn(pid: int, pname: String, color_idx: int, team_pref: int = -1) -> void:
 	# v3.2 QA-047: a re-request means the client's first spawn never
 	# landed (the v3.1 bug) — re-send it instead of silently assuming
 	# the client already has the player. The old code returned here
@@ -228,7 +227,7 @@ func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, team_
 		if team == -1:
 			team = (g._next_index - 1) % 2
 	# Survival (2) and Last Man Standing (3) are free-for-all: team -1.
-	var data = {"id": pid, "index": g._next_index, "name": pname, "color": color_idx, "helmet": helmet_style, "team": team}
+	var data = {"id": pid, "index": g._next_index, "name": pname, "color": color_idx, "team": team}
 	g._next_index += 1
 	g._spawn_data[pid] = data
 	g.spawner.spawn(data)
@@ -321,7 +320,7 @@ func player_list_remote(players: Array) -> void:
 			child.queue_free()
 
 
-func request_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, version: String = "", team_pref: int = -1) -> void:
+func request_spawn(pid: int, pname: String, color_idx: int, version: String = "", team_pref: int = -1) -> void:
 	# Server only, and only after the client signalled it is ready.
 	if not g.multiplayer.is_server():
 		return
@@ -343,7 +342,7 @@ func request_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, v
 	if g.players_node.get_child_count() >= g.max_players:
 		print("SPAWN REQ: REJECTED room full")
 		return
-	_do_spawn(pid, pname, color_idx, helmet_style, team_pref)
+	_do_spawn(pid, pname, color_idx, team_pref)
 
 
 func _on_peer_connected(id: int) -> void:

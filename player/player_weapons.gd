@@ -43,12 +43,16 @@ func _apply_aim_and_fire(delta: float) -> void:
 	# Face the aim direction while aiming, else face the move direction.
 	if p._aiming:
 		p.aim_angle = p._aim_dir.angle()
-		if absf(cos(p.aim_angle)) > 0.15:
+		# Keep the body and hand anchor aligned with the gun except
+		# within a very narrow vertical-aim dead zone.
+		if absf(cos(p.aim_angle)) > 0.05:
 			p.facing = -1 if cos(p.aim_angle) < 0.0 else 1
 	elif p._move_axis != 0.0:
-		# GAP-08: only the FACING follows movement when not aiming;
-		# aim_angle is left untouched so the gun holds its last aim.
+		# Keep the body, hand anchor, and weapon pointing the same way
+		# while moving without aim input. This pair is replicated in
+		# each movement snapshot for remote players.
 		p.facing = -1 if p._move_axis < 0.0 else 1
+		p.aim_angle = PI if p.facing < 0 else 0.0
 	p._fire_cooldown -= delta
 	p._grenade_cooldown -= delta
 	if p.reloading:
@@ -318,18 +322,18 @@ func throw_grenade() -> void:
 	p.grenades -= 1
 	var dir := Vector2(cos(p.aim_angle), sin(p.aim_angle))
 	if not p._aiming:
-		dir = Vector2(p.facing, -0.4).normalized()
-	# QA-141: reference passes the thrower's FULL velocity
-	# (SLC::throwDual 0x8edf34). The 40% rule (QA-091) is gone.
-	p.rpc("spawn_grenade", p.global_position + Vector2(0, -7), dir, p.peer_id, p.velocity)
+		# The grenade adds its own upward arc at launch. Keep the default
+		# direction level so the arc is applied only once.
+		dir = Vector2(p.facing, 0.0)
+	# Throw launch speed, arc, and momentum inheritance are tuned in
+	# PhysicsConfig; the grenade clamps inherited velocity on spawn.
+	p.rpc("spawn_grenade", p.global_position + Vector2(0, -7), dir, p.peer_id, p.velocity, p._aiming)
 	p._play_sound("click")
 
 
 func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: int, owner_id: int, shot_no: int, bvel: Vector2 = Vector2.INF) -> void:
 	# Host-authoritative shooting (v2.4): the server validates every
-	# shot's fire rate and ammunition before simulating it. Only the
-	# server's simulation can deal damage, so a rejected shot can
-	# never hurt anyone - the shooter's local copy is visual only.
+	# shot's fire rate and ammunition before simulating it.
 	if p.multiplayer.is_server():
 		var sender = p.multiplayer.get_remote_sender_id()
 		if sender != 0 and sender != p.multiplayer.get_unique_id():
@@ -342,18 +346,11 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 	if game2 == null:
 		return
 	var b = game2.obtain_bullet()
+	if b == null:
+		return
 	var vel: Vector2 = bvel if bvel != Vector2.INF else dir * speed
 	b.setup(pos, dir, speed, damage, kind, owner_id,
 		bool(p.WEAPONS[kind]["explosive"]),
-		# QA-109 (v3.8): rocket blast 170 -> 120, same ~29% cut as the
-		# grenade (QA-101) - the user said the missile blast is huge
-		# too. QA-141: blast radius STAYS 120 — the reference's rocket blast
-		# radius could NOT be extracted (B could-not-extract #3);
-		# the explosion DAMAGE now uses the reference formula
-		# (player_health.gd). The explosion FX scale with the
-		# radius, so the fireball, flash, debris, particles and
-		# shake all shrink to match. Barrels use their own 125
-		# (PhysicsConfig.BARREL_BLAST_RADIUS, reference Explosion class).
 		120.0 if bool(p.WEAPONS[kind]["explosive"]) else 0.0,
 		float(p.WEAPONS[kind].get("life", 1.4)),
 		shot_no, vel, float(p.WEAPONS[kind].get("gravity", 0.0)))
@@ -361,7 +358,7 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 		game2.bullets_node.add_child(b)
 
 
-func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vector2 = Vector2.ZERO) -> void:
+func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vector2 = Vector2.ZERO, aimed: bool = false) -> void:
 	var node = p.get_tree().get_first_node_in_group("game")
 	if node == null:
 		return
@@ -369,7 +366,10 @@ func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vecto
 	g.name = "g_%d_%d" % [owner_id, Time.get_ticks_msec()]
 	g.position = pos
 	g.throw_dir = dir
-	g.thrower_vel = thrower_vel # QA-141: FULL velocity inherited in grenade.gd (was 40%, QA-091)
+	g.thrower_vel = thrower_vel
 	g.owner_id = owner_id
+	g.aimed_throw = aimed
+	# Add to scene AFTER all properties are set so the first physics
+	# frame sees the correct throw_dir and thrower_vel (no zero-vel tick).
 	node.grenades_node.add_child(g)
 

@@ -20,6 +20,8 @@ extends Area2D
 # (QA-132 — power-ups need longer to be reached on the tower).
 var kind: int = 1
 var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
+var _claimed: bool = false # host-side claim lock; Area callbacks can overlap before queue_free runs
+var _drop_grace_timer: float = 0.0
 
 # QA-088 (v3.7): drawn pickup icons from assets/items/ - the three
 # files already in the folder (ammobox / grenade / healthkit) were
@@ -29,10 +31,10 @@ var spot_index: int = -1 # per-spot respawn tracking (GAP-37); -1 = untracked
 # the new icons are bigger, match the game's cartoon style, and read
 # at combat speed. Kind system, collision, bob and lifetime are
 # unchanged - only the picture changes.
-const HEALTH_TEX: Texture2D = preload("res://assets/items/healthkit.png")
-const GRENADE_TEX: Texture2D = preload("res://assets/items/grenade.png")
+const HEALTH_TEX: Texture2D = preload("res://assets/generated/v4_supply_pack/field_medkit.svg")
+const GRENADE_TEX: Texture2D = preload("res://assets/generated/v4_supply_pack/frag_grenade.svg")
 const WEAPON_TEX: Texture2D = preload("res://assets/items/weapon.png")
-const AMMOBOX_TEX: Texture2D = preload("res://assets/items/ammobox.png")
+const AMMOBOX_TEX: Texture2D = preload("res://assets/generated/v4_supply_pack/ammo_cache.svg")
 # assets/items/shield.png is drawn and ready (QA-088) but NOT wired:
 # there is no shield pickup kind (kinds are 1-6 only) and adding a
 # kind would change gameplay. It waits for a future shield kind.
@@ -110,6 +112,8 @@ func _ready() -> void:
 	collision_mask = 2
 	monitoring = true
 	monitorable = false
+	if spot_index < 0 and kind >= 1 and kind <= 4:
+		_drop_grace_timer = 0.8
 	if kind >= 8:
 		_life = 30.0 # QA-132: power-ups live 30 s (weapons stay 20 s)
 	var shape := CollisionShape2D.new()
@@ -137,8 +141,11 @@ func _ready() -> void:
 		elif kind >= 8:
 			icon_tex = SKYFALL_TEX.get(kind, HEALTH_TEX)
 		icon.texture = icon_tex
+		# Fit into a 52 px square without stretching portrait or landscape
+		# artwork (the power-up pack includes mixed source aspect ratios).
 		var target := 52.0
-		icon.scale = Vector2(target / icon.texture.get_width(), target / icon.texture.get_width())
+		var icon_scale := target / float(maxi(icon.texture.get_width(), icon.texture.get_height()))
+		icon.scale = Vector2(icon_scale, icon_scale)
 		add_child(icon)
 		_base_y = position.y
 		body_entered.connect(_on_body_entered)
@@ -173,6 +180,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_bob_t += delta
 	position.y = _base_y + sin(_bob_t * 3.0) * 6.0
+	_drop_grace_timer = maxf(0.0, _drop_grace_timer - delta)
 	# Gentle sway (GAP-35, spec §15): rotation, not a full spin -
 	# a full spin would make the label unreadable.
 	rotation = 0.12 * sin(_bob_t * 1.5)
@@ -183,11 +191,16 @@ func _process(delta: float) -> void:
 
 
 func _on_body_entered(body: Node2D) -> void:
-	if not multiplayer.is_server():
+	if not multiplayer.is_server() or _claimed:
 		return
 	if body.is_in_group("players"):
 		var p = body
+		if _drop_grace_timer > 0.0:
+			return
 		if p.alive:
+			# Lock before granting or sending RPCs. queue_free() is deferred,
+			# so another overlapping body can otherwise receive this pickup too.
+			_claimed = true
 			if body.get_multiplayer_authority() == multiplayer.get_unique_id():
 				body.give_pickup(kind)
 			elif multiplayer.get_peers().has(body.get_multiplayer_authority()):

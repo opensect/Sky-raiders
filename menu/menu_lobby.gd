@@ -17,13 +17,13 @@ var m # the owner (main.gd)
 # existing thumb for the 1 map that keeps the procedural
 # gradient (Pirate Island). The 960×540 backgrounds are cropped
 # to the card thumbnail (COVERED), never stretched.
+# Current map order: Ironfall, Neon City, Volcanic Cavern, Pirate Island, Skyfall.
 const MAP_CARD_ART := {
 	0: preload("res://assets/skybrawl/maps/bg_ironfall.png"),
-	1: preload("res://assets/skybrawl/maps/bg_ironfall.png"),
-	2: preload("res://assets/skybrawl/maps/bg_neon.png"),
-	3: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
-	4: preload("res://assets/thumbs/thumb_pirate.png"),
-	5: preload("res://assets/thumbs/thumb_skyfall.png"), # QA-112 (v3.9): Skyfall map card art
+	1: preload("res://assets/skybrawl/maps/bg_neon.png"),
+	2: preload("res://assets/skybrawl/maps/bg_volcanic.png"),
+	3: preload("res://assets/thumbs/thumb_pirate.png"),
+	4: preload("res://assets/thumbs/thumb_skyfall.png"),
 }
 const TEAM_BANNER_RED: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/ui/team_banner_red.png")
 const TEAM_BANNER_BLUE: Texture2D = preload("res://assets/skyfall/SKYFALL_assets/ui/team_banner_blue.png")
@@ -328,7 +328,7 @@ func _build_lobby() -> void:
 	# in the LOCAL player's team colour. Roles are LABELS ONLY —
 	# no gameplay effect; they show as icons next to each name in
 	# the player list. Anyone in the room can pick their own role
-	# (like the team pick); the choice syncs like team/color/helmet
+	# (like the team pick); the choice syncs like team/color
 	# (see _on_role_pressed / set_role).
 	left_inner.add_child(m.menu_ui._section_label("Your role (Skyfall):"))
 	m._role_section_label = left_inner.get_child(left_inner.get_child_count() - 1) as Label
@@ -347,7 +347,7 @@ func _build_lobby() -> void:
 		m._role_buttons.append(rb)
 		m.menu_ui._connect_scroll_button(rb, m._lobby_left_scroll)
 	# QA-078: change appearance without leaving the room — colour
-	# and helmet, same choices as Customization. The change syncs
+	# same choice as Customization. The change syncs
 	# to every phone in the room at once (host broadcast, see
 	# update_appearance / _broadcast_lobby).
 	left_inner.add_child(m.menu_ui._section_label("Appearance in this room:"))
@@ -364,19 +364,6 @@ func _build_lobby() -> void:
 		lobby_color_row.add_child(cb)
 		m._lobby_color_buttons.append(cb)
 		m.menu_ui._connect_scroll_button(cb, m._lobby_left_scroll)
-	var lobby_helmet_row := HBoxContainer.new()
-	lobby_helmet_row.add_theme_constant_override("separation", 8)
-	left_inner.add_child(lobby_helmet_row)
-	for i in m.HELMET_NAMES.size():
-		var hb := Button.new()
-		hb.text = m.HELMET_NAMES[i]
-		hb.custom_minimum_size = Vector2(0, 56)
-		hb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		m.menu_ui._style_button(hb, 18, 56)
-		hb.pressed.connect(m._on_lobby_helmet_pressed.bind(i))
-		lobby_helmet_row.add_child(hb)
-		m._lobby_helmet_buttons.append(hb)
-		m.menu_ui._connect_scroll_button(hb, m._lobby_left_scroll)
 	# Phase 4 — map vote: every player picks one of 3 maps on the
 	# ballot (the host's pick + the next two). The host tallies the
 	# votes when the match starts; ties and no-votes keep the host's
@@ -471,6 +458,13 @@ func _build_lobby() -> void:
 	m.menu_ui._style_button(m._lobby_start_btn, 24, 64, true)
 	m._lobby_start_btn.pressed.connect(m._on_start_pressed)
 	btn_row.add_child(m._lobby_start_btn)
+	var practice_btn := Button.new()
+	practice_btn.text = "PRACTICE MAP"
+	practice_btn.custom_minimum_size = Vector2(150, 64)
+	m.menu_ui._style_button(practice_btn, 18, 64)
+	practice_btn.pressed.connect(m._on_lobby_practice_pressed)
+	btn_row.add_child(practice_btn)
+	m._lobby_practice_btn = practice_btn
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave"
 	leave_btn.custom_minimum_size = Vector2(140, 64)

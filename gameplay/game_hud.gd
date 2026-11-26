@@ -10,6 +10,8 @@ extends RefCounted
 
 var g # the owner (game.gd)
 
+const POWERUP_NAMES := {8: "Shield", 9: "Speed Boost", 10: "Jetpack Boost", 11: "Wind Blast", 12: "Thunder Strike", 13: "Invisibility"}
+
 
 func _init(owner) -> void:
 	g = owner
@@ -30,8 +32,8 @@ func _update_hud(delta: float) -> void:
 	# Timer (THEME_SPEC.md §3): ice normally, amber under 30 s,
 	# danger red under 10 s.
 	var t = int(maxf(0.0, g._time_left))
-	g.timer_label.text = "%d:%02d" % [t / 60, t % 60]
-	g.timer_label.add_theme_color_override("font_color", g.UI_DANGER if t < 10 else (g.UI_WARNING if t < 30 else g.UI_FONT))
+	g.timer_label.text = "PRACTICE" if GameData.solo_practice else "%d:%02d" % [t / 60, t % 60]
+	g.timer_label.add_theme_color_override("font_color", g.UI_ACCENT if GameData.solo_practice else (g.UI_DANGER if t < 10 else (g.UI_WARNING if t < 30 else g.UI_FONT)))
 	if g.game_mode == 1:
 		var red := 0
 		var blue := 0
@@ -135,9 +137,12 @@ func _get_local_player():
 
 
 func _update_skyfall_hud() -> void:
-	# QA-112 (v3.9): CTF flag status + power-up slots. Everything
-	# here hides itself off Skyfall / outside CTF.
+	# CTF state is Skyfall-only; the power-up rack appears on every
+	# map that defines power-up spawn spots.
 	var is_sf = g.map_id == GameData.SKYFALL_MAP_ID
+	var map_data: Dictionary = g.MAPS[g.map_id]
+	var has_powerups: bool = map_data.has("powerup_spots") or map_data.has("skyfall_pickups")
+	var dialog_open: bool = g.get_tree().paused or (g.scoreboard_panel != null and g.scoreboard_panel.visible) or (g.end_panel != null and g.end_panel.visible)
 	var is_ctf = g.game_mode == 4 and not g._ctf_flags.is_empty()
 	for i in g._ctf_flag_labels.size():
 		var fl: Label = g._ctf_flag_labels[i]
@@ -153,13 +158,11 @@ func _update_skyfall_hud() -> void:
 			else:
 				fl.text = "⚑ %s: at summit" % team_name
 	if g._sf_slot_panel != null:
-		g._sf_slot_panel.visible = is_sf
+		g._sf_slot_panel.visible = has_powerups and not dialog_open
 	if g._sf_active_boost_label != null:
 		g._sf_active_boost_label.visible = false
 	if g._invis_warning_chip != null:
 		g._invis_warning_chip.visible = false
-	if not is_sf:
-		return
 	var lp = _get_local_player()
 	if lp == null:
 		return
@@ -178,10 +181,19 @@ func _update_skyfall_hud() -> void:
 			var kind := int(stored[i])
 			btn.icon = GameAssets.SF_TEX_PU64.get(kind, GameAssets.SF_TEX_SLOT[i])
 			var timed := kind in [8, 9, 10, 13]
-			btn.disabled = timed and (ab0 != 0 or carrying)
+			var blocked := timed and (ab0 != 0 or carrying)
+			# Keep blocked slots tappable so the player gets a reason
+			# instead of a dead button. The activation handler leaves
+			# the stored power-up untouched and shows the restriction.
+			btn.disabled = false
+			btn.modulate = Color(0.62, 0.66, 0.72) if blocked else Color.WHITE
+			var power_name: String = str(POWERUP_NAMES.get(kind, "Power-up"))
+			btn.tooltip_text = "%s — tap to activate%s" % [power_name, " (another boost is active)" if ab0 != 0 and timed else (" (drop the flag first)" if carrying and timed else "")]
 		else:
 			btn.icon = GameAssets.SF_TEX_SLOT[i]
 			btn.disabled = true
+			btn.modulate = Color(0.65, 0.68, 0.72)
+			btn.tooltip_text = "Empty power-up slot %d" % (i + 1)
 	# Active boost: name + seconds left (one active at a time).
 	var ab := ab0
 	if ab != 0:
@@ -206,7 +218,13 @@ func _update_skyfall_hud() -> void:
 	# QA-121 (v3.11): red invisibility warning — while ANY living
 	# enemy is invisible, a red chip sits at the top of the
 	# top-left message area; it clears the moment the 10 s ends.
-	g._update_invis_warning(lp)
+	if dialog_open:
+		if g._invis_warning_chip != null:
+			g._invis_warning_chip.visible = false
+	else:
+		g._update_invis_warning(lp)
+	if not is_sf:
+		return
 	# QA-114 (v3.9): comeback + event lines (CTF, both teams see them).
 	if g._sf_comeback_label != null:
 		var trail = g._sf_trailing_team()

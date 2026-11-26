@@ -23,19 +23,19 @@ extends CharacterBody2D
 const PLAYER_SCALE := 1.20 # QA-071b: user correction 2026-11-19 ~19:13 - 'bigger' means MODESTLY bigger, not 1.30x
 const CAPSULE_RADIUS := 20.0
 const CAPSULE_HEIGHT := 62.0
-const SPEED := 250.0 # QA-141: reference sustained move speed (was 350)
+const SPEED := 300.0 # Walking speed, mirrored in PhysicsConfig.
 const ACCEL := 900.0 # QA-141: reference headroom initial 3.0 x 300 (was 2600)
 const DECEL := 3400.0 # retained as tuning reference only; reference drag is the real stopper
-const SPEED_GROUND := 250.0
-const SPEED_AIR := 250.0
+const SPEED_GROUND := 300.0
+const SPEED_AIR := 300.0
 const ACCEL_GROUND := 900.0
 const ACCEL_AIR := 900.0
 const DECEL_GROUND := 3400.0
 const DECEL_AIR := 900.0
 const REVERSAL_GROUND := 1.0 # QA-141: reference has no reversal bonus (was 1.6)
 const REVERSAL_AIR := 1.0 # QA-141: reference has no reversal bonus (was 1.2)
-const DRAG_GROUND := 0.6 # QA-141: reference damping ln(1/0.55) (was 8.0)
-const DRAG_AIR := 0.6 # QA-141: reference damping (was 1.2)
+const DRAG_GROUND := 8.0 # Strong ground stopping to prevent post-input sliding.
+const DRAG_AIR := 1.2 # Keep controlled momentum in the air.
 const JUMP_VELOCITY := -220.0 # QA-141: reference jump impulse 22.0 / mass 0.1 (was -660)
 # QA-141 (reference port): mirrors PhysicsConfig — change both
 # files together. reference values: JET_ACCEL 450, MAX_JET_RISE 190,
@@ -84,14 +84,13 @@ const GRENADE_SCENE: PackedScene = preload("res://weapons/grenade.tscn")
 # firing logic anywhere. The pistol is the starting sidearm.
 const WEAPONS := WeaponData.TABLE
 
-const GUN_LENGTH := 55.0 # QA-071b: 46 * 1.20 - gun scales with the player
+const GUN_LENGTH := 49.0 # Keep held weapons clear without covering the player silhouette.
 
 var peer_id: int = 0
 var player_index: int = 1
 var player_name: String = "Player"
 var color_index: int = 0
 var player_color: Color = Color(0.95, 0.3, 0.25)
-var helmet: int = 0 # 0 none, 1 green helmet, 2 cap, 3 black helmet, 4 bandana, 5 night vision, 6 camo helmet (QA-090)
 var team: int = -1 # -1 FFA, 0 red, 1 blue
 var aim_angle: float = 0.0
 var facing: int = 1
@@ -200,12 +199,13 @@ var _respawn_timer: float = 0.0
 var _spawn_protect_timer: float = 0.0
 var _grenade_cooldown: float = 0.0
 var _hit_flash_timer: float = 0.0
-var _hit_flash_mat: ShaderMaterial # QA-092: shared hit-flash material (body + gun + helmet)
+var _hit_flash_mat: ShaderMaterial # QA-092: shared hit-flash material (body + gun)
 var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var _was_on_floor: bool = false
 var _fall_speed: float = 0.0
 var _jetpacking: bool = false
+var _jetpack_empty_locked: bool = false # Release the stick to re-arm thrust after draining the tank.
 # QA-141: reference thrust factor (0.5 + 0.5 x up-input), not a time ramp
 # — reference has no JET_RAMP. 0 while not thrusting; the jetpack flame
 # (player_visuals.gd) scales with it. Reset the moment thrust stops.
@@ -281,7 +281,6 @@ var _flame: Sprite2D # jetpack flame sprite, driven by real thrust state (GAP-06
 
 var _collision_shape: CollisionShape2D
 var _sprite: AnimatedSprite2D
-var _helmet_sprite: Sprite2D
 var _gun: Sprite2D
 var _muzzle: Sprite2D
 var _ring: Polygon2D
@@ -469,7 +468,6 @@ func _make_sprite_frames() -> SpriteFrames:
 	return player_visuals._make_sprite_frames()
 
 
-var _helmet_y: float = -25.0 # QA-094: current per-animation helmet height
 
 
 
@@ -484,10 +482,6 @@ func _hand_anchor() -> Vector2:
 # facing left). Bullets and the sight line leave from here.
 func _muzzle_origin() -> Vector2:
 	return player_visuals._muzzle_origin()
-
-func _update_helmet() -> void:
-	return player_visuals._update_helmet()
-
 
 func _update_gun_texture() -> void:
 	return player_visuals._update_gun_texture()
@@ -523,7 +517,10 @@ func _send_move_snapshot(force: bool = false) -> void:
 	return player_sync._send_move_snapshot(force)
 
 
-@rpc("any_peer", "unreliable")
+# Movement is a latest-state stream: stale snapshots should be dropped,
+# and this traffic gets its own channel so reliable lobby/combat RPCs do
+# not queue behind high-frequency position updates on a busy LAN.
+@rpc("any_peer", "call_remote", "unreliable_ordered", 1)
 func receive_move_snapshot(snap: Dictionary) -> void:
 	return player_sync.receive_move_snapshot(snap)
 
@@ -756,8 +753,8 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 
 
 @rpc("any_peer", "call_local")
-func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vector2 = Vector2.ZERO) -> void:
-	return player_weapons.spawn_grenade(pos, dir, owner_id, thrower_vel)
+func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vector2 = Vector2.ZERO, aimed: bool = false) -> void:
+	return player_weapons.spawn_grenade(pos, dir, owner_id, thrower_vel, aimed)
 
 
 @rpc("any_peer")
@@ -842,7 +839,7 @@ func _pu_feed(text: String) -> void:
 # Timed kinds (8, 9, 10, 13): ONE active at a time, and a carrier
 # CANNOT activate one while carrying the flag (the carrier rule
 # wins - the tap does nothing and the power-up stays in its slot).
-# Instant kinds (7 health, 11 wind, 12 thunder) fire at once and
+# Instant kinds (11 wind, 12 thunder) fire at once and
 # work even while a timed boost is active or the flag is carried.
 # QA-135 (v3.13): Wind (11) / Thunder (12) need a live enemy on
 # the SAME PLATFORM at the SAME HEIGHT — no target, no fire, and
@@ -851,8 +848,7 @@ func activate_slot(idx: int) -> bool:
 	return player_powerups.activate_slot(idx)
 
 
-# Fire an instant power-up. Health restores 50 HP (QA-132: was
-# 35 — it competes with 4 HP/s regen now); Wind Blast sweeps the
+# Fire an instant power-up. Wind Blast sweeps the
 # enemy on the activator's platform into a tornado and throws them
 # down (no damage); Thunder Strike halves that enemy's current
 # health. Wind/thunder are host-authoritative: a client asks the

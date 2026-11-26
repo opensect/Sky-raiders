@@ -20,7 +20,7 @@ var m # the owner (main.gd)
 # QA-089 (v3.7): richer military-arena-at-dusk menu background
 # (was the plain starry sky arena_clean.png). Dark and uncluttered
 # behind the menu UI — the detail lives at the edges and horizon.
-const MENU_BG: Texture2D = preload("res://assets/backgrounds/menu_arena_dusk.png")
+const MENU_BG: Texture2D = preload("res://assets/backgrounds/menu_arena_command.svg")
 
 
 
@@ -87,7 +87,7 @@ func _style_button(b: Button, font_size: int = 22, min_h: int = 56, accent: bool
 	b.custom_minimum_size = Vector2(b.custom_minimum_size.x, min_h)
 
 
-# Selected toggle state (map / mode / limit / time / colour / helmet).
+# Selected toggle state (map / mode / limit / time / colour).
 func _style_selected(b: Button, selected: bool, font_size: int = 22) -> void:
 	_style_button(b, font_size, int(b.custom_minimum_size.y), selected)
 

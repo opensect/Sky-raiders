@@ -1,4 +1,6 @@
 .godot/
+android/.gradle/
+android/build/
 *.apk
 *.apk.idsig
 *.import

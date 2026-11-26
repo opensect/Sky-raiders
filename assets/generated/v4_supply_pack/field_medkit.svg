@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="case" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4f7eb"/><stop offset="1" stop-color="#9fb4a8"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#45e0a0"/><stop offset="1" stop-color="#118a6b"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="64" cy="113" rx="42" ry="6" fill="#101c25" opacity=".38"/>
+  <g stroke="#182735" stroke-width="6" stroke-linejoin="round">
+    <path d="M46 24v-8h36v8" fill="none" stroke-linecap="round"/>
+    <rect x="17" y="25" width="94" height="86" rx="17" fill="url(#case)"/>
+    <rect x="25" y="34" width="78" height="69" rx="11" fill="url(#panel)" stroke="#d9f6e6" stroke-width="3"/>
+    <path d="M55 45h18v16h16v18H73v16H55V79H39V61h16z" fill="#f8fff1" stroke="#f8fff1" stroke-width="2"/>
+    <path d="M24 48h7M24 90h7M97 48h7M97 90h7" stroke="#284454" stroke-width="4" stroke-linecap="round"/>
+    <path d="M35 31h20" stroke="#fff" stroke-width="4" opacity=".65" stroke-linecap="round"/>
+  </g>
+</svg>

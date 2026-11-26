@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1900" viewBox="0 0 1200 1900" role="img" aria-labelledby="title desc">
+  <title id="title">Skyfall competitive redesign annotated vertical layout</title>
+  <desc id="desc">Six vertically stacked level bands showing existing and new platform routes, checkpoints, hazards, lifts, ladders, relays, summit flags, and base extraction.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity=".06"/></pattern>
+    <style>
+      text{font-family:Arial,sans-serif;fill:#eef2ff}.label{font-size:18px;font-weight:bold}.small{font-size:13px}.tiny{font-size:11px}.old{fill:#9aa6b5}.new{fill:#70e1d0}.cp{fill:#ffe07b}.haz{fill:#ff7867}.move{stroke:#61b8ff}.route{fill:#d3dce7}.call{font-size:15px}
+    </style>
+  </defs>
+  <rect width="1200" height="1900" fill="#0b1020"/>
+  <text x="40" y="42" font-size="28" font-weight="bold">SKYFALL · COMPETITIVE ROUTE REDESIGN</text>
+  <text x="40" y="68" class="small">3400 × 10800 world · schematic, vertical scale compressed · cyan ledges are new</text>
+  <rect x="250" y="90" width="700" height="1740" rx="18" fill="#141d2b" stroke="#8695a8" stroke-width="3"/>
+  <rect x="250" y="90" width="700" height="1740" rx="18" fill="url(#grid)"/>
+  <g opacity=".24"><rect x="251" y="90" width="698" height="290" fill="#344261"/><rect x="251" y="380" width="698" height="290" fill="#181c2b"/><rect x="251" y="670" width="698" height="290" fill="#233247"/><rect x="251" y="960" width="698" height="290" fill="#29334a"/><rect x="251" y="1250" width="698" height="290" fill="#3e293a"/><rect x="251" y="1540" width="698" height="290" fill="#573a2a"/></g>
+  <g class="label"><text x="270" y="120">L6 · FLAG SUMMIT</text><text x="270" y="410">L5 · MECHANICAL / SNIPER</text><text x="270" y="700">L4 · HANGING BRIDGE</text><text x="270" y="990">L3 · WIND BRIDGE</text><text x="270" y="1280">L2 · TUNNELS</text><text x="270" y="1570">L1 · BASE / EXTRACTION</text></g>
+  <!-- Original core ledges (gray) -->
+  <g class="old" stroke="#c4d0df" stroke-width="8" stroke-linecap="round">
+    <path d="M650 170H820 M450 200H750 M650 245H790 M600 290H740 M600 335H740"/>
+    <path d="M480 460H650 M650 505H820 M820 550H990 M650 595H820 M480 640H650"/>
+    <path d="M820 750H990 M650 795H820 M480 840H650 M650 885H820 M820 930H990"/>
+    <path d="M650 1040H820 M480 1085H650 M650 1130H820 M820 1175H990 M650 1220H820"/>
+    <path d="M480 1330H650 M650 1375H820 M820 1420H990 M650 1465H820 M480 1510H650"/>
+    <path d="M300 1760H900 M450 1715H550 M800 1715H900 M650 1680H820 M650 1635H820 M550 1590H850"/>
+  </g>
+  <!-- Added staggered foot routes (cyan) -->
+  <g class="new" stroke="#70e1d0" stroke-width="7" stroke-linecap="round">
+    <path d="M480 430H620 M730 430H870 M430 475H570 M780 475H920 M650 520H820 M520 565H660 M720 565H860"/>
+    <path d="M650 1005H820 M650 1050H820 M650 1095H820 M780 1140H950 M480 1185H650 M650 1230H820 M780 960H950"/>
+    <path d="M650 715H820 M480 760H650 M650 805H820 M780 850H950 M650 895H820 M530 920H620 M840 920H930"/>
+    <path d="M650 1000H820 M780 1045H950 M650 1090H820 M650 1135H820 M480 1180H650 M530 1220H620 M840 1220H930"/>
+    <path d="M650 1285H820 M780 1330H950 M650 1375H820 M650 1420H820 M480 1465H650 M530 1510H620 M840 1510H930"/>
+    <path d="M780 1575H950 M430 1615H570 M780 1615H920 M650 1650H820 M650 1695H820"/>
+  </g>
+  <!-- Climb flow line -->
+  <path d="M390 1730 C560 1600 520 1490 740 1430 S570 1300 730 1190 S900 1080 720 1010 S520 850 720 780 S900 640 720 570 S520 500 720 440 S900 300 740 210" fill="none" stroke="#d2b5ff" stroke-width="3" stroke-dasharray="9 9" opacity=".8"/>
+  <!-- Checkpoints -->
+  <g class="cp" stroke="#ffe07b" stroke-width="2"><circle cx="370" cy="1760" r="10"/><circle cx="850" cy="1760" r="10"/><circle cx="420" cy="1328" r="9"/><circle cx="880" cy="1328" r="9"/><circle cx="420" cy="1038" r="9"/><circle cx="880" cy="1038" r="9"/><circle cx="420" cy="748" r="9"/><circle cx="880" cy="748" r="9"/><circle cx="420" cy="458" r="9"/><circle cx="880" cy="458" r="9"/><circle cx="430" cy="208" r="9"/><circle cx="870" cy="208" r="9"/></g>
+  <g class="tiny cp"><text x="270" y="1785">RED extract</text><text x="852" y="1785">BLUE extract</text><text x="275" y="1328">CP2</text><text x="902" y="1328">CP2</text><text x="275" y="1038">CP3</text><text x="902" y="1038">CP3</text><text x="275" y="748">CP4</text><text x="902" y="748">CP4</text><text x="275" y="458">CP5</text><text x="902" y="458">CP5</text><text x="275" y="208">CP6</text><text x="902" y="208">CP6</text></g>
+  <!-- Ladders -->
+  <g stroke="#d8a96b" stroke-width="6"><path d="M540 1580V1680 M650 1180V1235 M590 890V935 M590 440V495 M590 190V230"/></g>
+  <g class="tiny"><text x="490" y="1570">L1 ladder</text><text x="600" y="1190">L3</text><text x="600" y="900">L4</text><text x="600" y="450">L5</text><text x="600" y="200">L6</text></g>
+  <!-- lift tracks -->
+  <g class="move" stroke-width="4" stroke-dasharray="7 6"><path d="M540 1380V1430 M850 1360V1410 M570 1050V1090 M850 1000V1040 M570 410V455 M900 430V470 M650 260V320"/></g>
+  <g fill="#61b8ff"><rect x="530" y="1400" width="20" height="6"/><rect x="840" y="1380" width="20" height="6"/><rect x="560" y="1070" width="20" height="6"/><rect x="840" y="1020" width="20" height="6"/><rect x="560" y="430" width="20" height="6"/><rect x="890" y="450" width="20" height="6"/></g>
+  <!-- hazards and objective markers -->
+  <g fill="#ff7867"><path d="M470 1360l10-18 10 18z"/><path d="M840 1120l10-18 10 18z"/><path d="M740 800l10-18 10 18z"/><path d="M490 475l10-18 10 18z"/><path d="M850 525l10-18 10 18z"/><path d="M720 1480l10-18 10 18z"/></g>
+  <g class="tiny haz"><text x="300" y="1350">mine</text><text x="870" y="1120">wind</text><text x="770" y="800">pendulum</text><text x="510" y="475">lava</text><text x="870" y="525">rotator</text><text x="740" y="1490">rocks</text></g>
+  <g><path d="M575 148H600V180H575z" fill="#d95f75" stroke="#fff"/><path d="M800 148H825V180H800z" fill="#589de5" stroke="#fff"/><text x="530" y="145" class="tiny">RED FLAG</text><text x="810" y="145" class="tiny">BLUE FLAG</text><circle cx="710" cy="1005" r="12" fill="none" stroke="#ffe07b" stroke-width="4"/><text x="730" y="1010" class="tiny">relay L3</text><circle cx="710" cy="205" r="12" fill="none" stroke="#ffe07b" stroke-width="4"/><text x="730" y="210" class="tiny">relay L6</text></g>
+  <g transform="translate(40 110)"><text class="label" y="0">LEGEND</text><path d="M0 28h48" stroke="#c4d0df" stroke-width="8"/><text x="60" y="33" class="small">Existing landings</text><path d="M0 58h48" stroke="#70e1d0" stroke-width="7"/><text x="60" y="63" class="small">New foot route</text><circle cx="24" cy="88" r="8" fill="none" stroke="#ffe07b" stroke-width="2"/><text x="60" y="93" class="small">Team checkpoint</text><path d="M16 125l8-16 8 16z" fill="#ff7867"/><text x="60" y="124" class="small">Hazard / danger zone</text><path d="M24 145v28" stroke="#61b8ff" stroke-width="4" stroke-dasharray="5 4"/><text x="60" y="164" class="small">Lift track</text><path d="M24 185v28" stroke="#d8a96b" stroke-width="5"/><text x="60" y="202" class="small">Emergency ladder</text></g>
+  <g transform="translate(975 120)"><text class="label">DECISIONS</text><text class="call" y="32"><tspan x="0">• Staggered landing</tspan><tspan x="0" dy="20">  choices cut carrier downtime.</tspan><tspan x="0" dy="34">• Side checkpoint pairs</tspan><tspan x="0" dy="20">  reduce spawn focus fire.</tspan><tspan x="0" dy="34">• Lifts remain exposed</tspan><tspan x="0" dy="20">  shortcuts, not safe rooms.</tspan><tspan x="0" dy="34">• Hazard and relay rooms</tspan><tspan x="0" dy="20">  create contest hotspots.</tspan><tspan x="0" dy="34">• Summit shaft kept clear</tspan><tspan x="0" dy="20">  for lift collision safety.</tspan></text></g>
+  <text x="40" y="1870" class="small">Schematic, not to scale horizontally. Confirm exact movement arcs, hazards, and collision in-engine before release.</text>
+</svg>

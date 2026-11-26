@@ -65,15 +65,16 @@ func _update_reload_button(lp) -> void:
 
 # QA-143: scoping removed - this used to be _update_scope_button;
 # now it only refreshes the PING button state every HUD frame.
-# QA-114 (v3.9): PING is Skyfall-only, and only for a living
-# local player.
+# QA-114 (v3.9): PING is for living players in Skyfall team modes.
 func _update_ping_button(lp) -> void:
 	# QA-113 (v3.9): never over a dialog — the button drew over the
 	# pause/scoreboard/end panels. _set_touch_controls_visible
 	# hides it, but this runs every frame and would show it again.
 	var dialog_open = g.get_tree().paused or (g.scoreboard_panel != null and g.scoreboard_panel.visible) or (g.end_panel != null and g.end_panel.visible)
 	if g.ping_button != null:
-		g.ping_button.visible = g.map_id == GameData.SKYFALL_MAP_ID and lp != null and lp.alive and not g.match_over and not dialog_open
+		var team_mode: bool = g.game_mode in [1, 4]
+		var assigned_team: bool = lp != null and int(lp.team) in [0, 1]
+		g.ping_button.visible = g.map_id == GameData.SKYFALL_MAP_ID and team_mode and assigned_team and lp.alive and not g.match_over and not dialog_open
 
 
 func _on_switch_pressed() -> void:
@@ -84,11 +85,11 @@ func _on_switch_pressed() -> void:
 
 func _on_ping_pressed() -> void:
 	# QA-114 (v3.9): ping the local player's position for their
-	# team. Skyfall only, 3 s cooldown, dead players cannot ping.
-	if g.map_id != GameData.SKYFALL_MAP_ID or g.match_over or g._countdown_active:
+	# team in Skyfall TDM/CTF, with a 3 s cooldown.
+	if g.map_id != GameData.SKYFALL_MAP_ID or g.game_mode not in [1, 4] or g.match_over or g._countdown_active:
 		return
 	var lp = g.game_hud._get_local_player()
-	if lp == null or not lp.alive:
+	if lp == null or not lp.alive or int(lp.team) not in [0, 1]:
 		return
 	if g._sf_ping_cooldown > 0.0:
 		return
@@ -101,10 +102,10 @@ func ping_remote(pos: Vector2, team: int, pname: String) -> void:
 	# A teammate's ping: a gold diamond in the world + a dot on the
 	# height bar + a feed line, for 5 s. Enemy pings are never
 	# shown (a ping only ever reaches its own team).
-	if g.map_id != GameData.SKYFALL_MAP_ID:
+	if g.map_id != GameData.SKYFALL_MAP_ID or g.game_mode not in [1, 4]:
 		return
 	var lp = g.game_hud._get_local_player()
-	if lp == null:
+	if lp == null or team < 0 or int(lp.team) not in [0, 1]:
 		return
 	var my_team := int(lp.team) if "team" in lp else -1
 	if team != my_team:
@@ -241,6 +242,9 @@ func _set_touch_controls_visible(v: bool) -> void:
 	if not v:
 		if g.ping_button != null:
 			g.ping_button.visible = false
+		for c in [g._sf_slot_panel, g._sf_active_boost_label, g._invis_warning_chip]:
+			if c != null:
+				c.visible = false
 
 
 func _on_touch_press(index: int, pos: Vector2) -> void:

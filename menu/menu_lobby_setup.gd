@@ -108,34 +108,24 @@ func _on_lobby_color_pressed(i: int) -> void:
 	_sync_my_appearance()
 
 
-func _on_lobby_helmet_pressed(i: int) -> void:
-	m.menu_ui._click()
-	GameData.helmet = i
-	GameData.save_settings()
-	m.menu_screens._refresh_customize_buttons()
-	_sync_my_appearance()
-
-
 func _sync_my_appearance() -> void:
 	var my_id = m.multiplayer.get_unique_id()
 	if m._is_host:
 		if m._lobby_players.has(my_id):
 			m._lobby_players[my_id]["color"] = GameData.color_index
-			m._lobby_players[my_id]["helmet"] = GameData.helmet
 		m._broadcast_lobby()
 	else:
-		m.rpc_id(1, "update_appearance", GameData.color_index, GameData.helmet)
+		m.rpc_id(1, "update_appearance", GameData.color_index)
 	_refresh_lobby_buttons()
 	_refresh_lobby_list()
 
 
-func update_appearance(color_idx: int, helmet_style: int) -> void:
+func update_appearance(color_idx: int) -> void:
 	if not m.multiplayer.is_server():
 		return
 	var sender = m.multiplayer.get_remote_sender_id()
 	if m._lobby_players.has(sender):
 		m._lobby_players[sender]["color"] = clampi(color_idx, 0, GameData.COLOR_NAMES.size() - 1)
-		m._lobby_players[sender]["helmet"] = clampi(helmet_style, 0, m.HELMET_NAMES.size() - 1)
 		m._broadcast_lobby()
 
 
@@ -227,6 +217,8 @@ func _refresh_lobby_buttons() -> void:
 				m._lobby_start_btn.text = "START ANYWAY (%d/%d ready)" % [ready_count, m._lobby_players.size()]
 			else:
 				m._lobby_start_btn.text = "START MATCH"
+	if m._lobby_practice_btn != null:
+		m._lobby_practice_btn.visible = m._is_host
 	if m._ready_btn != null:
 		var my_id = m.multiplayer.get_unique_id()
 		var me_ready: bool = bool(m._lobby_players.get(my_id, {}).get("ready", false))
@@ -330,10 +322,6 @@ func _refresh_lobby_buttons() -> void:
 		var cb: Button = m._lobby_color_buttons[i]
 		cb.text = ("✓ " if i == GameData.color_index else "") + GameData.COLOR_NAMES[i]
 		m.menu_ui._style_selected(cb, i == GameData.color_index, 18)
-	for i in m._lobby_helmet_buttons.size():
-		var hb: Button = m._lobby_helmet_buttons[i]
-		hb.text = ("✓ " if i == GameData.helmet else "") + m.HELMET_NAMES[i]
-		m.menu_ui._style_selected(hb, i == GameData.helmet, 18)
 	m.menu_lobby._refresh_vote_buttons()
 
 

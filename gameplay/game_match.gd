@@ -74,7 +74,7 @@ func sync_countdown(n: int) -> void:
 
 
 func _update_match_timer(delta: float) -> void:
-	if g.match_over:
+	if g.match_over or GameData.solo_practice:
 		return
 	# Phase 4: the clock only runs once the countdown has finished.
 	if g._countdown_active:
@@ -97,7 +97,7 @@ func sync_time_left(t: float) -> void:
 
 
 func _check_match_end() -> void:
-	if g.match_over:
+	if g.match_over or GameData.solo_practice:
 		return
 	# Survival (2) and Last Man Standing (3) end by elimination;
 	# the round check (Survival) runs separately in _check_round_end.

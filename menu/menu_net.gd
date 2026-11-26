@@ -175,7 +175,6 @@ func _my_lobby_info() -> Dictionary:
 	return {
 		"name": GameData.player_name,
 		"color": GameData.color_index,
-		"helmet": GameData.helmet,
 		"portrait": GameData.portrait,
 		"ready": ready,
 		"vote": m._my_vote,
@@ -323,6 +322,7 @@ func _on_peer_disconnected(id: int) -> void:
 
 func _on_start_pressed() -> void:
 	m.menu_ui._click()
+	GameData.solo_practice = false
 	if not m._is_host or m._starting_match:
 		return
 	# QA-112 (v3.9): minimum to start — never require full teams.
@@ -343,6 +343,18 @@ func _on_start_pressed() -> void:
 		GameData.game_mode = 0
 	m._starting_match = true
 	m.rpc("start_match", GameData.map_id, GameData.game_mode, GameData.kill_limit, GameData.match_minutes)
+
+
+func _on_lobby_practice_pressed() -> void:
+	m.menu_ui._click()
+	if not m._is_host:
+		return
+	# Keep the host's chosen map, close the LAN room cleanly, and launch
+	# an offline sandbox without the multiplayer lobby's two-player gate.
+	_leave_lobby()
+	GameData.solo_practice = true
+	GameData.game_mode = 0
+	m.get_tree().change_scene_to_file(m.GAME_SCENE)
 
 
 func start_match(map_id: int, mode: int, kill_limit: int, minutes: int) -> void:
@@ -433,21 +445,21 @@ func _refresh_room_list() -> void:
 		none.add_theme_color_override("font_color", m.UI_FONT_MUTED)
 		m._host_buttons.add_child(none)
 		return
-	for room in rooms:
+	# The LAN screen intentionally fits without page scrolling. Show
+	# the first four room cards; manual IP/code join and Quick Match
+	# remain available when discovery finds more rooms.
+	var visible_count: int = mini(rooms.size(), 4)
+	for room_index in visible_count:
+		var room: Dictionary = rooms[room_index]
 		var ip := String(room["ip"])
 		var map_name := GameData.MAP_NAMES[int(room["map_id"])] if int(room["map_id"]) < GameData.MAP_NAMES.size() else "?"
 		var mode_name := GameData.MODE_NAMES[int(room["mode"])] if int(room["mode"]) < GameData.MODE_NAMES.size() else "?"
 		var lock := " 🔒" if bool(room["private"]) else ""
-		var code := GameData.room_code(ip, String(room["room_name"]))
 		var b := Button.new()
-		b.text = "%s%s — %s • %d/%d • %s • %s • %s • %s • %s" % [
-			String(room["room_name"]), lock, String(room["host_name"]),
-			int(room["players"]), int(room["max_players"]),
-			map_name, mode_name, String(room["status"]), ip, code,
-		]
-		b.custom_minimum_size = Vector2(0, 56)
+		b.text = "%s%s (%d/%d) | %s | %s" % [String(room["room_name"]), lock, int(room["players"]), int(room["max_players"]), map_name, mode_name]
+		b.custom_minimum_size = Vector2(0, 62)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		m.menu_ui._style_button(b, 20, 56)
+		m.menu_ui._style_button(b, 19, 62)
 		var full: bool = int(room["players"]) >= int(room["max_players"])
 		var playing: bool = String(room["status"]) != "lobby"
 		b.disabled = full or playing
@@ -458,4 +470,11 @@ func _refresh_room_list() -> void:
 		b.pressed.connect(join_game.bind(ip))
 		m._host_buttons.add_child(b)
 		m.menu_ui._connect_scroll_button(b, m._mp_scroll)
+	if rooms.size() > visible_count:
+		var more := Label.new()
+		more.text = "+%d more rooms — use Quick Match or enter a host IP" % (rooms.size() - visible_count)
+		more.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		more.add_theme_font_size_override("font_size", 15)
+		more.add_theme_color_override("font_color", m.UI_FONT_MUTED)
+		m._host_buttons.add_child(more)
 

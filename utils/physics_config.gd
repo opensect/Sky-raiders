@@ -80,16 +80,16 @@ extends RefCounted
 
 # --- Movement (spec §2, §24.A) ---
 # QA-141: reference values (SLC::updateStep 0x8e4d5c; local 0x8e4604).
-const SPEED_GROUND := 250.0
-const SPEED_AIR := 250.0
+const SPEED_GROUND := 300.0
+const SPEED_AIR := 300.0
 const ACCEL_GROUND := 900.0 # reference headroom initial: 3.0 x 300 (see player_movement.gd)
 const ACCEL_AIR := 900.0 # same headroom model in the air (rate, not accel, differs)
 const DECEL_GROUND := 3400.0 # retained as tuning reference only; drag is the real stopper
 const DECEL_AIR := 900.0 # retained as tuning reference only
 const REVERSAL_GROUND := 1.0 # QA-141: reference has no reversal bonus (was 1.6)
 const REVERSAL_AIR := 1.0 # QA-141: reference has no reversal bonus (was 1.2)
-const DRAG_GROUND := 0.6 # QA-141: reference damping ln(1/0.55) = 0.598/s (was 8.0)
-const DRAG_AIR := 0.6 # QA-141: same reference damping in the air (was 1.2)
+const DRAG_GROUND := 8.0 # Strong ground stopping to prevent post-input sliding.
+const DRAG_AIR := 1.2 # Keep controlled momentum in the air.
 const GRAVITY := 300.0
 const GRAVITY_THRUSTING := 50.0 # QA-141: reference owner gravity while thrusting (0,-50)
 const MAX_FALL := 600.0
@@ -166,6 +166,10 @@ const BARREL_BLAST_RADIUS := 125.0
 const GRENADE_DRAG := 0.01
 const GRENADE_RESTITUTION := 0.1
 const GRENADE_REST_SPEED := 40.0
+const GRENADE_GRAVITY := 600.0 # Faster fall makes throws land predictably before the fuse ends.
+const GRENADE_THROW_SPEED := 900.0 # Longer, faster horizontal throw than the previous 700 px/s.
+const GRENADE_THROW_LIFT := 420.0 # Arc used for a level, unaimed throw only.
+const GRENADE_THROWER_INHERIT := 0.45 # Preserve some running momentum without extreme range swings.
 
 # --- Firing while moving (spec §20.C) ---
 const VELOCITY_INHERITANCE := 0.15

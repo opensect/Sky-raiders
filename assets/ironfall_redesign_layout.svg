@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="810" viewBox="0 0 1500 810">
+ <defs>
+  <linearGradient id="bg" x2="0" y2="1"><stop stop-color="#111b2c"/><stop offset="1" stop-color="#202b38"/></linearGradient>
+  <linearGradient id="floor" x2="0" y2="1"><stop stop-color="#354658"/><stop offset="1" stop-color="#192431"/></linearGradient>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 9 3 0 6z" fill="#6ee7f4"/></marker>
+ </defs>
+ <rect width="1500" height="810" fill="#0b111a"/>
+ <text x="74" y="43" fill="#e9f4ff" font-family="Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2">IRONFALL / OUTPOST — COMPETITIVE REDESIGN</text>
+ <text x="74" y="68" fill="#9fb4c8" font-family="Arial,sans-serif" font-size="14">3200 × 1400 world • 132 px tier rhythm • mirrored routes • no active environmental damage zones</text>
+ <rect x="64" y="88" width="1372" height="618" rx="12" fill="url(#bg)" stroke="#40546a" stroke-width="2"/>
+ <g opacity=".22" stroke="#8fa5b6" stroke-width="1">
+  <path d="M90 88V706M250 88V706M410 88V706M570 88V706M730 88V706M890 88V706M1050 88V706M1210 88V706M1370 88V706"/>
+  <path d="M64 150H1436M64 212H1436M64 274H1436M64 336H1436M64 398H1436M64 460H1436M64 522H1436M64 584H1436M64 646H1436"/>
+ </g>
+ <!-- rotating routes, shown before platforms -->
+ <g fill="none" stroke="#6ee7f4" stroke-width="4" stroke-dasharray="10 8" marker-end="url(#arrow)" opacity=".82">
+  <path d="M205 682 292 629 420 577 568 524 690 472 648 420 520 367 388 314 442 266 518 242"/>
+  <path d="M1295 682 1208 629 1080 577 932 524 810 472 852 420 980 367 1112 314 1058 266 982 242"/>
+  <path d="M691 472 740 420 802 390"/><path d="M809 472 860 420 802 390"/>
+  <path d="M535 367 690 390M1065 367 910 390"/>
+ </g>
+ <!-- surfaces, world transform x=.4 + 90, y=.4 + 90 -->
+ <g fill="#405a70" stroke="#a4c5d3" stroke-width="2">
+  <rect x="90" y="631" width="1280" height="19" rx="4" fill="url(#floor)"/>
+  <rect x="162" y="578" width="248" height="17" rx="4"/><rect x="1050" y="578" width="248" height="17" rx="4"/>
+  <rect x="290" y="525" width="200" height="17" rx="4"/><rect x="970" y="525" width="200" height="17" rx="4"/>
+  <rect x="450" y="472" width="208" height="17" rx="4"/><rect x="802" y="472" width="208" height="17" rx="4"/>
+  <rect x="186" y="419" width="168" height="17" rx="4"/><rect x="378" y="419" width="208" height="17" rx="4"/><rect x="874" y="419" width="208" height="17" rx="4"/><rect x="1106" y="419" width="168" height="17" rx="4"/>
+  <rect x="290" y="366" width="208" height="17" rx="4"/><rect x="602" y="366" width="256" height="17" rx="4" fill="#8b713f" stroke="#ffcf7a" stroke-width="3"/><rect x="962" y="366" width="208" height="17" rx="4"/>
+  <rect x="418" y="313" width="168" height="17" rx="4"/><rect x="874" y="313" width="168" height="17" rx="4"/>
+  <rect x="270" y="260" width="208" height="17" rx="4"/><rect x="982" y="260" width="208" height="17" rx="4"/>
+  <rect x="330" y="221" width="140" height="17" rx="4" fill="#694d34" stroke="#ffc56e"/><rect x="990" y="221" width="140" height="17" rx="4" fill="#694d34" stroke="#ffc56e"/>
+ </g>
+ <!-- spawn points -->
+ <g fill="#52adff" stroke="#e4f6ff" stroke-width="2"><circle cx="178" cy="625" r="8"/><circle cx="278" cy="625" r="8"/><circle cx="378" cy="625" r="8"/><circle cx="478" cy="625" r="8"/><circle cx="578" cy="625" r="8"/><circle cx="678" cy="625" r="8"/></g>
+ <g fill="#ff646c" stroke="#fff0f0" stroke-width="2"><circle cx="1282" cy="625" r="8"/><circle cx="1182" cy="625" r="8"/><circle cx="1082" cy="625" r="8"/><circle cx="982" cy="625" r="8"/><circle cx="882" cy="625" r="8"/><circle cx="782" cy="625" r="8"/></g>
+ <!-- cover + pickups -->
+ <g fill="#c78c55" stroke="#f1d0a6" stroke-width="2"><rect x="420" y="607" width="20" height="24" rx="3"/><rect x="730" y="607" width="20" height="24" rx="3"/><rect x="1060" y="607" width="20" height="24" rx="3"/></g>
+ <g fill="#f7d37c" stroke="#fff4cb" stroke-width="2"><path d="m230 587 8-8 8 8-8 8z"/><path d="m1230 587 8-8 8 8-8 8z"/><path d="m512 494 8-8 8 8-8 8z"/><path d="m956 494 8-8 8 8-8 8z"/><path d="m692 359 8-8 8 8-8 8z"/><path d="m762 359 8-8 8 8-8 8z"/></g>
+ <!-- landmark label and markers -->
+ <path d="M780 363 802 340 824 363Z" fill="#8298ab" stroke="#c7d4df" stroke-width="2"/><text x="802" y="333" fill="#e8f3fb" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">BUNKER / MID OBJECTIVE</text>
+ <text x="400" y="207" fill="#ffd68b" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" font-weight="700">A • SHORT, EXPOSED SUMMIT</text>
+ <text x="1060" y="207" fill="#ffd68b" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" font-weight="700">B • MIRRORED SUMMIT</text>
+ <text x="730" y="343" fill="#ffe2a1" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" font-weight="700">ISOLATED CENTRE BRIDGE / CONTEST</text>
+ <text x="130" y="614" fill="#88c8ff" font-family="Arial,sans-serif" font-size="12" font-weight="700">BLUE TEAM HALF</text>
+ <text x="1240" y="614" fill="#ff989b" text-anchor="end" font-family="Arial,sans-serif" font-size="12" font-weight="700">RED TEAM HALF</text>
+ <text x="78" y="728" fill="#aabccc" font-family="Arial,sans-serif" font-size="13">WORLD X 0</text><text x="1422" y="728" fill="#aabccc" text-anchor="end" font-family="Arial,sans-serif" font-size="13">WORLD X 3200</text>
+ <g font-family="Arial,sans-serif" font-size="13" fill="#c6d2dd">
+  <text x="74" y="762">ROUTES: mirrored outer stairs → mid shelves → bridge; upper perches require a visible climb from either side.</text>
+  <text x="74" y="784">HAZARDS: none active. Orange blocks indicate solid cover; gold diamonds indicate pickup anchors; no floor pit or lethal drop.</text>
+ </g>
+</svg>

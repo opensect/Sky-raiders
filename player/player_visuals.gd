@@ -18,17 +18,6 @@ const WEAPON_TEX := {
 	4: preload("res://assets/weapons/rocket.png"),
 	5: preload("res://assets/weapons/pistol.png"),
 }
-const HELMET_TEX := {
-	1: preload("res://assets/headgear/helmet_green.png"),
-	2: preload("res://assets/headgear/cap_tan.png"),
-	3: preload("res://assets/headgear/helmet_black.png"),
-	# QA-090 (v3.7): 4 red bandana, 5 night-vision goggles, 6 camo
-	# helmet. Indices 1-3 are UNCHANGED - existing players' saved
-	# helmet choices must not shift.
-	4: preload("res://assets/headgear/bandana_red.png"),
-	5: preload("res://assets/headgear/nvg.png"),
-	6: preload("res://assets/headgear/helmet_camo.png"),
-}
 # QA-083 (v3.7): one muzzle-flash sprite per weapon class (was one
 # shared muzzle.png for every gun). Rifle and SMG share the rifle
 # flash; the flash texture follows the current weapon in
@@ -87,47 +76,11 @@ const _QA137_ANIM_CELLS := {
 	"aim": [Vector2i(4, 3), Vector2i(4, 6)],
 	"die": [Vector2i(5, 1), Vector2i(5, 2), Vector2i(5, 3), Vector2i(5, 4), Vector2i(5, 5), Vector2i(5, 6), Vector2i(4, 1)],
 }
-# QA-094: per-animation helmet height. The helmet rides the body
-# sprite at a fixed offset, but the art frames do not share one
-# head height (measured hair-top, 64px frame: idle 8, run 9,
-# jump 5, shoot 6, aim 6, fall 8, jetpack 6, die 15). Without
-# this the helmet floats ~20px above the head while jetpacking.
-# Helmet centre = hair_top - 33 in sprite-local units.
-# QA-137: re-measured on the user's character sheet (the jetpack
-# frames now put the head near the top of the frame, so jetpack
-# is -27, not the old -8; the die frames are more upright, so die
-# is -18, not the old 3).
-# QA-145: re-measured on the NEW sheet - the fit puts the hair top
-# at frame y=4 in EVERY frame, so every upright animation is -26
-# (die is N/A, the helmet is hidden when dead; -26 keeps the table
-# uniform).
-const HELMET_Y_BY_ANIM := {"idle": -26.0, "run": -26.0, "jump": -26.0, "shoot": -26.0, "aim": -26.0, "fall": -26.0, "jetpack": -26.0, "die": -26.0}
-# QA-145: per-animation helmet X (sprite-local). The body LEANS in
-# some anims, so the head centre moves right: idle/shoot +1 (the
-# old fixed x=1 was correct there), run +9, jump +6, jetpack +5,
-# fall +5 (jump_3..5 median 4.9), aim +1. At fixed x=1 the helmet
-# sat ~8 px behind the head while running. _play_anim and
-# _update_helmet read this; the jetpack frames use the per-frame
-# table below instead.
-const HELMET_X_BY_ANIM := {"idle": 1.0, "run": 9.0, "jump": 6.0, "shoot": 1.0, "aim": 1.0, "fall": 5.0, "jetpack": 5.0, "die": 1.0}
-# QA-094: per-frame helmet centre (sprite-local) for the jetpack
-# animation - the flying pose sways the head side-to-side, so a
-# fixed offset floats off the head at the extremes. Measured from
-# the art (helmet centre = face centre, y = face top - 33);
-# verified by overlaying the helmet on all 11 frames. The negative
-# parent scale mirrors these automatically when the player faces
-# left. QA-137: re-measured on the user's sheet - the new flying
-# pose is nearly upright, so the sway is only -2..+1 px.
-# QA-145: re-measured on the NEW sheet - head centre x per frame
-# (ping-pong of the 6 jetpack frames): 7.0, 5.7, 4.9, 3.8, 8.3,
-# 4.1, rounded; y is -26 for every frame.
-const HELMET_JETPACK_FRAMES := [Vector2(7, -26), Vector2(6, -26), Vector2(5, -26), Vector2(4, -26), Vector2(8, -26), Vector2(4, -26), Vector2(8, -26), Vector2(4, -26), Vector2(5, -26), Vector2(6, -26), Vector2(7, -26)]
 # QA-127 (v3.11): hand anchors - where the TRIGGER hand grips the
 # rifle, measured from the art (64px frames, frame coords - (32, 32);
 # facing right). Values are in FRAME units; _hand_anchor() scales
 # them by PLAYER_SCALE because the gun is a sibling of the scaled
-# sprite, not a child of it (the helmet rides the sprite, the gun
-# does not). The gun's GRIP sits on the anchor and the gun rotates
+# sprite, not a child of it. The gun's GRIP sits on the anchor and the gun rotates
 # to the aim angle around it, so the weapon reads as HELD instead
 # of floating. QA-137: re-measured on the user's sheet. The new
 # soldier holds NO gun in most poses (only the row-4 aim poses
@@ -197,16 +150,10 @@ func _build_sprite() -> void:
 	p._sprite.centered = true
 	# QA-071b: the soldier art scales 1.20x (64 px frame -> 77 px on
 	# screen). _update_visuals keeps this scale and only flips x for
-	# facing. The helmet is a child of the sprite, so it scales too.
+	# facing.
 	p._sprite.scale = Vector2(p.PLAYER_SCALE, p.PLAYER_SCALE)
 	p.add_child(p._sprite)
 
-	p._helmet_sprite = Sprite2D.new()
-	p._helmet_sprite.name = "Helmet"
-	p._helmet_sprite.position = Vector2(0, -26)
-	p._helmet_sprite.z_index = 2
-	p._sprite.add_child(p._helmet_sprite)
-	_update_helmet()
 
 	# Team / player colour ring under the feet (QA-071b: 24 -> 29 px
 	# radii, y 26 -> 31, wobble 7 -> 8).
@@ -252,7 +199,8 @@ func _build_sprite() -> void:
 	p._fx_shield = _make_fx_sprite("res://assets/user_assets_v3/shield_dome.png", 0.11)
 	p._fx_speed = _make_fx_sprite("res://assets/powerups_effects/02_speed_boost_motion_trails_effect.png", 0.26)
 	p._fx_wind = _make_fx_sprite("res://assets/powerups_effects/05_wind_whirlpool_vortex_effect.png", 0.34)
-	p._fx_thunder = _make_fx_sprite("res://assets/user_assets_v3/thunder_strike.png", 0.15)
+	# Keep the large bolt art readable without obscuring the player.
+	p._fx_thunder = _make_fx_sprite("res://assets/user_assets_v3/thunder_strike.png", 0.10)
 	p._fx_invis = _make_fx_sprite("res://assets/powerups_effects/07_invisibility_shimmer_cloak_effect.png", 0.30)
 
 	# Rotated weapon sprite at the hands (pivot = stock).
@@ -317,7 +265,7 @@ func _build_sprite() -> void:
 	p.add_child(p._hp_fg)
 
 	# QA-092: one shared hit-flash shader material for the body, the
-	# gun and the helmet - one flash_amount drives all three, so the
+	# gun - one flash_amount drives both, so the
 	# whole player flashes red together (QA-086). Spawn-protection
 	# blink still uses modulate, which composes with the shader.
 	p._hit_flash_mat = ShaderMaterial.new()
@@ -326,7 +274,6 @@ func _build_sprite() -> void:
 	p._hit_flash_mat.set_shader_parameter("flash_amount", 0.0)
 	p._sprite.material = p._hit_flash_mat
 	p._gun.material = p._hit_flash_mat
-	p._helmet_sprite.material = p._hit_flash_mat
 
 
 func _make_sprite_frames() -> SpriteFrames:
@@ -399,24 +346,6 @@ func muzzle_distance(weapon_id: int) -> float:
 	var grip: Vector2 = WEAPON_GRIP.get(weapon_id, Vector2(0.34, 1.5))
 	var frac: float = float(WEAPON_MUZZLE_FRAC.get(weapon_id, 1.0))
 	return (0.5 - grip.x) * p.GUN_LENGTH + frac * (p.GUN_LENGTH * 0.5)
-
-
-func _update_helmet() -> void:
-	if p._helmet_sprite == null:
-		return
-	if p.helmet <= 0 or not HELMET_TEX.has(p.helmet):
-		p._helmet_sprite.texture = null
-		return
-	var tex: Texture2D = HELMET_TEX[p.helmet]
-	p._helmet_sprite.texture = tex
-	# Head is ~20px wide in the 64px frame; scale helmet to fit.
-	var target_w := 26.0
-	p._helmet_sprite.scale = Vector2(target_w / tex.get_width(), target_w / tex.get_width())
-	# QA-145: x is per-animation now (HELMET_X_BY_ANIM) - the head
-	# leans right while running/jumping, so a fixed x=1 sat ~8 px
-	# behind the head. _current_anim is "" at build time, so the
-	# lookup falls back to 1 until _play_anim("idle") runs.
-	p._helmet_sprite.position = Vector2(float(HELMET_X_BY_ANIM.get(p._current_anim, 1.0)), p._helmet_y) # QA-094: was a fixed -25
 
 
 func _update_gun_texture() -> void:
@@ -541,25 +470,6 @@ func _play_anim(anim_name: String) -> void:
 			return
 	p._current_anim = anim_name
 	p._sprite.play(anim_name)
-	# QA-094: the helmet rides at a fixed offset from the sprite,
-	# but each animation draws the head at a different height in
-	# the frame (jetpack frames sit ~17px low) - move the helmet
-	# with the animation. _play_anim is the one choke point for
-	# local + remote animation changes. Guarded: _ready calls
-	# _play_anim("idle") before the helmet sprite exists.
-	if HELMET_Y_BY_ANIM.has(anim_name):
-		p._helmet_y = float(HELMET_Y_BY_ANIM[anim_name])
-		if p._helmet_sprite != null:
-			# QA-108: reset X as well as Y. The jetpack frames track
-			# the helmet side-to-side (HELMET_JETPACK_FRAMES, x -11..+15)
-			# and _update_visuals stops overriding it once jetpack ends;
-			# only setting .y here left the last jetpack X stuck, so the
-			# cap/helmet floated 11-15 px sideways off the head after
-			# every landing until the next jetpack.
-			# QA-145: X is per-animation (HELMET_X_BY_ANIM) - run
-			# leans the head +9 right, so a fixed x=1 left the
-			# helmet ~8 px behind the head while running.
-			p._helmet_sprite.position = Vector2(float(HELMET_X_BY_ANIM.get(anim_name, 1.0)), p._helmet_y)
 
 
 func _update_visuals(delta: float) -> void:
@@ -574,16 +484,9 @@ func _update_visuals(delta: float) -> void:
 		p._muzzle.visible = p.alive and p._muzzle_timer > 0.0
 	# QA-071b: keep the 1.20x sprite scale; only flip x for facing.
 	p._sprite.scale = Vector2(p.PLAYER_SCALE * float(p.facing), p.PLAYER_SCALE)
-	# QA-094: while jetpacking, track the head per frame - the
-	# flying pose sways side-to-side (see HELMET_JETPACK_FRAMES).
-	# Other animations use the per-animation height set in
-	# _play_anim. Runs for local and remote copies alike.
-	if p._current_anim == "jetpack" and p._helmet_sprite != null:
-		var f = clampi(p._sprite.frame, 0, HELMET_JETPACK_FRAMES.size() - 1)
-		p._helmet_sprite.position = HELMET_JETPACK_FRAMES[f]
 	# Gun follows the aim angle exactly; flips upright when aiming left.
 	# (Rotation is set below together with the reload/switch dip.)
-	# QA-127 (v3.11): the gun is HELD - its GRIP sits in the hands
+	# The gun grip sits in the player's hand anchor
 	# (_hand_anchor: per-animation, per-frame for idle/jetpack) and
 	# the gun rotates to the aim angle around the grip. The grip
 	# offset is per-weapon (WEAPON_GRIP): the gun's centre sits
@@ -668,7 +571,6 @@ func _update_visuals(delta: float) -> void:
 	if p._camera != null:
 		var s = p._shake_trauma * p._shake_trauma * 16.0
 		p._camera.offset = Vector2(randf_range(-s, s), randf_range(-s, s)) if s > 0.05 else Vector2.ZERO
-	p._helmet_sprite.visible = p.alive
 	p._ring.visible = p.alive
 	# QA-112: the shield ring shows while the shield boost is up
 	# (local player and remote copies alike - the timer is synced).
@@ -677,7 +579,7 @@ func _update_visuals(delta: float) -> void:
 	# QA-119: invisibility is 90% - the player stays ~10% visible
 	# (INVISIBILITY_ALPHA). The LOCAL player always sees themself
 	# fully; teammates see a faint 40% outline; enemies see 10%.
-	# modulate fades the whole body - sprite, gun, helmet, ring,
+	# modulate fades the whole body - sprite, gun, ring,
 	# name label and HP bar - so nothing gives the position away.
 	if p.alive and p.invisibility_timer > 0.0:
 		if p.is_local_player():
@@ -721,7 +623,7 @@ func _update_visuals(delta: float) -> void:
 	if p._hit_flash_timer > 0.0:
 		p._hit_flash_timer -= delta
 		# QA-086 + QA-092 (v3.7): the hit flash is a shader-driven
-		# red flash over the WHOLE player - body, gun and helmet
+		# red flash over the WHOLE player - body and gun
 		# share one flash material, amount fading 1 -> 0 over the
 		# 0.09 s timer (was a modulate tint on the body sprite only,
 		# then on all three). Purely visual; the timer and the
@@ -731,14 +633,14 @@ func _update_visuals(delta: float) -> void:
 		if p._hit_flash_timer <= 0.0 and p._hit_flash_mat != null:
 			p._hit_flash_mat.set_shader_parameter("flash_amount", 0.0)
 	elif p._spawn_protect_timer > 0.0:
-		# Spawn protection: blink so other players can see it.
-		p._sprite.modulate = Color(1, 1, 1, 0.55 + 0.35 * sin(Time.get_ticks_msec() / 90.0))
+		# Keep the protected character fully opaque; signal protection
+		# with a warm color pulse instead of fading the sprite out.
+		var protect_pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 90.0)
+		p._sprite.modulate = Color(1.0, 0.72 + 0.28 * protect_pulse, 0.72 + 0.28 * protect_pulse, 1.0)
 		p._gun.modulate = p._sprite.modulate
-		p._helmet_sprite.modulate = p._sprite.modulate
 	else:
 		p._sprite.modulate = Color.WHITE
 		p._gun.modulate = Color.WHITE
-		p._helmet_sprite.modulate = Color.WHITE
 	p._hp_fg.size.x = 53.0 * clampf(float(p.health) / 100.0, 0.0, 1.0)
 	p._hp_fg.color = Color(0.3, 0.9, 0.3) if p.health > 30 else Color(0.9, 0.25, 0.2)
 	# Team colour ring tint.

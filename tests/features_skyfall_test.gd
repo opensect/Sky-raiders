@@ -39,12 +39,12 @@ func _ft_sf_c_mode() -> Array:
 func _ft_sf_c_map() -> Array:
 	var m: Dictionary = g.MAPS[g.map_id]
 	var ok := int(m.get("size", Vector2.ZERO).x) == 3400 and int(m.get("size", Vector2.ZERO).y) == 10800
-	ok = ok and (m.get("platforms", []) as Array).size() == 55
+	ok = ok and (m.get("platforms", []) as Array).size() == 88
 	ok = ok and (m.get("spawns", []) as Array).size() == 12
 	ok = ok and (m.get("grapple", []) as Array).size() == 8
 	ok = ok and (m.get("jetpack_lines", []) as Array).size() == 2
 	ok = ok and (m.get("relay", []) as Array).size() == 2
-	ok = ok and (m.get("checkpoints", []) as Array).size() == 4
+	ok = ok and (m.get("checkpoints", []) as Array).size() == 6
 	ok = ok and (m.get("pickups", []) as Array).size() == 6
 	ok = ok and (m.get("skyfall_pickups", []) as Array).size() == 6
 	return [ok, "size=%s platforms=%d spawns=%d grapple=%d lines=%d relay=%d cps=%d weapons=%d powerups=%d" % [str(m.get("size")), (m.get("platforms", []) as Array).size(), (m.get("spawns", []) as Array).size(), (m.get("grapple", []) as Array).size(), (m.get("jetpack_lines", []) as Array).size(), (m.get("relay", []) as Array).size(), (m.get("checkpoints", []) as Array).size(), (m.get("pickups", []) as Array).size(), (m.get("skyfall_pickups", []) as Array).size()]]
@@ -97,8 +97,8 @@ func _ft_sf_s_cp_up() -> void:
 
 
 func _ft_sf_c_cp_up() -> Array:
-	var ok = int(g._ctf_checkpoints.get(0, -1)) == 3
-	return [ok, "RED checkpoint=%d (want 3 = Level 6)" % int(g._ctf_checkpoints.get(0, -1))]
+	var ok = int(g._ctf_checkpoints.get(0, -1)) == 5
+	return [ok, "RED checkpoint=%d (want 5 = Level 6)" % int(g._ctf_checkpoints.get(0, -1))]
 
 
 func _ft_sf_s_cp_down() -> void:
@@ -115,8 +115,8 @@ func _ft_sf_s_die_l6_setup() -> void:
 
 
 func _ft_sf_c_die_l6_setup() -> Array:
-	var ok = int(g._ctf_checkpoints.get(0, -1)) == 3
-	return [ok, "RED checkpoint=%d before dying (want 3)" % int(g._ctf_checkpoints.get(0, -1))]
+	var ok = int(g._ctf_checkpoints.get(0, -1)) == 5
+	return [ok, "RED checkpoint=%d before dying (want 5)" % int(g._ctf_checkpoints.get(0, -1))]
 
 
 func _ft_sf_s_die_l6() -> void:
@@ -555,13 +555,13 @@ func _ft_sf_c_levels() -> Array:
 	var got = [g._sf_level_of(10000.0), g._sf_level_of(8000.0), g._sf_level_of(6300.0), g._sf_level_of(4500.0), g._sf_level_of(2700.0), g._sf_level_of(900.0)]
 	var ok = got == [1, 2, 3, 4, 5, 6]
 	ok = ok and g._sf_level_of(6384.0) == 3 and g._sf_level_of(1678.0) == 6
-	ok = ok and GameData.SF_CHECKPOINT_LEVELS == [0, 2, 4, 6]
+	ok = ok and GameData.SF_CHECKPOINT_LEVELS == [0, 2, 3, 4, 5, 6]
 	g._sf_match_time = 1.0
 	var gust_on = g._sf_gust_active()
 	g._sf_match_time = 5.0
 	var gust_off = not g._sf_gust_active()
 	ok = ok and gust_on and gust_off
-	return [ok, "levels=%s (want [1,2,3,4,5,6]) relay L%d/L%d cps=%s gust 1s=%s 5s=%s" % [str(got), g._sf_level_of(6384.0), g._sf_level_of(1678.0), str(GameData.SF_CHECKPOINT_LEVELS), str(gust_on), str(not gust_off)]]
+	return [ok, "levels=%s (want [0,2,3,4,5,6]) relay L%d/L%d cps=%s gust 1s=%s 5s=%s" % [str(got), g._sf_level_of(6384.0), g._sf_level_of(1678.0), str(GameData.SF_CHECKPOINT_LEVELS), str(gust_on), str(not gust_off)]]
 
 
 func _ft_sf_s_heightbar() -> void:

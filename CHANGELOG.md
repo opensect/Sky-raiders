@@ -1,4 +1,37 @@
-# Frag Arena — v3.8
+# Sky Raiders — v4.2
+
+## What's new in v4.2
+
+- **Movement and boosts:** walking speed is raised, Speed Boost acceleration
+  now uses its boosted target speed, and jetpack depletion transitions cleanly
+  into falling until the player releases the control or lands.
+- **Grenade throws:** throw speed is raised to 900 px/s, gravity is tuned to
+  600 px/s², and the level-throw arc is applied only when not aiming. Aimed
+  throws now follow the selected angle without a second upward impulse.
+- **Weapons and pickups:** held weapons are smaller, dropped guns spawn away
+  from the player, and a short pickup grace period prevents an immediate
+  swap back to the gun just collected.
+- **Map hazards:** hazard cooldowns are tracked per trap and player, falling
+  rocks check for player hits before landing, and lava placements leave clearer
+  routes around the hazard zones.
+- **Power-up and pause UI:** power-up controls and warning overlays are hidden
+  while pause, scoreboard, or end panels are open; Thunder Strike's player
+  overlay is smaller. Spawn protection now uses an opaque color pulse instead
+  of fading the character.
+- **LAN menus:** the room join button is wider, discovered room cards are
+  easier to select, and Quick LAN Match takes up less width.
+- **Compatibility:** the multiplayer handshake, Android package version, and
+  in-game version label now identify this release as 4.2 (versionCode 24).
+
+This is a code and documentation release update. The Android package has not
+been exported or signed in this environment; see `PLAY_SUBMISSION_CHECKLIST.md`
+before publishing.
+
+---
+
+# Release history
+
+## v3.8
 
 A reference-like 2D multiplayer shooting game for Android, played over
 local Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.

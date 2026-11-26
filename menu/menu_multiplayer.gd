@@ -18,7 +18,8 @@ func _init(owner) -> void:
 func _build_multiplayer() -> void:
 	m._mp_panel = m.menu_ui._panel()
 	var box = m.menu_ui._vbox(m._mp_panel, 12)
-	box.add_child(m.menu_ui._title_label("LOCAL MULTIPLAYER", 36))
+	var page_box = box
+	box.add_child(m.menu_ui._title_label("LAN PLAY", 36))
 	var hint = m.menu_ui._body_label("All phones must be on the same Wi-Fi network (or one phone's hotspot).", 18)
 	hint.add_theme_color_override("font_color", m.UI_FONT_MUTED)
 	box.add_child(hint)
@@ -40,16 +41,19 @@ func _build_multiplayer() -> void:
 	perm_note.add_theme_font_override("font", m.FONT_BODY)
 	perm_note.add_theme_font_size_override("font_size", 16)
 	perm_note.add_theme_color_override("font_color", m.UI_FONT_MUTED)
+	perm_note.visible = false # The Wi-Fi hint above already explains how rooms connect.
 	box.add_child(perm_note)
-	# v3.2: the whole panel scrolls (see note below at the room list).
+	# Creation stays on the left and joining on the right without page scrolling.
 	var scroll := ScrollContainer.new()
 	m._mp_scroll = scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
-	var inner := VBoxContainer.new()
+	var inner := HBoxContainer.new()
 	inner.add_theme_constant_override("separation", 12)
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(inner)
 	box = inner
 
@@ -68,6 +72,8 @@ func _build_multiplayer() -> void:
 	# reach _mp_scroll.
 	var create_card := PanelContainer.new()
 	create_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	create_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	create_card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var create_sb := GoUi.theme().get_stylebox("panel", "PanelContainer")
 	if create_sb != null:
 		var create_dup := create_sb.duplicate()
@@ -80,7 +86,7 @@ func _build_multiplayer() -> void:
 		create_card.add_theme_stylebox_override("panel", create_dup)
 	box.add_child(create_card)
 	var create_box := VBoxContainer.new()
-	create_box.add_theme_constant_override("separation", 14)
+	create_box.add_theme_constant_override("separation", 8)
 	create_card.add_child(create_box)
 	var create_head := HBoxContainer.new()
 	create_head.add_theme_constant_override("separation", 10)
@@ -97,13 +103,14 @@ func _build_multiplayer() -> void:
 	host_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	create_head.add_child(host_badge)
 	var create_sub := Label.new()
-	create_sub.text = "Start a room on this Wi-Fi — friends on the same network see it in their room list."
+	create_sub.text = "Create a room for friends on this Wi-Fi."
 	create_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	create_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	create_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	create_sub.add_theme_font_override("font", m.FONT_BODY)
 	create_sub.add_theme_font_size_override("font_size", 18)
 	create_sub.add_theme_color_override("font_color", m.UI_FONT_MUTED)
+	create_sub.add_theme_font_size_override("font_size", 16)
 	create_box.add_child(create_sub)
 	m._room_name_input = LineEdit.new()
 	m._room_name_input.placeholder_text = "Room name, e.g. Tharun's Room"
@@ -117,17 +124,18 @@ func _build_multiplayer() -> void:
 	# created (the create handler reads this field).
 	if GameData.room_name == "Room" and GameData.player_name != "" and GameData.player_name != "Player":
 		m._room_name_input.text = GameData.player_name + "'s Room"
-	m._room_name_input.custom_minimum_size = Vector2(0, 56)
-	m._room_name_input.add_theme_font_size_override("font_size", 22)
-	var name_field = GoField.make("Room name", m._room_name_input, "Shown to friends on this Wi-Fi")
+	m._room_name_input.custom_minimum_size = Vector2(0, 48)
+	m._room_name_input.add_theme_font_size_override("font_size", 18)
+	var name_field = GoField.make("Room name", m._room_name_input, "Friends see this name")
 	name_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_field.hint_label.visible = false
 	create_box.add_child(name_field)
 	var max_cap := Label.new()
-	max_cap.text = "Max players — how many phones can join"
+	max_cap.text = "MAX PLAYERS"
 	max_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	max_cap.add_theme_font_override("font", m.FONT_BODY_SEMIBOLD)
-	max_cap.add_theme_font_size_override("font_size", 20)
+	max_cap.add_theme_font_size_override("font_size", 18)
 	max_cap.add_theme_color_override("font_color", m.UI_FONT)
 	create_box.add_child(max_cap)
 	var max_row := HBoxContainer.new()
@@ -136,8 +144,8 @@ func _build_multiplayer() -> void:
 	for n in [2, 4, 6, 8, 10, 12]:
 		var b := Button.new()
 		b.text = str(n)
-		b.custom_minimum_size = Vector2(64, 56)
-		m.menu_ui._style_button(b, 22, 56)
+		b.custom_minimum_size = Vector2(52, 44)
+		m.menu_ui._style_button(b, 18, 44)
 		b.pressed.connect(m._on_max_pressed.bind(n))
 		max_row.add_child(b)
 		m._max_buttons.append(b)
@@ -149,36 +157,12 @@ func _build_multiplayer() -> void:
 	# (3 + 2) like the lobby. The map pick that was added here in
 	# v3.7 was removed in v3.8 (QA-102): the host picks the map in
 	# the lobby instead.
-	var create_mode_cap := Label.new()
-	create_mode_cap.text = "Game mode"
-	create_mode_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	create_mode_cap.add_theme_font_override("font", m.FONT_BODY_SEMIBOLD)
-	create_mode_cap.add_theme_font_size_override("font_size", 20)
-	create_mode_cap.add_theme_color_override("font_color", m.UI_FONT)
-	create_box.add_child(create_mode_cap)
-	var create_mode_row := HBoxContainer.new()
-	create_mode_row.add_theme_constant_override("separation", 8)
-	create_box.add_child(create_mode_row)
-	var create_mode_row2 := HBoxContainer.new()
-	create_mode_row2.add_theme_constant_override("separation", 8)
-	create_box.add_child(create_mode_row2)
-	for i in GameData.MODE_NAMES.size():
-		var mb := Button.new()
-		mb.text = GameData.MODE_NAMES[i]
-		mb.custom_minimum_size = Vector2(0, 56)
-		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		m.menu_ui._style_button(mb, 20, 56)
-		mb.pressed.connect(m._on_create_mode_pressed.bind(i))
-		(create_mode_row if i < 3 else create_mode_row2).add_child(mb)
-		m._create_mode_buttons.append(mb)
-		m.menu_ui._connect_scroll_button(mb, m._mp_scroll)
 	# QA-102 (v3.8): the map pick was REMOVED from the create form
 	# (user: "remove map selection while creating room") — the host
 	# picks the map in the lobby instead. The mode pick stays here.
 	# GameData.map_id keeps its default (0 = Ironfall) until the
 	# host changes it on a lobby map card; the room card, lobby
 	# display and match start all read it from there.
-	m._refresh_create_mode_buttons()
 	# The password input is created BEFORE the Private switch:
 	# flipping the switch calls _on_private_toggled, which greys
 	# the password field out when Private is off — and the field
@@ -188,8 +172,8 @@ func _build_multiplayer() -> void:
 	m._room_password_input.text = GameData.room_password
 	m._room_password_input.secret = true # v3.6: a password field masks what you type (was plain text)
 	m._room_password_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	m._room_password_input.custom_minimum_size = Vector2(0, 56)
-	m._room_password_input.add_theme_font_size_override("font_size", 20)
+	m._room_password_input.custom_minimum_size = Vector2(0, 48)
+	m._room_password_input.add_theme_font_size_override("font_size", 18)
 	var priv_row := HBoxContainer.new()
 	priv_row.add_theme_constant_override("separation", 10)
 	create_box.add_child(priv_row)
@@ -203,18 +187,19 @@ func _build_multiplayer() -> void:
 	priv_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	priv_row.add_child(priv_lbl)
 	m._private_check = GoSwitch.new()
-	m._private_check.custom_minimum_size = Vector2(72, 56)
+	m._private_check.custom_minimum_size = Vector2(64, 44)
 	m._private_check.button_pressed = GameData.room_private
 	m._private_check.toggled.connect(m._on_private_toggled)
 	priv_row.add_child(m._private_check)
-	var pw_field = GoField.make("Room password", m._room_password_input, "Only friends with this password can join")
+	var pw_field = GoField.make("Password", m._room_password_input, "For private rooms")
 	pw_field.label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pw_field.hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pw_field.hint_label.visible = false
 	create_box.add_child(pw_field)
 	var create_btn := Button.new()
 	create_btn.text = "CREATE ROOM"
-	create_btn.custom_minimum_size = Vector2(0, 72)
-	m.menu_ui._style_button(create_btn, 26, 72, true)
+	create_btn.custom_minimum_size = Vector2(0, 56)
+	m.menu_ui._style_button(create_btn, 22, 56, true)
 	create_btn.pressed.connect(m._on_create_room_pressed)
 	create_box.add_child(create_btn)
 	m.menu_ui._connect_scroll_button(create_btn, m._mp_scroll)
@@ -257,7 +242,7 @@ func _build_multiplayer() -> void:
 	join_row.add_child(ip_field)
 	var join_btn := Button.new()
 	join_btn.text = "JOIN"
-	join_btn.custom_minimum_size = Vector2(120, 60)
+	join_btn.custom_minimum_size = Vector2(148, 60)
 	join_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	m.menu_ui._style_button(join_btn, 26, 60, true)
 	join_btn.pressed.connect(m._on_join_pressed)
@@ -330,8 +315,8 @@ func _build_multiplayer() -> void:
 	# list is short, one scroll away when it is long.
 	var quick_btn := Button.new()
 	quick_btn.text = "QUICK LAN MATCH"
-	quick_btn.custom_minimum_size = Vector2(0, 60)
-	quick_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quick_btn.custom_minimum_size = Vector2(224, 60)
+	quick_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	m.menu_ui._style_button(quick_btn, 22, 60, true)
 	quick_btn.pressed.connect(m._on_quick_match_pressed)
 	right_col.add_child(quick_btn)
@@ -341,14 +326,13 @@ func _build_multiplayer() -> void:
 	m._status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	m._status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m._status.add_theme_font_size_override("font_size", 20)
-	box.add_child(m._status)
+	page_box.add_child(m._status)
 	var back_btn := Button.new()
 	back_btn.text = "Back"
-	back_btn.custom_minimum_size = Vector2(0, 56)
-	m.menu_ui._style_button(back_btn, 22, 56)
+	back_btn.custom_minimum_size = Vector2(0, 44)
+	m.menu_ui._style_button(back_btn, 18, 44)
 	back_btn.pressed.connect(func() -> void: m.menu_ui._click(); m.menu_ui._show_only(m._menu_panel))
-	box.add_child(back_btn)
+	page_box.add_child(back_btn)
 	m.menu_ui._connect_scroll_button(back_btn, m._mp_scroll)
 	m._refresh_max_buttons()
-	m._refresh_create_mode_buttons()
 

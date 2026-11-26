@@ -1,17 +1,13 @@
 extends CharacterBody2D
 
-# Throwable grenade: arcs with gravity, bounces off platforms, explodes
-# after a 2-second fuse. Area damage + knockback, handled by the game.
+# Throwable grenade: follows aim when aimed, otherwise uses a short arc;
+# bounces off platforms and explodes after the 1.75-second fuse.
 
-const GRAVITY := 250.0 # QA-141: reference grenade gravity (0,-250) (FRAGNADE::initBody 0x62f1b4, was 1400)
 const FUSE := 1.75 # QA-141: reference fuse 1.75 s (FRAGNADE::updateItemStep 0x62f5b8, was 2.0)
 const BLAST_RADIUS := 125.0 # QA-141: reference Explosion radius 125 (Explosion::applyDamage 0x620168, was 120)
 # QA-141: no flat BLAST_DAMAGE any more — every explosion uses the
 # reference formula max(10, 100 - 0.8 x dist) (see player_health.gd).
 # The damage argument of request_explosion is legacy and ignored.
-const DRAG := 0.01 # QA-141: reference grenade damping pow(1/0.99,-dt) ~= 0.01/s (local 0x62f330, was 0.15)
-const RESTITUTION := 0.1 # QA-141: reference grenade shape e=0.1 (FRAGNADE::initBody 0x62f1b4, was 0.45)
-const REST_SPEED := 40.0 # below this, the grenade rests (GAP-33)
 # QA-141: NO terminal-velocity clamp for the grenade — reference has
 # none (cpBodyNew defaults +inf, never overridden in initBody).
 # The old MAX_FALL 950 const is deleted.
@@ -19,6 +15,7 @@ const REST_SPEED := 40.0 # below this, the grenade rests (GAP-33)
 var throw_dir: Vector2 = Vector2.RIGHT
 var thrower_vel: Vector2 = Vector2.ZERO # QA-091: thrower's velocity at throw time (GRENADE_SPEC §2)
 var owner_id: int = 0
+var aimed_throw: bool = false # An aimed throw follows the aim angle without a second upward impulse.
 
 var _fuse: float = FUSE
 var _visual: Polygon2D
@@ -30,12 +27,13 @@ var bounced: bool = false # set on the first real bounce (physics-test reads thi
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 1
-	# QA-141: reference passes the thrower's FULL body velocity
-	# (SLC::throwDual 0x8edf34 puts it in the "GrenadeLaunched"
-	# array). The base throw (620 px/s + -260 up) is KEPT — the reference's
-	# throw speed was NOT found (could-not-extract #1); the 40 in
-	# throwDual is unidentified and is NOT a throw speed.
-	velocity = throw_dir * 620.0 + Vector2(0, -260.0) + thrower_vel * 1.0
+	# The launch tuning lives in PhysicsConfig so speed and arc can be
+	# adjusted together; clamp inherited momentum to keep throws stable.
+	var aim := throw_dir.normalized() if throw_dir.length_squared() > 0.001 else Vector2.RIGHT
+	velocity = aim * PhysicsConfig.GRENADE_THROW_SPEED
+	if not aimed_throw:
+		velocity.y -= PhysicsConfig.GRENADE_THROW_LIFT
+	velocity += thrower_vel.limit_length(500.0) * PhysicsConfig.GRENADE_THROWER_INHERIT
 	# Collision shape: without this the grenade falls through the world.
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -62,25 +60,25 @@ func _physics_process(delta: float) -> void:
 	# code read vy ~= 0 and the grenade never bounced.
 	var vy_before := velocity.y
 	var vx_before := velocity.x
-	velocity.y += GRAVITY * delta
-	velocity *= exp(-DRAG * delta) # air drag (GAP-32)
+	velocity.y += PhysicsConfig.GRENADE_GRAVITY * delta
+	velocity *= exp(-PhysicsConfig.GRENADE_DRAG * delta) # air drag (GAP-32)
 	# QA-141: no terminal-velocity clamp (reference grenade has none).
 	move_and_slide()
 	if _resting:
 		velocity = Vector2.ZERO
 	elif is_on_floor():
 		if vy_before > 120.0:
-			velocity.y = -vy_before * RESTITUTION
+			velocity.y = -vy_before * PhysicsConfig.GRENADE_RESTITUTION
 			bounced = true
 			velocity.x *= 0.8
-			if velocity.length() < REST_SPEED:
+			if velocity.length() < PhysicsConfig.GRENADE_REST_SPEED:
 				_resting = true
 				velocity = Vector2.ZERO
 		else:
 			# Rolling friction, frame-rate independent (was vx *= 0.7
 			# EVERY frame, which stopped a rolling grenade in ~0.1 s).
 			velocity.x *= exp(-4.0 * delta)
-			if velocity.length() < REST_SPEED:
+			if velocity.length() < PhysicsConfig.GRENADE_REST_SPEED:
 				_resting = true
 				velocity = Vector2.ZERO
 	elif is_on_wall():

@@ -212,10 +212,8 @@ func _sf_platform_under(pos: Vector2) -> int:
 # the platform / height check fails, and a still enemy on any other
 # level is not hit by this rule at all.
 func _sf_find_powerup_target(activator: Node2D, kind: int = 0) -> Node2D:
-	if g.map_id != GameData.SKYFALL_MAP_ID:
-		return null
 	var my_surf := _sf_surface_under(activator.position)
-	var allow_still := kind == 12
+	var allow_still: bool = kind == 12 and int(g.map_id) == GameData.SKYFALL_MAP_ID
 	if my_surf == "" and not allow_still:
 		return null
 	var best: Node2D = null
@@ -223,7 +221,9 @@ func _sf_find_powerup_target(activator: Node2D, kind: int = 0) -> Node2D:
 	for other in g.players_node.get_children():
 		if other == activator or not other.alive:
 			continue
-		if int(other.team) == int(activator.team):
+		# Team -1 is free-for-all: every other player is an enemy.
+		# Only skip players sharing an assigned RED/BLUE team.
+		if int(activator.team) >= 0 and int(other.team) == int(activator.team):
 			continue
 		var same_platform: bool = my_surf != "" and _sf_surface_under(other.position) == my_surf and absf(other.position.y - activator.position.y) <= g.SF_POWERUP_HEIGHT_TOL
 		var still_hit: bool = allow_still and _sf_is_still_on_level5(other)
@@ -241,11 +241,11 @@ func _sf_validate_powerup_target(activator: Node2D, target: Node2D, kind: int = 
 		return false
 	if not target.alive:
 		return false
-	if int(target.team) == int(activator.team):
+	if int(activator.team) >= 0 and int(target.team) == int(activator.team):
 		return false
 	# ITEM 9 rule (B): still 5+ s on level 5 is a direct hit for
 	# Thunder, with no platform / height requirement.
-	if kind == 12 and _sf_is_still_on_level5(target):
+	if kind == 12 and g.map_id == GameData.SKYFALL_MAP_ID and _sf_is_still_on_level5(target):
 		return true
 	# Rule (A): same platform + within 60 px height, any level.
 	var my_surf := _sf_surface_under(activator.position)
@@ -257,30 +257,37 @@ func _sf_validate_powerup_target(activator: Node2D, target: Node2D, kind: int = 
 		return false
 	return true
 func _update_skyfall_powerups(delta: float) -> void:
-	if g.map_id != GameData.SKYFALL_MAP_ID:
-		return
 	if not g.multiplayer.is_server() or g.match_over:
 		return
 	# QA-143 ITEM 9: still-tracking runs on the host every frame
 	# (targeting + the L5 trap both read it); clients never use it.
 	_sf_update_still_tracking()
-	var spots: Array = g.MAPS[g.map_id].get("skyfall_pickups", [])
+	var spots: Array = g.MAPS[g.map_id].get("powerup_spots", g.MAPS[g.map_id].get("skyfall_pickups", []))
 	if spots.is_empty():
 		return
 	if not g._sf_initial_powerups_done:
 		g._sf_initial_powerups_done = true
-		for si in g.SF_POWERUP_INITIAL_SPOTS:
+		var initial_spots: Array = g.SF_POWERUP_INITIAL_SPOTS if g.map_id == GameData.SKYFALL_MAP_ID else range(mini(3, spots.size()))
+		for si in initial_spots:
 			_spawn_skyfall_powerup(si)
 		for i in spots.size():
 			g._sf_pickup_timers[i] = g.SF_POWERUP_COOLDOWN
 		return
 	var active := 0
+	var active_spots := {}
 	for child in g.pickups_node.get_children():
 		if int(child.get("kind")) >= 8:
 			active += 1
+			var spot_index := int(child.get("spot_index"))
+			if spot_index >= 100:
+				active_spots[spot_index - 100] = true
 	if active >= g.SF_POWERUP_MAX_ACTIVE:
 		return
 	for i in spots.size():
+		# A spot owns at most one live pickup. This also covers delayed
+		# despawns and avoids duplicate pickups from network timing.
+		if active_spots.has(i):
+			continue
 		var t = float(g._sf_pickup_timers.get(i, 0.0)) - delta
 		g._sf_pickup_timers[i] = t
 		if t <= 0.0:
@@ -290,13 +297,13 @@ func _update_skyfall_powerups(delta: float) -> void:
 
 
 func _spawn_skyfall_powerup(spot_idx: int) -> void:
-	var spots: Array = g.MAPS[g.map_id].get("skyfall_pickups", [])
+	var spots: Array = g.MAPS[g.map_id].get("powerup_spots", g.MAPS[g.map_id].get("skyfall_pickups", []))
 	if spot_idx < 0 or spot_idx >= spots.size():
 		return
 	var spot: Array = spots[spot_idx]
 	var pos := Vector2(float(spot[0]), float(spot[1]))
 	var kind := int(spot[2])
-	var pname := "sfpowerup_" + str(Time.get_ticks_msec()) + "_" + str(spot_idx)
+	var pname := "powerup_" + str(Time.get_ticks_msec()) + "_" + str(spot_idx)
 	# Spot index 100+ keeps power-ups out of the standard weapon
 	# spot timers (on_pickup_gone routes 100+ to the power-up timer).
 	g._test_powerup_spawns += 1

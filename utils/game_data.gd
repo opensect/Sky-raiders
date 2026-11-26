@@ -5,13 +5,13 @@ extends RefCounted
 # No personal info is stored here - just a display name the player types.
 
 const SAVE_PATH := "user://settings.cfg"
-const BUILD_VERSION := "4.1" # GAP-61: join handshake rejects mismatched builds
+const BUILD_VERSION := "4.2" # LAN join handshake rejects incompatible builds.
 
 static var player_name: String = "Player"
 static var color_index: int = 0
-static var helmet: int = 1
 static var map_id: int = 0
 static var game_mode: int = 0 # 0 = Free-for-All, 1 = Team Deathmatch
+static var solo_practice: bool = false # transient local sandbox; never saved or announced on LAN
 static var kill_limit: int = 10
 static var match_minutes: int = 5
 static var sfx_volume: float = 0.8
@@ -72,7 +72,6 @@ const PLAYER_COLORS: Array[Color] = [
 ]
 
 const COLOR_NAMES: Array[String] = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
-const HELMET_NAMES: Array[String] = ["No helmet", "Helmet", "Cap", "Black helmet", "Bandana", "Night vision", "Camo helmet"] # QA-090 (v3.7): +3 headgear, indices 1-3 unchanged
 const MAP_NAMES: Array[String] = ["Ironfall", "Neon City", "Volcanic Cavern", "Pirate Island", "Skyfall"] # QA-095 (v3.7): 5 maps; QA-112 (v3.9): Skyfall added as a 6th map (vertical, 3600x10800); QA-145 (v4.1): map 1 Jungle Ruins replaced by Outpost (same Outpost TMX source as Ironfall); QA-146 (v4.2): Outpost DELETED, back to 5 maps
 # v3.5 QA-059: one info line per map for the lobby map cards -
 # real size (from game.gd MAPS) + platform count. Kept here (not
@@ -81,9 +80,11 @@ const MAP_NAMES: Array[String] = ["Ironfall", "Neon City", "Volcanic Cavern", "P
 # QA-095 (v3.7): counts are the REAL platform counts (the old
 # list undercounted Jungle/Neon/Volcanic/Pirate).
 const MAP_CARD_INFO: Array[String] = [
-	"3200 × 1400 • 23 platforms", "3200 × 1400 • 24 platforms",
-	"3400 × 1800 • 16 platforms", "3000 × 1500 • 21 platforms",
-	"3000 × 1500 • 16 platforms", "3600 × 10800 • 6 levels",
+	"3200 × 1400 • 23 platforms",
+	"3400 × 1800 • 16 platforms",
+	"3000 × 1500 • 21 platforms",
+	"3000 × 1500 • 16 platforms",
+	"3400 × 10800 • 6 levels",
 ]
 const MODE_NAMES: Array[String] = ["Free-for-All", "Team Deathmatch", "Survival", "Last Man Standing", "Capture the Flag"] # QA-112 (v3.9): mode 4 CTF is BACK, but ONLY on the Skyfall map (see _ctf_available in main.gd / game.gd) - it stays removed everywhere else (QA-107 v3.8)
 # Music attribution (Phase 6, CC BY 4.0 - must appear in-game, settings/credits).
@@ -94,14 +95,14 @@ const MUSIC_CREDITS_SHORT := "Music: \"At Rest\" + \"Five Armies\" - Kevin MacLe
 # 3 Support. Roles are DYNAMIC labels only - no fixed classes, no
 # gameplay effect; they show as icons in the lobby/HUD/scoreboard.
 # The local player's pick lives in `role` and syncs through the
-# lobby player data dict ("role" key) like color/helmet/team.
+# lobby player data dict ("role" key) like color/team.
 const ROLE_NAMES: Array[String] = ["Attacker", "Defender", "Sniper", "Support"]
 const SKYFALL_MAP_ID: int = 4 # Skyfall is map index 4 (5th map); QA-146: was 5 before the Outpost deletion
 const CTF_CAPTURE_LIMIT: int = 3 # QA-112 (v3.9): full flag captures to win - 3 captures x 3 pts = 9 points
 const CTF_POINTS_LIMIT: int = 9 # QA-114 (v3.9): first to 9 points wins (full capture 3 pts, relay bank 1 pt)
 const CTF_CAPTURE_POINTS: int = 3 # QA-114 (v3.9): carrying the flag all the way to your base
 const CTF_RELAY_POINTS: int = 1 # QA-114 (v3.9): banking the flag at a relay station (levels 4 / 7)
-const SF_CHECKPOINT_LEVELS: Array[int] = [0, 2, 4, 6] # QA-123 (v3.11): respawn checkpoints by cps index (0 = base, then levels 2, 4, 6 - rebuilt from 3, 5, 7) # first to 3 captures wins a CTF match
+const SF_CHECKPOINT_LEVELS: Array[int] = [0, 2, 3, 4, 5, 6] # Base plus one safe CTF respawn shelf per climb stage.
 static var role: int = 0 # local player's Skyfall role (0 Attacker)
 # (round-based: one life per round, last alive wins the round, first
 # to the round limit wins the match), 3 Last Man Standing (one life
@@ -156,7 +157,6 @@ static func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("player", "name", player_name)
 	cfg.set_value("player", "color", color_index)
-	cfg.set_value("player", "helmet", helmet)
 	cfg.set_value("player", "portrait", portrait)
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "music", music_volume)
@@ -178,7 +178,6 @@ static func load_settings() -> void:
 		return
 	player_name = str(cfg.get_value("player", "name", player_name))
 	color_index = int(cfg.get_value("player", "color", color_index))
-	helmet = int(cfg.get_value("player", "helmet", helmet))
 	portrait = int(cfg.get_value("player", "portrait", portrait))
 	sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 	music_volume = float(cfg.get_value("audio", "music", music_volume))

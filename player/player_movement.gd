@@ -106,7 +106,7 @@ func _physics_process(delta: float) -> void:
 		p._pred_pos.append(p.position)
 		p._pred_vel.append(p.velocity)
 		p._pred_seq.append(p._move_snap_seq)
-		while p._pred_pos.size() > 90:
+		if p._pred_pos.size() > 90:
 			p._pred_pos.remove_at(0)
 			p._pred_vel.remove_at(0)
 			p._pred_seq.remove_at(0)
@@ -290,6 +290,9 @@ func _apply_movement(delta: float) -> void:
 	# drag lines are gone, so stopping, falling and sliding all
 	# share the one reference rate.
 	p.velocity *= exp(-drag * delta)
+	# Clamp horizontal velocity to prevent map-edge tunnelling from
+	# extreme knockback or wind accumulation.
+	p.velocity.x = clampf(p.velocity.x, -800.0, 800.0)
 	if p._move_axis != 0.0:
 		# QA-141: reference headroom accel (SLC::updateStep 0x8e4d5c):
 		# rate = fmov x max(0.0001, 300 - v_along), fmov 3.0
@@ -303,7 +306,9 @@ func _apply_movement(delta: float) -> void:
 		var rate: float = accel
 		if not on_ice:
 			var fmov := 1.5 if p._jetpacking else 3.0
-			rate = fmov * maxf(0.0001, PhysicsConfig.REF_MOVE_BASE - p.velocity.x * signf(target_vx))
+			# Base-speed headroom capped acceleration at 300 even during
+			# the 450 speed boost, so players never reached boost speed.
+			rate = fmov * maxf(0.0001, max_speed - p.velocity.x * signf(target_vx))
 		p.velocity.x = move_toward(p.velocity.x, target_vx, rate * delta)
 	# QA-112: jetpack-line check for this frame (Skyfall only;
 	# false elsewhere). Used by the jetpack fuel drain below and
@@ -321,6 +326,8 @@ func _apply_movement(delta: float) -> void:
 	else:
 		p._coyote_timer = maxf(0.0, p._coyote_timer - delta)
 	p._jetpacking = false
+	if not p._jump_held or on_floor:
+		p._jetpack_empty_locked = false
 	if p._jump_buffer_timer > 0.0 and p._coyote_timer > 0.0:
 		p.velocity.y = p.JUMP_VELOCITY
 		p._jump_buffer_timer = 0.0
@@ -331,7 +338,7 @@ func _apply_movement(delta: float) -> void:
 		# QA-112: Skyfall wall-jump fired (see _try_wall_jump) -
 		# the press is eaten and the push is already applied.
 		pass
-	elif p._jump_held and not on_floor and p.fuel > 0.0 and p.carrying_flag == 0:
+	elif p._jump_held and not on_floor and p.fuel > 0.0 and p.carrying_flag == 0 and not p._jetpack_empty_locked:
 		# QA-112: a flag carrier gets NO jetpack thrust (carrier
 		# rule) - the branch is skipped, so no fuel is spent either.
 		# Jetpack sustains a climb, it never chops jump momentum:
@@ -347,31 +354,28 @@ func _apply_movement(delta: float) -> void:
 		# Skyfall jetpack line — an FA mechanic, kept). The boost
 		# (x1.4) is QA-112, kept: it spools the climb faster, the
 		# cap stays 190.
+		var up_input := clampf(-p._move_stick_y, 0.0, 1.0)
+		p._jet_thrust_factor = 0.5 + 0.5 * up_input
+		# QA-112: jetpack boost multiplies thrust by 1.4; the rise
+		# cap stays at 190, so boost reaches it sooner without raising it.
+		var thrust = p.JET_ACCEL * p._jet_thrust_factor
+		if p.jetpack_boost_timer > 0.0:
+			thrust *= JETPACK_BOOST_MULT
 		if p.velocity.y > -p.MAX_JET_RISE:
-			var up_input := clampf(-p._move_stick_y, 0.0, 1.0)
-			p._jet_thrust_factor = 0.5 + 0.5 * up_input
-			# QA-112: jetpack boost multiplies the thrust x1.4 (the
-			# rise cap MAX_JET_RISE stays 190 - the boost spools
-			# the climb up faster, it does not raise the top speed).
-			var thrust = p.JET_ACCEL * p._jet_thrust_factor
-			if p.jetpack_boost_timer > 0.0:
-				thrust *= JETPACK_BOOST_MULT
 			p.velocity.y -= thrust * delta
-			if p.velocity.y < -p.MAX_JET_RISE:
-				p.velocity.y = -p.MAX_JET_RISE
-			# QA-112: on a jetpack line the player rides the wind
-			# instead of fighting it - fuel drains at HALF rate.
-			# (A carrier never reaches this branch: no jetpack
-			# while carrying, so no discount and no boost.)
-			var drain = p.FUEL_DRAIN * p._jet_thrust_factor * (0.5 if p._on_jetpack_line else 1.0)
-			p.fuel = maxf(0.0, p.fuel - drain * delta)
-			p._fuel_delay_timer = p.FUEL_REGEN_DELAY
-			p._jetpacking = true
-			p._jump_cut_armed = false
-			p._start_jetpack_sound()
-		else:
-			p._jet_thrust_factor = 0.0
-			p._stop_jetpack_sound()
+		if p.velocity.y < -p.MAX_JET_RISE:
+			p.velocity.y = -p.MAX_JET_RISE
+		# Keep thrust state stable at the rise cap. Previously the
+		# cap turned the jetpack off for a frame, restored full gravity,
+		# then restarted thrust: the flame and climb visibly pulsed.
+		var drain = p.FUEL_DRAIN * p._jet_thrust_factor * (0.5 if p._on_jetpack_line else 1.0)
+		p.fuel = maxf(0.0, p.fuel - drain * delta)
+		if p.fuel <= 0.0:
+			p._jetpack_empty_locked = true
+		p._fuel_delay_timer = p.FUEL_REGEN_DELAY
+		p._jetpacking = true
+		p._jump_cut_armed = false
+		p._start_jetpack_sound()
 	else:
 		p._jet_thrust_factor = 0.0
 		p._stop_jetpack_sound()
@@ -436,6 +440,7 @@ func _apply_movement(delta: float) -> void:
 		p.velocity.y += p.GRAVITY * delta
 		if p._wind_throw_timer <= 0.0:
 			p._wind_throw_timer = 0.0
+			p.velocity.x = 0.0  # stop horizontal throw so player doesn't fly off map
 	var max_fall = p.MAX_FALL + (350.0 if p._fast_fall else 0.0)
 	if p.velocity.y > max_fall:
 		p.velocity.y = max_fall
@@ -445,17 +450,20 @@ func _apply_movement(delta: float) -> void:
 	if p.is_on_floor():
 		p._jump_cut_armed = false
 	if p.is_on_floor() and not p._was_on_floor and p._fall_speed > 550.0:
-		# Hard landing: small dust puff only.
 		var game2 = p.get_tree().get_first_node_in_group("game")
 		if game2 != null:
-			# QA-110 (v3.8): the hit-spark call is REMOVED - after a
-			# fall from a high area it flashed a white-gold sparkle
-			# at the legs, which the user asked to remove. The soft
-			# landing dust (QA-085) stays as the only landing effect.
 			game2.spawn_dust_fx(p.global_position + Vector2(0, 31))
+	# Fall-out-of-map recovery: also catch falling below the LEFT/RIGHT
+	# boundary (x < -200 or x > map_size.x + 200) to handle map edge glitches.
 	var game3 = p.get_tree().get_first_node_in_group("game")
-	if game3 != null and p.position.y > game3.map_size.y + 200.0:
-		p._respawn()
+	if game3 != null:
+		var ms: Vector2 = game3.map_size
+		if p.position.y > ms.y + 200.0 or p.position.x < -200.0 or p.position.x > ms.x + 200.0:
+			# Trigger proper death FSM so deaths counter and kill feed work correctly.
+			if p.life_state == 0: # LifeState.ALIVE
+				p.player_health._apply_damage(p.health, 0, Vector2.ZERO, 0.0, -1)
+			else:
+				p._respawn()
 
 
 func _read_input() -> void:
@@ -843,6 +851,10 @@ func _check_stuck(delta: float) -> void:
 	var space = p.get_world_2d().direct_space_state
 	if not space.intersect_shape(q, 1).is_empty():
 		var spot: Vector2 = game.get_valid_spawn_point(p.player_index, p.peer_id, p.global_position)
+		# All spawn points can be temporarily blocked in a crowded match.
+		# Never assign Vector2.INF as a recovery position; retry next check.
+		if spot == Vector2.INF:
+			return
 		print("STUCK-RECOVERY: player %d was inside solid geometry, moved to %s" % [p.peer_id, str(spot)])
 		p.position = spot
 		p.velocity = Vector2.ZERO
@@ -880,6 +892,10 @@ func _check_stuck(delta: float) -> void:
 	var both_tried: bool = p._wedge_tried_left and p._wedge_tried_right
 	if p._wedge_still >= 1.0 and (both_tried or p._wedge_still >= 2.0) and _both_sides_blocked():
 		var spot2: Vector2 = game.get_valid_spawn_point(p.player_index, p.peer_id, p.global_position)
+		# A failed search means no safe recovery point yet. Keep the player
+		# where they are and let the next stuck check retry.
+		if spot2 == Vector2.INF:
+			return
 		print("WEDGE-RECOVERY: player %d wedged between obstacles (no move for %.0f s), moved to %s" % [p.peer_id, p._wedge_still, str(spot2)])
 		p.position = spot2
 		p.velocity = Vector2.ZERO

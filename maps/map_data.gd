@@ -16,100 +16,48 @@ const MAPS := [
 # The other 8 maps are deleted (map data, tiles, thumbs,
 # backgrounds, lobby entries — nothing references them).
 	{
-		# QA-143 (v4.0) — REBUILT from the real the reference game
-		# Outpost map (1outpost_new.tmx, unpacked from the classic
-		# APK: assets/hd/1outpost_new.tmx, 52x18 tiles of 128 px =
-		# 6656x2304). The TMX "tile" layer is the solid terrain;
-		# rows 2-11 are the platforms above the floor (floor top
-		# y1536), rows 12-17 the solid base mass with a central
-		# chasm (1 tile wide at the surface, widening below).
-		# Object coords in the TMX sit in the left half only on
-		# every classic map checked (Outpost, High Tower,
-		# Crossfire) — read as half-width space (x2 = full map),
-		# which puts team spawns at opposite ends (ctf_sp_1
-		# x155-736 vs ctf_sp_2 x2587-3093) and the flags at
-		# fp_1 x224 / fp_2 x2874.
-		# Mapping onto Ironfall's 3200x1400 (x * 3200/6656,
-		# y mapped floor 1536 -> 1352 and top platform 256 ->
-		# 330, then snapped to Ironfall's 170 px tiers):
-		# Outpost's per-row runs become the tier runs below —
-		# one high perch, a 4-spread tier, dense staggered
-		# mid tiers, long lower shelves. Two adjacent Outpost
-		# rows land on each 170 px tier and merge where they
-		# overlap; the 1180 tier's merged 862 px run is split
-		# back into two (1538-1908 / 2092-2400) so the gap
-		# stays a passage, and the 62 px nub is joined to the
-		# left shelf (492-800). Kept from Ironfall: the central
-		# peak fortress (1400-1800 @ 330, bunker + comms + red
-		# flag) — Outpost's highest platform is upper-left, so
-		# that perch is kept TOO (308-615 @ 330) as the second
-		# summit; the floor stays one full slab (Outpost's
-		# central chasm is NOT cut — the waterfall pool sits
-		# at bottom centre x1600 and the slab is only 48 px
-		# thick, so a pit would be a death hole). Spawns stay
-		# 6 left / 6 right, one per tier, re-anchored to the
-		# new platform tops; pickups re-anchored the same way
-		# (5 of 6 kept their exact spots; #0 moved 300 -> 750
-		# on the y1180 left shelf — its old floor spot sat on
-		# spawn#0's feet and the spawning player collected the
-		# SMG at once, tripping P00). All 30 platforms
-		# reachable from spawn#0 (validator: <=320 up,
-		# <=340 across, <=420 down); every tier step up has
-		# a zero-gap route. Size class unchanged (3200x1400).
+		# QA-147: competitive Outpost/Ironfall redesign. Preserves
+		# the 3200x1400 arena, Ironfall art, full safe floor and
+		# symmetric 6+6 team halves. Tiers are 132 px apart: the
+		# current reference jump is intentionally short, so each
+		# rise is a deliberate jetpack-assisted transfer below the
+		# 190 px rise cap. Mirrored outer stair routes feed an
+		# isolated centre bridge; twin short summits replace the old
+		# central fortress plus isolated left perch. The high ledges
+		# are exposed, short and have no exclusive pickup.
 		"name": "Ironfall", "size": Vector2(3200, 1400), "tile": 0,
 		"bg": 0,
 		"sky_top": Color(0.13, 0.16, 0.28), "sky_bottom": Color(0.45, 0.30, 0.22),
 		"hill": Color(0.10, 0.12, 0.20), "sun": Color(1.00, 0.95, 0.80), "fx": "dust",
 		"platforms": [
 			Rect2(0, 1352, 3200, 48),
-			# y330 — Outpost row 2 (upper-left high perch) + the
-			# Ironfall central peak fortress (kept, QA-111).
-			Rect2(308, 330, 307, 48),
-			Rect2(1400, 330, 400, 48),
-			# y500 — Outpost rows 3+4.
-			Rect2(308, 500, 307, 48),
-			Rect2(862, 500, 123, 48),
-			Rect2(1108, 500, 246, 48),
-			Rect2(2031, 500, 246, 48),
-			Rect2(2585, 500, 184, 48),
-			# y670 — Outpost rows 5+6 (long left shelf 185-677).
-			Rect2(185, 670, 492, 48),
-			Rect2(862, 670, 123, 48),
-			Rect2(1108, 670, 246, 48),
-			Rect2(1662, 670, 246, 48),
-			Rect2(2092, 670, 123, 48),
-			Rect2(2462, 670, 246, 48),
-			Rect2(2831, 670, 123, 48),
-			# y840 — Outpost row 7 (long left shelf 185-800).
-			Rect2(185, 840, 615, 48),
-			Rect2(1477, 840, 431, 48),
-			Rect2(2277, 840, 308, 48),
-			Rect2(2831, 840, 123, 48),
-			# y1010 — Outpost rows 8+9.
-			Rect2(246, 1010, 554, 48),
-			Rect2(985, 1010, 307, 48),
-			Rect2(1477, 1010, 369, 48),
-			Rect2(2154, 1010, 308, 48),
-			Rect2(2708, 1010, 123, 48),
-			Rect2(2892, 1010, 123, 48),
-			# y1180 — Outpost rows 10+11; the merged centre run
-			# is split (1538-1908 / 2092-2400) to keep the gap.
-			Rect2(492, 1180, 308, 48),
-			Rect2(862, 1180, 430, 48),
-			Rect2(1538, 1180, 370, 48),
-			Rect2(2092, 1180, 308, 48),
-			Rect2(2585, 1180, 492, 48),
+			# Spawn decks / lower lane.
+			Rect2(180, 1220, 620, 48), Rect2(2400, 1220, 620, 48),
+			Rect2(500, 1088, 500, 48), Rect2(2200, 1088, 500, 48),
+			# Lower-mid fork; each side can climb through an inside or outside stair.
+			Rect2(900, 956, 520, 48), Rect2(1780, 956, 520, 48),
+			Rect2(240, 824, 420, 48), Rect2(720, 824, 520, 48),
+			Rect2(1960, 824, 520, 48), Rect2(2540, 824, 420, 48),
+			# Centre cross-lane: crossing is fast, but the split preserves escape options.
+			Rect2(500, 692, 520, 48), Rect2(1280, 692, 640, 48), Rect2(2180, 692, 520, 48),
+			Rect2(820, 560, 420, 48), Rect2(1960, 560, 420, 48),
+			# Matched, exposed high-ground perches. No long continuous sniper runway.
+			Rect2(450, 428, 520, 48), Rect2(2230, 428, 520, 48),
+			Rect2(600, 330, 350, 48), Rect2(2250, 330, 350, 48),
 		],
-		"spawns": [Vector2(300, 1318), Vector2(900, 1318), Vector2(1100, 1146), Vector2(600, 976), Vector2(700, 806), Vector2(500, 636), Vector2(2100, 1318), Vector2(2900, 1318), Vector2(2200, 1146), Vector2(2300, 976), Vector2(2300, 806), Vector2(2550, 636)],
-		"pickups": [Vector2(750, 1150), Vector2(2700, 1150), Vector2(1500, 1320), Vector2(1600, 810), Vector2(400, 640), Vector2(2250, 470)],
-		"decor": [["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 750, 1352], ["if_vent", 700, 1352], ["if_sandbags", 650, 1180], ["barrels", 950, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352], ["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1180], ["crate", 1500, 1010], ["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1180], ["if_tower", 500, 670], ["if_gantry", 900, 1180], ["if_rockledge", 600, 1010], 		# QA-145 (v4.1, Worker W): the 125 px if_bridge sprite
-		# (2646-2770) floated in the 246 px gap between the
-		# (2277,840) shelf and the (2831,840) perch — 61 px short
-		# of both ends, 0% supported (screenshot-verified). It
-		# cannot span that gap, so it now rests on the left
-		# 840 shelf (2368-2493, fully on 2277-2585), next to
-		# the gap it was meant to mark.
-		["if_bridge", 2430, 840], ["barrels", 2400, 1010], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_spikes", 2500, 1352], ["if_crate", 2600, 1352], ["if_fall", 1600, 1352], ["if_water", 1600, 1352], ["if_bunker", 1500, 330], ["if_comms", 1680, 330], ["if_tower", 2900, 670], ["if_bridge_metal", 2770, 670], ["if_palm", 600, 670], ["if_palm", 2800, 1010], ["if_cave", 450, 1352]],
+		"spawns": [Vector2(220, 1318), Vector2(470, 1318), Vector2(720, 1318), Vector2(970, 1318), Vector2(1220, 1318), Vector2(1470, 1318), Vector2(2980, 1318), Vector2(2730, 1318), Vector2(2480, 1318), Vector2(2230, 1318), Vector2(1980, 1318), Vector2(1730, 1318)],
+		"pickups": [Vector2(350, 1188), Vector2(2850, 1188), Vector2(1120, 924), Vector2(2080, 924), Vector2(1350, 660), Vector2(1850, 660)],
+		"powerup_spots": [[1100, 924, 8], [2100, 924, 11], [1600, 660, 9]],
+		"decor": [
+			["if_palm", 150, 1352], ["if_derrick", 420, 1352], ["crate", 650, 1352], ["if_vent", 700, 1352],
+			["if_sandbags", 650, 1220], ["barrels", 1090, 1352], ["if_door", 1050, 1352], ["if_cave", 1150, 1352],
+			["if_lamp", 1300, 1352], ["if_bridge_metal", 1600, 1220], ["crate", 1200, 956], ["crate", 1600, 1352],
+			["if_lamp", 1700, 1352], ["if_cave2", 1850, 1352], ["column", 2000, 1352], ["if_plank", 2150, 1088],
+			["if_tower", 500, 692], ["if_gantry", 900, 1220], ["if_rockledge", 600, 1088], ["if_bridge", 2430, 824],
+			["barrels", 2400, 1088], ["if_barrel", 2300, 1352], ["if_rock", 2400, 1352], ["if_crate", 2600, 1352],
+			["if_bunker", 1500, 692], ["if_comms", 1680, 692], ["if_tower", 2900, 824], ["if_bridge_metal", 2770, 824],
+			["if_palm", 600, 692], ["if_palm", 2800, 1088], ["if_cave", 450, 1352],
+		],
 	},
 	{
 		"name": "Neon City", "size": Vector2(3400, 1800), "tile": 2,
@@ -151,6 +99,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1718), Vector2(900, 1718), Vector2(350, 1546), Vector2(1000, 1246), Vector2(500, 1066), Vector2(580, 766), Vector2(2550, 1718), Vector2(3100, 1718), Vector2(3000, 1546), Vector2(2330, 1216), Vector2(2900, 1066), Vector2(2800, 766)],
 		"pickups": [Vector2(600, 1722), Vector2(2800, 1722), Vector2(500, 1550), Vector2(1700, 1370), Vector2(3000, 1550), Vector2(1700, 1550)],
+		"powerup_spots": [[1200, 1718, 8], [1800, 1370, 12], [2800, 1066, 9]],
 		"decor": [["sb_vent", 720, 1752], ["crate", 1320, 1752], ["barrels", 2070, 1752], ["sb_vent", 2670, 1752], ["crate", 2970, 1752], ["barrels", 3220, 1752], ["sb_vent", 210, 1752], ["sb_vent", 1090, 1280], ["crate", 1200, 1580], ["barrels", 2400, 1752], ["sb_vent", 590, 1100], ["sb_vent", 670, 800], ["sb_vent", 3090, 1580], ["sb_vent", 2420, 1250], ["sb_vent", 2990, 1100], ["sb_vent", 2890, 800]],
 	},
 	{
@@ -209,6 +158,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1418), Vector2(1300, 1418), Vector2(1400, 1246), Vector2(850, 1076), Vector2(600, 906), Vector2(950, 736), Vector2(1600, 1418), Vector2(2600, 1418), Vector2(2500, 1246), Vector2(2000, 1076), Vector2(2200, 906), Vector2(2050, 736)],
 		"pickups": [Vector2(450, 1250), Vector2(2720, 1250), Vector2(1500, 1250), Vector2(1500, 910), Vector2(950, 740), Vector2(1400, 570)],
+		"powerup_spots": [[900, 1418, 8], [2200, 1418, 11], [1400, 906, 9]],
 		"decor": [["crate", 200, 1452], ["column", 1540, 1452], ["barrels", 2200, 1452], ["crate", 1450, 1110], ["crate", 2860, 1452], ["crate", 720, 1452], ["barrels", 2420, 1452], ["crate", 1390, 1452], ["crate", 940, 1110], ["crate", 690, 940], ["crate", 1040, 770], ["crate", 2690, 1452], ["crate", 2590, 1280], ["crate", 2090, 1110], ["crate", 2290, 940], ["crate", 2140, 770]],
 	},
 	{
@@ -242,6 +192,7 @@ const MAPS := [
 		],
 		"spawns": [Vector2(300, 1418), Vector2(250, 1246), Vector2(500, 1076), Vector2(750, 906), Vector2(1150, 566), Vector2(1450, 1076), Vector2(2700, 1418), Vector2(2200, 1246), Vector2(2200, 1076), Vector2(2550, 906), Vector2(2650, 736), Vector2(1900, 1418)],
 		"pickups": [Vector2(600, 1422), Vector2(2910, 1422), Vector2(2420, 1250), Vector2(1500, 1080), Vector2(2550, 910), Vector2(1150, 570)],
+		"powerup_spots": [[1200, 1418, 8], [1600, 1076, 12], [2500, 906, 9]],
 		"decor": [["palms", 400, 1452], ["palms", 2850, 1452], ["crate", 720, 1452], ["barrels", 1020, 1452], ["column", 1320, 1452], ["crate", 1620, 1452], ["barrels", 2220, 1452], ["column", 2520, 1452], ["crate", 2820, 1452], ["crate", 210, 1452], ["crate", 340, 1280], ["crate", 600, 1280], ["column", 1800, 1452], ["crate", 590, 1110], ["crate", 840, 940], ["crate", 1240, 600], ["crate", 1540, 1110], ["crate", 2290, 1280], ["crate", 2290, 1110], ["crate", 2640, 940], ["crate", 2740, 770], ["crate", 1990, 1452]],
 	},
 	{
@@ -295,20 +246,43 @@ const MAPS := [
 			# L5 (42-47): 280 px rises, lanes L/C/R/C/L/C.
 			Rect2(900, 3624, 600, 48), Rect2(1500, 3344, 600, 48), Rect2(2100, 3064, 600, 48),
 			Rect2(1500, 2784, 600, 48), Rect2(900, 2504, 600, 48), Rect2(1500, 2224, 600, 48),
-			# L6 (48-54): last step 1944 (232 px to the arena),
+		# L6 (48-54): last step 1944 (232 px to the arena),
 			# arena floor, 2 centre summit steps (288/282/280 px),
 			# summit floor, 2 side perches (172 px up, 100 px gap).
 			Rect2(2100, 1944, 600, 48), Rect2(600, 1712, 2400, 48),
 			Rect2(1500, 1424, 600, 48), Rect2(1500, 1142, 600, 48), Rect2(1200, 862, 1200, 48),
 			Rect2(700, 690, 400, 48), Rect2(2500, 690, 400, 48),
+			# Competitive route supports (55-87): midpoint ledges keep
+			# CTF carriers moving without jetpack; mirrored routes give
+			# challengers alternate approaches. Appended to preserve every
+			# dynamic trap/collapse platform index above.
+			# L2 tunnel steps (140-150 px rises).
+			Rect2(1100, 8614, 500, 48), Rect2(2000, 8614, 500, 48),
+			Rect2(900, 8314, 500, 48), Rect2(2200, 8314, 500, 48),
+			Rect2(1500, 8014, 600, 48), Rect2(1200, 7714, 500, 48), Rect2(1900, 7714, 500, 48),
+			# L3 bridge steps and a mirrored checkpoint shelf.
+			Rect2(1500, 7124, 600, 48), Rect2(1500, 6844, 600, 48), Rect2(1500, 6564, 600, 48),
+			Rect2(2100, 6284, 600, 48), Rect2(900, 6004, 600, 48), Rect2(1500, 5724, 600, 48),
+			Rect2(2100, 6984, 600, 48),
+			# L4 hanging bridge; two separated checkpoint wings.
+			Rect2(1500, 5164, 600, 48), Rect2(900, 4884, 600, 48), Rect2(1500, 4604, 600, 48),
+			Rect2(2100, 4324, 600, 48), Rect2(1500, 4044, 600, 48),
+			Rect2(1000, 3904, 400, 48), Rect2(2200, 3904, 400, 48),
+			# L5 sniper/mechanical route; mid-step avoids the rotator sweep.
+			Rect2(1500, 3484, 600, 48), Rect2(2100, 3204, 600, 48), Rect2(1500, 2924, 600, 48),
+			Rect2(1500, 2644, 600, 48), Rect2(900, 2364, 600, 48),
+			Rect2(1000, 2224, 400, 48), Rect2(2200, 2224, 400, 48),
+			# L6 summit approach: side entries avoid the elevator shaft.
+			Rect2(2100, 1828, 600, 48), Rect2(600, 1570, 600, 48), Rect2(2100, 1570, 600, 48),
+			Rect2(1500, 1283, 600, 48), Rect2(1500, 1002, 600, 48),
 		],
 		"spawns": [Vector2(300, 10718), Vector2(700, 10718), Vector2(550, 10548), Vector2(1150, 10378), Vector2(1700, 10208), Vector2(1450, 10038), Vector2(3300, 10718), Vector2(2900, 10718), Vector2(3050, 10548), Vector2(2450, 10378), Vector2(2150, 10038), Vector2(2500, 9868)],
 		"pickups": [Vector2(400, 10548), Vector2(3200, 10548), Vector2(1800, 10208), Vector2(1800, 1678), Vector2(1800, 8730), Vector2(1200, 4710)],
-		# QA-132: L1 decor only. Every L2-L6 decor entry is GONE
+		# QA-132: keep L1 props and add visible art for functional ladders.
 		# (user: clean everything unnecessary) — crates, barrels,
 		# columns, vents, jtree, jbush, if_lamp all removed; the
 		# code-drawn L2 tunnel lamp dots stay (see _build_skyfall).
-		"decor": [["if_rock", 500, 10582], ["if_rock", 3100, 10582], ["crate", 1600, 10242], ["barrels", 2000, 10072], ["if_spikes", 2500, 9902]],
+		"decor": [["if_rock", 500, 10582], ["if_rock", 3100, 10582], ["crate", 1600, 10242], ["barrels", 2000, 10072], ["sf_ladder", 1448, 10072], ["sf_ladder", 1648, 7312], ["sf_ladder", 1348, 3672], ["sf_ladder", 1348, 1760]],
 		"skyfall": true,
 		# Power-up spots: [x, y, kind] — one per power-up, spread
 		# across the heights (kinds 8-13, see pickup.gd — kinds
@@ -322,11 +296,9 @@ const MAPS := [
 		# Vertical CTF: both flags at the summit, extraction zones
 		# at the bases. Red steals the BLUE flag to the RED zone.
 		"ctf": {"flag_red": Vector2(1400, 862), "flag_blue": Vector2(2200, 862), "extract_red": Vector2(450, 10752), "extract_blue": Vector2(3150, 10752)},
-		# Team respawn checkpoints, per level: [red, blue] positions
-		# for L1 (base), L2 (tunnels), L4 (sniper top), L6 (arena).
-		# QA-132: L4 checkpoints re-anchored to the new L4 centre
-		# row (1500,3904,600): y = 3904 - 34 = 3870.
-		"checkpoints": [[Vector2(450, 10718), Vector2(3150, 10718)], [Vector2(800, 8730), Vector2(2800, 8730)], [Vector2(1600, 3870), Vector2(2000, 3870)], [Vector2(1000, 1678), Vector2(2600, 1678)]],
+		# Respawns are distributed across six safe route shelves; elevated
+		# checkpoint pairs are split laterally to prevent instant spawn fire.
+		"checkpoints": [[Vector2(450, 10718), Vector2(3150, 10718)], [Vector2(800, 8730), Vector2(2800, 8730)], [Vector2(1200, 6950), Vector2(2400, 6950)], [Vector2(1200, 3870), Vector2(2400, 3870)], [Vector2(1200, 2190), Vector2(2400, 2190)], [Vector2(1000, 1678), Vector2(2600, 1678)]],
 		# QA-114 (v3.9): relay stations — partial scoring. Either team
 		# banks the flag here for +1 point (level 3 bridge, level 6
 		# arena); the flag then returns to the summit.
@@ -343,7 +315,7 @@ const MAPS := [
 		# QA-132: re-anchored to the new rows — L3 spans 6984-7312
 		# (rows 6984/7264), L4 spans 3344-3672 (rows 3344/3624),
 		# L6 spans 1424-1760 (summit step 1424 / arena 1712).
-		"ladders": [Rect2(1400, 9688, 96, 384), Rect2(1600, 6984, 96, 328), Rect2(1300, 3344, 96, 328), Rect2(1300, 1424, 96, 336)],
+		"ladders": [Rect2(1400, 9688, 96, 384), Rect2(1600, 6928, 96, 384), Rect2(1300, 3288, 96, 384), Rect2(1300, 1376, 96, 384)],
 		# Moving elevators: the original L6 pair (now L5) + a pair in
 		# the tunnels (L2) and a pair on the bridge (L3). x, width,
 		# top/bottom y, phase.
@@ -354,7 +326,7 @@ const MAPS := [
 		# swept rect (body 48 tall) ever passes under or through a
 		# static platform — each now docks 40 px clear of the
 		# platform above it (verified by FT-SF-MOVER-CLEAR).
-		"elevators": [{"x": 900, "w": 500, "y_top": 3344, "y_bottom": 3576, "phase": 0.00}, {"x": 2100, "w": 500, "y_top": 3112, "y_bottom": 3344, "phase": 0.50}, {"x": 1500, "w": 600, "y_top": 8212, "y_bottom": 8416, "phase": 0.00}, {"x": 600, "w": 500, "y_top": 8464, "y_bottom": 8716, "phase": 0.50}, {"x": 900, "w": 500, "y_top": 7032, "y_bottom": 7264, "phase": 0.25}, {"x": 2100, "w": 500, "y_top": 6472, "y_bottom": 6704, "phase": 0.75}],
+		"elevators": [{"x": 900, "w": 500, "y_top": 3344, "y_bottom": 3576, "phase": 0.00}, {"x": 2700, "w": 500, "y_top": 3112, "y_bottom": 3344, "phase": 0.50}, {"x": 1500, "w": 600, "y_top": 8212, "y_bottom": 8416, "phase": 0.00}, {"x": 600, "w": 500, "y_top": 8464, "y_bottom": 8716, "phase": 0.50}, {"x": 900, "w": 500, "y_top": 7032, "y_bottom": 7264, "phase": 0.25}, {"x": 2100, "w": 500, "y_top": 6472, "y_bottom": 6704, "phase": 0.75}],
 		# Rotating platform (L5): orbits its centre.
 		# QA-132: centre moved (1800,2644) -> (1900,2444) — the old
 		# centre's orbit clipped the new L5 centre row (1500,2784).
@@ -414,7 +386,7 @@ const MAPS := [
 		# a second fire jet on the C row (1500,3344). Same 10 HP
 		# per 1 s tick while HOT (QA-126); both leave room to walk
 		# around them and the climb stays completable.
-		"hazards": [{"rect": Rect2(950, 2420, 300, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(1750, 2140, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(2150, 2980, 300, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(1750, 3260, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}],
+		"hazards": [{"rect": Rect2(1030, 2420, 240, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(1750, 2140, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(2250, 2980, 240, 84), "kind": "lava", "dmg": 10, "cycle": 4.0}, {"rect": Rect2(1750, 3260, 200, 84), "kind": "fire", "dmg": 10, "cycle": 4.0}],
 		# QA-137 (v3.14): swinging spiked wrecking-ball pendulums
 		# (the user's trap sheet). Each hangs from a pivot in open
 		# air and swings across the platform below it - L4 over the

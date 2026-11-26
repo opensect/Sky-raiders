@@ -92,7 +92,7 @@ const HUD_TEX_BTN_GRENADE: Texture2D = preload("res://assets/user_assets_v3/hud/
 const HUD_TEX_BTN_RELOAD: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_reload.png")
 const HUD_TEX_BTN_WEAPON: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_weapon.png")
 const HUD_TEX_BTN_WEAPON_SWITCH: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_weapon_switch.png")
-const HUD_TEX_BTN_PAUSE: Texture2D = preload("res://assets/user_assets_v3/hud/hud_button_pause.png")
+const HUD_TEX_BTN_PAUSE: Texture2D = preload("res://assets/ui_polish/pause_button.svg")
 const HUD_TEX_MESSAGE_BOX: Texture2D = preload("res://assets/user_assets_v3/hud/hud_message_box.png")
 # QA-119 (v3.11): Thunder Strike bolt art (user's power-up effects pack).
 # QA-114 (v3.9): colour-coded climbing routes — WEST (left third),
@@ -293,7 +293,7 @@ var _ctf_captures: Dictionary = {} # peer id -> captures (scoreboard)
 var _ctf_sync_timer: float = 0.0
 var _ctf_grab: Dictionary = {} # peer id -> seconds held on a flag
 var _ctf_dropped_timer: Dictionary = {} # flag team -> seconds dropped
-var _ctf_checkpoints: Dictionary = {0: 0, 1: 0} # team -> highest level 0-3
+var _ctf_checkpoints: Dictionary = {0: 0, 1: 0} # team -> highest unlocked checkpoint index
 var _ctf_hold_grace: Dictionary = {0: 0.0, 1: 0.0} # QA-114 (v3.9): 5 s freeze before a wiped team's checkpoint drops
 var _ctf_extract_nodes: Array = [] # extraction-zone sprites (pulse)
 var _ctf_hud_labels: Array = [] # flag-status labels (rebuilt in _build_hud)
@@ -361,7 +361,7 @@ var _sf_storm_nodes: Array = [] # lightning sprites shown during a storm
 var _sf_pickup_timers: Dictionary = {} # skyfall power-up spot -> seconds
 # QA-126 (v3.11): hazard damage state. Host-only damage ticks;
 # visuals are pure functions of the match clock so all peers agree.
-var _sf_hazard_tick: Dictionary = {} # peer id -> seconds until next hazard tick
+var _sf_hazard_tick: Dictionary = {} # hazard/player key -> seconds until next damage tick
 var _sf_strike_timer: float = 3.0 # seconds until the next storm lightning strike
 var _sf_strike: Dictionary = {} # pending strike {peer, pos, node, ring, timer}
 # QA-135 (v3.13): L4 is the storm-lightning level — its own strike
@@ -596,7 +596,7 @@ func _ready() -> void:
 	# Phase 4 — match countdown (3-2-1-FIGHT). Skipped in every
 	# scripted harness (they move/shoot from frame one) and in the
 	# features test, which drives the countdown itself in step 1.
-	var _is_test_mode := smoke_test._smoke_test or joystick_test._joystick_test or fire_test._fire_test or net_test._net_test or net_test._flow_test or scale_test._scale_test or scale_test._collision_test or physics_test._physics_test or net_test._perf_test or features_test._features_test or replsim_test._repl_sim_test or net_test._restart_test or smoke_test._v37_shots or smoke_test._v38_shots or smoke_test._glitch_shots or smoke_test._map_shots or smoke_test._land_shots or smoke_test._skyfall_shots or smoke_test._qa145_shots or workerS_shots._workerS_shots or workerT_shots._workerT_shots or workerV_shots._workerV_shots
+	var _is_test_mode := GameData.solo_practice or smoke_test._smoke_test or joystick_test._joystick_test or fire_test._fire_test or net_test._net_test or net_test._flow_test or scale_test._scale_test or scale_test._collision_test or physics_test._physics_test or net_test._perf_test or features_test._features_test or replsim_test._repl_sim_test or net_test._restart_test or smoke_test._v37_shots or smoke_test._v38_shots or smoke_test._glitch_shots or smoke_test._map_shots or smoke_test._land_shots or smoke_test._skyfall_shots or smoke_test._qa145_shots or workerS_shots._workerS_shots or workerT_shots._workerT_shots or workerV_shots._workerV_shots
 	if not _is_test_mode:
 		_countdown_active = true
 		_countdown_t = 3.0
@@ -669,8 +669,8 @@ const SOLID_DECOR_KINDS := ["crate", "barrels", "sandbags", "rock", "column",
 	# Phase 5 — Sky Brawl solid structures (huts/blocks/vents/crate).
 	"sb_hut", "sb_hut_pink", "sb_hut_blue", "sb_vent", "sb_vent_orange",
 	"sb_shrine", "sb_block", "sb_hut_green", "sb_crate",
-	# QA-096: Ironfall solid props (crate / barrel / sandbags).
-	"if_crate", "if_barrel", "if_sandbags",
+	# QA-096 / QA-147: Ironfall solid props (crate / barrel / sandbags / bunker).
+	"if_crate", "if_barrel", "if_sandbags", "if_bunker",
 	# QA-112 (v3.9): Skyfall sniper tower — solid cover (256x384).
 	"sf_tower"]
 # GAP-13: bridges/arches look walkable — they now get a thin top plank
@@ -909,6 +909,7 @@ func _on_leave_pressed() -> void:
 	# node's _process would still run once more with `multiplayer`
 	# already torn down (script errors in the update tail). Stop it.
 	_leaving = true
+	GameData.solo_practice = false
 	get_tree().paused = false
 	# Phase 6: stop the battle track here — the menu scene starts its
 	# own menu track on load, so music never overlaps or keeps playing
@@ -1187,6 +1188,7 @@ func _process(delta: float) -> void:
 	game_hud._update_divergence_check(delta) # QA-073: host-only, no-op solo/offline
 	game_feed._update_broadcast(delta)
 	game_pickups._update_pickup_spawn(delta)
+	_update_skyfall_powerups(delta) # Skyfall and arena power-up spawn/respawn loop.
 	game_pickups._update_join_timeout(delta)
 	game_spawn._retry_spawn_if_needed(delta)
 	game_match._update_match_timer(delta)
@@ -1543,8 +1545,8 @@ func _outline_label(l: Label) -> void:
 # _update_pickup_spawn, the game loop (game.gd already calls
 # game_pickups._update_pickup_spawn directly — the wrapper is for
 # the tests that call g._update_pickup_spawn).
-func _do_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, team_pref: int = -1) -> void:
-	game_spawn._do_spawn(pid, pname, color_idx, helmet_style, team_pref)
+func _do_spawn(pid: int, pname: String, color_idx: int, team_pref: int = -1) -> void:
+	game_spawn._do_spawn(pid, pname, color_idx, team_pref)
 
 
 func _stats_header_row(extra: String = "") -> HBoxContainer:
@@ -1649,8 +1651,8 @@ func player_list_remote(players: Array) -> void:
 
 
 @rpc("any_peer")
-func request_spawn(pid: int, pname: String, color_idx: int, helmet_style: int, version: String = "", team_pref: int = -1) -> void:
-	game_spawn.request_spawn(pid, pname, color_idx, helmet_style, version, team_pref)
+func request_spawn(pid: int, pname: String, color_idx: int, version: String = "", team_pref: int = -1) -> void:
+	game_spawn.request_spawn(pid, pname, color_idx, version, team_pref)
 
 
 func _on_peer_connected(id: int) -> void:

@@ -132,7 +132,7 @@ func _update_skyfall(delta: float) -> void:
 	# it immediately (no grace — the team is alive and below).
 	if g.game_mode == 4 and g.multiplayer.is_server() and not g.match_over:
 		var cps: Array = g.MAPS[g.map_id].get("checkpoints", [])
-		if cps.size() >= 4:
+		if cps.size() >= 2:
 			var held := {0: 0, 1: 0}
 			var any_alive := {0: false, 1: false}
 			for child in g.players_node.get_children():
@@ -149,12 +149,10 @@ func _update_skyfall(delta: float) -> void:
 				# never counts as "at" the level (the L6 spot is
 				# 1678 but a standing player is at y 1681).
 				var lvl := 0
-				if y <= float((cps[3] as Array)[team].y) + 40.0:
-					lvl = 3
-				elif y <= float((cps[2] as Array)[team].y) + 40.0:
-					lvl = 2
-				elif y <= float((cps[1] as Array)[team].y) + 40.0:
-					lvl = 1
+				for ci in range(cps.size() - 1, 0, -1):
+					if y <= float((cps[ci] as Array)[team].y) + 40.0:
+						lvl = ci
+						break
 				held[team] = maxi(int(held[team]), lvl)
 			for team in [0, 1]:
 				var prev = int(g._ctf_checkpoints.get(team, 0))
@@ -175,9 +173,6 @@ func _update_skyfall(delta: float) -> void:
 						g._ctf_hold_grace[team] = 0.0
 						g._ctf_checkpoints[team] = 0
 						g._ctf_feed("⚑ %s lost Level %d — respawn moved back down." % ["RED" if team == 0 else "BLUE", GameData.SF_CHECKPOINT_LEVELS[prev]], g._ctf_team_color(team))
-	# --- Power-up spawning (host only; rarer than weapons — see
-	# _update_skyfall_powerups). ---
-	g._update_skyfall_powerups(delta)
 	# --- Comeback help + random events (QA-114, host only). ---
 	_sf_update_comeback(delta)
 	_sf_update_random_events(delta)

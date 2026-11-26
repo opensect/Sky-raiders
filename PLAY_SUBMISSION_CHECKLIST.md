@@ -1,9 +1,15 @@
 # Google Play submission checklist — Sky Raiders
 
-**Status (19 Nov 2026, v3.2): the app is Play-ready in code and
-policy. NOTHING has been published or submitted — there is no Play
-Console account connected here, and publishing needs the user's own
-account. This file is the handoff for that step.**
+**Current status (26 Nov 2026, v4.2 / versionCode 24): the source and
+export preset identify the next release, but no v4.2 APK/AAB has been
+exported, signed, or submitted. Nothing has been published; there is no
+Play Console account connected here. The verification results below are
+historical checks on older builds and must be repeated on the v4.2 export.**
+
+**Android build blocker:** the checked-in template currently reports
+AGP 8.2.0 / targetSdk 34 while its wrapper is Gradle 9.7.1. Do not use it
+for a release build; regenerate the Android template with Godot 4.7.2 and
+verify targetSdk 36 before exporting.
 
 **Re-verified 20 Nov 2026 on the v3.6 APK (versionCode 14) — see
 BUGS.md QA-093:** targetSdk 36, minSdk 24, compileSdk 36, arm64-v8a
@@ -12,7 +18,7 @@ only, exactly the three permissions, `allowBackup=false`,
 apksigner v2+v3 verified (debug keystore cert SHA-256
 `f65f2fa3…e02d11`), zipalign OK.
 
-## Already done in v3.2 (verify again at export time)
+## Historical checks from v3.2 (reverify on v4.2 export)
 
 - [x] **Target API:** targetSdk **36** (verified on the v3.1 APK with
   `aapt2 dump badging`: `targetSdkVersion:'36'`, minSdk 24,

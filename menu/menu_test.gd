@@ -637,10 +637,10 @@ func _add_fake_lobby_players(red: int, blue: int) -> void:
 	var n := 0
 	for i in red:
 		n += 1
-		m._lobby_players[9000 + n] = {"name": "FakeRed%d" % n, "color": 0, "helmet": 0, "portrait": 0, "ready": true, "vote": -1, "team": 0, "role": 0}
+		m._lobby_players[9000 + n] = {"name": "FakeRed%d" % n, "color": 0, "portrait": 0, "ready": true, "vote": -1, "team": 0, "role": 0}
 	for i in blue:
 		n += 1
-		m._lobby_players[9000 + n] = {"name": "FakeBlue%d" % (n - red), "color": 1, "helmet": 0, "portrait": 0, "ready": true, "vote": -1, "team": 1, "role": 0}
+		m._lobby_players[9000 + n] = {"name": "FakeBlue%d" % (n - red), "color": 1, "portrait": 0, "ready": true, "vote": -1, "team": 1, "role": 0}
 
 
 func _flowtest_build_steps() -> void:
@@ -723,7 +723,7 @@ func _flm_min_case(mode: int, teams: Array, want_met: bool, want_reason: String)
 	var n := 0
 	for t in teams:
 		n += 1
-		m._lobby_players[8000 + n] = {"name": "Case%d" % n, "color": 0, "helmet": 0, "portrait": 0, "ready": true, "vote": -1, "team": int(t), "role": 0}
+		m._lobby_players[8000 + n] = {"name": "Case%d" % n, "color": 0, "portrait": 0, "ready": true, "vote": -1, "team": int(t), "role": 0}
 	var got_met = m.menu_lobby_setup._start_minimum_met()
 	var got_reason = m.menu_lobby_setup._start_minimum_reason()
 	if got_met != want_met or got_reason != want_reason:

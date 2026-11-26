@@ -743,7 +743,6 @@ func _update_perftest(delta: float) -> void:
 				p.player_name = "SoakBot%d" % pid
 				p.color_index = i % GameAssets.PLAYER_COLORS.size()
 				p.player_color = GameAssets.PLAYER_COLORS[i % GameAssets.PLAYER_COLORS.size()]
-				p.helmet = 0
 				p.team = -1
 				g.players_node.add_child(p)
 				var spot: Vector2 = spawns[(i + 2) % spawns.size()]

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+ <defs><linearGradient id="rim" x2="0" y2="1"><stop stop-color="#59eaff"/><stop offset=".48" stop-color="#216e9e"/><stop offset="1" stop-color="#122c52"/></linearGradient><linearGradient id="glass" x2="0" y2="1"><stop stop-color="#17283c"/><stop offset="1" stop-color="#0c1728"/></linearGradient></defs>
+ <rect x="5" y="5" width="118" height="118" rx="27" fill="#070e1a" stroke="#050914" stroke-width="5"/>
+ <rect x="9" y="9" width="110" height="110" rx="24" fill="url(#rim)" stroke="#344d73" stroke-width="3"/>
+ <rect x="16" y="16" width="96" height="96" rx="19" fill="url(#glass)" stroke="#080f1d" stroke-width="4"/>
+ <path d="M25 20h35" stroke="#a4f4ff" stroke-opacity=".68" stroke-width="3" stroke-linecap="round"/>
+ <rect x="43" y="38" width="14" height="52" rx="4" fill="#f3fbff"/><rect x="71" y="38" width="14" height="52" rx="4" fill="#f3fbff"/>
+ <path d="M44 40h12M72 40h12" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/>
+ <circle cx="22" cy="64" r="2" fill="#55e8ff"/><circle cx="106" cy="64" r="2" fill="#55e8ff"/>
+</svg>

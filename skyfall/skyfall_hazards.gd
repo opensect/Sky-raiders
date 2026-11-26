@@ -80,15 +80,24 @@ func _sf_update_trapdoors(delta: float) -> void:
 			if g.skyfall_dynamics._sf_player_standing_on(rect):
 				var t := float(td.get("timer", 0.0)) + delta
 				td["timer"] = t
-				if t >= 1.0:
+				# Tint the door as its trigger fills so players get a
+				# visible warning before the floor opens.
+				var warning := clampf(t / 1.25, 0.0, 1.0)
+				var pulse := 0.82 + 0.18 * sin(g._sf_match_time * 18.0)
+				for s in td["sprites"]:
+					(s as Sprite2D).modulate = Color.WHITE.lerp(Color(1.0, 0.52, 0.22), warning * pulse)
+				if t >= 1.25:
 					td["state"] = "open"
-					td["timer"] = 5.0
+					td["timer"] = 4.0
 					if td["shape"] != null:
 						(td["shape"] as CollisionShape2D).set_deferred("disabled", true)
 					for s in td["sprites"]:
+						(s as Sprite2D).modulate = Color.WHITE
 						(s as Sprite2D).texture = GameAssets.SF_TEX_TRAPDOOR_OPEN
 			else:
 				td["timer"] = 0.0
+				for s in td["sprites"]:
+					(s as Sprite2D).modulate = Color.WHITE
 		elif state == "open":
 			var t := float(td.get("timer", 0.0)) - delta
 			td["timer"] = t
@@ -98,6 +107,7 @@ func _sf_update_trapdoors(delta: float) -> void:
 				if td["shape"] != null:
 					(td["shape"] as CollisionShape2D).set_deferred("disabled", false)
 				for s in td["sprites"]:
+					(s as Sprite2D).modulate = Color.WHITE
 					(s as Sprite2D).texture = GameAssets.SF_TEX_TRAPDOOR_CLOSED
 
 
@@ -136,6 +146,26 @@ func _sf_update_rocks(delta: float) -> void:
 		var prev_y: float = node.position.y
 		node.position.y += vel * delta
 		node.rotation += 3.0 * delta
+		# Check player contact before platform contact. Otherwise a rock
+		# landing beside a player's feet is consumed by the platform
+		# first and can pass through the player without applying damage.
+		var hit_player := false
+		var rock_box := Rect2(node.position - Vector2(30, 30), Vector2(60, 60))
+		for child in g.players_node.get_children():
+			if not child.alive:
+				continue
+			var player_box := Rect2(child.position - Vector2(20, 31), Vector2(40, 62))
+			if player_box.intersects(rock_box):
+				if g.multiplayer.is_server() and not g.match_over:
+					_sf_damage_player(child, 25)
+				hit_player = true
+				break
+		if hit_player:
+			_sf_free_rock_marker(r)
+			g.skyfall_dynamics._sf_play_hazard_sound("rock_impact", node.position, 1100.0)
+			node.queue_free()
+			g._sf_rocks.remove_at(i)
+			continue
 		# Land on the first platform top crossed this frame.
 		var landed := false
 		for p in g.MAPS[g.map_id]["platforms"]:
@@ -151,23 +181,6 @@ func _sf_update_rocks(delta: float) -> void:
 			_sf_free_rock_marker(r)
 			g.skyfall_dynamics._sf_play_hazard_sound("rock_impact", node.position, 1100.0)
 			continue
-		# Host-only: 25 damage + knockback on a player hit mid-fall.
-		if g.multiplayer.is_server() and not g.match_over:
-			for child in g.players_node.get_children():
-				if not child.alive:
-					continue
-				var box := Rect2(child.position - Vector2(20, 31), Vector2(40, 62))
-				var rock_box := Rect2(node.position - Vector2(30, 30), Vector2(60, 60))
-				if box.intersects(rock_box):
-					if child.get_multiplayer_authority() == g.multiplayer.get_unique_id():
-						child.take_damage(25, 0)
-					elif g.multiplayer.get_peers().has(child.get_multiplayer_authority()):
-						child.rpc_id(child.get_multiplayer_authority(), "take_damage", 25, 0)
-					_sf_free_rock_marker(r)
-					g.skyfall_dynamics._sf_play_hazard_sound("rock_impact", node.position, 1100.0)
-					node.queue_free()
-					g._sf_rocks.remove_at(i)
-					break
 
 
 func _sf_free_rock_marker(r: Dictionary) -> void:
@@ -217,8 +230,8 @@ func _sf_update_hazards(delta: float) -> void:
 	# the shield blocks it (take_damage), and the health regen
 	# restarts from the hit. Host-only damage; visuals are pure
 	# functions of the match clock so every peer agrees.
-	for h in g._sf_hazard_fx:
-		var hd: Dictionary = h
+	for hazard_index in g._sf_hazard_fx.size():
+		var hd: Dictionary = g._sf_hazard_fx[hazard_index]
 		var cycle := float(hd.get("cycle", 4.0))
 		var hot = fmod(g._sf_match_time, cycle) < cycle * 0.5
 		var flame: Sprite2D = hd["flame"]
@@ -269,10 +282,11 @@ func _sf_update_hazards(delta: float) -> void:
 			if not box.intersects(r):
 				continue
 			var pid := int(child.get_multiplayer_authority())
-			var tick = float(g._sf_hazard_tick.get(pid, 0.0)) - delta
-			g._sf_hazard_tick[pid] = tick
+			var tick_key := "%d:%d" % [hazard_index, pid]
+			var tick = float(g._sf_hazard_tick.get(tick_key, 0.0)) - delta
+			g._sf_hazard_tick[tick_key] = tick
 			if tick <= 0.0:
-				g._sf_hazard_tick[pid] = 1.0
+				g._sf_hazard_tick[tick_key] = 1.0
 				_sf_damage_player(child, 10)
 				g.skyfall_dynamics._sf_play_hazard_sound("fire_burn", child.position, 900.0)
 

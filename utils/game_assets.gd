@@ -189,7 +189,7 @@ const DECOR_INSETS := {"crate": 6, "barrels": 8, "sandbags": 6, "rock": 10,
 	"column": 10,
 	"sb_hut": 10, "sb_hut_pink": 10, "sb_hut_blue": 10, "sb_vent": 10,
 	"sb_vent_orange": 10, "sb_shrine": 10, "sb_block": 10, "sb_hut_green": 10,
-	"sb_crate": 10, "if_crate": 6, "if_barrel": 8, "if_sandbags": 6,
+	"sb_crate": 10, "if_crate": 6, "if_barrel": 8, "if_sandbags": 6, "if_bunker": 10,
 	"sf_tower": 12}
 const DECOR_TEX := {
 	"crate": DECOR_CRATE, "barrels": DECOR_BARRELS, "sandbags": DECOR_SANDBAGS,

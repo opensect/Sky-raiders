@@ -136,7 +136,6 @@ func apply_powerup(kind: int) -> void:
 		_pu_feed("Slots full — power-up lost")
 		return # slots full: consumed, no effect
 	p.stored_boosts.append(kind)
-	p._play_sound("pickup")
 
 
 # QA-132: power-up feedback — a lost pickup or a fired instant
@@ -159,6 +158,10 @@ func _pu_feed(text: String) -> void:
 # the SAME PLATFORM at the SAME HEIGHT — no target, no fire, and
 # the power-up STAYS in its slot (never wasted on thin air).
 func activate_slot(idx: int) -> bool:
+	# Slot input can arrive during the death/respawn transition.
+	# Never consume a stored boost unless its owner is alive in the match.
+	if not p.alive:
+		return false
 	if idx < 0 or idx >= p.stored_boosts.size():
 		return false
 	var kind: int = p.stored_boosts[idx]
@@ -235,13 +238,13 @@ func _apply_instant(kind: int, target: Node2D = null) -> bool:
 # was taken by a new pickup (reference removePrimaryWeapon 0x8eade4 -
 # the dropped weapon becomes a world pickup, thrown forward along
 # the fire angle). Host-only: only the server spawns pickups.
-# The pickup lands 70 px ahead of the player so it is not
-# re-collected the same frame (pickups have no grace period).
+# Dropped pickups get a short pickup grace period, preventing an
+# immediate weapon swap after collecting a new gun.
 # spot_idx -1: a dropped pickup never restarts a spot timer
 # (pickup.gd only calls on_pickup_gone for spot_index >= 0) and
 # despawns after its 20 s life like any weapon pickup.
 func _drop_weapon_pickup(drop_kind: int) -> void:
-	var drop_pos: Vector2 = p.global_position + Vector2(cos(p.aim_angle), sin(p.aim_angle)) * 70.0
+	var drop_pos: Vector2 = p.global_position - Vector2(cos(p.aim_angle), sin(p.aim_angle)) * 110.0
 	if p.multiplayer.is_server():
 		var game = p.get_tree().get_first_node_in_group("game")
 		if game != null:
@@ -412,6 +415,7 @@ func _activate_boost(kind: int) -> void:
 		10:
 			p.jetpack_boost_timer = JETPACK_BOOST_DURATION
 			p.fuel = p.FUEL_MAX
+			p._jetpack_empty_locked = false
 			p._play_sound("jetpack_boost")
 		13:
 			p.invisibility_timer = INVISIBILITY_DURATION

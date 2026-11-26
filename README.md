@@ -4,18 +4,19 @@ A 2D multiplayer shooter for Android, played over local
 Wi-Fi (LAN). No accounts, no online servers, no matchmaking, no ads.
 2–12 players on the same Wi-Fi.
 
-- **6 maps:** Ironfall, Jungle Ruins, Neon City, Volcanic Cavern, Pirate
-  Island, and Skyfall (a vertical tower climb).
+- **5 maps:** Ironfall, Neon City, Volcanic Cavern, Pirate Island, and
+  Skyfall (a vertical tower climb).
 - **6 weapons:** rifle, SMG, shotgun, sniper, rocket launcher, pistol —
   plus grenades.
 - **5 modes:** Free-for-All, Team Deathmatch, Survival, Last Man Standing,
-  and Capture the Flag (Skyfall only — vertical CTF, flag at the summit).
-- **7 power-ups:** Shield, Speed, Health, Jetpack Boost, Wind Blast,
-  Thunder Strike, Invisibility. Pick one up, tap its slot to use it.
+  and Capture the Flag (Skyfall only — vertical CTF, flags at the summit).
+- **6 Skyfall boosts:** Shield, Speed, Jetpack Boost, Wind Blast, Thunder
+  Strike, and Invisibility. Pick one up, then tap its slot to use it.
 - **Jetpack** on every player, host-authoritative combat, kill feed,
   scoreboard, MVP screen, map vote, profiles and room codes (FRAG-XXXX).
+- **Single-player Practice** lets you enter a map without creating a room.
 
-Version: **3.11** (versionCode 19). Package: `com.lanarena.shooter`.
+Version: **4.2** (versionCode 24). Package: `com.lanarena.shooter`.
 Full version history is in [CHANGELOG.md](CHANGELOG.md); the bug/fix log
 is in [BUGS.md](BUGS.md).
 
@@ -35,8 +36,9 @@ No other setup is needed to run it. No accounts, no keys, no servers.
 ## Play on LAN (two phones)
 
 1. Put both phones on the **same Wi-Fi** (a phone hotspot works too).
-2. On phone 1: **Local Multiplayer → Create Room** — pick a map, mode
-   and player limit, then **Create**. The lobby shows the room code
+2. On phone 1: **Local Multiplayer → Create Room** — set the room name
+   and player limit, then **Create**. Choose the map and mode in the lobby.
+   The lobby shows the room code
    (FRAG-XXXX) and the host IP.
 3. On phone 2: **Local Multiplayer → Join Room** — tap the room in the
    list, or type the room code / host IP.
@@ -51,7 +53,7 @@ No other setup is needed to run it. No accounts, no keys, no servers.
 
 ## Build the Android APK
 
-1. In Godot: **Project → Install Android Build Template**, then
+1. In Godot 4.7.2: **Project → Install Android Build Template**, then
    **Editor → Manage Export Templates** and install the 4.7.2 templates.
    (Needs a JDK 17 and the Android SDK — Godot's docs cover the setup:
    https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_android.html)

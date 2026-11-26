@@ -5,6 +5,13 @@ military look, thick dark outline, readable at combat speed, matched to the
 existing `tiles/grass_block.png` (200x58) and `tiles/stone_slab.png` (128x48).
 No existing file under `assets/` was modified. No code/config files touched.
 
+## v4 supply pickup pack (`assets/generated/v4_supply_pack/`)
+
+Three transparent 128x128 SVG pickup illustrations: `field_medkit.svg`,
+`ammo_cache.svg`, and `frag_grenade.svg`. They use the game's dark outline,
+navy shadow, and high-contrast green/amber palette, and are wired into
+`pickups/pickup.gd` for health, weapon, and grenade pickups.
+
 ## Part 1 — Themed platform tiles (`assets/tiles/`, all 128x48 px, RGB, fully opaque)
 
 | File | Size | Description |
