@@ -21,6 +21,8 @@ extends RefCounted
 #   bigger), flash_t (muzzle-flash visible seconds, QA-075),
 #   falloff_min (damage floor at max range, QA-075: per-weapon, the
 #   sniper keeps 0.9x at range while the shotgun drops to 0.5x).
+#   falloff_start (optional per-weapon start distance; defaults to
+#   PhysicsConfig.DAMAGE_FALLOFF_START).
 #
 # weapon ids: 0 rifle, 1 smg, 2 shotgun, 3 sniper, 4 rocket, 5 pistol.
 # The pistol is the starting sidearm (always owned, alongside the rifle).
@@ -51,7 +53,8 @@ const TABLE := {
 	# 30.0/step in addRocket 0x806e5c at 60 Hz (B §8), NOT directly
 	# measured; rocket life 0.7 s is an inference too (1800 x 0.7
 	# ~ 1250 px reach) — see BUGS.md QA-141. Rocket blast radius
-	# stays 120: the reference's rocket blast radius could NOT be extracted.
+	# Rocket, grenade, and barrel splash use the shared 125 px radius
+	# in PhysicsConfig.
 	# Recoil, shake, knockback, flash, falloff_min, auto, gravity
 	# KEPT — reference per-weapon recoil/knockback was not extracted.
 	0: {"name": "Assault Rifle", "damage": 10, "rate": 0.10, "mag": 35, "reload": 2.0, "speed": 1300.0, "spread": 0.07, "pellets": 1, "explosive": false, "sound": "shoot", "recoil": 30.0, "shake": 0.08, "auto": true, "life": 0.62, "gravity": 0.0, "knockback": 60.0, "recoil_k": 0.06, "flash": 1.2, "flash_t": 0.05, "falloff_min": 0.7},
@@ -64,7 +67,7 @@ const TABLE := {
 	# QA-141: SPAS-12 — 6 pellets (was 7), 25 damage per pellet,
 	# each pellet an INDEPENDENT LCG angle in ±10° (the fixed
 	# [-15..15]° offset list is deleted — spec §9 superseded).
-	2: {"name": "Shotgun", "damage": 25, "rate": 0.75, "mag": 4, "reload": 2.5, "speed": 1300.0, "spread": 0.175, "pellets": 6, "explosive": false, "sound": "shotgun", "recoil": 220.0, "shake": 0.35, "auto": false, "life": 0.25, "gravity": 0.0, "knockback": 180.0, "recoil_k": 0.20, "flash": 1.6, "flash_t": 0.08, "falloff_min": 0.5},
+	2: {"name": "Shotgun", "damage": 25, "rate": 0.75, "mag": 4, "reload": 2.5, "speed": 1300.0, "spread": 0.175, "pellets": 6, "explosive": false, "sound": "shotgun", "recoil": 220.0, "shake": 0.35, "auto": false, "life": 0.25, "gravity": 0.0, "knockback": 180.0, "recoil_k": 0.20, "flash": 1.6, "flash_t": 0.08, "falloff_min": 0.5, "falloff_start": 100.0},
 	# QA-141: M93BA — 75 damage, 10000 px/s (≈ hitscan), life 0.15.
 	3: {"name": "Sniper", "damage": 75, "rate": 0.8, "mag": 3, "reload": 2.5, "speed": 10000.0, "spread": 0.0, "pellets": 1, "explosive": false, "sound": "sniper", "recoil": 180.0, "shake": 0.40, "auto": false, "life": 0.15, "gravity": 0.0, "knockback": 220.0, "recoil_k": 0.15, "flash": 1.8, "flash_t": 0.08, "falloff_min": 0.9},
 	# QA-106 (v3.8): rocket flies STRAIGHT in the shooting direction

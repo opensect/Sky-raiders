@@ -351,7 +351,7 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 	var vel: Vector2 = bvel if bvel != Vector2.INF else dir * speed
 	b.setup(pos, dir, speed, damage, kind, owner_id,
 		bool(p.WEAPONS[kind]["explosive"]),
-		120.0 if bool(p.WEAPONS[kind]["explosive"]) else 0.0,
+		PhysicsConfig.EXPLOSION_RADIUS if bool(p.WEAPONS[kind]["explosive"]) else 0.0,
 		float(p.WEAPONS[kind].get("life", 1.4)),
 		shot_no, vel, float(p.WEAPONS[kind].get("gravity", 0.0)))
 	if b.get_parent() == null:

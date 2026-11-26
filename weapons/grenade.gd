@@ -4,7 +4,7 @@ extends CharacterBody2D
 # bounces off platforms and explodes after the 1.75-second fuse.
 
 const FUSE := 1.75 # QA-141: reference fuse 1.75 s (FRAGNADE::updateItemStep 0x62f5b8, was 2.0)
-const BLAST_RADIUS := 125.0 # QA-141: reference Explosion radius 125 (Explosion::applyDamage 0x620168, was 120)
+const BLAST_RADIUS := PhysicsConfig.EXPLOSION_RADIUS # Shared with rockets and barrels.
 # QA-141: no flat BLAST_DAMAGE any more — every explosion uses the
 # reference formula max(10, 100 - 0.8 x dist) (see player_health.gd).
 # The damage argument of request_explosion is legacy and ignored.

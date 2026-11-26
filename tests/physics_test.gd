@@ -615,8 +615,8 @@ func _phys_c_shotgun_table() -> Array:
 	# QA-141: reference SPAS-12 — 6 pellets (was 7), AK47 rate 0.10
 	# (was 0.125), SMAW speed 1800 (was 450, inferred from
 	# 30.0/step), gravity 0 (rocket flies straight, QA-106).
-	var ok: bool = int(w["pellets"]) == 6 and absf(float(WeaponData.TABLE[0]["rate"]) - 0.10) < 0.001 and absf(float(WeaponData.TABLE[4]["speed"]) - 1800.0) < 0.01 and absf(float(WeaponData.TABLE[4]["gravity"]) - 0.0) < 0.01
-	return [ok, "shotgun pellets=%d rifle rate=%.3f rocket speed=%d gravity=%d (want 6 / 0.10 / 1800 / 0 — reference SPAS-12/AK47/SMAW)" % [int(w["pellets"]), float(WeaponData.TABLE[0]["rate"]), int(WeaponData.TABLE[4]["speed"]), int(WeaponData.TABLE[4]["gravity"])]]
+	var ok: bool = int(w["pellets"]) == 6 and absf(float(WeaponData.TABLE[0]["rate"]) - 0.10) < 0.001 and absf(float(WeaponData.TABLE[4]["speed"]) - 1800.0) < 0.01 and absf(float(WeaponData.TABLE[4]["gravity"]) - 0.0) < 0.01 and absf(PhysicsConfig.EXPLOSION_RADIUS - 125.0) < 0.01
+	return [ok, "shotgun pellets=%d rifle rate=%.3f rocket speed=%d gravity=%d blast radius=%.0f (want 6 / 0.10 / 1800 / 0 / 125)" % [int(w["pellets"]), float(WeaponData.TABLE[0]["rate"]), int(WeaponData.TABLE[4]["speed"]), int(WeaponData.TABLE[4]["gravity"]), PhysicsConfig.EXPLOSION_RADIUS]]
 
 
 func _phys_c_damage_calc() -> Array:
@@ -628,13 +628,12 @@ func _phys_c_damage_calc() -> Array:
 	# passes explicit base values). Long range follows the new
 	# table: sniper 60 at 1500 px — max range is now 10000 x 0.15
 	# = 1500, so f = 1.0 and the 0.9 floor gives 54 (was 57 at
-	# 1600 x 1.6 = 2560). Shotgun 9 at 450 px — max range is now
-	# 1300 x 0.25 = 325 < 400, so falloff never starts and it
-	# stays 9 (was 7).
+	# 1600 x 1.6 = 2560). Shotgun starts falloff at 100 px so its
+	# configured 0.5 floor is reached at the 325 px projectile range.
 	var sniper_far: int = lp.calculate_damage(60, "torso", 1500.0, 3)
-	var shotgun_far: int = lp.calculate_damage(9, "torso", 450.0, 2)
-	var ok: bool = head == 18 and torso == 12 and legs == 9 and sniper_far == 54 and shotgun_far == 9
-	return [ok, "rifle 12 dmg: head=%d torso=%d legs=%d (want 18/12/9); sniper 60 @1500px=%d (want 54, floor 0.9); shotgun 9 @450px=%d (want 9, no falloff yet)" % [head, torso, legs, sniper_far, shotgun_far]]
+	var shotgun_far: int = lp.calculate_damage(9, "torso", 325.0, 2)
+	var ok: bool = head == 18 and torso == 12 and legs == 9 and sniper_far == 54 and shotgun_far == 5
+	return [ok, "rifle 12 dmg: head=%d torso=%d legs=%d (want 18/12/9); sniper 60 @1500px=%d (want 54); shotgun 9 @325px=%d (want 5, 0.5 floor)" % [head, torso, legs, sniper_far, shotgun_far]]
 
 
 func _phys_c_explosion_falloff() -> Array:

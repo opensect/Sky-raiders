@@ -241,12 +241,12 @@ func hit_region(hit_pos: Vector2, player_pos: Vector2) -> String:
 func calculate_damage(base: int, region: String, distance: float, weapon_id: int) -> int:
 	var m_region: float = float(PhysicsConfig.REGION_MULT.get(region, 1.0))
 	var m_dist := 1.0
-	if distance > PhysicsConfig.DAMAGE_FALLOFF_START:
-		var w: Dictionary = WeaponData.get_weapon(weapon_id)
-		var max_range := float(w.get("speed", 900.0)) * float(w.get("life", 1.0))
-		if max_range > PhysicsConfig.DAMAGE_FALLOFF_START:
-			var f := clampf((distance - PhysicsConfig.DAMAGE_FALLOFF_START) / (max_range - PhysicsConfig.DAMAGE_FALLOFF_START), 0.0, 1.0)
-			var falloff_min: float = float(w.get("falloff_min", PhysicsConfig.DAMAGE_FALLOFF_MIN))
-			m_dist = lerpf(1.0, falloff_min, f)
+	var w: Dictionary = WeaponData.get_weapon(weapon_id)
+	var falloff_start := float(w.get("falloff_start", PhysicsConfig.DAMAGE_FALLOFF_START))
+	var max_range := float(w.get("speed", 900.0)) * float(w.get("life", 1.0))
+	if distance > falloff_start and max_range > falloff_start:
+		var f := clampf((distance - falloff_start) / (max_range - falloff_start), 0.0, 1.0)
+		var falloff_min: float = float(w.get("falloff_min", PhysicsConfig.DAMAGE_FALLOFF_MIN))
+		m_dist = lerpf(1.0, falloff_min, f)
 	var m_weapon: float = float(WeaponData.get_weapon(weapon_id).get("damage_mult", 1.0))
 	return int(round(float(base) * m_region * m_dist * m_weapon))

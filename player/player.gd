@@ -23,20 +23,20 @@ extends CharacterBody2D
 const PLAYER_SCALE := 1.20 # QA-071b: user correction 2026-11-19 ~19:13 - 'bigger' means MODESTLY bigger, not 1.30x
 const CAPSULE_RADIUS := 20.0
 const CAPSULE_HEIGHT := 62.0
-const SPEED := 300.0 # Walking speed, mirrored in PhysicsConfig.
-const ACCEL := 900.0 # QA-141: reference headroom initial 3.0 x 300 (was 2600)
-const DECEL := 3400.0 # retained as tuning reference only; reference drag is the real stopper
-const SPEED_GROUND := 300.0
-const SPEED_AIR := 300.0
-const ACCEL_GROUND := 900.0
-const ACCEL_AIR := 900.0
-const DECEL_GROUND := 3400.0
-const DECEL_AIR := 900.0
-const REVERSAL_GROUND := 1.0 # QA-141: reference has no reversal bonus (was 1.6)
-const REVERSAL_AIR := 1.0 # QA-141: reference has no reversal bonus (was 1.2)
-const DRAG_GROUND := 8.0 # Strong ground stopping to prevent post-input sliding.
-const DRAG_AIR := 1.2 # Keep controlled momentum in the air.
-const JUMP_VELOCITY := -220.0 # QA-141: reference jump impulse 22.0 / mass 0.1 (was -660)
+const SPEED := PhysicsConfig.SPEED_GROUND
+const ACCEL := PhysicsConfig.ACCEL_GROUND
+const DECEL := PhysicsConfig.DECEL_GROUND # tuning reference; drag is the active stopper
+const SPEED_GROUND := PhysicsConfig.SPEED_GROUND
+const SPEED_AIR := PhysicsConfig.SPEED_AIR
+const ACCEL_GROUND := PhysicsConfig.ACCEL_GROUND
+const ACCEL_AIR := PhysicsConfig.ACCEL_AIR
+const DECEL_GROUND := PhysicsConfig.DECEL_GROUND
+const DECEL_AIR := PhysicsConfig.DECEL_AIR
+const REVERSAL_GROUND := PhysicsConfig.REVERSAL_GROUND
+const REVERSAL_AIR := PhysicsConfig.REVERSAL_AIR
+const DRAG_GROUND := PhysicsConfig.DRAG_GROUND
+const DRAG_AIR := PhysicsConfig.DRAG_AIR
+const JUMP_VELOCITY := PhysicsConfig.JUMP_VELOCITY
 # QA-141 (reference port): mirrors PhysicsConfig — change both
 # files together. reference values: JET_ACCEL 450, MAX_JET_RISE 190,
 # FUEL_MAX 100 (4.76 s tank — supersedes QA-132's 9 s tank),
@@ -46,18 +46,18 @@ const JUMP_VELOCITY := -220.0 # QA-141: reference jump impulse 22.0 / mass 0.1 (
 # regen was not found. Old values: JET_ACCEL 1650, MAX_JET_RISE
 # 320, FUEL_REFILL 50, FUEL_REFILL_AIR 25, FUEL_REGEN_DELAY 0.5
 # (QA-074 ramp 0.75 -> 1.0 over 0.35 s; QA-132 FUEL_MAX 405).
-const JET_ACCEL := 450.0
-const MAX_JET_RISE := 190.0
-const JET_AIR_ACCEL := 450.0 # reference thrusting initial accel 1.5 x 300 (was 1900)
-const GRAVITY := 300.0
-const GRAVITY_THRUSTING := 50.0 # QA-141: reference owner gravity while thrusting
-const MAX_FALL := 600.0
-const FUEL_MAX := 100.0 # QA-141: reference 100 fuel (was 405)
-const FUEL_DRAIN := 21.0 # QA-141: reference max 21/s x thrustFactor (was 45)
-const FUEL_REFILL := 50.0
-const FUEL_REFILL_AIR := 25.0
-const FUEL_REGEN_DELAY := 0.5
-const MASS := 1.0
+const JET_ACCEL := PhysicsConfig.JET_ACCEL
+const MAX_JET_RISE := PhysicsConfig.MAX_JET_RISE
+const JET_AIR_ACCEL := PhysicsConfig.JET_AIR_ACCEL
+const GRAVITY := PhysicsConfig.GRAVITY
+const GRAVITY_THRUSTING := PhysicsConfig.GRAVITY_THRUSTING
+const MAX_FALL := PhysicsConfig.MAX_FALL
+const FUEL_MAX := PhysicsConfig.FUEL_MAX
+const FUEL_DRAIN := PhysicsConfig.FUEL_DRAIN
+const FUEL_REFILL := PhysicsConfig.FUEL_REFILL_GROUND
+const FUEL_REFILL_AIR := PhysicsConfig.FUEL_REFILL_AIR
+const FUEL_REGEN_DELAY := PhysicsConfig.FUEL_REGEN_DELAY
+const MASS := PhysicsConfig.MASS
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER := 0.12
 # AIM_DEAD_ZONE is kept only as documentation: reference has NO dead zone
