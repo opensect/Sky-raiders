@@ -226,7 +226,7 @@ func _update_gameshots(delta: float) -> void:
 				lp4.apply_powerup(8)
 				lp4.apply_powerup(10)
 				lp4.apply_powerup(13) # QA-143 (v4.0): Health Potion (7) removed — Invisibility fills the third slot
-				g._do_spawn(201, "InvisBot", 1, 0, -1)
+				g._do_spawn(201, "InvisBot", 1, -1)
 				var bot4 = g.players_node.get_node_or_null("201")
 				if bot4 != null:
 					bot4.set("invisibility_timer", 30.0)
@@ -740,7 +740,7 @@ func _update_skyfallshots(delta: float) -> void:
 				# shot shows a live effect (shield ring + active
 				# boost label), not just filled slots.
 				lp.activate_slot(0)
-				g._do_spawn(201, "InvisBot", 1, 0, 1)
+				g._do_spawn(201, "InvisBot", 1, 1)
 				var sf_bot = g.players_node.get_node_or_null("201")
 				if sf_bot != null:
 					sf_bot.set("invisibility_timer", 30.0)

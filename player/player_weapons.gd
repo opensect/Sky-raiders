@@ -48,11 +48,9 @@ func _apply_aim_and_fire(delta: float) -> void:
 		if absf(cos(p.aim_angle)) > 0.05:
 			p.facing = -1 if cos(p.aim_angle) < 0.0 else 1
 	elif p._move_axis != 0.0:
-		# Keep the body, hand anchor, and weapon pointing the same way
-		# while moving without aim input. This pair is replicated in
-		# each movement snapshot for remote players.
+		# GAP-08: only the FACING follows movement when not aiming;
+		# aim_angle is left untouched so the gun holds its last aim.
 		p.facing = -1 if p._move_axis < 0.0 else 1
-		p.aim_angle = PI if p.facing < 0 else 0.0
 	p._fire_cooldown -= delta
 	p._grenade_cooldown -= delta
 	if p.reloading:

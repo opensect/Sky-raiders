@@ -41,7 +41,7 @@ func _update_workerVshots(delta: float) -> void:
 		# peer ids so the local row shows ► + (YOU).
 		var lp = g._get_local_player()
 		if lp == null:
-			g._do_spawn(1, "Player", 0, 0, 0)
+			g._do_spawn(1, "Player", 0, 0)
 			lp = g._get_local_player()
 		if lp != null:
 			lp.team = 0

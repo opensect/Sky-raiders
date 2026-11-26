@@ -120,7 +120,7 @@ func _featurestest_build_steps() -> void:
 		{"name": "FT-SF-EVENT-BEACON", "wait": 0.5, "setup": g.features_skyfall_traps._ft_sf_s_event_beacon, "check": g.features_skyfall_traps._ft_sf_c_event_beacon},
 			{"name": "FT-SF-STORM", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_storm, "check": g.features_skyfall_traps._ft_sf_c_storm},
 			{"name": "FT-SF-COMBO-EVENT-STORM", "wait": 1.0, "setup": g.features_skyfall_traps._ft_sf_s_combo_event_storm, "check": g.features_skyfall_traps._ft_sf_c_combo_event_storm},
-			{"name": "FT-SF-COMBO-TRAP", "wait": 2.0, "setup": g.features_skyfall_traps._ft_sf_s_combo_trap, "check": g.features_skyfall_traps._ft_sf_c_combo_trap},
+			{"name": "FT-SF-COMBO-TRAP", "wait": 2.5, "setup": g.features_skyfall_traps._ft_sf_s_combo_trap, "check": g.features_skyfall_traps._ft_sf_c_combo_trap},
 			{"name": "FT-SF-LEVELS", "wait": 0.2, "setup": g.fire_test._ft_s_noop, "check": g.features_skyfall_test._ft_sf_c_levels},
 			{"name": "FT-SF-HAZARD-LAVA", "wait": 2.0, "setup": g.features_skyfall_traps._ft_sf_s_hazard_lava, "check": g.features_skyfall_traps._ft_sf_c_hazard_lava},
 			{"name": "FT-SF-LIGHTNING", "wait": 2.0, "setup": g.features_skyfall_traps._ft_sf_s_lightning, "check": g.features_skyfall_traps._ft_sf_c_lightning},

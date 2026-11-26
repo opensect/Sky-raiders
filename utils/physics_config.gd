@@ -88,8 +88,8 @@ const DECEL_GROUND := 3400.0 # retained as tuning reference only; drag is the re
 const DECEL_AIR := 900.0 # retained as tuning reference only
 const REVERSAL_GROUND := 1.0 # QA-141: reference has no reversal bonus (was 1.6)
 const REVERSAL_AIR := 1.0 # QA-141: reference has no reversal bonus (was 1.2)
-const DRAG_GROUND := 8.0 # Strong ground stopping to prevent post-input sliding.
-const DRAG_AIR := 1.2 # Keep controlled momentum in the air.
+const DRAG_GROUND := 0.6 # QA-141 reference damping ln(1/0.55) = 0.598/s. The 8.0 value capped top speed at ~82 px/s: the headroom accel (rate = 3 x (300 - v)) cannot overcome 8.0 drag, so the player never reached the 300 top speed — restored.
+const DRAG_AIR := 0.6 # Same reference damping in the air (was 1.2).
 const GRAVITY := 300.0
 const GRAVITY_THRUSTING := 50.0 # QA-141: reference owner gravity while thrusting (0,-50)
 const MAX_FALL := 600.0

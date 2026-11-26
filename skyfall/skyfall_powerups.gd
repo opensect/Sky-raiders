@@ -267,7 +267,11 @@ func _update_skyfall_powerups(delta: float) -> void:
 		return
 	if not g._sf_initial_powerups_done:
 		g._sf_initial_powerups_done = true
-		var initial_spots: Array = g.SF_POWERUP_INITIAL_SPOTS if g.map_id == GameData.SKYFALL_MAP_ID else range(mini(3, spots.size()))
+		# Non-Skyfall maps start with exactly 3 weapon pickups and
+		# NO power-ups (P00): power-ups must stay rarer than
+		# weapons, so they trickle in over time via the cooldown
+		# loop below instead of bursting at match start.
+		var initial_spots: Array = g.SF_POWERUP_INITIAL_SPOTS if g.map_id == GameData.SKYFALL_MAP_ID else []
 		for si in initial_spots:
 			_spawn_skyfall_powerup(si)
 		for i in spots.size():

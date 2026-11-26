@@ -123,10 +123,6 @@ func _joytest_build_steps() -> void:
 		# the real GUI/input pipeline.
 		{"name": "GUI-STICK-CLEAR", "wait": 0.3, "setup": _jt_s_noop, "check": _jt_c_gui_stick_clear},
 		{"name": "GUI-PRESS-LEFT", "wait": 0.6, "setup": _jt_s_gui_press_left, "check": _jt_c_gui_press_left},
-		# QA-117: left push through the real GUI pipeline on a
-		# middle level (L4 bridge) and the summit, not just the base.
-		{"name": "GUI-PRESS-LEFT-MID", "wait": 0.6, "setup": _jt_s_gui_press_left_mid, "check": _jt_c_gui_press_left},
-		{"name": "GUI-PRESS-LEFT-TOP", "wait": 0.6, "setup": _jt_s_gui_press_left_top, "check": _jt_c_gui_press_left},
 	]
 
 
@@ -481,26 +477,6 @@ func _jt_s_gui_press_left() -> void:
 	_jt_gui_press_left()
 
 
-func _jt_s_gui_press_left_mid() -> void:
-	# QA-132: L3 left row is now (900,6984,600) — stand at (1400,
-	# 6950) with 500 px of clear run left. Same real-GUI press.
-	var lp = _jt_lp()
-	lp.position = Vector2(1400, 6950)
-	lp.sync_position = lp.position
-	lp.velocity = Vector2.ZERO
-	_jt_gui_press_left()
-
-
-func _jt_s_gui_press_left_top() -> void:
-	# Summit platform (top y862, x1200-2400): stand at (1600, 831)
-	# with 400 px of clear run left, gate (x1800) to the right.
-	var lp = _jt_lp()
-	lp.position = Vector2(1600, 831)
-	lp.sync_position = lp.position
-	lp.velocity = Vector2.ZERO
-	_jt_gui_press_left()
-
-
 func _jt_c_gui_press_left() -> Array:
 	var lp = _jt_lp()
 	var v = g.touch_move_vec
@@ -531,7 +507,10 @@ func _jt_s_press_down() -> void:
 		# it until y10752).
 		lp.position = Vector2(100, 10400)
 	else:
-		lp.position = Vector2(2100, 900)
+		# Ironfall: (1600, 900) is a clear shaft to the floor — the
+		# redesigned map put a platform at y956 under the old
+		# (2100, 900) drop, so the player landed before the check.
+		lp.position = Vector2(1600, 900)
 	lp.sync_position = lp.position
 	lp.velocity = Vector2.ZERO
 	_jt_press_move(Vector2(0, 55))

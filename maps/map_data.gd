@@ -45,7 +45,7 @@ const MAPS := [
 			Rect2(450, 428, 520, 48), Rect2(2230, 428, 520, 48),
 			Rect2(600, 330, 350, 48), Rect2(2250, 330, 350, 48),
 		],
-		"spawns": [Vector2(220, 1318), Vector2(470, 1318), Vector2(720, 1318), Vector2(970, 1318), Vector2(1220, 1318), Vector2(1470, 1318), Vector2(2980, 1318), Vector2(2730, 1318), Vector2(2480, 1318), Vector2(2230, 1318), Vector2(1980, 1318), Vector2(1730, 1318)],
+		"spawns": [Vector2(220, 1318), Vector2(470, 1318), Vector2(720, 1318), Vector2(970, 1318), Vector2(1220, 1318), Vector2(1470, 1318), Vector2(2980, 1318), Vector2(2730, 1318), Vector2(2480, 1318), Vector2(2230, 1318), Vector2(1900, 1318), Vector2(1730, 1318)],
 		"pickups": [Vector2(350, 1188), Vector2(2850, 1188), Vector2(1120, 924), Vector2(2080, 924), Vector2(1350, 660), Vector2(1850, 660)],
 		"powerup_spots": [[1100, 924, 8], [2100, 924, 11], [1600, 660, 9]],
 		"decor": [

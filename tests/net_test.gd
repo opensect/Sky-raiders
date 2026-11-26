@@ -392,9 +392,10 @@ func _nt_s_spawn_idem() -> void:
 	# requests must still leave exactly one local player. (The
 	# host's _announce_ready is a no-op — it spawned via
 	# _spawn_self — so the handler is exercised directly here.)
-	g.request_spawn(1, "Host", 0, 0)
-	g.request_spawn(1, "Host", 0, 0)
-	g.request_spawn(1, "Host", 0, 0)
+	# request_spawn no longer takes a helmet_style arg (removed with the helmet) — version defaults to "".
+	g.request_spawn(1, "Host", 0)
+	g.request_spawn(1, "Host", 0)
+	g.request_spawn(1, "Host", 0)
 
 
 func _nt_s_survival() -> void:

@@ -329,7 +329,7 @@ func _ft_sf_s_path(kind: int) -> void:
 	g._spawn_skyfall_powerup(si)
 	var spot: Array = (g.MAPS[g.map_id].get("skyfall_pickups", []) as Array)[si]
 	if kind == 11 or kind == 12:
-		g._do_spawn(202, "PathBot", 1, 0, 1)
+		g._do_spawn(202, "PathBot", 1, 1)
 		var b = g.players_node.get_node_or_null("202")
 		if b != null:
 			# QA-132 fix: +150 px, NOT +300 — +300 put the bot on
@@ -518,7 +518,7 @@ func _ft_sf_c_slot_grey_carrier() -> Array:
 func _ft_sf_s_invis_warn() -> void:
 	# QA-121 (v3.11): a living invisible ENEMY puts the red chip
 	# at the top of the top-left message area.
-	g._do_spawn(201, "InvisBot", 1, 0, 1) # BLUE enemy
+	g._do_spawn(201, "InvisBot", 1, 1) # BLUE enemy
 	var bot = g.players_node.get_node_or_null("201")
 	if bot != null:
 		bot.set("invisibility_timer", 10.0)
@@ -565,7 +565,10 @@ func _ft_sf_c_levels() -> Array:
 
 
 func _ft_sf_s_heightbar() -> void:
-	g.fire_test._ft_teleport(Vector2(1800, 2660)) # Level 5
+	# v4.2: the redesigned Skyfall put the L5 platform at y2644
+	# (x1500-2100), so (1800, 2660) is INSIDE it — teleport 44 px
+	# above the platform top instead so the player lands on it.
+	g.fire_test._ft_teleport(Vector2(1800, 2600)) # Level 5
 
 
 func _ft_sf_c_heightbar() -> Array:
@@ -691,7 +694,7 @@ func _ft_sf_s_pu_target(kind: int, bot_y: float) -> void:
 	lp.sync_position = lp.position
 	lp.call("apply_powerup", kind)
 	if bot_y > -900.0:
-		g._do_spawn(202, "PathBot", 1, 0, 1)
+		g._do_spawn(202, "PathBot", 1, 1)
 		var b = g.players_node.get_node_or_null("202")
 		if b != null:
 			b.position = Vector2(float(spot[0]) + 150.0, float(spot[1]) + bot_y)
@@ -870,7 +873,7 @@ func _ft_sf_s_pu_seam() -> void:
 	lp.velocity = Vector2.ZERO
 	lp.sync_position = lp.position
 	lp.call("apply_powerup", 11)
-	g._do_spawn(202, "PathBot", 1, 0, 1)
+	g._do_spawn(202, "PathBot", 1, 1)
 	var b = _ft_sf_bot_by_peer(202)
 	if b != null:
 		b.team = 1 # enemy, whatever _do_spawn picked (see note above)
@@ -933,7 +936,7 @@ func _ft_sf_s_pu_mover() -> void:
 	for pid in [201, 202]:
 		g._spawned.erase(pid)
 	lp.call("apply_powerup", 12)
-	g._do_spawn(202, "PathBot", 1, 0, 1)
+	g._do_spawn(202, "PathBot", 1, 1)
 	var b = _ft_sf_bot_by_peer(202)
 	if b != null:
 		b.team = 1 # enemy, whatever _do_spawn picked (see note above)
@@ -1009,7 +1012,7 @@ func _ft_sf_s_thunder_rule(lp_pos: Vector2, bot_pos: Vector2) -> void:
 	lp.velocity = Vector2.ZERO
 	lp.sync_position = lp.position
 	lp.call("apply_powerup", 12)
-	g._do_spawn(202, "PathBot", 1, 0, 1)
+	g._do_spawn(202, "PathBot", 1, 1)
 	var b = _ft_sf_bot_by_peer(202)
 	if b != null:
 		b.team = 1
@@ -1135,7 +1138,7 @@ func _ft_sf_s_thunder_trap_l5() -> void:
 	lp.position = Vector2(1800.0, 2753.0)
 	lp.velocity = Vector2.ZERO
 	lp.sync_position = lp.position
-	g._do_spawn(202, "PathBot", 1, 0, 1)
+	g._do_spawn(202, "PathBot", 1, 1)
 	var b = _ft_sf_bot_by_peer(202)
 	if b != null:
 		b.team = 1
@@ -1202,9 +1205,9 @@ func _ft_sf_s_5v5() -> void:
 		if String(child.player_name).begins_with("TestBot"):
 			child.queue_free()
 	for i in range(1, 5):
-		g._do_spawn(100 + i, "TestBot%d" % i, i % 4, 0, 0)
+		g._do_spawn(100 + i, "TestBot%d" % i, i % 4, 0)
 	for i in range(5, 10):
-		g._do_spawn(100 + i, "TestBot%d" % i, i % 4, 0, 1)
+		g._do_spawn(100 + i, "TestBot%d" % i, i % 4, 1)
 
 
 func _ft_sf_c_5v5() -> Array:

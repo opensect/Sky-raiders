@@ -332,10 +332,11 @@ func _phys_s_fall() -> void:
 	# x=1800 is worse, it lands on the summit gate box (top
 	# y=484, ~130 px fall, reads 513-583). Scan for the longest
 	# clear drop from y=300 instead (platforms + solid decor +
-	# gate box); the other five maps keep x=1000.
-	var fall_x := 1000.0
-	if g.map_id == GameData.SKYFALL_MAP_ID:
-		fall_x = _phys_longest_drop_x(300.0)
+	# gate box). v4.2: the redesigned Ironfall put a platform at
+	# y824 under the old x=1000 drop (only ~524 px of fall, max
+	# vy ~281), so the scan now runs on EVERY map, not just
+	# Skyfall — the other maps keep a long clear drop.
+	var fall_x := _phys_longest_drop_x(300.0)
 	_phys_teleport(Vector2(fall_x, 300))
 	_phys_data["max_vy"] = 0.0
 	_phys_data["track_max_vy"] = true
@@ -784,7 +785,8 @@ func _phys_c_pool() -> Array:
 
 func _phys_c_version() -> Array:
 	# A mismatched build must be refused at join (GAP-61).
-	g.request_spawn(999, "BadBuild", 0, 0, "0.0-wrong")
+	# request_spawn no longer takes a helmet_style arg (removed with the helmet) — version is arg 4 now.
+	g.request_spawn(999, "BadBuild", 0, "0.0-wrong")
 	var ok: bool = not g._spawned.has(999)
 	return [ok, "spawn with version 0.0-wrong refused=%s (want true)" % str(ok)]
 

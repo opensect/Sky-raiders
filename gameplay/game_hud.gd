@@ -182,10 +182,11 @@ func _update_skyfall_hud() -> void:
 			btn.icon = GameAssets.SF_TEX_PU64.get(kind, GameAssets.SF_TEX_SLOT[i])
 			var timed := kind in [8, 9, 10, 13]
 			var blocked := timed and (ab0 != 0 or carrying)
-			# Keep blocked slots tappable so the player gets a reason
-			# instead of a dead button. The activation handler leaves
-			# the stored power-up untouched and shows the restriction.
-			btn.disabled = false
+			# Blocked slots are disabled (the test contract): a
+			# timed kind cannot be tapped while another boost is
+			# active or while carrying the flag. The grey modulate
+			# and tooltip still explain the restriction.
+			btn.disabled = blocked
 			btn.modulate = Color(0.62, 0.66, 0.72) if blocked else Color.WHITE
 			var power_name: String = str(POWERUP_NAMES.get(kind, "Power-up"))
 			btn.tooltip_text = "%s — tap to activate%s" % [power_name, " (another boost is active)" if ab0 != 0 and timed else (" (drop the flag first)" if carrying and timed else "")]
