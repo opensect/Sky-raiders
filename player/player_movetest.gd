@@ -27,7 +27,7 @@ func _movetest_pre_tick(delta: float) -> void:
 		print("MOVETEST DEAD: FAIL - local player died mid-test")
 		_movetest_finish()
 		return
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game != null and bool(game.get("match_over")):
 		print("MOVETEST MATCH-OVER: FAIL - match ended mid-test")
 		_movetest_finish()

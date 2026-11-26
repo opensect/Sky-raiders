@@ -143,7 +143,7 @@ func apply_powerup(kind: int) -> void:
 # goes through the game scene, into the same top-left message area
 # as every other notice. No game node (menu / unit test) = silent.
 func _pu_feed(text: String) -> void:
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game != null and game.has_method("_ctf_feed"):
 		game._ctf_feed(text, Color(1.0, 0.8, 0.2))
 
@@ -174,7 +174,7 @@ func activate_slot(idx: int) -> bool:
 		_activate_boost(kind)
 		return true
 	if kind == 11 or kind == 12:
-		var game0 = p.get_tree().get_first_node_in_group("game")
+		var game0 = p.get_game_node()
 		var tgt: Node2D = null
 		if game0 != null and game0.has_method("_sf_find_powerup_target"):
 			tgt = game0._sf_find_powerup_target(p, kind)
@@ -246,7 +246,7 @@ func _apply_instant(kind: int, target: Node2D = null) -> bool:
 func _drop_weapon_pickup(drop_kind: int) -> void:
 	var drop_pos: Vector2 = p.global_position - Vector2(cos(p.aim_angle), sin(p.aim_angle)) * 110.0
 	if p.multiplayer.is_server():
-		var game = p.get_tree().get_first_node_in_group("game")
+		var game = p.get_game_node()
 		if game != null:
 			game.game_pickups.spawn_dropped_pickup(drop_pos, drop_kind)
 	else:
@@ -264,7 +264,7 @@ func request_weapon_drop(kind: int, pos: Vector2) -> void:
 		return
 	if kind < 0 or kind > 4:
 		return
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return
 	game.game_pickups.spawn_dropped_pickup(pos, kind)
@@ -283,7 +283,7 @@ func request_wind_blast(target_peer: int) -> void:
 	var sender = p.multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != p.get_multiplayer_authority():
 		return
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return
 	var target: Node2D = game.players_node.get_node_or_null(str(target_peer))
@@ -300,7 +300,7 @@ func request_thunder_strike(target_peer: int) -> void:
 	var sender = p.multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != p.get_multiplayer_authority():
 		return
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return
 	var target: Node2D = game.players_node.get_node_or_null(str(target_peer))
@@ -325,7 +325,7 @@ func request_thunder_strike(target_peer: int) -> void:
 # Returns true when the blast fired, false when the target failed
 # re-validation (the caller refunds the slot — QA-143).
 func _do_wind_blast(target: Node2D) -> bool:
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null or target == null or not is_instance_valid(target):
 		return false
 	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(p, target, 11):
@@ -380,7 +380,7 @@ func apply_wind_sweep(centre: Vector2, throw_vec: Vector2) -> void:
 # Returns true when the strike fired, false when the target failed
 # re-validation (the caller refunds the slot — QA-143).
 func _do_thunder_strike(target: Node2D) -> bool:
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null or target == null or not is_instance_valid(target):
 		return false
 	if game.has_method("_sf_validate_powerup_target") and not game._sf_validate_powerup_target(p, target, 12):

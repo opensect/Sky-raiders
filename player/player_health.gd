@@ -71,7 +71,7 @@ func _apply_damage(amount: int, from_id: int, dir: Vector2, knockback: float, ev
 		p._play_anim("die")
 		p._stop_jetpack_sound()
 		p._play_sound("death")
-		var game2 = p.get_tree().get_first_node_in_group("game")
+		var game2 = p.get_game_node()
 		if game2 != null and int(game2.game_mode) == 2:
 			p._round_dead = true
 
@@ -147,7 +147,7 @@ func _tick_health_regen(delta: float) -> void:
 
 
 func _respawn() -> void:
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	var spot := Vector2.INF
 	if game != null:
 		spot = game.get_valid_spawn_point(p.player_index, p.peer_id)
@@ -205,7 +205,7 @@ func _respawn() -> void:
 	p._grapple_cooldown = 0.0
 	p._wall_jumps_used = 0
 	p._on_jetpack_line = false
-	var game0 = p.get_tree().get_first_node_in_group("game")
+	var game0 = p.get_game_node()
 	if game0 != null:
 		game0.consume_aim_fire_edge()
 	p.position = spot

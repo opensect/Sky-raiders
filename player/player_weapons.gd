@@ -35,7 +35,7 @@ func _apply_aim_and_fire(delta: float) -> void:
 	if p._grappling:
 		p._want_fire = false
 		p._fire_edge = false
-		var game_g = p.get_tree().get_first_node_in_group("game")
+		var game_g = p.get_game_node()
 		if game_g != null:
 			game_g.consume_aim_fire_edge()
 		p._update_anim()
@@ -66,7 +66,7 @@ func _apply_aim_and_fire(delta: float) -> void:
 			p._reload_transfer = 0
 		# A flick during reload does nothing - discard the edge so it
 		# cannot fire a shot the moment the reload finishes.
-		var game_r = p.get_tree().get_first_node_in_group("game")
+		var game_r = p.get_game_node()
 		if game_r != null:
 			game_r.consume_aim_fire_edge()
 	elif p._fire_cooldown <= 0.0:
@@ -88,7 +88,7 @@ func _apply_aim_and_fire(delta: float) -> void:
 			_fire()
 			# The shot has consumed the flick (semi) / any stale edge
 			# (auto) - one edge, one shot, never more.
-			var game_f = p.get_tree().get_first_node_in_group("game")
+			var game_f = p.get_game_node()
 			if game_f != null:
 				game_f.consume_aim_fire_edge()
 	p._update_anim()
@@ -277,7 +277,7 @@ func switch_weapon() -> void:
 	p._switch_dip_timer = 0.15
 	# v3.2: a pending semi-auto flick belongs to the old weapon - drop
 	# it so switching cannot fire a shot nobody asked for.
-	var game_sw = p.get_tree().get_first_node_in_group("game")
+	var game_sw = p.get_game_node()
 	if game_sw != null:
 		game_sw.consume_aim_fire_edge()
 	p._update_gun_texture()
@@ -337,12 +337,12 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 	if p.multiplayer.is_server():
 		var sender = p.multiplayer.get_remote_sender_id()
 		if sender != 0 and sender != p.multiplayer.get_unique_id():
-			var game = p.get_tree().get_first_node_in_group("game")
+			var game = p.get_game_node()
 			var shooter = game.players_node.get_node_or_null(str(sender)) if game != null else null
 			var rep_mag: int = shooter.mag_ammo if shooter != null else 0
 			if game == null or not game.shooting_sync.validate_shot(sender, kind, rep_mag):
 				return
-	var game2 = p.get_tree().get_first_node_in_group("game")
+	var game2 = p.get_game_node()
 	if game2 == null:
 		return
 	var b = game2.obtain_bullet()
@@ -359,7 +359,7 @@ func spawn_bullet(pos: Vector2, dir: Vector2, speed: float, damage: int, kind: i
 
 
 func spawn_grenade(pos: Vector2, dir: Vector2, owner_id: int, thrower_vel: Vector2 = Vector2.ZERO, aimed: bool = false) -> void:
-	var node = p.get_tree().get_first_node_in_group("game")
+	var node = p.get_game_node()
 	if node == null:
 		return
 	var g = p.GRENADE_SCENE.instantiate()

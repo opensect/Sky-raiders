@@ -18,6 +18,7 @@ const DEFAULT_SIZE := 96
 var _pool: Array = []
 var _scene: PackedScene
 var _parent: Node
+var _next_index: int = 0
 
 
 func _init(scene: PackedScene, parent: Node, pool_size: int = DEFAULT_SIZE) -> void:
@@ -34,9 +35,13 @@ func _init(scene: PackedScene, parent: Node, pool_size: int = DEFAULT_SIZE) -> v
 
 
 func obtain() -> Node:
-	for b in _pool:
+	var count := _pool.size()
+	for offset in count:
+		var index := (_next_index + offset) % count
+		var b = _pool[index]
 		if not b.active:
 			b.active = true
+			_next_index = (index + 1) % count
 			return b
 	# Pool exhausted (very heavy fire): allocate a one-off bullet.
 	var extra = _scene.instantiate()

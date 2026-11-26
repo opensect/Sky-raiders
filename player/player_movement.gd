@@ -38,7 +38,7 @@ func _physics_process(delta: float) -> void:
 		p._recoil_accum *= exp(-3.0 * delta)
 		if p._recoil_accum < 0.001:
 			p._recoil_accum = 0.0
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game != null and game.match_over:
 		# Match over: stand still, idle animation only.
 		p.velocity = Vector2.ZERO
@@ -60,7 +60,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				# Last Man Standing: one life, no respawn. Survival: no
 				# respawn until the host resets the round.
-				var game3 = p.get_tree().get_first_node_in_group("game")
+				var game3 = p.get_game_node()
 				var mode3: int = int(game3.game_mode) if game3 != null else 0
 				if mode3 != 3 and not (mode3 == 2 and p._round_dead):
 					p._respawn_timer -= delta
@@ -213,7 +213,7 @@ func _apply_movement(delta: float) -> void:
 	# 300 (50 while thrusting), no reversal bonus. Ground/air split
 	# + ice zone (GAP-02/51) stay; only the numbers/model changed.
 	var on_floor = p.is_on_floor()
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	var on_ice := false
 	if game != null and on_floor:
 		on_ice = game.is_on_ice(p.global_position)
@@ -450,12 +450,12 @@ func _apply_movement(delta: float) -> void:
 	if p.is_on_floor():
 		p._jump_cut_armed = false
 	if p.is_on_floor() and not p._was_on_floor and p._fall_speed > 550.0:
-		var game2 = p.get_tree().get_first_node_in_group("game")
+		var game2 = p.get_game_node()
 		if game2 != null:
 			game2.spawn_dust_fx(p.global_position + Vector2(0, 31))
 	# Fall-out-of-map recovery: also catch falling below the LEFT/RIGHT
 	# boundary (x < -200 or x > map_size.x + 200) to handle map edge glitches.
-	var game3 = p.get_tree().get_first_node_in_group("game")
+	var game3 = p.get_game_node()
 	if game3 != null:
 		var ms: Vector2 = game3.map_size
 		if p.position.y > ms.y + 200.0 or p.position.x < -200.0 or p.position.x > ms.x + 200.0:
@@ -475,7 +475,7 @@ func _read_input() -> void:
 	p._want_fire = false
 	p._aiming = false
 
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return
 	# Touch input from the game (joysticks). The left stick is a full 2D
@@ -582,7 +582,7 @@ func _update_ladder() -> void:
 	if scene != null and scene.has_method("skyfall_ladder_at"):
 		rect = scene.skyfall_ladder_at(p.global_position)
 	if rect == Rect2():
-		var game = p.get_tree().get_first_node_in_group("game")
+		var game = p.get_game_node()
 		if game != null and game.has_method("skyfall_ladder_at"):
 			rect = game.skyfall_ladder_at(p.global_position)
 	if rect == Rect2():
@@ -693,7 +693,7 @@ func _skyfall_grapple_points() -> Array:
 	# is read directly (const access through the instance).
 	if not _is_skyfall():
 		return []
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return []
 	var mid := int(game.map_id)
@@ -723,7 +723,7 @@ func _skyfall_jetpack_lines() -> Array:
 	# wins when it exists; otherwise MAPS[4] is read directly.
 	if not _is_skyfall():
 		return []
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return []
 	var mid := int(game.map_id)
@@ -795,7 +795,7 @@ func _is_on_jetpack_line() -> bool:
 	# when it exists; otherwise the MAPS lines are measured here.
 	if not _is_skyfall():
 		return false
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game != null and game.has_method("skyfall_jetpack_line_at"):
 		return bool(game.skyfall_jetpack_line_at(p.global_position))
 	return _on_jetpack_line_at(p.global_position, _skyfall_jetpack_lines())
@@ -818,7 +818,7 @@ func _release_grapple(with_boost: bool) -> void:
 
 
 func _is_skyfall() -> bool:
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null or not ("map_id" in game):
 		return false
 	return int(game.map_id) == GameData.SKYFALL_MAP_ID
@@ -832,7 +832,7 @@ func _check_stuck(delta: float) -> void:
 	if p._stuck_check_timer < PhysicsConfig.STUCK_CHECK_INTERVAL:
 		return
 	p._stuck_check_timer = 0.0
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return
 	# Query capsule is 3 px smaller than the real one (radius 17,

@@ -672,7 +672,7 @@ func _update_camera(delta: float) -> void:
 	# is a child of the player, so the dead zone is implemented with an
 	# anchor: it only moves when the player leaves a 120x80 px rect
 	# around it, and the view leads the movement direction by up to 80 px.
-	var game = p.get_tree().get_first_node_in_group("game")
+	var game = p.get_game_node()
 	if game == null:
 		return
 	if not p._cam_anchor_init:

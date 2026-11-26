@@ -288,6 +288,7 @@ var _name_label: Label
 var _hp_bg: ColorRect
 var _hp_fg: ColorRect
 var _audio # GameAudio node (set by game)
+var _game_node: Node
 var _camera: Camera2D # kept so respawn can reset smoothing (see below)
 # QA-140 (v3.15): system modules (built in _ready, each holds a
 # reference to this player node and owns no state of its own).
@@ -386,7 +387,7 @@ func _ready() -> void:
 	_reset_mag_memory() # QA-075: every weapon starts with a full mag remembered
 	_build_collision()
 	_build_sprite()
-	var game = get_tree().get_first_node_in_group("game")
+	var game = get_game_node()
 	if game != null:
 		position = game.get_valid_spawn_point(player_index, peer_id)
 		_audio = game.audio
@@ -400,7 +401,7 @@ func _ready() -> void:
 		# get auto-names like "@Camera2D@141", so get_node("Camera2D") in
 		# _respawn() could never find it and reset_smoothing() never ran.
 		_camera = cam
-		var game2 = get_tree().get_first_node_in_group("game")
+		var game2 = get_game_node()
 		if game2 != null:
 			var ms: Vector2 = game2.map_size
 			cam.limit_left = 0
@@ -431,13 +432,22 @@ func is_local_player() -> bool:
 	return get_multiplayer_authority() == multiplayer.get_unique_id()
 
 
+func get_game_node() -> Node:
+	# Player helpers run every physics frame; cache the owning game node
+	# instead of repeatedly traversing the scene tree on each peer.
+	if _game_node != null and is_instance_valid(_game_node):
+		return _game_node
+	_game_node = get_tree().get_first_node_in_group("game")
+	return _game_node
+
+
 # QA-119: true when this player is on the LOCAL player's team.
 # Only in team modes (team 0/1) - in FFA (team -1) nobody is a
 # teammate, so everyone is an enemy for the invisibility rule.
 func _is_same_team_as_local() -> bool:
 	if team < 0:
 		return false
-	var game := get_tree().get_first_node_in_group("game")
+	var game := get_game_node()
 	if game == null or not game.has_method("_get_local_player"):
 		return false
 	var lp = game._get_local_player()
@@ -716,7 +726,7 @@ func _start_reload() -> void:
 func _spawn_magazine_drop() -> void:
 	if _gun == null:
 		return
-	var game = get_tree().get_first_node_in_group("game")
+	var game = get_game_node()
 	if game == null:
 		return
 	MagazineDrop.spawn(game, _gun, weapon)
